@@ -12,8 +12,15 @@
 //  diagram. Rather than ask a local model to do the thing it is weakest at,
 //  this splits the job in two. macOS locates things exactly, via on-device
 //  text recognition and the accessibility tree. The model only has to choose
-//  which of those things to point at, which is a selection problem it handles
-//  well. The model emits `[POINT:t42]`, and the exact rectangle is looked up here.
+//  which of those things to mark, which is a selection problem it handles well.
+//
+//  It turned out to matter for more than pointing. Measured on this machine,
+//  a 4B model given only a screenshot of a binary search blamed integer
+//  overflow, a defect Python cannot have, having pattern matched the familiar
+//  Java bug. Given the same screenshot plus this listing, it found the real
+//  off-by-one. Small models misread dense code from pixels and fail
+//  confidently, so the recognised text goes into every prompt, not just the
+//  ones that end in a mark.
 //
 
 import AppKit
@@ -21,75 +28,70 @@ import ApplicationServices
 import Foundation
 import Vision
 
-/// One addressable thing on screen, carrying the exact rectangle macOS reported for it.
+/// One addressable thing on screen, carrying the exact rectangle macOS reported.
 struct ScreenTarget: Identifiable {
-    /// How this target was located, which determines how much to trust its rectangle.
+    /// How this target was located, which says how much to trust its rectangle.
     enum LocationSource {
-        /// Recognized by on-device text recognition. Rectangle is tight to the glyphs.
+        /// Recognised by on-device text recognition. Rectangle hugs the glyphs.
         case recognizedText
         /// Read from the accessibility tree. Rectangle is the control's real frame.
         case accessibilityElement
     }
 
     /// Short identifier handed to the model, for example `t42`. Stable only
-    /// within the index it was built in, because the screen changes constantly.
+    /// within the index it was built in, because the screen keeps changing.
     let id: String
 
-    /// The text the user would recognize, used by the model to pick this target.
+    /// The text a user would recognise, which is how the model picks this target.
     let displayedText: String
 
     /// Rectangle in display-local AppKit points, bottom-left origin, matching
-    /// what `OverlayWindow` expects for cursor and annotation placement.
+    /// what the overlay expects for cursor and annotation placement.
     let boundsInDisplayPoints: CGRect
 
-    /// Which connected display this target lives on.
     let displayIndex: Int
-
     let locationSource: LocationSource
 
-    /// Recognizer confidence, 0...1. Always 1 for accessibility elements,
+    /// Recogniser confidence, 0...1. Always 1 for accessibility elements,
     /// whose frames are authoritative rather than inferred.
     let confidence: Float
-
-    /// Center point for the cursor to fly to, in display-local AppKit points.
-    var centerInDisplayPoints: CGPoint {
-        CGPoint(x: boundsInDisplayPoints.midX, y: boundsInDisplayPoints.midY)
-    }
 }
 
-/// Builds and resolves `ScreenTarget` inventories for the current screen contents.
+/// Builds and resolves `ScreenTarget` inventories for the current screen.
 ///
-/// Everything here runs on-device with no network involvement, which is what
-/// lets the pointing path stay accurate without a hosted model.
+/// Main-actor isolated because the accessibility API is read against the
+/// frontmost application and the results feed SwiftUI state directly. The
+/// expensive part, text recognition, is explicitly pushed off this actor.
+@MainActor
 final class ScreenIndex {
-    /// Targets from the most recent build, keyed by identifier for tag resolution.
+    /// Targets from the most recent build, keyed for tag resolution.
     private var targetsByIdentifier: [String: ScreenTarget] = [:]
 
     /// Ordered targets from the most recent build, for prompt rendering.
     private(set) var orderedTargets: [ScreenTarget] = []
 
-    /// Upper bound on accessibility-tree traversal depth.
+    /// Upper bound on accessibility traversal depth.
     ///
     /// Browsers and Electron apps nest extremely deeply, and an unbounded walk
     /// stalls the voice loop. Twelve levels reaches real controls in practice.
     private static let maximumAccessibilityDepth = 12
 
-    /// Upper bound on indexed elements, to keep the prompt and the walk bounded.
+    /// Upper bound on indexed accessibility elements, bounding both the walk
+    /// and the prompt it feeds.
     private static let maximumAccessibilityElements = 250
 
-    /// Text shorter than this is dropped, since single stray glyphs are usually
-    /// recognizer noise rather than something a learner would ask about.
+    /// Text shorter than this is dropped, since stray single glyphs are
+    /// recogniser noise rather than something a learner would ask about.
     private static let minimumRecognizedTextLength = 2
 
     // MARK: - Building
 
     /// Rebuilds the index for one display from its screenshot.
     ///
-    /// Text recognition runs against the captured image; accessibility elements
-    /// are read live from the frontmost application. The two sources are
-    /// complementary: recognition catches rendered content such as diagrams,
-    /// PDFs and video frames that expose no accessibility information, while the
-    /// accessibility tree catches real controls whose frames are exact.
+    /// The two sources are complementary. Recognition catches rendered content
+    /// such as diagrams, PDFs and video frames that expose no accessibility
+    /// information, while the accessibility tree catches real controls whose
+    /// frames are exact rather than inferred from glyphs.
     func rebuild(
         fromScreenshot screenshotData: Data,
         displayIndex: Int,
@@ -99,13 +101,30 @@ final class ScreenIndex {
         var collectedTargets: [ScreenTarget] = []
         var nextIdentifierNumber = 1
 
-        let recognizedTextTargets = await recognizeText(
-            inScreenshot: screenshotData,
-            displayIndex: displayIndex,
-            displayBoundsInPoints: displayBoundsInPoints,
-            startingIdentifierNumber: &nextIdentifierNumber
-        )
-        collectedTargets.append(contentsOf: recognizedTextTargets)
+        let recognizedLines = await Self.performTextRecognition(onScreenshotData: screenshotData)
+
+        for recognizedLine in recognizedLines {
+            // Vision reports a normalised rectangle with a bottom-left origin,
+            // which already matches AppKit, so this is a scale with no flip.
+            let boundsInPoints = CGRect(
+                x: recognizedLine.normalizedBounds.origin.x * displayBoundsInPoints.width,
+                y: recognizedLine.normalizedBounds.origin.y * displayBoundsInPoints.height,
+                width: recognizedLine.normalizedBounds.size.width * displayBoundsInPoints.width,
+                height: recognizedLine.normalizedBounds.size.height * displayBoundsInPoints.height
+            )
+
+            collectedTargets.append(
+                ScreenTarget(
+                    id: "t\(nextIdentifierNumber)",
+                    displayedText: recognizedLine.text,
+                    boundsInDisplayPoints: boundsInPoints,
+                    displayIndex: displayIndex,
+                    locationSource: .recognizedText,
+                    confidence: recognizedLine.confidence
+                )
+            )
+            nextIdentifierNumber += 1
+        }
 
         if includeAccessibilityElements, AXIsProcessTrusted() {
             let accessibilityTargets = accessibilityTargetsForFrontmostApplication(
@@ -122,86 +141,74 @@ final class ScreenIndex {
             uniquingKeysWith: { first, _ in first }
         )
 
-        print("🗂️ ScreenIndex: \(collectedTargets.count) targets on display \(displayIndex) " +
-              "(\(recognizedTextTargets.count) recognized text)")
+        print("🗂️ ScreenIndex: \(collectedTargets.count) targets (\(recognizedLines.count) recognised text)")
     }
 
     // MARK: - On-device text recognition
 
-    /// Runs Apple's text recognizer over the screenshot and converts each
-    /// observation into a display-local rectangle.
-    private func recognizeText(
-        inScreenshot screenshotData: Data,
-        displayIndex: Int,
-        displayBoundsInPoints: CGSize,
-        startingIdentifierNumber: inout Int
-    ) async -> [ScreenTarget] {
-        guard let image = NSImage(data: screenshotData),
-              let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            print("⚠️ ScreenIndex: could not decode screenshot for text recognition")
-            return []
-        }
+    /// One line of recognised text, in normalised image coordinates.
+    private struct RecognizedLine: Sendable {
+        let text: String
+        let normalizedBounds: CGRect
+        let confidence: Float
+    }
 
-        let textRequest = VNRecognizeTextRequest()
-        // Accurate over fast: the targets here are small, and a missed code line
-        // is worse than a few hundred extra milliseconds in a study session.
-        textRequest.recognitionLevel = .accurate
-        // Language correction fights us on code and identifiers, where tokens
-        // like `nums[i]` are not words and should not be autocorrected.
-        textRequest.usesLanguageCorrection = false
+    /// Runs Apple's text recogniser off the main actor.
+    ///
+    /// `VNImageRequestHandler.perform` is synchronous and takes hundreds of
+    /// milliseconds on a full-resolution screenshot. Running it inline would
+    /// stall the overlay animation at exactly the moment the user is waiting
+    /// for an answer, so it is pushed to a detached task and only the small
+    /// Sendable result comes back.
+    private static func performTextRecognition(
+        onScreenshotData screenshotData: Data
+    ) async -> [RecognizedLine] {
+        await Task.detached(priority: .userInitiated) {
+            guard let image = NSImage(data: screenshotData),
+                  let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                print("⚠️ ScreenIndex: could not decode screenshot for recognition")
+                return []
+            }
 
-        let requestHandler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            let textRequest = VNRecognizeTextRequest()
+            // Accurate over fast: targets here are small, and a missed code
+            // line costs more than a few hundred milliseconds in a study session.
+            textRequest.recognitionLevel = .accurate
+            // Language correction fights us on code, where tokens such as
+            // `nums[i]` are not words and must not be autocorrected.
+            textRequest.usesLanguageCorrection = false
 
-        do {
-            try requestHandler.perform([textRequest])
-        } catch {
-            print("⚠️ ScreenIndex: text recognition failed: \(error.localizedDescription)")
-            return []
-        }
+            do {
+                try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([textRequest])
+            } catch {
+                print("⚠️ ScreenIndex: text recognition failed: \(error.localizedDescription)")
+                return []
+            }
 
-        guard let observations = textRequest.results else { return [] }
+            guard let observations = textRequest.results else { return [] }
 
-        var recognizedTargets: [ScreenTarget] = []
+            return observations.compactMap { observation -> RecognizedLine? in
+                guard let bestCandidate = observation.topCandidates(1).first else { return nil }
 
-        for observation in observations {
-            guard let bestCandidate = observation.topCandidates(1).first else { continue }
+                let recognizedString = bestCandidate.string
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard recognizedString.count >= minimumRecognizedTextLength else { return nil }
 
-            let recognizedString = bestCandidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard recognizedString.count >= Self.minimumRecognizedTextLength else { continue }
-
-            // Vision reports a normalized rectangle with a bottom-left origin,
-            // which already matches AppKit's convention, so this is a straight
-            // scale up to display points with no vertical flip.
-            let normalizedBounds = observation.boundingBox
-            let boundsInPoints = CGRect(
-                x: normalizedBounds.origin.x * displayBoundsInPoints.width,
-                y: normalizedBounds.origin.y * displayBoundsInPoints.height,
-                width: normalizedBounds.size.width * displayBoundsInPoints.width,
-                height: normalizedBounds.size.height * displayBoundsInPoints.height
-            )
-
-            recognizedTargets.append(
-                ScreenTarget(
-                    id: "t\(startingIdentifierNumber)",
-                    displayedText: recognizedString,
-                    boundsInDisplayPoints: boundsInPoints,
-                    displayIndex: displayIndex,
-                    locationSource: .recognizedText,
+                return RecognizedLine(
+                    text: recognizedString,
+                    normalizedBounds: observation.boundingBox,
                     confidence: bestCandidate.confidence
                 )
-            )
-            startingIdentifierNumber += 1
-        }
-
-        return recognizedTargets
+            }
+        }.value
     }
 
     // MARK: - Accessibility tree
 
-    /// Walks the frontmost application's accessibility tree for labeled controls.
+    /// Walks the frontmost application's accessibility tree for labelled controls.
     ///
-    /// Requires Accessibility permission. Without it this returns nothing and the
-    /// index falls back to recognized text alone, which still covers study content.
+    /// Requires Accessibility permission. Without it this returns nothing and
+    /// the index falls back to recognised text, which still covers study content.
     private func accessibilityTargetsForFrontmostApplication(
         displayIndex: Int,
         displayBoundsInPoints: CGSize,
@@ -239,8 +246,8 @@ final class ScreenIndex {
 
         if let label = accessibilityLabel(for: element),
            let frameInGlobalPoints = accessibilityFrame(for: element) {
-            // Zero-sized and absurdly large frames are container artifacts
-            // rather than things a learner can be pointed at.
+            // Zero-sized and full-window frames are container artifacts rather
+            // than things a learner can usefully be shown.
             let isPointableSize = frameInGlobalPoints.width >= 8
                 && frameInGlobalPoints.height >= 8
                 && frameInGlobalPoints.width <= displayBoundsInPoints.width
@@ -304,8 +311,8 @@ final class ScreenIndex {
             guard let stringValue = attributeValue as? String else { continue }
 
             let trimmedValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Long values are document bodies rather than labels, and would
-            // swamp the prompt. Recognized text already covers that content.
+            // Long values are document bodies rather than labels and would
+            // swamp the prompt. Recognised text already covers that content.
             if trimmedValue.count >= 2 && trimmedValue.count <= 120 {
                 return trimmedValue
             }
@@ -335,9 +342,20 @@ final class ScreenIndex {
         var elementOrigin = CGPoint.zero
         var elementSize = CGSize.zero
 
-        guard let positionAXValue = positionValue as? AXValue,
-              let sizeAXValue = sizeValue as? AXValue,
-              AXValueGetValue(positionAXValue, .cgPoint, &elementOrigin),
+        // A conditional cast to a CoreFoundation type always succeeds, so the
+        // type has to be verified by its CFTypeID before the cast. An element
+        // can legitimately return a non-AXValue here, and force-casting that
+        // without the check would crash rather than skip the element.
+        guard let positionValue, let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        let positionAXValue = positionValue as! AXValue
+        let sizeAXValue = sizeValue as! AXValue
+
+        guard AXValueGetValue(positionAXValue, .cgPoint, &elementOrigin),
               AXValueGetValue(sizeAXValue, .cgSize, &elementSize) else {
             return nil
         }
@@ -364,31 +382,30 @@ final class ScreenIndex {
 
     /// Renders the index as a compact listing for the model's prompt.
     ///
-    /// Kept terse on purpose: this rides along with a screenshot on every turn,
-    /// and a 16 GB machine cannot spare context on pretty formatting.
+    /// Terse on purpose: this rides along with a screenshot on every turn, and
+    /// a 16 GB machine cannot spare context on formatting.
     func renderForPrompt(maximumTargets: Int = 120) -> String {
         guard !orderedTargets.isEmpty else {
-            return "No addressable screen targets were detected."
+            return "(no text could be read from the screen)"
         }
 
-        // Highest-confidence first, so truncation drops the least reliable
-        // entries rather than whatever happened to be recognized last.
+        // Highest confidence first, so truncation drops the least reliable
+        // entries rather than whatever happened to be recognised last.
         let targetsForPrompt = orderedTargets
             .sorted { firstTarget, secondTarget in
                 firstTarget.confidence > secondTarget.confidence
             }
             .prefix(maximumTargets)
 
-        let renderedLines = targetsForPrompt.map { target in
+        return targetsForPrompt.map { target in
             // Collapse newlines so one target stays on one line and the
-            // listing cannot be confused for free-form text.
+            // listing cannot be mistaken for free-form text.
             let singleLineText = target.displayedText
                 .replacingOccurrences(of: "\n", with: " ")
                 .replacingOccurrences(of: "\r", with: " ")
             return "\(target.id): \(singleLineText)"
         }
-
-        return renderedLines.joined(separator: "\n")
+        .joined(separator: "\n")
     }
 
     /// Resolves an identifier the model emitted back to its exact rectangle.

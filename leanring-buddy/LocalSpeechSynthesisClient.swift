@@ -182,7 +182,7 @@ extension LocalSpeechSynthesisClient: AVSpeechSynthesizerDelegate {
 
 // MARK: - Logging helpers
 
-private extension AVSpeechSynthesisVoice.Quality {
+private extension AVSpeechSynthesisVoiceQuality {
     /// Human-readable quality name, for the startup log line only.
     var debugDescriptionForLogging: String {
         switch self {

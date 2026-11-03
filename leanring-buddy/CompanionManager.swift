@@ -10,7 +10,6 @@
 import AVFoundation
 import Combine
 import Foundation
-import PostHog
 import ScreenCaptureKit
 import SwiftUI
 
@@ -68,17 +67,30 @@ final class CompanionManager: ObservableObject {
     // Response text is now displayed inline on the cursor overlay via
     // streamingResponseText, so no separate response overlay manager is needed.
 
-    /// Base URL for the Cloudflare Worker proxy. All API requests route
-    /// through this so keys never ship in the app binary.
-    private static let workerBaseURL = "https://your-worker-name.your-subdomain.workers.dev"
-
-    private lazy var claudeAPI: ClaudeAPI = {
-        return ClaudeAPI(proxyURL: "\(Self.workerBaseURL)/chat", model: selectedModel)
+    /// Local inference server. No proxy and no API keys, because nothing
+    /// leaves the machine: screen contents during a study session are about
+    /// as private as data gets.
+    private lazy var tutorBrain: OllamaVisionProvider = {
+        return OllamaVisionProvider(model: selectedModel)
     }()
 
-    private lazy var elevenLabsTTSClient: ElevenLabsTTSClient = {
-        return ElevenLabsTTSClient(proxyURL: "\(Self.workerBaseURL)/tts")
-    }()
+    private lazy var speechClient = LocalSpeechSynthesisClient()
+
+    /// Inventory of what is addressable on screen for the current turn.
+    ///
+    /// Rebuilt per question rather than cached, because the screen has usually
+    /// changed between one question and the next.
+    private let screenIndex = ScreenIndex()
+
+    /// Marks currently drawn on screen.
+    @Published private(set) var activeAnnotations: [TeacherAnnotation] = []
+
+    /// Regions kept lit while the rest of the screen dims. Empty means no spotlight.
+    @Published private(set) var spotlightRectsInGlobalPoints: [CGRect] = []
+
+    /// Whether the local model server was reachable at last check, so the
+    /// panel can say "start Ollama" instead of failing mid-question.
+    @Published private(set) var isLocalModelReachable = true
 
     /// Conversation history so Claude remembers prior exchanges within a session.
     /// Each entry is the user's transcript and Claude's response.
@@ -107,13 +119,20 @@ final class CompanionManager: ObservableObject {
     /// Used by the panel to show accurate status text ("Active" vs "Ready").
     @Published private(set) var isOverlayVisible: Bool = false
 
-    /// The Claude model used for voice responses. Persisted to UserDefaults.
-    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedClaudeModel") ?? "claude-sonnet-4-6"
+    /// Local model used for voice responses. Persisted to UserDefaults.
+    ///
+    /// Defaults to the 4B after measuring all three candidates on this class of
+    /// machine. It is the only one that generates faster than speech plays back,
+    /// which is what keeps the voice loop from stalling mid-sentence, and the
+    /// only one that stays resident on 16 GB without forcing the system to swap.
+    /// See docs/model-choice.md for the numbers.
+    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedLocalModel") ?? "qwen3.5:4b"
 
     func setSelectedModel(_ model: String) {
         selectedModel = model
-        UserDefaults.standard.set(model, forKey: "selectedClaudeModel")
-        claudeAPI.model = model
+        UserDefaults.standard.set(model, forKey: "selectedLocalModel")
+        tutorBrain.model = model
+        Task { await tutorBrain.preloadModel() }
     }
 
     /// User preference for whether the Clicky cursor should be shown.
@@ -149,27 +168,18 @@ final class CompanionManager: ObservableObject {
     /// Whether the user has submitted their email during onboarding.
     @Published var hasSubmittedEmail: Bool = UserDefaults.standard.bool(forKey: "hasSubmittedEmail")
 
-    /// Submits the user's email to FormSpark and identifies them in PostHog.
+    /// Records that onboarding's email step is done.
+    ///
+    /// Upstream sent the address to a form service and identified the user in
+    /// analytics. Both are removed here: a tutor that reads your screen has no
+    /// business transmitting anything, so this only flips the local flag that
+    /// stops onboarding asking again.
     func submitEmail(_ email: String) {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEmail.isEmpty else { return }
 
         hasSubmittedEmail = true
         UserDefaults.standard.set(true, forKey: "hasSubmittedEmail")
-
-        // Identify user in PostHog
-        PostHogSDK.shared.identify(trimmedEmail, userProperties: [
-            "email": trimmedEmail
-        ])
-
-        // Submit to FormSpark
-        Task {
-            var request = URLRequest(url: URL(string: "https://submit-form.com/RWbGJxmIs")!)
-            request.httpMethod = "POST"
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try? JSONSerialization.data(withJSONObject: ["email": trimmedEmail])
-            _ = try? await URLSession.shared.data(for: request)
-        }
     }
 
     func start() {
@@ -179,9 +189,33 @@ final class CompanionManager: ObservableObject {
         bindVoiceStateObservation()
         bindAudioPowerLevel()
         bindShortcutTransitions()
-        // Eagerly touch the Claude API so its TLS warmup handshake completes
-        // well before the onboarding demo fires at ~40s into the video.
-        _ = claudeAPI
+        // Load the weights now rather than on the first question. A cold load
+        // costs around ten seconds, which would otherwise land entirely inside
+        // the user's first interaction and read as the app being broken.
+        Task {
+            let (isReachable, installedModels) = await tutorBrain.probeServer()
+            isLocalModelReachable = isReachable
+
+            guard isReachable else {
+                print("⚠️ Ollama unreachable. Start it with: brew services start ollama")
+                return
+            }
+
+            // Fall back to any installed vision model rather than failing
+            // outright, since a missing pull is a likelier setup mistake than
+            // a missing server.
+            if !installedModels.contains(where: { $0.hasPrefix(selectedModel) }) {
+                print("⚠️ Model \(selectedModel) not installed. Available: \(installedModels.joined(separator: ", "))")
+                if let firstAvailable = installedModels.first {
+                    selectedModel = firstAvailable
+                    tutorBrain.model = firstAvailable
+                    print("🦙 Falling back to \(firstAvailable)")
+                }
+            }
+
+            await tutorBrain.preloadModel()
+            print("🦙 Local tutor ready: \(selectedModel)")
+        }
 
         // If the user already completed onboarding AND all permissions are
         // still granted, show the cursor overlay immediately. If permissions
@@ -493,8 +527,9 @@ final class CompanionManager: ObservableObject {
 
             // Cancel any in-progress response and TTS from a previous utterance
             currentResponseTask?.cancel()
-            elevenLabsTTSClient.stopPlayback()
+            cancelSpeechAndClearQueue()
             clearDetectedElementLocation()
+            clearAnnotations()
 
             // Dismiss the onboarding prompt if it's showing
             if showOnboardingPrompt {
@@ -521,7 +556,7 @@ final class CompanionManager: ObservableObject {
                         self?.lastTranscript = finalTranscript
                         print("🗣️ Companion received transcript: \(finalTranscript)")
                         ClickyAnalytics.trackUserMessageSent(transcript: finalTranscript)
-                        self?.sendTranscriptToClaudeWithScreenshot(transcript: finalTranscript)
+                        self?.sendTranscriptToTutorWithScreenshot(transcript: finalTranscript)
                     }
                 )
             }
@@ -541,285 +576,422 @@ final class CompanionManager: ObservableObject {
 
     // MARK: - Companion Prompt
 
-    private static let companionVoiceResponseSystemPrompt = """
-    you're clicky, a friendly always-on companion that lives in the user's menu bar. the user just spoke to you via push-to-talk and you can see their screen(s). your reply will be spoken aloud via text-to-speech, so write the way you'd actually talk. this is an ongoing conversation — you remember everything they've said before.
+    /// Builds the system prompt, injecting the screen inventory for this turn.
+    ///
+    /// Written short and example-heavy on purpose. A 4B model follows a compact
+    /// prompt with concrete samples far more reliably than a long discursive
+    /// one, and the measured failure mode was format drift (`[t23]` instead of
+    /// `[POINT:t23]`), not misunderstanding the task.
+    private static func tutorSystemPrompt(screenIndexListing: String) -> String {
+        """
+        you are a live tutor sitting beside the user, looking at their screen. they just spoke to you. your reply is spoken aloud, so write the way you talk. this is an ongoing conversation and you remember what came before.
 
-    rules:
-    - default to one or two sentences. be direct and dense. BUT if the user asks you to explain more, go deeper, or elaborate, then go all out — give a thorough, detailed explanation with no length limit.
-    - all lowercase, casual, warm. no emojis.
-    - write for the ear, not the eye. short sentences. no lists, bullet points, markdown, or formatting — just natural speech.
-    - don't use abbreviations or symbols that sound weird read aloud. write "for example" not "e.g.", spell out small numbers.
-    - if the user's question relates to what's on their screen, reference specific things you see.
-    - if the screenshot doesn't seem relevant to their question, just answer the question directly.
-    - you can help with anything — coding, writing, general knowledge, brainstorming.
-    - never say "simply" or "just".
-    - don't read out code verbatim. describe what the code does or what needs to change conversationally.
-    - focus on giving a thorough, useful explanation. don't end with simple yes/no questions like "want me to explain more?" or "should i show you?" — those are dead ends that force the user to just say yes.
-    - instead, when it fits naturally, end by planting a seed — mention something bigger or more ambitious they could try, a related concept that goes deeper, or a next-level technique that builds on what you just explained. make it something worth coming back for, not a question they'd just nod to. it's okay to not end with anything extra if the answer is complete on its own.
-    - if you receive multiple screen images, the one labeled "primary focus" is where the cursor is — prioritize that one but reference others if relevant.
+        WHAT IS ON SCREEN
+        below is an exact machine-read inventory of the screen. each line is an id and the text at that location. the coordinates behind these ids are precise, yours would not be.
 
-    element pointing:
-    you have a small blue triangle cursor that can fly to and point at things on screen. use it whenever pointing would genuinely help the user — if they're asking how to do something, looking for a menu, trying to find a button, or need help navigating an app, point at the relevant element. err on the side of pointing rather than not pointing, because it makes your help way more useful and concrete.
+        \(screenIndexListing)
 
-    don't point at things when it would be pointless — like if the user asks a general knowledge question, or the conversation has nothing to do with what's on screen, or you'd just be pointing at something obvious they're already looking at. but if there's a specific UI element, menu, button, or area on screen that's relevant to what you're helping with, point at it.
+        read this listing to know what the screen actually says. trust it over your own reading of the image, especially for code, numbers and identifiers. the image shows you layout, colour and diagrams. the listing shows you text.
 
-    when you point, append a coordinate tag at the very end of your response, AFTER your spoken text. the screenshot images are labeled with their pixel dimensions. use those dimensions as the coordinate space. the origin (0,0) is the top-left corner of the image. x increases rightward, y increases downward.
+        HOW TO MARK UP THE SCREEN
+        you draw on the screen while you talk. put a tag inline exactly where you mention the thing, not bunched at the end. the mark appears as you say that word.
 
-    format: [POINT:x,y:label] where x,y are integer pixel coordinates in the screenshot's coordinate space, and label is a short 1-3 word description of the element (like "search bar" or "save button"). if the element is on the cursor's screen you can omit the screen number. if the element is on a DIFFERENT screen, append :screenN where N is the screen number from the image label (e.g. :screen2). this is important — without the screen number, the cursor will point at the wrong place.
+        [POINT:id]        point at it
+        [CIRCLE:id]       circle it
+        [BOX:id]          box a region or diagram node
+        [UNDERLINE:id]    underline a line of code or phrase
+        [HIGHLIGHT:id]    highlight text you are reading out
+        [STRIKE:id]       cross out something wrong
+        [ARROW:id->id]    show flow or cause between two things
+        [STEP:id:1]       number an ordered sequence
+        [LABEL:id:text]   attach a short note, four words max
+        [SPOTLIGHT:id,id] dim everything except these
+        [CLEAR]           wipe all marks
 
-    if pointing wouldn't help, append [POINT:none].
+        rules for marking:
+        - use ids from the listing above. never invent an id. never write raw coordinates.
+        - the full tag is required. write [POINT:t23], never [t23] and never t23 on its own.
+        - the screen is dense, so mark things. a bare explanation with no marks is a worse answer.
+        - [SPOTLIGHT:...] is your best tool when the screen is busy. use it when you want their eyes on two or three things and nothing else.
+        - open with [CLEAR] when you start explaining something new.
+        - two to five marks in a reply is right. twenty is noise.
 
-    examples:
-    - user asks how to color grade in final cut: "you'll want to open the color inspector — it's right up in the top right area of the toolbar. click that and you'll get all the color wheels and curves. [POINT:1100,42:color inspector]"
-    - user asks what html is: "html stands for hypertext markup language, it's basically the skeleton of every web page. curious how it connects to the css you're looking at? [POINT:none]"
-    - user asks how to commit in xcode: "see that source control menu up top? click that and hit commit, or you can use command option c as a shortcut. [POINT:285,11:source control]"
-    - element is on screen 2 (not where cursor is): "that's over on your other monitor — see the terminal window? [POINT:400,300:terminal:screen2]"
-    """
+        examples:
+        - "the bug is here [CIRCLE:t23], you set high to the length [UNDERLINE:t23] but the last index is one less."
+        - "requests come in here [STEP:t11:1] then hit the balancer [STEP:t12:2] then the cache [STEP:t14:3]."
+        - "[CLEAR] forget the rest for a second [SPOTLIGHT:t26,t31]. these two lines are the whole loop."
+        - "that cache [BOX:t14] absorbs most reads, so the database [ARROW:t14->t15] only sees misses."
+        - "this is the wrong complexity [STRIKE:t57], it is actually log n [LABEL:t57:O(log n)]."
 
-    // MARK: - AI Response Pipeline
+        HOW TO TALK
+        - your words are spoken aloud. write for the ear. short sentences, no markdown, no bullet points, no symbols that sound strange read out. say "big o of n log n", not "O(n log n)".
+        - all lowercase, warm, direct. no emojis.
+        - two to four sentences by default. if they ask you to go deeper, drop the limit and teach it properly.
+        - never say "simply" or "just". nothing here is simple to someone learning it.
+        - do not read code out line by line. say what it does and where it breaks.
 
-    /// Captures a screenshot, sends it along with the transcript to Claude,
-    /// and plays the response aloud via ElevenLabs TTS. The cursor stays in
-    /// the spinner/processing state until TTS audio begins playing.
-    /// Claude's response may include a [POINT:x,y:label] tag which triggers
-    /// the buddy to fly to that element on screen.
-    private func sendTranscriptToClaudeWithScreenshot(transcript: String) {
+        HOW TO TEACH
+        - answer from what is actually on their screen, not from the textbook version of the question. if the listing shows their code says one thing, address that, not the canonical example you remember.
+        - when something is wrong, say what breaks and under which input. a concrete failing case teaches more than a label.
+        - if they are missing the idea underneath the question, say that too. the misunderstanding is usually one level below what they asked.
+        - when you are not sure, say so plainly and say what would settle it.
+        - end by opening a door: a related idea worth chasing, a harder case their approach would not survive. do not end on a yes or no question.
+
+        if the question has nothing to do with the screen, answer it directly and mark nothing.
+        if several screens are sent, the one labelled primary focus holds the cursor. prefer it.
+        """
+    }
+
+    // MARK: - Tutor Response Pipeline
+
+    /// How much of the streamed response has already been handed to speech.
+    private var streamedCharactersAlreadyQueued = 0
+
+    /// Complete sentences waiting to be spoken, in order.
+    private var pendingSpeechSegments: [ParsedTeacherResponse] = []
+
+    /// Consumer draining `pendingSpeechSegments`, nil when nothing is speaking.
+    private var speechConsumerTask: Task<Void, Never>?
+
+    /// The display the current answer is marking up.
+    private var displayFrameForCurrentAnswer: CGRect = .zero
+
+    /// Captures the screen, indexes it, asks the local model, and narrates the
+    /// answer while drawing on screen.
+    ///
+    /// Speech starts on the first complete sentence rather than waiting for the
+    /// whole answer. That matters more than raw speed: the model generates
+    /// roughly two and a half times faster than speech plays back, so once the
+    /// first sentence is out the voice never catches up to the generator, and
+    /// the only latency the user perceives is time-to-first-sentence.
+    private func sendTranscriptToTutorWithScreenshot(transcript: String) {
         currentResponseTask?.cancel()
-        elevenLabsTTSClient.stopPlayback()
+        cancelSpeechAndClearQueue()
 
         currentResponseTask = Task {
-            // Stay in processing (spinner) state — no streaming text displayed
             voiceState = .processing
+            clearAnnotations()
 
             do {
-                // Capture all connected screens so the AI has full context
                 let screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
+                guard !Task.isCancelled, !screenCaptures.isEmpty else { return }
 
+                // Index only the screen holding the cursor. Indexing every
+                // display would multiply the prompt for context the user is
+                // almost certainly not looking at.
+                let primaryCapture = screenCaptures.first(where: { capture in capture.isCursorScreen })
+                    ?? screenCaptures[0]
+                displayFrameForCurrentAnswer = primaryCapture.displayFrame
+
+                await screenIndex.rebuild(
+                    fromScreenshot: primaryCapture.imageData,
+                    displayIndex: 0,
+                    displayBoundsInPoints: CGSize(
+                        width: primaryCapture.displayWidthInPoints,
+                        height: primaryCapture.displayHeightInPoints
+                    )
+                )
                 guard !Task.isCancelled else { return }
 
-                // Build image labels with the actual screenshot pixel dimensions
-                // so Claude's coordinate space matches the image it sees. We
-                // scale from screenshot pixels to display points ourselves.
                 let labeledImages = screenCaptures.map { capture in
                     let dimensionInfo = " (image dimensions: \(capture.screenshotWidthInPixels)x\(capture.screenshotHeightInPixels) pixels)"
                     return (data: capture.imageData, label: capture.label + dimensionInfo)
                 }
 
-                // Pass conversation history so Claude remembers prior exchanges
-                let historyForAPI = conversationHistory.map { entry in
+                let historyForModel = conversationHistory.map { entry in
                     (userPlaceholder: entry.userTranscript, assistantResponse: entry.assistantResponse)
                 }
 
-                let (fullResponseText, _) = try await claudeAPI.analyzeImageStreaming(
+                streamedCharactersAlreadyQueued = 0
+
+                let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
                     images: labeledImages,
-                    systemPrompt: Self.companionVoiceResponseSystemPrompt,
-                    conversationHistory: historyForAPI,
+                    systemPrompt: Self.tutorSystemPrompt(
+                        screenIndexListing: screenIndex.renderForPrompt()
+                    ),
+                    conversationHistory: historyForModel,
                     userPrompt: transcript,
-                    onTextChunk: { _ in
-                        // No streaming text display — spinner stays until TTS plays
+                    onTextChunk: { [weak self] accumulatedText in
+                        self?.enqueueCompletedSentences(fromStreamedText: accumulatedText)
                     }
                 )
 
                 guard !Task.isCancelled else { return }
 
-                // Parse the [POINT:...] tag from Claude's response
-                let parseResult = Self.parsePointingCoordinates(from: fullResponseText)
-                let spokenText = parseResult.spokenText
+                // Flush whatever trailed the final sentence terminator, which
+                // the streaming path deliberately held back.
+                enqueueRemainder(ofStreamedText: fullResponseText)
 
-                // Handle element pointing if Claude returned coordinates.
-                // Switch to idle BEFORE setting the location so the triangle
-                // becomes visible and can fly to the target. Without this, the
-                // spinner hides the triangle and the flight animation is invisible.
-                let hasPointCoordinate = parseResult.coordinate != nil
-                if hasPointCoordinate {
-                    voiceState = .idle
-                }
-
-                // Pick the screen capture matching Claude's screen number,
-                // falling back to the cursor screen if not specified.
-                let targetScreenCapture: CompanionScreenCapture? = {
-                    if let screenNumber = parseResult.screenNumber,
-                       screenNumber >= 1 && screenNumber <= screenCaptures.count {
-                        return screenCaptures[screenNumber - 1]
-                    }
-                    return screenCaptures.first(where: { $0.isCursorScreen })
-                }()
-
-                if let pointCoordinate = parseResult.coordinate,
-                   let targetScreenCapture {
-                    // Claude's coordinates are in the screenshot's pixel space
-                    // (top-left origin, e.g. 1280x831). Scale to the display's
-                    // point space (e.g. 1512x982), then convert to AppKit global coords.
-                    let screenshotWidth = CGFloat(targetScreenCapture.screenshotWidthInPixels)
-                    let screenshotHeight = CGFloat(targetScreenCapture.screenshotHeightInPixels)
-                    let displayWidth = CGFloat(targetScreenCapture.displayWidthInPoints)
-                    let displayHeight = CGFloat(targetScreenCapture.displayHeightInPoints)
-                    let displayFrame = targetScreenCapture.displayFrame
-
-                    // Clamp to screenshot coordinate space
-                    let clampedX = max(0, min(pointCoordinate.x, screenshotWidth))
-                    let clampedY = max(0, min(pointCoordinate.y, screenshotHeight))
-
-                    // Scale from screenshot pixels to display points
-                    let displayLocalX = clampedX * (displayWidth / screenshotWidth)
-                    let displayLocalY = clampedY * (displayHeight / screenshotHeight)
-
-                    // Convert from top-left origin (screenshot) to bottom-left origin (AppKit)
-                    let appKitY = displayHeight - displayLocalY
-
-                    // Convert display-local coords to global screen coords
-                    let globalLocation = CGPoint(
-                        x: displayLocalX + displayFrame.origin.x,
-                        y: appKitY + displayFrame.origin.y
-                    )
-
-                    detectedElementScreenLocation = globalLocation
-                    detectedElementDisplayFrame = displayFrame
-                    ClickyAnalytics.trackElementPointed(elementLabel: parseResult.elementLabel)
-                    print("🎯 Element pointing: (\(Int(pointCoordinate.x)), \(Int(pointCoordinate.y))) → \"\(parseResult.elementLabel ?? "element")\"")
-                } else {
-                    print("🎯 Element pointing: \(parseResult.elementLabel ?? "no element")")
-                }
-
-                // Save this exchange to conversation history (with the point tag
-                // stripped so it doesn't confuse future context)
+                let spokenOnlyText = TeacherResponseParser.parse(rawResponse: fullResponseText).spokenText
                 conversationHistory.append((
                     userTranscript: transcript,
-                    assistantResponse: spokenText
+                    assistantResponse: spokenOnlyText
                 ))
-
-                // Keep only the last 10 exchanges to avoid unbounded context growth
                 if conversationHistory.count > 10 {
                     conversationHistory.removeFirst(conversationHistory.count - 10)
                 }
 
-                print("🧠 Conversation history: \(conversationHistory.count) exchanges")
+                print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
 
-                ClickyAnalytics.trackAIResponseReceived(response: spokenText)
-
-                // Play the response via TTS. Keep the spinner (processing state)
-                // until the audio actually starts playing, then switch to responding.
-                if !spokenText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    do {
-                        try await elevenLabsTTSClient.speakText(spokenText)
-                        // speakText returns after player.play() — audio is now playing
-                        voiceState = .responding
-                    } catch {
-                        ClickyAnalytics.trackTTSError(error: error.localizedDescription)
-                        print("⚠️ ElevenLabs TTS error: \(error)")
-                        speakCreditsErrorFallback()
-                    }
-                }
             } catch is CancellationError {
-                // User spoke again — response was interrupted
+                // User spoke again; the previous answer was abandoned on purpose.
             } catch {
-                ClickyAnalytics.trackResponseError(error: error.localizedDescription)
-                print("⚠️ Companion response error: \(error)")
-                speakCreditsErrorFallback()
+                print("⚠️ Tutor response error: \(error.localizedDescription)")
+                await speakLocalErrorFallback(for: error)
             }
 
             if !Task.isCancelled {
+                // Hold .responding while speech drains, so the overlay does not
+                // drop back to idle while the tutor is still talking.
+                while speechConsumerTask != nil || speechClient.isPlaying {
+                    try? await Task.sleep(nanoseconds: 150_000_000)
+                    if Task.isCancelled { break }
+                }
                 voiceState = .idle
                 scheduleTransientHideIfNeeded()
             }
         }
     }
 
-    /// If the cursor is in transient mode (user toggled "Show Clicky" off),
-    /// waits for TTS playback and any pointing animation to finish, then
-    /// fades out the overlay after a 1-second pause. Cancelled automatically
-    /// if the user starts another push-to-talk interaction.
+    // MARK: - Progressive speech
+
+    /// Pulls any newly completed sentences out of the stream and queues them.
+    private func enqueueCompletedSentences(fromStreamedText streamedText: String) {
+        guard let chunk = TeacherResponseParser.nextSpeakableChunk(
+            fromStreamedText: streamedText,
+            alreadySpokenCharacterCount: streamedCharactersAlreadyQueued
+        ) else { return }
+
+        streamedCharactersAlreadyQueued += chunk.count
+        enqueueParsedSegment(TeacherResponseParser.parse(rawResponse: chunk))
+    }
+
+    /// Queues the tail that followed the last sentence terminator.
+    private func enqueueRemainder(ofStreamedText fullText: String) {
+        guard streamedCharactersAlreadyQueued < fullText.count else { return }
+
+        let startIndex = fullText.index(fullText.startIndex, offsetBy: streamedCharactersAlreadyQueued)
+        let remainder = String(fullText[startIndex...])
+        streamedCharactersAlreadyQueued = fullText.count
+
+        guard !remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        enqueueParsedSegment(TeacherResponseParser.parse(rawResponse: remainder))
+    }
+
+    private func enqueueParsedSegment(_ segment: ParsedTeacherResponse) {
+        // A segment that was nothing but tags still carries marks worth drawing.
+        guard !segment.spokenText.isEmpty || !segment.directives.isEmpty else { return }
+
+        pendingSpeechSegments.append(segment)
+        startSpeechConsumerIfIdle()
+    }
+
+    private func startSpeechConsumerIfIdle() {
+        guard speechConsumerTask == nil else { return }
+
+        speechConsumerTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !self.pendingSpeechSegments.isEmpty {
+                guard !Task.isCancelled else { break }
+
+                let segment = self.pendingSpeechSegments.removeFirst()
+
+                if self.voiceState != .responding {
+                    self.voiceState = .responding
+                }
+
+                // Directives fire as speech reaches the word they were attached
+                // to, so a circle lands on the phrase describing it.
+                var undispatchedDirectives = segment.directives
+                self.speechClient.onWillSpeakRange = { [weak self] spokenRange, _ in
+                    guard let self else { return }
+                    let spokenUpTo = spokenRange.location + spokenRange.length
+
+                    while let next = undispatchedDirectives.first,
+                          next.characterOffsetInSpokenText <= spokenUpTo {
+                        undispatchedDirectives.removeFirst()
+                        self.apply(directive: next)
+                    }
+                }
+
+                if segment.spokenText.isEmpty {
+                    // Nothing to say, so the marks land immediately.
+                    for directive in undispatchedDirectives { self.apply(directive: directive) }
+                } else {
+                    try? await self.speechClient.speakText(segment.spokenText)
+                    // Anything the word callback never reached, because speech
+                    // was cut short or the tag sat past the final word.
+                    for directive in undispatchedDirectives { self.apply(directive: directive) }
+                }
+
+                self.speechClient.onWillSpeakRange = nil
+            }
+
+            self.speechConsumerTask = nil
+        }
+    }
+
+    private func cancelSpeechAndClearQueue() {
+        speechConsumerTask?.cancel()
+        speechConsumerTask = nil
+        pendingSpeechSegments.removeAll()
+        streamedCharactersAlreadyQueued = 0
+        speechClient.onWillSpeakRange = nil
+        speechClient.stopPlayback()
+    }
+
+    // MARK: - Drawing on screen
+
+    /// Turns one directive into a mark, resolving its target to an exact rectangle.
+    private func apply(directive: TeacherDirective) {
+        let displayFrame = displayFrameForCurrentAnswer
+
+        /// Converts a display-local rectangle into global AppKit points.
+        func globalRect(for target: ScreenTarget) -> CGRect {
+            CGRect(
+                x: target.boundsInDisplayPoints.origin.x + displayFrame.origin.x,
+                y: target.boundsInDisplayPoints.origin.y + displayFrame.origin.y,
+                width: target.boundsInDisplayPoints.width,
+                height: target.boundsInDisplayPoints.height
+            )
+        }
+
+        func resolve(_ identifier: String) -> CGRect? {
+            guard let target = screenIndex.target(forIdentifier: identifier) else {
+                // An invented id is a prompt-following failure worth seeing
+                // rather than a mark silently going missing.
+                print("⚠️ Tutor referenced unknown target \(identifier)")
+                return nil
+            }
+            return globalRect(for: target)
+        }
+
+        switch directive.action {
+        case .clearAll:
+            clearAnnotations()
+
+        case .point(let identifier):
+            guard let rect = resolve(identifier) else { return }
+            detectedElementScreenLocation = CGPoint(x: rect.midX, y: rect.midY)
+            detectedElementDisplayFrame = displayFrame
+
+        case .pointAtCoordinate(let x, let y, _, _):
+            // Coordinates arrive in the screenshot's top-left space; the
+            // overlay works in AppKit's bottom-left space.
+            let flippedY = displayFrame.height - y
+            detectedElementScreenLocation = CGPoint(
+                x: x + displayFrame.origin.x,
+                y: flippedY + displayFrame.origin.y
+            )
+            detectedElementDisplayFrame = displayFrame
+
+        case .circle(let identifier):
+            appendAnnotation(style: .circle, identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .box(let identifier):
+            appendAnnotation(style: .box, identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .underline(let identifier):
+            appendAnnotation(style: .underline, identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .highlight(let identifier):
+            appendAnnotation(style: .highlight, identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .strikethrough(let identifier):
+            appendAnnotation(style: .strikethrough, identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .step(let identifier, let stepNumber):
+            appendAnnotation(style: .step(number: stepNumber), identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+        case .callout(let identifier, let text):
+            appendAnnotation(style: .callout(text: text), identifier: identifier, resolve: resolve, displayFrame: displayFrame)
+
+        case .arrow(let fromIdentifier, let toIdentifier):
+            guard let fromRect = resolve(fromIdentifier),
+                  let toRect = resolve(toIdentifier) else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                activeAnnotations.append(
+                    TeacherAnnotation(
+                        style: .arrow(destinationRectInGlobalPoints: toRect),
+                        rectInGlobalPoints: fromRect,
+                        displayFrame: displayFrame
+                    )
+                )
+            }
+
+        case .spotlight(let identifiers):
+            let litRects = identifiers.compactMap(resolve)
+            guard !litRects.isEmpty else { return }
+            withAnimation(.easeOut(duration: 0.3)) {
+                spotlightRectsInGlobalPoints = litRects
+            }
+        }
+    }
+
+    private func appendAnnotation(
+        style: TeacherAnnotation.Style,
+        identifier: String,
+        resolve: (String) -> CGRect?,
+        displayFrame: CGRect
+    ) {
+        guard let rect = resolve(identifier) else { return }
+        withAnimation(.easeOut(duration: 0.25)) {
+            activeAnnotations.append(
+                TeacherAnnotation(
+                    style: style,
+                    rectInGlobalPoints: rect,
+                    displayFrame: displayFrame
+                )
+            )
+        }
+    }
+
+    /// Wipes the board.
+    func clearAnnotations() {
+        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.25)) {
+            activeAnnotations.removeAll()
+            spotlightRectsInGlobalPoints.removeAll()
+        }
+    }
+
+    /// If the cursor is in transient mode, waits for speech and any pointing
+    /// animation to finish, then fades the overlay out.
     private func scheduleTransientHideIfNeeded() {
         guard !isClickyCursorEnabled && isOverlayVisible else { return }
 
         transientHideTask?.cancel()
         transientHideTask = Task {
-            // Wait for TTS audio to finish playing
-            while elevenLabsTTSClient.isPlaying {
+            while speechClient.isPlaying || speechConsumerTask != nil {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled else { return }
             }
 
-            // Wait for pointing animation to finish (location is cleared
-            // when the buddy flies back to the cursor)
             while detectedElementScreenLocation != nil {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled else { return }
             }
 
-            // Pause 1s after everything finishes, then fade out
             try? await Task.sleep(nanoseconds: 1_000_000_000)
             guard !Task.isCancelled else { return }
+            clearAnnotations()
             overlayWindowManager.fadeOutAndHideOverlay()
             isOverlayVisible = false
         }
     }
 
-    /// Speaks a hardcoded error message using macOS system TTS when API
-    /// credits run out. Uses NSSpeechSynthesizer so it works even when
-    /// ElevenLabs is down.
-    private func speakCreditsErrorFallback() {
-        let utterance = "I'm all out of credits. Please DM Farza and tell him to bring me back to life."
-        let synthesizer = NSSpeechSynthesizer()
-        synthesizer.startSpeaking(utterance)
+    /// Explains a failure out loud instead of leaving the user with silence.
+    ///
+    /// The common cause is the local server not running, which has a specific
+    /// and actionable fix, so it gets its own message.
+    private func speakLocalErrorFallback(for error: Error) async {
+        let (isReachable, _) = await tutorBrain.probeServer()
+        isLocalModelReachable = isReachable
+
+        let spokenExplanation: String
+        if !isReachable {
+            spokenExplanation = "i can't reach the local model. start it by running brew services start ollama in a terminal."
+        } else {
+            spokenExplanation = "something went wrong answering that. check the console for details."
+        }
+
         voiceState = .responding
-    }
-
-    // MARK: - Point Tag Parsing
-
-    /// Result of parsing a [POINT:...] tag from Claude's response.
-    struct PointingParseResult {
-        /// The response text with the [POINT:...] tag removed — this is what gets spoken.
-        let spokenText: String
-        /// The parsed pixel coordinate, or nil if Claude said "none" or no tag was found.
-        let coordinate: CGPoint?
-        /// Short label describing the element (e.g. "run button"), or "none".
-        let elementLabel: String?
-        /// Which screen the coordinate refers to (1-based), or nil to default to cursor screen.
-        let screenNumber: Int?
-    }
-
-    /// Parses a [POINT:x,y:label:screenN] or [POINT:none] tag from the end of Claude's response.
-    /// Returns the spoken text (tag removed) and the optional coordinate + label + screen number.
-    static func parsePointingCoordinates(from responseText: String) -> PointingParseResult {
-        // Match [POINT:none] or [POINT:123,456:label] or [POINT:123,456:label:screen2]
-        let pattern = #"\[POINT:(?:none|(\d+)\s*,\s*(\d+)(?::([^\]:\s][^\]:]*?))?(?::screen(\d+))?)\]\s*$"#
-
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
-              let match = regex.firstMatch(in: responseText, range: NSRange(responseText.startIndex..., in: responseText)) else {
-            // No tag found at all
-            return PointingParseResult(spokenText: responseText, coordinate: nil, elementLabel: nil, screenNumber: nil)
-        }
-
-        // Remove the tag from the spoken text
-        let tagRange = Range(match.range, in: responseText)!
-        let spokenText = String(responseText[..<tagRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Check if it's [POINT:none]
-        guard match.numberOfRanges >= 3,
-              let xRange = Range(match.range(at: 1), in: responseText),
-              let yRange = Range(match.range(at: 2), in: responseText),
-              let x = Double(responseText[xRange]),
-              let y = Double(responseText[yRange]) else {
-            return PointingParseResult(spokenText: spokenText, coordinate: nil, elementLabel: "none", screenNumber: nil)
-        }
-
-        var elementLabel: String? = nil
-        if match.numberOfRanges >= 4, let labelRange = Range(match.range(at: 3), in: responseText) {
-            elementLabel = String(responseText[labelRange]).trimmingCharacters(in: .whitespaces)
-        }
-
-        var screenNumber: Int? = nil
-        if match.numberOfRanges >= 5, let screenRange = Range(match.range(at: 4), in: responseText) {
-            screenNumber = Int(responseText[screenRange])
-        }
-
-        return PointingParseResult(
-            spokenText: spokenText,
-            coordinate: CGPoint(x: x, y: y),
-            elementLabel: elementLabel,
-            screenNumber: screenNumber
-        )
+        try? await speechClient.speakText(spokenExplanation)
     }
 
     // MARK: - Onboarding Video
@@ -947,79 +1119,69 @@ final class CompanionManager: ObservableObject {
 
     // MARK: - Onboarding Demo Interaction
 
-    private static let onboardingDemoSystemPrompt = """
-    you're clicky, a small blue cursor buddy living on the user's screen. you're showing off during onboarding — look at their screen and find ONE specific, concrete thing to point at. pick something with a clear name or identity: a specific app icon (say its name), a specific word or phrase of text you can read, a specific filename, a specific button label, a specific tab title, a specific image you can describe. do NOT point at vague things like "a window" or "some text" — be specific about exactly what you see.
+    private static func onboardingDemoSystemPrompt(screenIndexListing: String) -> String {
+        """
+        you live on the user's screen and you are showing off for a moment. here is an exact inventory of what is on screen, each line an id and the text there:
 
-    make a short quirky 3-6 word observation about the specific thing you picked — something fun, playful, or curious that shows you actually read/recognized it. no emojis ever. NEVER quote or repeat text you see on screen — just react to it. keep it to 6 words max, no exceptions.
+        \(screenIndexListing)
 
-    CRITICAL COORDINATE RULE: you MUST only pick elements near the CENTER of the screen. your x coordinate must be between 20%-80% of the image width. your y coordinate must be between 20%-80% of the image height. do NOT pick anything in the top 20%, bottom 20%, left 20%, or right 20% of the screen. no menu bar items, no dock icons, no sidebar items, no items near any edge. only things clearly in the middle area of the screen. if the only interesting things are near the edges, pick something boring in the center instead.
+        pick exactly ONE id that looks interesting and specific. prefer something with real identity, a filename, a heading, a button label, a line of code. avoid generic chrome.
 
-    respond with ONLY your short comment followed by the coordinate tag. nothing else. all lowercase.
+        reply with a playful remark of six words or fewer, then the tag [CIRCLE:id] for the id you picked. nothing else. all lowercase. never quote the text back.
 
-    format: your comment [POINT:x,y:label]
+        example: "someone has been busy here [CIRCLE:t14]"
+        """
+    }
 
-    the screenshot images are labeled with their pixel dimensions. use those dimensions as the coordinate space. origin (0,0) is top-left. x increases rightward, y increases downward.
-    """
-
-    /// Captures a screenshot and asks Claude to find something interesting to
-    /// point at, then triggers the buddy's flight animation. Used during
-    /// onboarding to demo the pointing feature while the intro video plays.
+    /// Picks something on screen, remarks on it, and circles it.
+    ///
+    /// Runs during onboarding to show what the tutor can do before the user
+    /// has asked anything. Uses the same index-and-mark path as a real answer,
+    /// so if this works the main pipeline is wired correctly too.
     func performOnboardingDemoInteraction() {
-        // Don't interrupt an active voice response
         guard voiceState == .idle || voiceState == .responding else { return }
 
         Task {
             do {
                 let screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
 
-                // Only send the cursor screen so Claude can't pick something
-                // on a different monitor that we can't point at.
-                guard let cursorScreenCapture = screenCaptures.first(where: { $0.isCursorScreen }) else {
-                    print("🎯 Onboarding demo: no cursor screen found")
+                guard let cursorScreenCapture = screenCaptures.first(where: { capture in
+                    capture.isCursorScreen
+                }) ?? screenCaptures.first else {
+                    print("🎯 Onboarding demo: no screen captured")
                     return
                 }
 
-                let dimensionInfo = " (image dimensions: \(cursorScreenCapture.screenshotWidthInPixels)x\(cursorScreenCapture.screenshotHeightInPixels) pixels)"
-                let labeledImages = [(data: cursorScreenCapture.imageData, label: cursorScreenCapture.label + dimensionInfo)]
+                displayFrameForCurrentAnswer = cursorScreenCapture.displayFrame
 
-                let (fullResponseText, _) = try await claudeAPI.analyzeImageStreaming(
-                    images: labeledImages,
-                    systemPrompt: Self.onboardingDemoSystemPrompt,
-                    userPrompt: "look around my screen and find something interesting to point at",
-                    onTextChunk: { _ in }
+                await screenIndex.rebuild(
+                    fromScreenshot: cursorScreenCapture.imageData,
+                    displayIndex: 0,
+                    displayBoundsInPoints: CGSize(
+                        width: cursorScreenCapture.displayWidthInPoints,
+                        height: cursorScreenCapture.displayHeightInPoints
+                    )
                 )
 
-                let parseResult = Self.parsePointingCoordinates(from: fullResponseText)
+                let (responseText, _) = try await tutorBrain.analyzeImage(
+                    images: [(data: cursorScreenCapture.imageData, label: cursorScreenCapture.label)],
+                    systemPrompt: Self.onboardingDemoSystemPrompt(
+                        screenIndexListing: screenIndex.renderForPrompt(maximumTargets: 60)
+                    ),
+                    userPrompt: "find something interesting on my screen"
+                )
 
-                guard let pointCoordinate = parseResult.coordinate else {
-                    print("🎯 Onboarding demo: no element to point at")
+                let parsed = TeacherResponseParser.parse(rawResponse: responseText)
+                guard !parsed.directives.isEmpty else {
+                    print("🎯 Onboarding demo: model picked nothing")
                     return
                 }
 
-                let screenshotWidth = CGFloat(cursorScreenCapture.screenshotWidthInPixels)
-                let screenshotHeight = CGFloat(cursorScreenCapture.screenshotHeightInPixels)
-                let displayWidth = CGFloat(cursorScreenCapture.displayWidthInPoints)
-                let displayHeight = CGFloat(cursorScreenCapture.displayHeightInPoints)
-                let displayFrame = cursorScreenCapture.displayFrame
-
-                let clampedX = max(0, min(pointCoordinate.x, screenshotWidth))
-                let clampedY = max(0, min(pointCoordinate.y, screenshotHeight))
-                let displayLocalX = clampedX * (displayWidth / screenshotWidth)
-                let displayLocalY = clampedY * (displayHeight / screenshotHeight)
-                let appKitY = displayHeight - displayLocalY
-                let globalLocation = CGPoint(
-                    x: displayLocalX + displayFrame.origin.x,
-                    y: appKitY + displayFrame.origin.y
-                )
-
-                // Set custom bubble text so the pointing animation uses Claude's
-                // comment instead of a random phrase
-                detectedElementBubbleText = parseResult.spokenText
-                detectedElementScreenLocation = globalLocation
-                detectedElementDisplayFrame = displayFrame
-                print("🎯 Onboarding demo: pointing at \"\(parseResult.elementLabel ?? "element")\" — \"\(parseResult.spokenText)\"")
+                detectedElementBubbleText = parsed.spokenText
+                for directive in parsed.directives { apply(directive: directive) }
+                print("🎯 Onboarding demo: \"\(parsed.spokenText)\"")
             } catch {
-                print("⚠️ Onboarding demo error: \(error)")
+                print("⚠️ Onboarding demo error: \(error.localizedDescription)")
             }
         }
     }

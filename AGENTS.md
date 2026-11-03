@@ -5,36 +5,37 @@
 
 ## Overview
 
-macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it via AssemblyAI streaming, and sends the transcript + a screenshot of the user's screen to Claude. Claude responds with text (streamed via SSE) and voice (ElevenLabs TTS). A blue cursor overlay can fly to and point at UI elements Claude references on any connected monitor.
+macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it on-device via Apple Speech, and sends the transcript, a screenshot, and a machine-read index of the screen to a local model served by Ollama. The model answers with text that is spoken by the system voice and carries inline tags that draw on screen: circles, boxes, underlines, highlights, strikethroughs, arrows, numbered steps, callouts and spotlight.
 
-All API keys live on a Cloudflare Worker proxy — nothing sensitive ships in the app.
+This fork runs entirely on-device. There is no Cloudflare Worker, no API key, and no network dependency. Analytics are disabled and nothing is transmitted.
 
 ## Architecture
 
 - **App Type**: Menu bar-only (`LSUIElement=true`), no dock icon or main window
 - **Framework**: SwiftUI (macOS native) with AppKit bridging for menu bar panel and cursor overlay
 - **Pattern**: MVVM with `@StateObject` / `@Published` state management
-- **AI Chat**: Claude (Sonnet 4.6 default, Opus 4.6 optional) via Cloudflare Worker proxy with SSE streaming
-- **Speech-to-Text**: AssemblyAI real-time streaming (`u3-rt-pro` model) via websocket, with OpenAI and Apple Speech as fallbacks
-- **Text-to-Speech**: ElevenLabs (`eleven_flash_v2_5` model) via Cloudflare Worker proxy
+- **AI Chat**: local Ollama server at `127.0.0.1:11434`, default `qwen3.5:4b`, newline-delimited JSON streaming
+- **Speech-to-Text**: Apple Speech on-device (`VoiceTranscriptionProvider` is `apple` in Info.plist)
+- **Text-to-Speech**: `AVSpeechSynthesizer`, picking the highest-quality installed English voice
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
 - **Voice Input**: Push-to-talk via `AVAudioEngine` + pluggable transcription-provider layer. System-wide keyboard shortcut via listen-only CGEvent tap.
-- **Element Pointing**: Claude embeds `[POINT:x,y:label:screenN]` tags in responses. The overlay parses these, maps coordinates to the correct monitor, and animates the blue cursor along a bezier arc to the target.
+- **Screen Index**: Apple Vision text recognition plus the accessibility tree produce a numbered inventory of everything addressable on screen. This is injected into every prompt and is how marks resolve to exact rectangles.
+- **Element Marking**: the model emits `[CIRCLE:t42]`-style tags naming index ids, never coordinates. `TeacherResponseParser` strips them from the spoken text and records where each sat, so marks are drawn as the words describing them are spoken.
 - **Concurrency**: `@MainActor` isolation, async/await throughout
-- **Analytics**: PostHog via `ClickyAnalytics.swift`
+- **Analytics**: none. `ClickyAnalytics.swift` is an inert no-op surface.
 
-### API Proxy (Cloudflare Worker)
+### Local inference
 
-The app never calls external APIs directly. All requests go through a Cloudflare Worker (`worker/src/index.ts`) that holds the real API keys as secrets.
+No proxy. The app talks to Ollama directly on loopback.
 
-| Route | Upstream | Purpose |
-|-------|----------|---------|
-| `POST /chat` | `api.anthropic.com/v1/messages` | Claude vision + streaming chat |
-| `POST /tts` | `api.elevenlabs.io/v1/text-to-speech/{voiceId}` | ElevenLabs TTS audio |
-| `POST /transcribe-token` | `streaming.assemblyai.com/v3/token` | Fetches a short-lived (480s) AssemblyAI websocket token |
+| Need | Where it runs |
+|------|---------------|
+| Vision + chat | `POST 127.0.0.1:11434/api/chat` |
+| Speech-to-text | Apple Speech framework, on-device |
+| Text-to-speech | AVSpeechSynthesizer, on-device |
+| Text recognition | Apple Vision framework, on-device |
 
-Worker secrets: `ANTHROPIC_API_KEY`, `ASSEMBLYAI_API_KEY`, `ELEVENLABS_API_KEY`
-Worker vars: `ELEVENLABS_VOICE_ID`
+The `worker/` directory is left in the tree but is unused and can be deleted.
 
 ### Key Architecture Decisions
 
@@ -66,17 +67,29 @@ Worker vars: `ELEVENLABS_VOICE_ID`
 | `AppleSpeechTranscriptionProvider.swift` | ~147 | Local fallback transcription provider backed by Apple's Speech framework. |
 | `BuddyAudioConversionSupport.swift` | ~108 | Audio conversion helpers. Converts live mic buffers to PCM16 mono audio and builds WAV payloads for upload-based providers. |
 | `GlobalPushToTalkShortcutMonitor.swift` | ~132 | System-wide push-to-talk monitor. Owns the listen-only `CGEvent` tap and publishes press/release transitions. |
-| `ClaudeAPI.swift` | ~291 | Claude vision API client with streaming (SSE) and non-streaming modes. TLS warmup optimization, image MIME detection, conversation history support. |
+| `ClaudeAPI.swift` | ~291 | Unused. Hosted Claude client kept from upstream for reference. |
+| `OllamaVisionProvider.swift` | ~250 | Local vision chat client. Mirrors `ClaudeAPI`'s method surface so the two are swappable. Parses newline-delimited JSON, not SSE. Handles server probing and model preload. |
+| `ScreenIndex.swift` | ~390 | Numbered inventory of on-screen targets from Vision text recognition and the accessibility tree. Recognition runs off the main actor. Renders the listing for prompts and resolves ids back to exact rectangles. |
+| `TeacherResponseParser.swift` | ~330 | Splits a response into spoken text and drawing directives, recording each tag's character offset so marks sync to speech. Also releases complete sentences for progressive speech. |
+| `TeacherAnnotationLayer.swift` | ~340 | SwiftUI rendering of every mark: hand-drawn circles, boxes, underlines, highlights, strikethroughs, curved arrows, step badges, callouts, and the spotlight scrim. |
+| `LocalSpeechSynthesisClient.swift` | ~175 | On-device TTS. Picks the best installed English voice and reports word boundaries, which is what drives mark timing. |
 | `OpenAIAPI.swift` | ~142 | OpenAI GPT vision API client. |
-| `ElevenLabsTTSClient.swift` | ~81 | ElevenLabs TTS client. Sends text to the Worker proxy, plays back audio via `AVAudioPlayer`. Exposes `isPlaying` for transient cursor scheduling. |
-| `ElementLocationDetector.swift` | ~335 | Detects UI element locations in screenshots for cursor pointing. |
+| `ElevenLabsTTSClient.swift` | ~81 | Unused. Hosted TTS client kept from upstream for reference. |
+| `ElementLocationDetector.swift` | ~335 | Unused. Upstream used Claude's Computer Use API for pixel coordinates; `ScreenIndex` replaces it. |
 | `DesignSystem.swift` | ~880 | Design system tokens — colors, corner radii, shared styles. All UI references `DS.Colors`, `DS.CornerRadius`, etc. |
-| `ClickyAnalytics.swift` | ~121 | PostHog analytics integration for usage tracking. |
+| `ClickyAnalytics.swift` | ~55 | Inert. Same static surface, every method a no-op, so nothing is transmitted. |
 | `WindowPositionManager.swift` | ~262 | Window placement logic, Screen Recording permission flow, and accessibility permission helpers. |
 | `AppBundleConfiguration.swift` | ~28 | Runtime configuration reader for keys stored in the app bundle Info.plist. |
 | `worker/src/index.ts` | ~142 | Cloudflare Worker proxy. Three routes: `/chat` (Claude), `/tts` (ElevenLabs), `/transcribe-token` (AssemblyAI temp token). |
 
 ## Build & Run
+
+Start the model server first. Without it the app launches but says it cannot reach the model.
+
+```bash
+brew services start ollama
+ollama pull qwen3.5:4b
+```
 
 ```bash
 # Open in Xcode

@@ -186,6 +186,15 @@ struct BlueCursorView: View {
             // Nearly transparent background (helps with compositing)
             Color.black.opacity(0.001)
 
+            // The tutor's marks: circles, arrows, underlines, spotlight.
+            // Sits directly above the desktop and below the cursor and bubbles,
+            // so the buddy is never hidden behind its own drawing.
+            TeacherAnnotationLayer(
+                annotations: companionManager.activeAnnotations,
+                spotlightRectsInGlobalPoints: companionManager.spotlightRectsInGlobalPoints,
+                screenFrame: screenFrame
+            )
+
             // Welcome speech bubble (first launch only)
             if isCursorOnThisScreen && showWelcome && !welcomeText.isEmpty {
                 Text(welcomeText)
