@@ -27,7 +27,7 @@ struct TeacherAnnotation: Identifiable {
         case callout(text: String)
     }
 
-    let id = UUID()
+    var id = UUID()
     let style: Style
 
     /// Target rectangle in global AppKit points, bottom-left origin.
@@ -35,6 +35,23 @@ struct TeacherAnnotation: Identifiable {
 
     /// Frame of the display this mark belongs to, for filtering per overlay.
     let displayFrame: CGRect
+
+    /// The same mark moved up or down, keeping its identity so SwiftUI slides
+    /// it rather than drawing it in again from nothing.
+    func shiftedVertically(by verticalOffset: CGFloat) -> TeacherAnnotation {
+        let shiftedStyle: Style
+        if case .arrow(let destination) = style {
+            shiftedStyle = .arrow(destinationRectInGlobalPoints: destination.offsetBy(dx: 0, dy: verticalOffset))
+        } else {
+            shiftedStyle = style
+        }
+        return TeacherAnnotation(
+            id: id,
+            style: shiftedStyle,
+            rectInGlobalPoints: rectInGlobalPoints.offsetBy(dx: 0, dy: verticalOffset),
+            displayFrame: displayFrame
+        )
+    }
 }
 
 /// Palette for the marks.
@@ -195,16 +212,18 @@ private struct AnnotationMarkView: View {
                 .shadow(color: AnnotationPalette.primaryInk.opacity(0.4), radius: 4)
 
         case .highlight:
-            // Multiply blending keeps the underlying text readable through the
-            // wash, which a plain opaque fill would not.
+            // A translucent wash on the normal blend. Multiply was used first
+            // because it keeps text crisp on white, but multiplied over a dark
+            // page it produces near-black and the highlight vanishes, which is
+            // the mode the user's study app runs in. Translucency keeps text
+            // readable on either.
             RoundedRectangle(cornerRadius: 3)
-                .fill(AnnotationPalette.highlightWash.opacity(0.38))
+                .fill(AnnotationPalette.highlightWash.opacity(0.30))
                 .frame(width: rectInViewSpace.width * strokeProgress, height: rectInViewSpace.height + 4)
                 .position(
                     x: rectInViewSpace.minX + (rectInViewSpace.width * strokeProgress) / 2,
                     y: rectInViewSpace.midY
                 )
-                .blendMode(.multiply)
 
         case .strikethrough:
             StraightStroke()

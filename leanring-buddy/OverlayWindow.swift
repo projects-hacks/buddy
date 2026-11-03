@@ -203,10 +203,12 @@ struct BlueCursorView: View {
                     board: companionManager.whiteboard,
                     revealFraction: companionManager.boardRevealFraction
                 )
-                    .position(
-                        x: min(360, screenFrame.width * 0.3),
-                        y: screenFrame.height * 0.36
-                    )
+                    // Pinned by its top edge, below the menu bar, so it grows
+                    // downward as parts are drawn instead of outward from its
+                    // centre, which pushed the title off the top.
+                    .padding(.leading, 40)
+                    .padding(.top, 70)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .animation(
                         .spring(response: 0.4, dampingFraction: 0.8),
                         value: companionManager.whiteboard.columns.count

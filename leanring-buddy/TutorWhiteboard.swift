@@ -384,8 +384,6 @@ struct TutorWhiteboardView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .transition(.opacity)
                 }
-
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 26)
             .padding(.top, 18)
@@ -393,7 +391,11 @@ struct TutorWhiteboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(width: 600)
-        .frame(minHeight: 240, alignment: .top)
+        // As tall as what is drawn and no taller. It used to fill whatever
+        // height it was offered, which inside the full-screen overlay was the
+        // whole screen: centred a third of the way down, its title and column
+        // labels sat above the top edge and the rest was empty paper.
+        .fixedSize(horizontal: false, vertical: true)
         .background(paperBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.38), radius: 26, y: 10)
