@@ -103,6 +103,13 @@ final class ScreenIndex {
 
         let recognizedLines = await Self.performTextRecognition(onScreenshotData: screenshotData)
 
+        // Recognition covers the whole screen, so the lesson arrives mixed in
+        // with tabs, bookmarks and toolbars. Restricting to the content area
+        // is what stops the model marking a bookmark when asked about the page.
+        let contentRegion = contentRegionInDisplayPoints(
+            displayBoundsInPoints: displayBoundsInPoints
+        )
+
         for recognizedLine in recognizedLines {
             // Vision reports a normalised rectangle with a bottom-left origin,
             // which already matches AppKit, so this is a scale with no flip.
@@ -135,13 +142,33 @@ final class ScreenIndex {
             collectedTargets.append(contentsOf: accessibilityTargets)
         }
 
-        orderedTargets = collectedTargets
+        // Applied after building rather than during, so a region that turns out
+        // to be wrong can be discarded without having lost anything. Dropping
+        // to almost nothing means the region was not the content area, and a
+        // cluttered index beats an empty one.
+        var targetsToKeep = collectedTargets
+        var droppedOutsideContent = 0
+
+        if let contentRegion, contentRegion.width > 100, contentRegion.height > 100 {
+            let insideContent = collectedTargets.filter { target in
+                contentRegion.intersects(target.boundsInDisplayPoints)
+            }
+            if insideContent.count >= 5 {
+                droppedOutsideContent = collectedTargets.count - insideContent.count
+                targetsToKeep = insideContent
+            }
+        }
+
+        orderedTargets = targetsToKeep
         targetsByIdentifier = Dictionary(
-            collectedTargets.map { target in (target.id, target) },
+            targetsToKeep.map { target in (target.id, target) },
             uniquingKeysWith: { first, _ in first }
         )
 
-        TutorDebugLog.write("🗂️ ScreenIndex: \(collectedTargets.count) targets (\(recognizedLines.count) recognised text)")
+        let regionDescription = contentRegion.map { region in
+            "content \(Int(region.width))x\(Int(region.height)) at \(Int(region.minX)),\(Int(region.minY))"
+        } ?? "no content region found"
+        TutorDebugLog.write("🗂️ ScreenIndex: \(targetsToKeep.count) targets (\(recognizedLines.count) recognised, \(droppedOutsideContent) dropped as chrome) — \(regionDescription)")
     }
 
     // MARK: - On-device text recognition
@@ -209,6 +236,88 @@ final class ScreenIndex {
                 )
             }
         }.value
+    }
+
+    // MARK: - Content region
+
+    /// The part of the screen holding what the user is actually working on,
+    /// in display-local AppKit points. Nil when it cannot be determined.
+    ///
+    /// Why this is needed: text recognition reads the entire screen, which on
+    /// a browser means the tab strip, every bookmark, the toolbar and the menu
+    /// bar land in the listing beside the lesson. Asked about Snowflake
+    /// internals, the model circled a bookmark titled "Hive (DM)", which was a
+    /// perfectly reasonable pick from a listing that gives no hint which lines
+    /// are furniture. Nothing in the text distinguishes them, but their
+    /// position does.
+    ///
+    /// Taken from the accessibility tree rather than guessed: a browser
+    /// exposes its page as an `AXWebArea`, which is exactly the content area
+    /// with the chrome excluded. Other apps fall back to the focused window,
+    /// which still drops the menu bar, the dock and anything behind.
+    private func contentRegionInDisplayPoints(displayBoundsInPoints: CGSize) -> CGRect? {
+        guard AXIsProcessTrusted(),
+              let frontmostApplication = NSWorkspace.shared.frontmostApplication else {
+            return nil
+        }
+
+        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
+
+        var focusedWindowValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            applicationElement,
+            kAXFocusedWindowAttribute as CFString,
+            &focusedWindowValue
+        ) == .success,
+              let focusedWindowValue,
+              CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID() else {
+            return nil
+        }
+
+        let focusedWindow = focusedWindowValue as! AXUIElement
+
+        // Prefer the web area when there is one, since that is the page
+        // itself. Depth is bounded because the search runs on every question.
+        if let webAreaFrame = findWebAreaFrame(under: focusedWindow, depth: 0) {
+            return convertGlobalFrameToDisplayLocalPoints(
+                webAreaFrame,
+                displayBoundsInPoints: displayBoundsInPoints
+            )
+        }
+
+        guard let windowFrame = accessibilityFrame(for: focusedWindow) else { return nil }
+        return convertGlobalFrameToDisplayLocalPoints(
+            windowFrame,
+            displayBoundsInPoints: displayBoundsInPoints
+        )
+    }
+
+    /// Searches for the first `AXWebArea` beneath an element.
+    private func findWebAreaFrame(under element: AXUIElement, depth: Int) -> CGRect? {
+        guard depth <= 6 else { return nil }
+
+        var roleValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+           let role = roleValue as? String,
+           role == "AXWebArea" {
+            return accessibilityFrame(for: element)
+        }
+
+        var childrenValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXChildrenAttribute as CFString,
+            &childrenValue
+        ) == .success, let children = childrenValue as? [AXUIElement] else {
+            return nil
+        }
+
+        for child in children {
+            if let found = findWebAreaFrame(under: child, depth: depth + 1) {
+                return found
+            }
+        }
+        return nil
     }
 
     // MARK: - Accessibility tree

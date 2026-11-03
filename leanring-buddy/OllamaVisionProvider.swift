@@ -19,7 +19,7 @@ import Foundation
 /// **Why newline-delimited JSON instead of SSE**: Ollama streams `/api/chat` as
 /// one JSON object per line, not as `data:`-prefixed Server-Sent Events. The
 /// Anthropic client's SSE parser does not apply here.
-final class OllamaVisionProvider {
+final class OllamaVisionProvider: TutorBrain {
     /// Ollama's default loopback address. No proxy or API key is involved
     /// because inference never leaves the machine.
     static let defaultBaseURL = "http://127.0.0.1:11434"

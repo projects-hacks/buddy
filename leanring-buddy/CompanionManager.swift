@@ -70,9 +70,54 @@ final class CompanionManager: ObservableObject {
     /// Local inference server. No proxy and no API keys, because nothing
     /// leaves the machine: screen contents during a study session are about
     /// as private as data gets.
-    private lazy var tutorBrain: OllamaVisionProvider = {
-        return OllamaVisionProvider(model: selectedModel)
-    }()
+    /// Which brain answers this session. Persisted so the choice survives a
+    /// restart, defaulting to local because it is free, private and offline.
+    @Published private(set) var brainKind: TutorBrainKind = TutorBrainKind(
+        rawValue: UserDefaults.standard.string(forKey: "tutorBrainKind") ?? ""
+    ) ?? .local
+
+    private lazy var localBrain = OllamaVisionProvider(model: selectedModel)
+    private lazy var hostedBrain = GeminiVisionProvider()
+
+    /// The brain in use. Both conform to the same protocol, so nothing
+    /// downstream of here knows or cares which one answered.
+    private var tutorBrain: TutorBrain {
+        switch brainKind {
+        case .local: return localBrain
+        case .hosted: return hostedBrain
+        }
+    }
+
+    /// Switches brain and gets the new one ready.
+    ///
+    /// Refuses to switch to the hosted brain without a key rather than failing
+    /// on the next question, since the fix is in the panel the user is already
+    /// looking at.
+    func setBrainKind(_ kind: TutorBrainKind) {
+        if kind == .hosted && !APIKeyStore.hasKey(for: .gemini) {
+            TutorDebugLog.write("⚠️ cannot switch to cloud: no API key saved")
+            isLocalModelReachable = false
+            return
+        }
+
+        brainKind = kind
+        UserDefaults.standard.set(kind.rawValue, forKey: "tutorBrainKind")
+        TutorDebugLog.write("🧠 brain switched to \(kind.displayName)")
+
+        Task {
+            let (isReachable, _) = await tutorBrain.probeServer()
+            isLocalModelReachable = isReachable
+            if isReachable { await tutorBrain.preloadModel() }
+        }
+    }
+
+    /// Saves a hosted API key and switches to it if it works.
+    func saveHostedAPIKey(_ key: String) {
+        guard APIKeyStore.save(key: key, for: .gemini) else { return }
+        setBrainKind(.hosted)
+    }
+
+    var hasHostedAPIKey: Bool { APIKeyStore.hasKey(for: .gemini) }
 
     private lazy var speechClient = LocalSpeechSynthesisClient()
 
@@ -160,7 +205,7 @@ final class CompanionManager: ObservableObject {
     func setSelectedModel(_ model: String) {
         selectedModel = model
         UserDefaults.standard.set(model, forKey: "selectedLocalModel")
-        tutorBrain.model = model
+        localBrain.model = model
         Task { await tutorBrain.preloadModel() }
     }
 
@@ -237,7 +282,7 @@ final class CompanionManager: ObservableObject {
                 print("⚠️ Model \(selectedModel) not installed. Available: \(installedModels.joined(separator: ", "))")
                 if let firstAvailable = installedModels.first {
                     selectedModel = firstAvailable
-                    tutorBrain.model = firstAvailable
+                    localBrain.model = firstAvailable
                     print("🦙 Falling back to \(firstAvailable)")
                 }
             }
@@ -1311,6 +1356,7 @@ final class CompanionManager: ObservableObject {
                 )
             )
         }
+        TutorDebugLog.write("🖊️ \(identifier) -> rect (\(Int(rect.minX)),\(Int(rect.minY))) \(Int(rect.width))x\(Int(rect.height)) on display \(Int(displayFrame.width))x\(Int(displayFrame.height)) at \(Int(displayFrame.origin.x)),\(Int(displayFrame.origin.y)) — total now \(activeAnnotations.count), overlayVisible=\(isOverlayVisible)")
     }
 
     /// Wipes every mark and takes down the board.
@@ -1545,6 +1591,7 @@ final class CompanionManager: ObservableObject {
                     systemPrompt: Self.onboardingDemoSystemPrompt(
                         screenIndexListing: screenIndex.renderForPrompt(maximumTargets: 60)
                     ),
+                    conversationHistory: [],
                     userPrompt: "find something interesting on my screen"
                 )
 

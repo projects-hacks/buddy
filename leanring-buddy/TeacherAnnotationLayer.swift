@@ -75,8 +75,11 @@ struct TeacherAnnotationLayer: View {
                     destinationRectInViewSpace: destinationRectInViewSpace(for: annotation)
                 )
             }
-            .onAppear {
-                TutorDebugLog.write("🖍️ overlay drawing \(annotationsOnThisScreen.count) of \(annotations.count) mark(s)")
+            .onChange(of: annotations.count) { _, newCount in
+                // onAppear fires once, so it reported the count at first render
+                // and never again, which made a layer holding five marks look
+                // like it held one.
+                TutorDebugLog.write("🖍️ overlay \(Int(screenFrame.width))x\(Int(screenFrame.height)) now drawing \(annotationsOnThisScreen.count) of \(newCount) mark(s)")
             }
         }
         .frame(width: screenFrame.width, height: screenFrame.height, alignment: .topLeading)
