@@ -76,6 +76,31 @@ final class CompanionManager: ObservableObject {
 
     private lazy var speechClient = LocalSpeechSynthesisClient()
 
+    /// Neural voice, used when its helper process comes up.
+    ///
+    /// The machine has no premium or enhanced system voice installed, so every
+    /// AVSpeechSynthesizer option is the compact tier and sounds plainly
+    /// synthetic. This is the difference between a voice you can listen to for
+    /// an hour of study and one you cannot.
+    private lazy var kokoroClient = KokoroSpeechClient(
+        helperScriptPath: Self.kokoroHelperScriptPath
+    )
+
+    /// Whether the neural voice is available this session. False falls back to
+    /// the system voice, which is worse but always works.
+    private var isUsingNeuralVoice = false
+
+    /// Location of the speech helper.
+    ///
+    /// Overridable through defaults so the script can be moved without a
+    /// rebuild, defaulting to its place in the checkout.
+    private static var kokoroHelperScriptPath: String {
+        if let overridePath = UserDefaults.standard.string(forKey: "kokoroHelperScriptPath") {
+            return overridePath
+        }
+        return "\(NSHomeDirectory())/Documents/projects/clicky-local/scripts/kokoro_speech_server.py"
+    }
+
     /// Inventory of what is addressable on screen for the current turn.
     ///
     /// Rebuilt per question rather than cached, because the screen has usually
@@ -221,6 +246,15 @@ final class CompanionManager: ObservableObject {
             print("🦙 Local tutor ready: \(selectedModel)")
         }
 
+        // Brought up alongside the model, because its first generation would
+        // otherwise pay the model load inside the user's first answer.
+        Task {
+            isUsingNeuralVoice = await kokoroClient.start()
+            if !isUsingNeuralVoice {
+                TutorDebugLog.write("🔈 neural voice unavailable, using the system voice")
+            }
+        }
+
         // If the user already completed onboarding AND all permissions are
         // still granted, show the cursor overlay immediately. If permissions
         // were revoked (e.g. signing change), don't show the cursor — the
@@ -326,6 +360,7 @@ final class CompanionManager: ObservableObject {
     }
 
     func stop() {
+        kokoroClient.shutDown()
         globalPushToTalkShortcutMonitor.stop()
         buddyDictationManager.cancelCurrentDictation()
         overlayWindowManager.hideOverlay()
@@ -831,7 +866,7 @@ final class CompanionManager: ObservableObject {
             if !Task.isCancelled {
                 // Hold .responding while speech drains, so the overlay does not
                 // drop back to idle while the tutor is still talking.
-                while speechConsumerTask != nil || speechClient.isPlaying {
+                while speechConsumerTask != nil || isAnyVoicePlaying {
                     try? await Task.sleep(nanoseconds: 150_000_000)
                     if Task.isCancelled { break }
                 }
@@ -961,35 +996,71 @@ final class CompanionManager: ObservableObject {
                     self.voiceState = .responding
                 }
 
-                // Directives fire as speech reaches the word they were attached
-                // to, so a circle lands on the phrase describing it.
-                var undispatchedDirectives = segment.directives
-                self.speechClient.onWillSpeakRange = { [weak self] spokenRange, _ in
-                    guard let self else { return }
-                    let spokenUpTo = spokenRange.location + spokenRange.length
-
-                    while let next = undispatchedDirectives.first,
-                          next.characterOffsetInSpokenText <= spokenUpTo {
-                        undispatchedDirectives.removeFirst()
-                        self.apply(directive: next, spokenContext: segment.spokenText)
-                    }
-                }
-
-                if segment.spokenText.isEmpty {
-                    // Nothing to say, so the marks land immediately.
-                    for directive in undispatchedDirectives { self.apply(directive: directive, spokenContext: segment.spokenText) }
-                } else {
-                    try? await self.speechClient.speakText(segment.spokenText)
-                    // Anything the word callback never reached, because speech
-                    // was cut short or the tag sat past the final word.
-                    for directive in undispatchedDirectives { self.apply(directive: directive, spokenContext: segment.spokenText) }
-                }
-
-                self.speechClient.onWillSpeakRange = nil
+                await self.speak(segment: segment)
             }
 
             self.speechConsumerTask = nil
         }
+    }
+
+    /// Speaks one segment, drawing its marks as the words carrying them are said.
+    ///
+    /// Both engines report progress as a character offset into the text, but
+    /// they measure it very differently. AVSpeechSynthesizer reports real word
+    /// boundaries as it speaks them. Kokoro hands back a finished waveform with
+    /// no timing at all, so its offsets are interpolated from elapsed playback.
+    /// That is an estimate, and it only has to be close enough to land a mark
+    /// in the right clause.
+    private func speak(segment: ParsedTeacherResponse) async {
+        var undispatchedDirectives = segment.directives
+
+        func drawMarksReached(upToCharacterOffset offset: Int) {
+            while let next = undispatchedDirectives.first,
+                  next.characterOffsetInSpokenText <= offset {
+                undispatchedDirectives.removeFirst()
+                apply(directive: next, spokenContext: segment.spokenText)
+            }
+        }
+
+        // A segment that is nothing but tags still has marks worth drawing.
+        guard !segment.spokenText.isEmpty else {
+            drawMarksReached(upToCharacterOffset: Int.max)
+            return
+        }
+
+        if isUsingNeuralVoice {
+            kokoroClient.onSpokenProgress = { reachedOffset in
+                drawMarksReached(upToCharacterOffset: reachedOffset)
+            }
+            do {
+                try await kokoroClient.speakText(segment.spokenText)
+            } catch {
+                // Falling back for the rest of the session rather than retrying
+                // each sentence: whatever broke the helper will break it again,
+                // and a stutter between every sentence is worse than a plainer
+                // voice throughout.
+                TutorDebugLog.write("⚠️ neural voice failed: \(error.localizedDescription). system voice from here.")
+                isUsingNeuralVoice = false
+                kokoroClient.onSpokenProgress = nil
+                try? await speechClient.speakText(segment.spokenText)
+            }
+            kokoroClient.onSpokenProgress = nil
+        } else {
+            speechClient.onWillSpeakRange = { spokenRange, _ in
+                drawMarksReached(upToCharacterOffset: spokenRange.location + spokenRange.length)
+            }
+            try? await speechClient.speakText(segment.spokenText)
+            speechClient.onWillSpeakRange = nil
+        }
+
+        // Anything the progress callback never reached, because speech was cut
+        // short or the tag sat past the final word.
+        drawMarksReached(upToCharacterOffset: Int.max)
+    }
+
+    /// Whether either speech engine is currently producing audio.
+    private var isAnyVoicePlaying: Bool {
+        speechClient.isPlaying || kokoroClient.isPlaying
     }
 
     private func cancelSpeechAndClearQueue() {
@@ -999,6 +1070,8 @@ final class CompanionManager: ObservableObject {
         streamedCharactersAlreadyQueued = 0
         speechClient.onWillSpeakRange = nil
         speechClient.stopPlayback()
+        kokoroClient.onSpokenProgress = nil
+        kokoroClient.stopPlayback()
     }
 
     // MARK: - Drawing on screen
@@ -1213,7 +1286,7 @@ final class CompanionManager: ObservableObject {
 
         transientHideTask?.cancel()
         transientHideTask = Task {
-            while speechClient.isPlaying || speechConsumerTask != nil {
+            while isAnyVoicePlaying || speechConsumerTask != nil {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled else { return }
             }
