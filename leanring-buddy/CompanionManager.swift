@@ -675,6 +675,8 @@ final class CompanionManager: ObservableObject {
 
             // Cancel any in-progress response and TTS from a previous utterance
             currentResponseTask?.cancel()
+            markDismissalTask?.cancel()
+            markDismissalTask = nil
             cancelSpeechAndClearQueue()
             clearDetectedElementLocation()
             clearAnnotations()
@@ -764,7 +766,7 @@ final class CompanionManager: ObservableObject {
         - the screen is dense, so mark things. a bare explanation with no marks is a worse answer.
         - [SPOTLIGHT:...] takes at most three ids. it works by hiding everything else, so spotlighting a dozen things hides nothing and helps nobody.
         - open with [CLEAR] when you start explaining something new.
-        - two to five marks in a reply is right. twenty is noise.
+        - at most THREE marks in a reply. each one waits for the words that carry it, so fifteen marks is two minutes of drawing and nothing stands out.
 
         examples:
         - "the bug is here [CIRCLE:t23], you set high to the length [UNDERLINE:t23] but the last index is one less."
@@ -817,7 +819,9 @@ final class CompanionManager: ObservableObject {
         HOW TO TALK
         - your words are spoken aloud. write for the ear. short sentences. never use markdown, blockquotes, bullets, headings, asterisks or dashes as punctuation. say "big o of n log n", not "O(n log n)".
         - all lowercase, warm, direct. no emojis.
-        - two to four sentences by default. if they ask you to go deeper, drop the limit and teach it properly.
+        - THREE SENTENCES. that is the whole answer. they are waiting in silence while you write, so every extra sentence is a longer wait and more to hold in their head.
+        - one idea per reply. the single thing they are missing, said plainly. not the background, not the history, not the counterexample.
+        - if they ask you to go deeper, then take the room and teach it properly.
         - never say "simply" or "just". nothing here is simple to someone learning it.
         - do not read code out line by line. say what it does and where it breaks.
 
@@ -846,6 +850,9 @@ final class CompanionManager: ObservableObject {
 
     /// The display the current answer is marking up.
     private var displayFrameForCurrentAnswer: CGRect = .zero
+
+    /// Clears the board and marks once the answer has had time to be read.
+    private var markDismissalTask: Task<Void, Never>?
 
     /// Captures the screen, indexes it, asks the local model, and narrates the
     /// answer while drawing on screen.
@@ -912,7 +919,13 @@ final class CompanionManager: ObservableObject {
                 // started appearing: the structure costs tokens that the spoken
                 // answer then does not have. Cut off halfway is worse than
                 // slightly long, and the filler rules keep the prose tight.
-                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 700 : 380
+                // Length is the latency. Vertex sends the answer in a handful
+                // of frames near the end rather than token by token, so a long
+                // answer is silence, not slow speech: a four paragraph reply
+                // left the student waiting thirty-seven seconds for the first
+                // word and two minutes for the last mark. It was also simply
+                // too much to follow.
+                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 420 : 150
 
                 // A second attempt at the same idea needs room to actually
                 // work the example through, not the terse default.
@@ -970,6 +983,7 @@ final class CompanionManager: ObservableObject {
                     if Task.isCancelled { break }
                 }
                 voiceState = .idle
+                scheduleMarkDismissal()
                 scheduleTransientHideIfNeeded()
             }
         }
@@ -1446,6 +1460,21 @@ final class CompanionManager: ObservableObject {
             )
         }
         TutorDebugLog.write("🖊️ \(identifier) -> rect (\(Int(rect.minX)),\(Int(rect.minY))) \(Int(rect.width))x\(Int(rect.height)) on display \(Int(displayFrame.width))x\(Int(displayFrame.height)) at \(Int(displayFrame.origin.x)),\(Int(displayFrame.origin.y)) — total now \(activeAnnotations.count), overlayVisible=\(isOverlayVisible)")
+    }
+
+    /// Takes the board and marks down a while after the answer finishes.
+    ///
+    /// They previously stayed until the next question, so a board left behind
+    /// covered the screen indefinitely. The delay is generous on purpose: the
+    /// diagram is the part worth looking at after the talking stops, and
+    /// asking again clears it immediately anyway.
+    private func scheduleMarkDismissal() {
+        markDismissalTask?.cancel()
+        markDismissalTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.clearAnnotations()
+        }
     }
 
     /// Wipes every mark and takes down the board.
