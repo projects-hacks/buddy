@@ -49,6 +49,37 @@ struct TeacherDirective {
         case spotlight(targetIdentifiers: [String])
         /// Wipe every current mark. The equivalent of clearing the board.
         case clearAll
+
+        // MARK: Whiteboard
+        //
+        // Marks annotate what is already on screen. These draw something new
+        // beside it, which is the difference between pointing at the textbook
+        // and sketching the idea next to it.
+        //
+        // Every one of these describes structure only. No tag carries a
+        // coordinate, a size or a position, for the same reason marks name a
+        // target id instead of a pixel: a small model picks structure reliably
+        // and estimates geometry badly. Placement is the app's job.
+
+        /// Open a fresh board with a title. Replaces any board already shown.
+        case beginBoard(title: String)
+        /// Add a labelled column, left to right. Used for stages, time or flow.
+        case addBoardColumn(label: String, content: String)
+        /// A full-width bar beneath the columns, for the thing that persists
+        /// while the columns change.
+        case addBoardBase(label: String)
+        /// A row of array cells, for walking an algorithm over data.
+        case addBoardCells(values: [String])
+        /// A named pointer under one cell, such as `lo`, `mid` or `hi`.
+        ///
+        /// The position may be symbolic. Asked to walk a binary search the
+        /// model wrote `[PTR:last:hi]` and `[PTR:mid:middle]` rather than
+        /// digits, which is a reasonable thing to mean and was previously
+        /// discarded. Resolving it needs the row length, so it is kept
+        /// unresolved here and settled where the board is known.
+        case addBoardPointer(position: BoardPointerPosition, name: String)
+        /// A caption line under the board carrying the takeaway.
+        case addBoardNote(text: String)
         /// Fall back to an explicit coordinate when no indexed target fits,
         /// preserving the upstream tag format.
         case pointAtCoordinate(x: Double, y: Double, label: String, displayIndex: Int)
@@ -59,6 +90,29 @@ struct TeacherDirective {
     /// Index into `ParsedTeacherResponse.spokenText` where this tag appeared.
     /// Speech reaching this offset is the cue to draw the mark.
     let characterOffsetInSpokenText: Int
+}
+
+/// Where a board pointer sits, before the row length is known.
+enum BoardPointerPosition {
+    case index(Int)
+    case first
+    case middle
+    case last
+
+    /// Settles the position against an actual row, or nil if it falls outside.
+    func resolve(inCellCount cellCount: Int) -> Int? {
+        guard cellCount > 0 else { return nil }
+        switch self {
+        case .index(let index):
+            return (0..<cellCount).contains(index) ? index : nil
+        case .first:
+            return 0
+        case .middle:
+            return cellCount / 2
+        case .last:
+            return cellCount - 1
+        }
+    }
 }
 
 /// A model response separated into speech and on-screen marks.
@@ -98,7 +152,8 @@ enum TeacherResponseParser {
     private static let recognizedTagNames: Set<String> = [
         "POINT", "CIRCLE", "BOX", "RECT", "UNDERLINE", "HIGHLIGHT", "MARK",
         "STRIKE", "STRIKETHROUGH", "ARROW", "STEP", "LABEL", "NOTE",
-        "SPOTLIGHT", "FOCUS", "CLEAR", "ERASE"
+        "SPOTLIGHT", "FOCUS", "CLEAR", "ERASE",
+        "BOARD", "COL", "COLUMN", "BASE", "CELLS", "PTR", "POINTER", "CAPTION"
     ]
 
     /// Removes tags from `rawResponse` and returns them alongside the clean text.
@@ -233,6 +288,61 @@ enum TeacherResponseParser {
                 targetIdentifier: normalizeIdentifier(targetComponent),
                 text: labelText
             )
+
+        case "BOARD":
+            guard !trimmedPayload.isEmpty else { return nil }
+            return .beginBoard(title: trimmedPayload)
+
+        case "COL", "COLUMN":
+            // `label:content`, where the content is optional so a column may
+            // be a bare heading with nothing under it yet.
+            if let separatorRange = trimmedPayload.range(of: ":") {
+                let label = String(trimmedPayload[..<separatorRange.lowerBound])
+                    .trimmingCharacters(in: .whitespaces)
+                let content = String(trimmedPayload[separatorRange.upperBound...])
+                    .trimmingCharacters(in: .whitespaces)
+                guard !label.isEmpty else { return nil }
+                return .addBoardColumn(label: label, content: content)
+            }
+            guard !trimmedPayload.isEmpty else { return nil }
+            return .addBoardColumn(label: trimmedPayload, content: "")
+
+        case "BASE":
+            guard !trimmedPayload.isEmpty else { return nil }
+            return .addBoardBase(label: trimmedPayload)
+
+        case "CELLS":
+            let values = trimmedPayload
+                .components(separatedBy: ",")
+                .map { value in value.trimmingCharacters(in: .whitespaces) }
+                .filter { value in !value.isEmpty }
+            guard !values.isEmpty else { return nil }
+            return .addBoardCells(values: values)
+
+        case "PTR", "POINTER":
+            let components = trimmedPayload.components(separatedBy: ":")
+            guard components.count >= 2 else { return nil }
+
+            let rawPosition = components[0].trimmingCharacters(in: .whitespaces).lowercased()
+            let position: BoardPointerPosition
+            if let numericIndex = Int(rawPosition) {
+                position = .index(numericIndex)
+            } else {
+                switch rawPosition {
+                case "last", "end", "hi", "high", "right": position = .last
+                case "first", "start", "lo", "low", "left", "begin": position = .first
+                case "mid", "middle", "center", "centre", "half": position = .middle
+                default: return nil
+                }
+            }
+
+            let pointerName = components[1].trimmingCharacters(in: .whitespaces)
+            guard !pointerName.isEmpty else { return nil }
+            return .addBoardPointer(position: position, name: pointerName)
+
+        case "CAPTION":
+            guard !trimmedPayload.isEmpty else { return nil }
+            return .addBoardNote(text: trimmedPayload)
 
         case "SPOTLIGHT", "FOCUS":
             let targetIdentifiers = trimmedPayload

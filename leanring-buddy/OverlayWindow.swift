@@ -195,6 +195,21 @@ struct BlueCursorView: View {
                 screenFrame: screenFrame
             )
 
+            // The scratch board. Only on the screen holding the cursor, since
+            // a copy on every monitor would be noise, and sitting above the
+            // marks because it is a separate surface rather than an annotation.
+            if isCursorOnThisScreen && companionManager.whiteboard.hasContent {
+                TutorWhiteboardView(board: companionManager.whiteboard)
+                    .position(
+                        x: min(360, screenFrame.width * 0.3),
+                        y: screenFrame.height * 0.36
+                    )
+                    .animation(
+                        .spring(response: 0.4, dampingFraction: 0.8),
+                        value: companionManager.whiteboard.columns.count
+                    )
+            }
+
             // Welcome speech bubble (first launch only)
             if isCursorOnThisScreen && showWelcome && !welcomeText.isEmpty {
                 Text(welcomeText)

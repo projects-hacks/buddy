@@ -88,6 +88,10 @@ final class CompanionManager: ObservableObject {
     /// Regions kept lit while the rest of the screen dims. Empty means no spotlight.
     @Published private(set) var spotlightRectsInGlobalPoints: [CGRect] = []
 
+    /// The scratch board the tutor draws on while explaining. Built up as it
+    /// speaks, so the picture assembles in the order it is described.
+    @Published private(set) var whiteboard = TutorWhiteboard()
+
     /// Whether the local model server was reachable at last check, so the
     /// panel can say "start Ollama" instead of failing mid-question.
     @Published private(set) var isLocalModelReachable = true
@@ -650,6 +654,36 @@ final class CompanionManager: ObservableObject {
         - "that cache [BOX:t14] absorbs most reads, so the database [ARROW:t14->t15] only sees misses."
         - "this is the wrong complexity [STRIKE:t57], it is actually log n [LABEL:t57:O(log n)]."
 
+        HOW TO DRAW A PICTURE
+        for an idea with structure, draw it on your board instead of describing it. a shape beats a sentence for anything with stages, flow, or data changing over steps.
+
+        [BOARD:<title>]          start a fresh board
+        [COL:<label>:<content>]  a labelled column, left to right
+        [BASE:<label>]           a full width bar under the columns, for the thing that stays put
+        [CELLS:3,7,9,12]         a row of values, for walking an algorithm
+        [PTR:<index>:<name>]     a marker under one cell, like lo, mid, hi. index starts at 0
+        [CAPTION:<text>]         one line under the drawing with the takeaway
+
+        CRITICAL: the tag is the drawing. nothing appears unless you write the tag.
+        - never announce that you are drawing. do not write "let me draw", "let's picture this", "imagine a diagram". those words draw nothing and the student stares at an empty board.
+        - write the tag mid sentence while you explain. the picture appears by itself.
+        - if you mention a stage, a column or a value, the tag for it belongs in that same sentence.
+
+        rules for the board:
+        - put the tags inline as you say each part. the picture builds up while you talk.
+        - keep every label under five words. this is a sketch, not a document.
+        - columns are for stages or moments in time. cells are for data you are stepping through.
+        - always write [CELLS:...] before any [PTR:...]. a pointer with no row has nothing to sit under.
+        - a [PTR:...] index is a number counting from zero. you may also write first, mid or last.
+        - say what it means out loud. the board supports your words, it does not replace them.
+        - draw a board when it genuinely helps. for a plain factual question, just answer.
+
+        example, separating storage from compute:
+        "think about one day of work [BOARD:same data, changing workers]. in the morning you run a cluster [COL:morning:compute]. at night nobody is querying [COL:night:0 workers]. tomorrow you spin one up again [COL:tomorrow:compute]. the table never moved [BASE:100 GB sales table]. [CAPTION:storage stays, compute comes and goes]"
+
+        example, binary search:
+        "say the array is this [BOARD:binary search][CELLS:3,7,9,12,15,21,30]. you start with lo at zero and hi at the end [PTR:0:lo][PTR:6:hi]. mid lands here [PTR:3:mid], twelve is too small, so lo jumps past it [PTR:4:lo]. [CAPTION:half the range gone each step]"
+
         HOW TO TALK
         - your words are spoken aloud. write for the ear. short sentences, no markdown, no bullet points, no symbols that sound strange read out. say "big o of n log n", not "O(n log n)".
         - all lowercase, warm, direct. no emojis.
@@ -1012,6 +1046,59 @@ final class CompanionManager: ObservableObject {
         case .clearAll:
             clearAnnotations()
 
+        // MARK: Board
+        //
+        // Each of these appends to the board, and appending is the reveal:
+        // because directives fire from speech word boundaries, an element
+        // lands exactly as it is described rather than the finished picture
+        // appearing at once.
+
+        case .beginBoard(let title):
+            withAnimation(.easeOut(duration: 0.3)) {
+                whiteboard = TutorWhiteboard(title: title)
+            }
+
+        case .addBoardColumn(let label, let content):
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                whiteboard.columns.append(
+                    TutorWhiteboard.Column(label: label, content: content)
+                )
+            }
+
+        case .addBoardBase(let label):
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                whiteboard.baseLabel = label
+            }
+
+        case .addBoardCells(let values):
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) {
+                whiteboard.cells = values
+                // Pointers refer to positions in the old row, so they are
+                // dropped rather than left pointing somewhere arbitrary.
+                whiteboard.pointers = []
+            }
+
+        case .addBoardPointer(let position, let name):
+            guard let cellIndex = position.resolve(inCellCount: whiteboard.cells.count) else {
+                TutorDebugLog.write("⚠️ pointer \(name) could not be placed; row has \(whiteboard.cells.count) cell(s)")
+                return
+            }
+            withAnimation(.easeOut(duration: 0.22)) {
+                // One name per position: re-stating `mid` moves it rather than
+                // stacking a second label under the same cell. This is what
+                // makes a walkthrough animate, since each restatement of `lo`
+                // slides the marker along instead of littering the row.
+                whiteboard.pointers.removeAll { pointer in pointer.name == name }
+                whiteboard.pointers.append(
+                    TutorWhiteboard.Pointer(cellIndex: cellIndex, name: name)
+                )
+            }
+
+        case .addBoardNote(let text):
+            withAnimation(.easeOut(duration: 0.25)) {
+                whiteboard.caption = text
+            }
+
         case .point(let identifier):
             guard let rect = resolve(identifier) else { return }
             detectedElementScreenLocation = CGPoint(x: rect.midX, y: rect.midY)
@@ -1104,12 +1191,17 @@ final class CompanionManager: ObservableObject {
         }
     }
 
-    /// Wipes the board.
+    /// Wipes every mark and takes down the board.
     func clearAnnotations() {
-        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+        let hasNothingToClear = activeAnnotations.isEmpty
+            && spotlightRectsInGlobalPoints.isEmpty
+            && !whiteboard.hasContent
+        guard !hasNothingToClear else { return }
+
         withAnimation(.easeOut(duration: 0.25)) {
             activeAnnotations.removeAll()
             spotlightRectsInGlobalPoints.removeAll()
+            whiteboard = TutorWhiteboard()
         }
     }
 
