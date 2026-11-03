@@ -24,11 +24,16 @@ import Security
 enum APIKeyStore {
     /// Which hosted service a key belongs to.
     enum Service: String {
+        /// Only used for the AI Studio endpoint. Vertex authenticates with a
+        /// gcloud access token instead, so the hosted brain needs no key here.
         case gemini = "com.maverickrajeev.clicky-local.gemini"
+        /// Speech to text and text to speech.
+        case deepgram = "com.maverickrajeev.clicky-local.deepgram"
 
         var humanReadableName: String {
             switch self {
             case .gemini: return "Google Gemini"
+            case .deepgram: return "Deepgram"
             }
         }
     }

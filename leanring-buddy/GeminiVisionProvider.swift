@@ -85,7 +85,7 @@ final class GeminiVisionProvider: TutorBrain {
 
         // Lists models, which both proves the key works and confirms the
         // configured model exists before a question depends on it.
-        guard var components = URLComponents(string: Self.endpointBase) else {
+        guard var components = URLComponents(string: Self.aiStudioBase) else {
             return (false, [])
         }
         components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
@@ -428,6 +428,12 @@ enum GeminiError: LocalizedError {
     case missingKey
     case httpStatus(Int, String)
     case malformedResponse
+    /// gcloud is not installed where expected, so no Vertex token can be minted.
+    case gcloudUnavailable
+    /// gcloud is present but its credential is expired or revoked. This is the
+    /// failure that cost an afternoon: it surfaces as HTTP 401
+    /// CREDENTIALS_MISSING rather than saying the credential expired.
+    case notSignedIn
 
     var errorDescription: String? {
         switch self {
@@ -437,6 +443,10 @@ enum GeminiError: LocalizedError {
             return "Gemini HTTP \(code): \(body)"
         case .malformedResponse:
             return "Gemini returned a response in an unexpected shape."
+        case .gcloudUnavailable:
+            return "gcloud was not found. Install the Google Cloud CLI to use the cloud brain."
+        case .notSignedIn:
+            return "Google Cloud credentials have expired. Run: gcloud auth application-default login"
         }
     }
 }

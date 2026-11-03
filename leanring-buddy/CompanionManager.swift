@@ -77,7 +77,19 @@ final class CompanionManager: ObservableObject {
     ) ?? .local
 
     private lazy var localBrain = OllamaVisionProvider(model: selectedModel)
-    private lazy var hostedBrain = GeminiVisionProvider()
+    /// Google Cloud project the hosted brain bills against.
+    ///
+    /// Overridable through defaults so the project can change without a
+    /// rebuild. Vertex rather than AI Studio because only Vertex draws on this
+    /// project's credits.
+    private static var hostedProjectIdentifier: String {
+        UserDefaults.standard.string(forKey: "vertexProjectIdentifier") ?? "medi-agent-490106"
+    }
+
+    private lazy var hostedBrain = GeminiVisionProvider(
+        model: "gemini-4-argon",
+        endpoint: .vertex(projectIdentifier: Self.hostedProjectIdentifier, location: "global")
+    )
 
     /// The brain in use. Both conform to the same protocol, so nothing
     /// downstream of here knows or cares which one answered.
@@ -94,11 +106,10 @@ final class CompanionManager: ObservableObject {
     /// on the next question, since the fix is in the panel the user is already
     /// looking at.
     func setBrainKind(_ kind: TutorBrainKind) {
-        if kind == .hosted && !APIKeyStore.hasKey(for: .gemini) {
-            TutorDebugLog.write("⚠️ cannot switch to cloud: no API key saved")
-            isLocalModelReachable = false
-            return
-        }
+        // No key check for the hosted brain: on Vertex it authenticates with a
+        // gcloud access token, not a stored key, so requiring one here would
+        // lock out the very path that bills against the project's credits.
+        // probeServer reports unreachable if the credential is bad.
 
         brainKind = kind
         UserDefaults.standard.set(kind.rawValue, forKey: "tutorBrainKind")
@@ -127,6 +138,15 @@ final class CompanionManager: ObservableObject {
     /// AVSpeechSynthesizer option is the compact tier and sounds plainly
     /// synthetic. This is the difference between a voice you can listen to for
     /// an hour of study and one you cannot.
+    /// Hosted voice. Preferred when a key is present: measured 0.16s to first
+    /// byte against Kokoro's 0.77s render, and it is a far better voice than
+    /// any compact system one.
+    private lazy var deepgramClient = DeepgramSpeechClient()
+
+    /// Which voice is in use this session, decided once at startup.
+    private enum VoiceEngine { case deepgram, kokoro, system }
+    private var voiceEngine: VoiceEngine = .system
+
     private lazy var kokoroClient = KokoroSpeechClient(
         helperScriptPath: Self.kokoroHelperScriptPath
     )
@@ -294,9 +314,19 @@ final class CompanionManager: ObservableObject {
         // Brought up alongside the model, because its first generation would
         // otherwise pay the model load inside the user's first answer.
         Task {
-            isUsingNeuralVoice = await kokoroClient.start()
-            if !isUsingNeuralVoice {
-                TutorDebugLog.write("🔈 neural voice unavailable, using the system voice")
+            // Ordered by quality. Deepgram first because it is both the best
+            // voice and the fastest to first audio; Kokoro next because it
+            // needs no network; the system voice last because every installed
+            // one here is the compact tier and sounds it.
+            if deepgramClient.isConfigured {
+                voiceEngine = .deepgram
+                TutorDebugLog.write("🔊 voice: Deepgram \(deepgramClient.voiceName)")
+            } else if await kokoroClient.start() {
+                voiceEngine = .kokoro
+                isUsingNeuralVoice = true
+            } else {
+                voiceEngine = .system
+                TutorDebugLog.write("🔈 no neural voice available, using the system voice")
             }
         }
 
@@ -406,6 +436,7 @@ final class CompanionManager: ObservableObject {
 
     func stop() {
         kokoroClient.shutDown()
+        deepgramClient.shutDown()
         globalPushToTalkShortcutMonitor.stop()
         buddyDictationManager.cancelCurrentDictation()
         overlayWindowManager.hideOverlay()
@@ -1114,7 +1145,30 @@ final class CompanionManager: ObservableObject {
             return
         }
 
-        if isUsingNeuralVoice {
+        switch voiceEngine {
+        case .deepgram:
+            deepgramClient.onSpokenProgress = { reachedOffset in
+                drawMarksReached(upToCharacterOffset: reachedOffset)
+            }
+            do {
+                // No prefetch needed here. Deepgram streams PCM into the audio
+                // engine as it arrives, so the gap before a sentence is about
+                // a sixth of a second rather than the second and a half that
+                // made rendering ahead worth the complexity for Kokoro.
+                try await deepgramClient.speakText(segment.spokenText)
+            } catch {
+                TutorDebugLog.write("⚠️ Deepgram failed: \(error.localizedDescription). system voice from here.")
+                voiceEngine = .system
+                deepgramClient.onSpokenProgress = nil
+                speechClient.onWillSpeakRange = { spokenRange, _ in
+                    drawMarksReached(upToCharacterOffset: spokenRange.location + spokenRange.length)
+                }
+                try? await speechClient.speakText(segment.spokenText)
+                speechClient.onWillSpeakRange = nil
+            }
+            deepgramClient.onSpokenProgress = nil
+
+        case .kokoro:
             kokoroClient.onSpokenProgress = { reachedOffset in
                 drawMarksReached(upToCharacterOffset: reachedOffset)
             }
@@ -1134,7 +1188,9 @@ final class CompanionManager: ObservableObject {
                 try? await speechClient.speakText(segment.spokenText)
             }
             kokoroClient.onSpokenProgress = nil
-        } else {
+            if voiceEngine == .kokoro, !isUsingNeuralVoice { voiceEngine = .system }
+
+        case .system:
             speechClient.onWillSpeakRange = { spokenRange, _ in
                 drawMarksReached(upToCharacterOffset: spokenRange.location + spokenRange.length)
             }
@@ -1149,7 +1205,7 @@ final class CompanionManager: ObservableObject {
 
     /// Whether either speech engine is currently producing audio.
     private var isAnyVoicePlaying: Bool {
-        speechClient.isPlaying || kokoroClient.isPlaying
+        speechClient.isPlaying || kokoroClient.isPlaying || deepgramClient.isPlaying
     }
 
     private func cancelSpeechAndClearQueue() {
@@ -1161,6 +1217,8 @@ final class CompanionManager: ObservableObject {
         speechClient.stopPlayback()
         kokoroClient.onSpokenProgress = nil
         kokoroClient.stopPlayback()
+        deepgramClient.onSpokenProgress = nil
+        deepgramClient.stopPlayback()
     }
 
     // MARK: - Drawing on screen
