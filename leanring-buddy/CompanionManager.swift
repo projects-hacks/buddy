@@ -446,9 +446,28 @@ final class CompanionManager: ObservableObject {
     /// user grants them in System Settings. Screen Recording is the exception —
     /// macOS requires an app restart for that one to take effect.
     private func startPermissionPolling() {
+        var tickCount = 0
         accessibilityCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            tickCount += 1
+            let shouldProbeModelServer = tickCount % 8 == 0
+
             Task { @MainActor [weak self] in
-                self?.refreshAllPermissions()
+                guard let self else { return }
+                self.refreshAllPermissions()
+
+                // Re-probe far less often than permissions. This exists so the
+                // "Ollama is not running" warning clears on its own once the
+                // user starts it, instead of needing an app restart.
+                if shouldProbeModelServer {
+                    let (isReachable, _) = await self.tutorBrain.probeServer()
+                    if isReachable != self.isLocalModelReachable {
+                        self.isLocalModelReachable = isReachable
+                        if isReachable {
+                            print("🦙 Ollama came back, preloading \(self.selectedModel)")
+                            await self.tutorBrain.preloadModel()
+                        }
+                    }
+                }
             }
         }
     }

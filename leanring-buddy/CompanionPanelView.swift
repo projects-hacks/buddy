@@ -599,6 +599,27 @@ struct CompanionPanelView: View {
     // MARK: - Model Picker
 
     private var modelPickerRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            modelPickerControls
+
+            // The one failure worth explaining in the UI: everything else
+            // still works, the app simply has nothing to think with, and the
+            // fix is a single command the user can copy.
+            if !companionManager.isLocalModelReachable {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.orange)
+                    Text("Ollama is not running. Run: brew services start ollama")
+                        .font(.system(size: 11))
+                        .foregroundColor(DS.Colors.textSecondary)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private var modelPickerControls: some View {
         HStack {
             Text("Model")
                 .font(.system(size: 13, weight: .medium))
@@ -606,9 +627,13 @@ struct CompanionPanelView: View {
 
             Spacer()
 
+            // Fast is the default and the one measured to work. Deep is
+            // offered because a patient user may want it for a hard question,
+            // but it generates below speech playback rate on 16 GB, so the
+            // voice audibly waits between sentences. See docs/model-choice.md.
             HStack(spacing: 0) {
-                modelOptionButton(label: "Sonnet", modelID: "claude-sonnet-4-6")
-                modelOptionButton(label: "Opus", modelID: "claude-opus-4-6")
+                modelOptionButton(label: "Fast", modelID: "qwen3.5:4b")
+                modelOptionButton(label: "Deep", modelID: "qwen3.5:9b")
             }
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
