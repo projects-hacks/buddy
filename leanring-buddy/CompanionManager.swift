@@ -919,18 +919,13 @@ final class CompanionManager: ObservableObject {
                 // started appearing: the structure costs tokens that the spoken
                 // answer then does not have. Cut off halfway is worse than
                 // slightly long, and the filler rules keep the prose tight.
-                // Length is the latency. Vertex sends the answer in a handful
-                // of frames near the end rather than token by token, so a long
-                // answer is silence, not slow speech: a four paragraph reply
-                // left the student waiting thirty-seven seconds for the first
-                // word and two minutes for the last mark. It was also simply
-                // too much to follow.
-                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 420 : 150
+                let budget = Self.answerBudget(for: transcript)
+                tutorBrain.maximumResponseTokens = budget.maximumTokens
 
                 // A second attempt at the same idea needs room to actually
                 // work the example through, not the terse default.
                 if consecutiveReexplanationCount > 0 {
-                    tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 450)
+                    tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 420)
                 }
 
 
@@ -938,7 +933,7 @@ final class CompanionManager: ObservableObject {
                     images: labeledImages,
                     systemPrompt: Self.tutorSystemPrompt(
                         screenIndexListing: screenIndex.renderForPrompt()
-                    ) + reexplanationInstruction(),
+                    ) + "\n\n" + budget.shapeInstruction + reexplanationInstruction(),
                     conversationHistory: historyForModel,
                     userPrompt: transcript,
                     onTextChunk: { [weak self] accumulatedText in
@@ -1042,19 +1037,72 @@ final class CompanionManager: ObservableObject {
         """
     }
 
-    /// Whether the user is asking for a longer, fuller explanation.
+    /// How much room an answer gets, decided from what was asked.
     ///
-    /// Deliberately a keyword check rather than a model call: it runs on every
-    /// question, and spending a second of inference to decide how long the next
-    /// answer may be would cost more than it saves.
-    private static func isRequestForDepth(_ transcript: String) -> Bool {
-        let lowercasedTranscript = transcript.lowercased()
-        let depthPhrases = [
-            "explain more", "go deeper", "deeper", "elaborate", "in detail",
-            "more detail", "walk me through", "step by step", "why does",
-            "teach me", "full explanation", "properly", "from scratch"
-        ]
-        return depthPhrases.contains { phrase in lowercasedTranscript.contains(phrase) }
+    /// A fixed ceiling is the wrong instrument. "what does this line do" wants
+    /// one sentence; "walk me through binary search" wants a diagram and the
+    /// room to build it. Capping both at the same number either truncates the
+    /// second or lets the first ramble, and on Vertex a long answer is silence
+    /// rather than slow speech, so the cost of over-answering falls on the
+    /// student as waiting.
+    ///
+    /// The budget is also stated in the prompt rather than only enforced at
+    /// the sampler, because a model told to write three sentences writes three
+    /// sentences, while a model cut off at 150 tokens stops mid-thought.
+    struct AnswerBudget {
+        let maximumTokens: Int
+        /// Shape instruction injected into the prompt.
+        let shapeInstruction: String
+        /// Whether a diagram is worth the room it costs.
+        let allowsBoard: Bool
+    }
+
+    /// Classifies the question into a budget.
+    ///
+    /// Keyword matching rather than a model call: this runs on every question
+    /// and a second of inference spent deciding how long the next answer may be
+    /// costs more than it saves.
+    private static func answerBudget(for transcript: String) -> AnswerBudget {
+        let question = transcript.lowercased()
+
+        func mentions(_ phrases: [String]) -> Bool {
+            phrases.contains { phrase in question.contains(phrase) }
+        }
+
+        // Asked to teach it properly. Worth a diagram and the room to build one.
+        if mentions(["walk me through", "step by step", "teach me", "explain more",
+                     "go deeper", "in detail", "more detail", "from scratch",
+                     "full explanation", "properly", "whole thing", "how does it work"]) {
+            return AnswerBudget(
+                maximumTokens: 520,
+                shapeInstruction: """
+                LENGTH: they asked to be taught this properly. take the room: up to eight sentences, and draw a board if the idea has structure. still no preamble and no reading the screen back.
+                """,
+                allowsBoard: true
+            )
+        }
+
+        // A quick factual or local question. One sentence is the honest answer.
+        if mentions(["what is", "what does", "what's", "whats", "is this", "is that",
+                     "which line", "where is", "does this", "did i", "can i"])
+            && question.split(separator: " ").count <= 12 {
+            return AnswerBudget(
+                maximumTokens: 90,
+                shapeInstruction: """
+                LENGTH: ONE sentence. they asked something specific and small. answer it and stop. no board.
+                """,
+                allowsBoard: false
+            )
+        }
+
+        // Everything else: a real question wanting a real but compact answer.
+        return AnswerBudget(
+            maximumTokens: 190,
+            shapeInstruction: """
+            LENGTH: THREE sentences carrying one idea. they are waiting in silence while you write, so every extra sentence is a longer wait. draw a board only if the idea genuinely has stages or data to step through.
+            """,
+            allowsBoard: true
+        )
     }
 
     // MARK: - Progressive speech
