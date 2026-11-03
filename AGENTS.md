@@ -5,18 +5,20 @@
 
 ## Overview
 
-macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it on-device via Apple Speech, and sends the transcript, a screenshot, and a machine-read index of the screen to a local model served by Ollama. The model answers with text that is spoken by the system voice and carries inline tags that draw on screen: circles, boxes, underlines, highlights, strikethroughs, arrows, numbered steps, callouts and spotlight.
+macOS menu bar companion app. Lives entirely in the macOS status bar (no dock icon, no main window). Clicking the menu bar icon opens a custom floating panel with companion voice controls. Uses push-to-talk (ctrl+option) to capture voice input, transcribes it on-device via Apple Speech, and sends the transcript, a screenshot, and a machine-read index of the screen to Gemini 4 Argon on Vertex AI. The model answers with text that is spoken by the system voice and carries inline tags that draw on screen: circles, boxes, underlines, highlights, strikethroughs, arrows, numbered steps, callouts and spotlight.
 
-This fork runs entirely on-device. There is no Cloudflare Worker, no API key, and no network dependency. Analytics are disabled and nothing is transmitted.
+This fork replaces the upstream vendors rather than the architecture: Claude becomes Gemini, AssemblyAI becomes Apple Speech on-device, ElevenLabs becomes Deepgram. There is no Cloudflare Worker. Keys live in the macOS Keychain and Vertex authenticates with a gcloud token, so nothing sensitive is in the repository or the binary. Analytics are disabled.
+
+A fully local path remains behind one switch (Ollama plus Kokoro), but its models are not installed by default. It was measured and abandoned as the primary: a 4B reasons well about what is on screen and invents technical facts that are not, naming three different wrong inventors for quicksort across three runs where Argon answered correctly first time.
 
 ## Architecture
 
 - **App Type**: Menu bar-only (`LSUIElement=true`), no dock icon or main window
 - **Framework**: SwiftUI (macOS native) with AppKit bridging for menu bar panel and cursor overlay
 - **Pattern**: MVVM with `@StateObject` / `@Published` state management
-- **AI Chat**: local Ollama server at `127.0.0.1:11434`, default `qwen3.5:4b`, newline-delimited JSON streaming
+- **AI Chat**: `gemini-4-argon` on Vertex AI, SSE streaming, authenticated with a gcloud access token so usage bills the project holding the credits. Falls back to Ollama if switched to local.
 - **Speech-to-Text**: Apple Speech on-device (`VoiceTranscriptionProvider` is `apple` in Info.plist)
-- **Text-to-Speech**: `AVSpeechSynthesizer`, picking the highest-quality installed English voice
+- **Text-to-Speech**: Deepgram `aura-2-hera-en`, streamed as PCM into `AVAudioEngine` so speech starts about 0.16s after the request. Falls back to Kokoro, then `AVSpeechSynthesizer`.
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
 - **Voice Input**: Push-to-talk via `AVAudioEngine` + pluggable transcription-provider layer. System-wide keyboard shortcut via listen-only CGEvent tap.
 - **Screen Index**: Apple Vision text recognition plus the accessibility tree produce a numbered inventory of everything addressable on screen. This is injected into every prompt and is how marks resolve to exact rectangles.
@@ -24,18 +26,36 @@ This fork runs entirely on-device. There is no Cloudflare Worker, no API key, an
 - **Concurrency**: `@MainActor` isolation, async/await throughout
 - **Analytics**: none. `ClickyAnalytics.swift` is an inert no-op surface.
 
-### Local inference
+### Where each capability runs
 
-No proxy. The app talks to Ollama directly on loopback.
+| Need | Service | Auth |
+|------|---------|------|
+| Vision + reasoning | `gemini-4-argon` on Vertex AI | gcloud access token, cached 50 min |
+| Text-to-speech | Deepgram `aura-2-hera-en` | Keychain |
+| Speech-to-text | Apple Speech framework | on-device |
+| Text recognition | Apple Vision framework | on-device |
+| Element rectangles | Accessibility API | on-device |
 
-| Need | Where it runs |
-|------|---------------|
-| Vision + chat | `POST 127.0.0.1:11434/api/chat` |
-| Speech-to-text | Apple Speech framework, on-device |
-| Text-to-speech | AVSpeechSynthesizer, on-device |
-| Text recognition | Apple Vision framework, on-device |
+Vertex rather than AI Studio because only Vertex bills against a Google Cloud
+project, which is where trial credits live. An AI Studio key bills its own
+account and cannot draw on those credits however it is configured.
+
+Argon ignores `temperature`, `topP` and `topK`, and returns HTTP 400 for
+`frequencyPenalty`, `presencePenalty` and `candidateCount`. Reasoning depth is
+set through `thinkingConfig.thinkingLevel` instead, and is set to `LOW` because
+the answer is spoken while the student waits.
 
 The `worker/` directory is left in the tree but is unused and can be deleted.
+
+### Build
+
+Always build with `scripts/build-local.sh`. Every flag in it is load-bearing:
+a self-signed certificate keeps the designated requirement stable so Screen
+Recording and Accessibility grants survive rebuilds, `ENABLE_DEBUG_DYLIB=NO`
+avoids a Team ID mismatch with Xcode's preview dylib, and the
+disable-library-validation entitlement lets the hardened runtime load Sparkle
+and PostHog. Diagnostics go to `~/Library/Logs/ClickyLocal.log`, including the
+raw model response.
 
 ### Key Architecture Decisions
 
