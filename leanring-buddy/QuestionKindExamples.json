@@ -1,0 +1,55 @@
+{
+ "_why": "Example phrasings for each question kind. The app sorts a question by which kind's examples it is closest to in meaning (QuestionSorter.swift). scripts/question_sorting/sort_test.py grades that against test phrasings kept separately, which must never be copied in here, or the test stops measuring anything.",
+ "examples": {
+  "quick": [
+   "what does this line do",
+   "what is a hash ring",
+   "is that o of n",
+   "which one is the database",
+   "what does base62 mean",
+   "where is the bug",
+   "is low zero at the start",
+   "what does this function return"
+  ],
+  "normal": [
+   "why does the loop stop there",
+   "how does the load balancer pick a server",
+   "what happens when the cache misses",
+   "why is mid computed like that",
+   "how does this avoid duplicate codes",
+   "why does the database only see misses",
+   "how does redis know when to drop a key",
+   "why would this fail on an empty list"
+  ],
+  "teach": [
+   "teach me how caching works",
+   "walk me through this whole design",
+   "explain binary search step by step",
+   "go deeper on how the database scales",
+   "break down the write path for me",
+   "explain the request path from scratch",
+   "i want to properly understand load balancing",
+   "give me a full explanation of sharding"
+  ],
+  "reexplain": [
+   "i don't get it",
+   "can you explain that again",
+   "i'm confused",
+   "say it simpler please",
+   "that didn't make sense",
+   "what do you mean",
+   "lost me there",
+   "try a different way"
+  ],
+  "tradeoff": [
+   "should i use a hash map or a tree here",
+   "is redis or postgres better for this",
+   "which is better linear or binary search",
+   "is it worth caching the writes",
+   "why not use a queue instead",
+   "would a cdn be the right call",
+   "sql versus nosql for this",
+   "pros and cons of sharding by user"
+  ]
+ }
+}

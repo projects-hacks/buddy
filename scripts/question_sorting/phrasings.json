@@ -1,0 +1,213 @@
+{
+ "_why": "Two separate sets. the examples, in leanring-buddy/QuestionKindExamples.json, are what the sorters that learn from examples get to see; 'test' is what every sorter is graded on. None of the test phrasings appear in the examples, and the keyword lists in CompanionManager.swift were written before this file, so no sorter was tuned to the test. Phrasings are written the way Apple Speech transcribes them: lowercase, no punctuation, spoken filler kept. Every test item is mid-conversation, after an answer about the off-by-one bug on the URL-shortener screen.",
+ "previous_answer": "the crash starts here. high is set to the length, so it points one past the last real index, and with the loop condition using less than or equal, low can climb until mid lands exactly on that out of range slot.",
+ "kinds": {
+  "quick": "a small specific question with a one sentence answer, like what a line does or what a term means",
+  "normal": "a real question about how or why something works, wanting a short explanation",
+  "teach": "asking to be taught something properly, a walk-through or a deeper full explanation",
+  "reexplain": "saying the last explanation did not land and asking for it again or differently",
+  "tradeoff": "asking for a judgement between options or designs, whether something is better or worth it"
+ },
+ "test": [
+  [
+   "what does line six do",
+   "quick"
+  ],
+  [
+   "is this o of log n",
+   "quick"
+  ],
+  [
+   "whats base 62",
+   "quick"
+  ],
+  [
+   "which box is the cache",
+   "quick"
+  ],
+  [
+   "where does the request go after the load balancer",
+   "quick"
+  ],
+  [
+   "what does qps mean",
+   "quick"
+  ],
+  [
+   "is high inclusive here",
+   "quick"
+  ],
+  [
+   "what's the hit rate",
+   "quick"
+  ],
+  [
+   "does this return minus one if it's not found",
+   "quick"
+  ],
+  [
+   "what is mid on the first step",
+   "quick"
+  ],
+  [
+   "why does this crash on the last bucket",
+   "normal"
+  ],
+  [
+   "how does the cache stay in sync with postgres",
+   "normal"
+  ],
+  [
+   "why do we need a load balancer here",
+   "normal"
+  ],
+  [
+   "why is it low plus high over two",
+   "normal"
+  ],
+  [
+   "what happens if redis goes down",
+   "normal"
+  ],
+  [
+   "how would this handle a viral link",
+   "normal"
+  ],
+  [
+   "why is the read path cache first",
+   "normal"
+  ],
+  [
+   "how does the hash turn into a short code",
+   "normal"
+  ],
+  [
+   "why is the loop less than or equal",
+   "normal"
+  ],
+  [
+   "okay so what is the quiz actually asking me",
+   "normal"
+  ],
+  [
+   "walk me through binary search on this",
+   "teach"
+  ],
+  [
+   "can you teach me how the whole request path works",
+   "teach"
+  ],
+  [
+   "explain caching to me from the very beginning",
+   "teach"
+  ],
+  [
+   "go deeper on the write path",
+   "teach"
+  ],
+  [
+   "how does consistent hashing work explain it properly",
+   "teach"
+  ],
+  [
+   "take me through what happens when someone clicks a short link",
+   "teach"
+  ],
+  [
+   "i want to really understand this function break it down for me",
+   "teach"
+  ],
+  [
+   "give me the full picture of how this system scales reads",
+   "teach"
+  ],
+  [
+   "show me how binary search narrows the range",
+   "teach"
+  ],
+  [
+   "explain it in detail with an example",
+   "teach"
+  ],
+  [
+   "i still don't get it",
+   "reexplain"
+  ],
+  [
+   "wait what",
+   "reexplain"
+  ],
+  [
+   "huh i'm lost",
+   "reexplain"
+  ],
+  [
+   "can you say that another way",
+   "reexplain"
+  ],
+  [
+   "that went over my head",
+   "reexplain"
+  ],
+  [
+   "no i mean why does mid go past the end",
+   "reexplain"
+  ],
+  [
+   "sorry didn't follow",
+   "reexplain"
+  ],
+  [
+   "that makes no sense to me",
+   "reexplain"
+  ],
+  [
+   "hmm explain it simpler",
+   "reexplain"
+  ],
+  [
+   "what do you mean by one past the end",
+   "reexplain"
+  ],
+  [
+   "should find slot be a hash map instead",
+   "tradeoff"
+  ],
+  [
+   "is redis better than memcached here",
+   "tradeoff"
+  ],
+  [
+   "would sharding postgres be smarter than adding the cache",
+   "tradeoff"
+  ],
+  [
+   "why not just use a bigger database",
+   "tradeoff"
+  ],
+  [
+   "binary search or linear scan which is better for small arrays",
+   "tradeoff"
+  ],
+  [
+   "is a 94 percent hit rate good enough or should we aim higher",
+   "tradeoff"
+  ],
+  [
+   "would you use sql or nosql for this",
+   "tradeoff"
+  ],
+  [
+   "is it worth adding a cdn in front",
+   "tradeoff"
+  ],
+  [
+   "should the write path go through the cache too",
+   "tradeoff"
+  ],
+  [
+   "what's the tradeoff between base62 and a random id",
+   "tradeoff"
+  ]
+ ]
+}
