@@ -76,3 +76,42 @@ to state the format strictly and the parser has to tolerate the bare form.
 
 Scripts live outside the repo, under the session scratchpad: `make_study_screenshot.py`
 builds the fixture, `probe_model.py <model> <vision|teaching|grounding>` runs one case.
+
+## Index behaviour, measured against the same fixture
+
+On-device recognition found 41 usable targets in the test screenshot, with
+rectangles accurate enough to circle a single line of code.
+
+Two defects showed up and are worth knowing about.
+
+**Bare numbers were indexed.** The line-number gutter of a code block produced
+one target per line (`t11: 10`, `t12: 11`), crowding real content out of the
+prompt. Targets of three characters or fewer that are entirely digits are now
+dropped. Anything with a non-digit survives, so `94%` and `O(1)` are kept.
+
+**Code is the weakest case for recognition.** `def find_slot(buckets, target):`
+came back as `det tind_slot (buckets, target):`, and `high = len(buckets)` lost
+the space after the equals sign. Monospace glyphs and punctuation-dense lines
+are where the recogniser struggles. The model also receives the image, so it can
+cross-check, and the listing is still far better than asking it to read pixels
+alone. Do not assume the listing is character-exact.
+
+## Invented identifiers, and why resolution has a fallback
+
+Running the real system prompt against `qwen3.5:4b` fixed the earlier format
+drift: it emitted `[UNDERLINE:t25]` and `[SPOTLIGHT:...]` correctly, with no
+bare ids. One failure remained. Asked to walk through the five-box diagram it
+wrote "the client [POINT:t1] and the load balancer [POINT:t2]", numbering its
+own list instead of copying from the listing, where those boxes were `t11` and
+`t12`. Four of five marks pointed at nothing.
+
+The prompt now states that ids are neither ordered nor one-based. That reduces
+the rate but cannot be relied on at this model size, so resolution falls back to
+the words around the mark: an id that fails to resolve is recovered by searching
+the spoken phrase for the longest piece of indexed text it contains. Measured
+against the exact sentences that failed, all four recovered correctly, and
+phrases describing nothing on screen correctly matched nothing.
+
+It also mismarked once, underlining `low = 0` while talking about
+`high = len(buckets)`. Adjacent-line errors of that kind are not recoverable
+from text and remain a real limitation.

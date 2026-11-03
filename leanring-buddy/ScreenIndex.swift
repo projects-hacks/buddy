@@ -194,6 +194,14 @@ final class ScreenIndex {
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 guard recognizedString.count >= minimumRecognizedTextLength else { return nil }
 
+                // Drop bare short numbers. In practice these are the line-number
+                // gutter of a code block, which produced one useless target per
+                // line and crowded out real content in the prompt. Anything with
+                // a non-digit survives, so "94%" and "O(1)" are kept.
+                let isBareShortNumber = recognizedString.count <= 3
+                    && recognizedString.allSatisfy { character in character.isNumber }
+                guard !isBareShortNumber else { return nil }
+
                 return RecognizedLine(
                     text: recognizedString,
                     normalizedBounds: observation.boundingBox,
@@ -412,6 +420,43 @@ final class ScreenIndex {
     /// Returns nil for an identifier that was invented rather than chosen.
     func target(forIdentifier identifier: String) -> ScreenTarget? {
         targetsByIdentifier[identifier.trimmingCharacters(in: .whitespaces)]
+    }
+
+    /// Recovers a target from the words surrounding a mark when its id is bogus.
+    ///
+    /// Observed failure this exists for: asked to walk through a five-box
+    /// diagram, the 4B wrote "the client [POINT:t1] and the load balancer
+    /// [POINT:t2]", numbering its own list instead of copying ids from the
+    /// listing, where those boxes were t11 and t12. Every such mark resolves to
+    /// nothing and the explanation plays with a blank screen.
+    ///
+    /// The words are more reliable than the id, because the model is describing
+    /// what it genuinely sees even when it miscopies the label. So when an id
+    /// misses, the phrase being spoken is searched for the longest piece of
+    /// indexed text it contains, and that target is used instead.
+    func bestTextMatch(forSpokenPhrase phrase: String) -> ScreenTarget? {
+        let searchablePhrase = phrase.lowercased()
+        guard !searchablePhrase.isEmpty else { return nil }
+
+        var bestMatch: (target: ScreenTarget, matchedLength: Int)?
+
+        for candidate in orderedTargets {
+            let candidateText = candidate.displayedText
+                .lowercased()
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Very short strings match far too easily. Three characters is
+            // where a match starts carrying real information.
+            guard candidateText.count >= 3,
+                  searchablePhrase.contains(candidateText) else { continue }
+
+            // Longest match wins: "load balancer" should beat "load".
+            if bestMatch == nil || candidateText.count > bestMatch!.matchedLength {
+                bestMatch = (candidate, candidateText.count)
+            }
+        }
+
+        return bestMatch?.target
     }
 
     /// Clears the index once an interaction ends, since the rectangles describe

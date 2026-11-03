@@ -610,6 +610,7 @@ final class CompanionManager: ObservableObject {
 
         rules for marking:
         - use ids from the listing above. never invent an id. never write raw coordinates.
+        - the ids are NOT in order and NOT numbered from one. copy each id character by character from the listing. if you are marking the five boxes of a diagram their ids might be t11, t12, t13, t14, t15, never t1 to t5. look it up, do not count.
         - the full tag is required. write [POINT:t23], never [t23] and never t23 on its own.
         - the screen is dense, so mark things. a bare explanation with no marks is a worse answer.
         - [SPOTLIGHT:...] is your best tool when the screen is busy. use it when you want their eyes on two or three things and nothing else.
@@ -811,18 +812,18 @@ final class CompanionManager: ObservableObject {
                     while let next = undispatchedDirectives.first,
                           next.characterOffsetInSpokenText <= spokenUpTo {
                         undispatchedDirectives.removeFirst()
-                        self.apply(directive: next)
+                        self.apply(directive: next, spokenContext: segment.spokenText)
                     }
                 }
 
                 if segment.spokenText.isEmpty {
                     // Nothing to say, so the marks land immediately.
-                    for directive in undispatchedDirectives { self.apply(directive: directive) }
+                    for directive in undispatchedDirectives { self.apply(directive: directive, spokenContext: segment.spokenText) }
                 } else {
                     try? await self.speechClient.speakText(segment.spokenText)
                     // Anything the word callback never reached, because speech
                     // was cut short or the tag sat past the final word.
-                    for directive in undispatchedDirectives { self.apply(directive: directive) }
+                    for directive in undispatchedDirectives { self.apply(directive: directive, spokenContext: segment.spokenText) }
                 }
 
                 self.speechClient.onWillSpeakRange = nil
@@ -844,7 +845,11 @@ final class CompanionManager: ObservableObject {
     // MARK: - Drawing on screen
 
     /// Turns one directive into a mark, resolving its target to an exact rectangle.
-    private func apply(directive: TeacherDirective) {
+    ///
+    /// `spokenContext` is the sentence the mark was attached to. It is only
+    /// consulted when an id fails to resolve, as the recovery path described
+    /// on `ScreenIndex.bestTextMatch(forSpokenPhrase:)`.
+    private func apply(directive: TeacherDirective, spokenContext: String = "") {
         let displayFrame = displayFrameForCurrentAnswer
 
         /// Converts a display-local rectangle into global AppKit points.
@@ -858,13 +863,25 @@ final class CompanionManager: ObservableObject {
         }
 
         func resolve(_ identifier: String) -> CGRect? {
-            guard let target = screenIndex.target(forIdentifier: identifier) else {
-                // An invented id is a prompt-following failure worth seeing
-                // rather than a mark silently going missing.
-                print("⚠️ Tutor referenced unknown target \(identifier)")
-                return nil
+            if let target = screenIndex.target(forIdentifier: identifier) {
+                return globalRect(for: target)
             }
-            return globalRect(for: target)
+
+            // The id missed. The words around it are usually still honest
+            // about what the model meant, so try to recover from those before
+            // dropping the mark.
+            let leadingPhrase = phraseLeadingUpTo(
+                characterOffset: directive.characterOffsetInSpokenText,
+                in: spokenContext
+            )
+
+            if let recoveredTarget = screenIndex.bestTextMatch(forSpokenPhrase: leadingPhrase) {
+                print("↩️ Recovered bad id \(identifier) as \(recoveredTarget.id) via \"\(recoveredTarget.displayedText)\"")
+                return globalRect(for: recoveredTarget)
+            }
+
+            print("⚠️ Tutor referenced unknown target \(identifier), and nothing nearby matched")
+            return nil
         }
 
         switch directive.action {
@@ -921,6 +938,28 @@ final class CompanionManager: ObservableObject {
                 spotlightRectsInGlobalPoints = litRects
             }
         }
+    }
+
+    /// Returns the words just before a mark, which is where the model names
+    /// the thing it is marking.
+    ///
+    /// Looks backwards rather than around the offset because the natural
+    /// phrasing is "the load balancer [POINT:t12]": the noun precedes the tag.
+    /// A short lookahead is still included for the occasional inversion.
+    private func phraseLeadingUpTo(characterOffset: Int, in text: String) -> String {
+        guard !text.isEmpty else { return "" }
+
+        let charactersBefore = 70
+        let charactersAfter = 25
+
+        let clampedOffset = max(0, min(characterOffset, text.count))
+        let lowerBound = max(0, clampedOffset - charactersBefore)
+        let upperBound = min(text.count, clampedOffset + charactersAfter)
+        guard lowerBound < upperBound else { return "" }
+
+        let startIndex = text.index(text.startIndex, offsetBy: lowerBound)
+        let endIndex = text.index(text.startIndex, offsetBy: upperBound)
+        return String(text[startIndex..<endIndex])
     }
 
     private func appendAnnotation(
@@ -1178,7 +1217,7 @@ final class CompanionManager: ObservableObject {
                 }
 
                 detectedElementBubbleText = parsed.spokenText
-                for directive in parsed.directives { apply(directive: directive) }
+                for directive in parsed.directives { apply(directive: directive, spokenContext: parsed.spokenText) }
                 print("🎯 Onboarding demo: \"\(parsed.spokenText)\"")
             } catch {
                 print("⚠️ Onboarding demo error: \(error.localizedDescription)")
