@@ -80,6 +80,32 @@ struct TeacherDirective {
         case addBoardPointer(position: BoardPointerPosition, name: String)
         /// A caption line under the board carrying the takeaway.
         case addBoardNote(text: String)
+
+        // MARK: Positioned diagrams
+        //
+        // Columns and a base bar draw one shape of picture. Anything else, a
+        // cycle, a tree, a fan-out, a thing sitting beside another thing, has
+        // no way to be expressed. These two allow an arbitrary diagram.
+        //
+        // Positions are grid cells, not pixels. Pixels were refused earlier
+        // because a 4B invented them, and that reasoning held: even a capable
+        // model placing pixels has to track overlap, text width and alignment
+        // while also explaining something. A coarse grid is a decision it can
+        // actually make, and the exact geometry, minimum sizes and spacing
+        // stay with the app, which is the half it does reliably.
+
+        /// A labelled box at a grid position.
+        case addBoardNode(
+            identifier: String,
+            column: Int,
+            row: Int,
+            widthInColumns: Int,
+            label: String,
+            tint: String
+        )
+
+        /// An arrow between two nodes, optionally labelled.
+        case addBoardEdge(fromIdentifier: String, toIdentifier: String, label: String)
         /// Fall back to an explicit coordinate when no indexed target fits,
         /// preserving the upstream tag format.
         case pointAtCoordinate(x: Double, y: Double, label: String, displayIndex: Int)
@@ -153,7 +179,8 @@ enum TeacherResponseParser {
         "POINT", "CIRCLE", "BOX", "RECT", "UNDERLINE", "HIGHLIGHT", "MARK",
         "STRIKE", "STRIKETHROUGH", "ARROW", "STEP", "LABEL", "NOTE",
         "SPOTLIGHT", "FOCUS", "CLEAR", "ERASE",
-        "BOARD", "COL", "COLUMN", "BASE", "CELLS", "PTR", "POINTER", "CAPTION"
+        "BOARD", "COL", "COLUMN", "BASE", "CELLS", "PTR", "POINTER", "CAPTION",
+        "NODE", "EDGE"
     ]
 
     /// Matches a board tag sitting alone on its line, with the lines under it.
@@ -409,6 +436,58 @@ enum TeacherResponseParser {
             let pointerName = components[1].trimmingCharacters(in: .whitespaces)
             guard !pointerName.isEmpty else { return nil }
             return .addBoardPointer(position: position, name: pointerName)
+
+        case "NODE":
+            // id : column,row : widthInColumns : label [: tint]
+            let fields = trimmedPayload.components(separatedBy: ":")
+            guard fields.count >= 4 else { return nil }
+
+            let identifier = fields[0].trimmingCharacters(in: .whitespaces)
+            let position = fields[1].components(separatedBy: ",")
+            guard !identifier.isEmpty,
+                  position.count == 2,
+                  let column = Int(position[0].trimmingCharacters(in: .whitespaces)),
+                  let row = Int(position[1].trimmingCharacters(in: .whitespaces)) else {
+                return nil
+            }
+
+            // A width the model forgot, or wrote as a word, defaults to
+            // something sane rather than discarding the node.
+            let widthInColumns = Int(fields[2].trimmingCharacters(in: .whitespaces)) ?? 3
+            let label = fields[3].trimmingCharacters(in: .whitespaces)
+            guard !label.isEmpty else { return nil }
+
+            let tint = fields.count >= 5
+                ? fields[4].trimmingCharacters(in: .whitespaces).lowercased()
+                : "blue"
+
+            return .addBoardNode(
+                identifier: identifier,
+                column: column,
+                row: row,
+                widthInColumns: widthInColumns,
+                label: label,
+                tint: tint
+            )
+
+        case "EDGE":
+            // from->to [: label]
+            let parts = trimmedPayload.components(separatedBy: ":")
+            let endpoints = parts[0]
+                .components(separatedBy: "->")
+                .map { endpoint in endpoint.trimmingCharacters(in: .whitespaces) }
+                .filter { endpoint in !endpoint.isEmpty }
+            guard endpoints.count >= 2 else { return nil }
+
+            let label = parts.count >= 2
+                ? parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
+                : ""
+
+            return .addBoardEdge(
+                fromIdentifier: endpoints[0],
+                toIdentifier: endpoints[1],
+                label: label
+            )
 
         case "CAPTION":
             guard !trimmedPayload.isEmpty else { return nil }

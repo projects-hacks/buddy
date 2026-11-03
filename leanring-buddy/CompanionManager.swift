@@ -1408,6 +1408,42 @@ final class CompanionManager: ObservableObject {
                 )
             }
 
+        case .addBoardNode(let identifier, let column, let row, let widthInColumns, let label, let tint):
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.8)) {
+                // Restating a node moves it rather than stacking a duplicate,
+                // which is what lets a diagram be corrected mid-explanation.
+                whiteboard.nodes.removeAll { existing in existing.id == identifier }
+                whiteboard.nodes.append(
+                    TutorWhiteboard.Node(
+                        id: identifier,
+                        column: column,
+                        row: row,
+                        widthInColumns: widthInColumns,
+                        label: label,
+                        tint: TutorWhiteboard.Node.Tint(name: tint)
+                    )
+                )
+            }
+
+        case .addBoardEdge(let fromIdentifier, let toIdentifier, let label):
+            // Both ends must exist, or the arrow has nothing to attach to and
+            // would be drawn from the origin.
+            let knownIdentifiers = Set(whiteboard.nodes.map(\.id))
+            guard knownIdentifiers.contains(fromIdentifier),
+                  knownIdentifiers.contains(toIdentifier) else {
+                TutorDebugLog.write("⚠️ edge \(fromIdentifier)->\(toIdentifier) references a node that was never drawn")
+                return
+            }
+            withAnimation(.easeOut(duration: 0.3)) {
+                whiteboard.edges.append(
+                    TutorWhiteboard.Edge(
+                        fromIdentifier: fromIdentifier,
+                        toIdentifier: toIdentifier,
+                        label: label
+                    )
+                )
+            }
+
         case .addBoardNote(let text):
             withAnimation(.easeOut(duration: 0.25)) {
                 whiteboard.caption = text

@@ -115,3 +115,37 @@ phrases describing nothing on screen correctly matched nothing.
 It also mismarked once, underlining `low = 0` while talking about
 `high = len(buckets)`. Adjacent-line errors of that kind are not recoverable
 from text and remain a real limitation.
+
+## Positioned diagrams cost 16x latency and changed nothing
+
+Built, measured, and taken back out of the prompt. The rendering code is kept
+because it works; only the instruction that offers it is gone.
+
+The board could draw columns over a base bar and nothing else, so a flow, a
+fan-out or a tree had no way to be expressed. A grid-based node and edge
+vocabulary was added: the model places boxes on a 12 by 7 grid and names
+arrows between them, with the app computing pixels, minimum sizes and arrow
+routing.
+
+It worked. Asked to explain storage and compute separation it produced four
+correctly spaced nodes and three valid edges. It also measured 63 to 75
+seconds to first byte against roughly 3 for the column vocabulary.
+
+The controlled comparison is the damning part. Same question, same budget,
+same screen index, the only difference being whether the prompt offers the
+grid at all:
+
+| | first byte | words | nodes | columns |
+|---|---|---|---|---|
+| without grid | 2.95s | 184 | 0 | 3 |
+| with grid | 49.12s | 151 | 0 | 3 |
+
+With the grid offered the model used none of it and drew the same three
+columns, 16 times slower. The 46 extra seconds went on deliberating about a
+layout it then declined to use.
+
+The lesson generalises past this feature. Pixels were refused early because a
+4B invented them, which read as a limitation of small models. It is not.
+Spatial layout is reasoning work, and a frontier model pays for it in latency
+rather than in accuracy. Asking a model to decide *what* to draw is cheap;
+asking it to decide *where* is expensive, whatever the model.

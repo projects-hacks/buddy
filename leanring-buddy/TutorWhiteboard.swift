@@ -35,7 +35,51 @@ struct TutorWhiteboard {
         let name: String
     }
 
+    /// A labelled box placed on the board's grid.
+    struct Node: Identifiable {
+        let id: String
+        let column: Int
+        let row: Int
+        let widthInColumns: Int
+        let label: String
+        let tint: Tint
+
+        enum Tint: String {
+            case blue, green, amber, grey, red
+
+            init(name: String) {
+                self = Tint(rawValue: name) ?? {
+                    switch name {
+                    case "yellow", "orange": return .amber
+                    case "gray", "neutral", "white": return .grey
+                    case "pink", "danger": return .red
+                    default: return .blue
+                    }
+                }()
+            }
+        }
+    }
+
+    /// An arrow from one node to another.
+    struct Edge: Identifiable {
+        let id = UUID()
+        let fromIdentifier: String
+        let toIdentifier: String
+        let label: String
+    }
+
+    /// The board's grid. Twelve across is divisible by two, three, four and
+    /// six, so the common arrangements land on whole cells without fractions.
+    static let gridColumns = 12
+    static let gridRows = 7
+
     var title: String = ""
+
+    /// Freely positioned boxes, for diagrams that are not a row of columns.
+    var nodes: [Node] = []
+
+    /// Arrows between those boxes.
+    var edges: [Edge] = []
 
     /// Labelled columns, left to right. Stages, moments in time, or a flow.
     var columns: [Column] = []
@@ -54,7 +98,8 @@ struct TutorWhiteboard {
     var caption: String?
 
     var hasContent: Bool {
-        !columns.isEmpty || !cells.isEmpty || baseLabel != nil || caption != nil
+        !columns.isEmpty || !cells.isEmpty || !nodes.isEmpty
+            || baseLabel != nil || caption != nil
     }
 }
 
@@ -104,6 +149,12 @@ private enum BoardStyle {
 struct TutorWhiteboardView: View {
     let board: TutorWhiteboard
 
+    /// Height the positioned diagram needs, from the deepest row used.
+    private var diagramHeight: CGFloat {
+        let deepestRow = board.nodes.map(\.row).max() ?? 0
+        return CGFloat(deepestRow + 1) * 54 + CGFloat(deepestRow) * 26
+    }
+
     /// Caption shown in the title strip, naming what is being worked through.
     private var headerText: String {
         board.title.isEmpty ? "working it out" : board.title
@@ -119,6 +170,12 @@ struct TutorWhiteboardView: View {
                         .font(BoardStyle.hand(size: 25))
                         .foregroundStyle(BoardStyle.ink)
                         .transition(.opacity.combined(with: .move(edge: .leading)))
+                }
+
+                if !board.nodes.isEmpty {
+                    DiagramCanvas(board: board)
+                        .frame(height: diagramHeight)
+                        .transition(.opacity)
                 }
 
                 if !board.columns.isEmpty {
@@ -330,6 +387,169 @@ struct TutorWhiteboardView: View {
         board.pointers
             .filter { pointer in pointer.cellIndex == cellIndex }
             .map { pointer in pointer.name }
+    }
+}
+
+// MARK: - Positioned diagram
+
+/// Lays out grid-placed nodes and routes arrows between them.
+///
+/// The model gives grid cells; everything that makes a diagram readable is
+/// decided here. Node sizes have floors because a box sized to its text alone
+/// comes out cramped and inconsistent, and arrows leave and enter at the
+/// nearest edges rather than at centres so they do not run through the boxes
+/// they connect.
+private struct DiagramCanvas: View {
+    let board: TutorWhiteboard
+
+    /// Smallest a labelled box may be drawn, regardless of grid width.
+    private static let minimumNodeWidth: CGFloat = 112
+    private static let nodeHeight: CGFloat = 54
+    private static let rowSpacing: CGFloat = 26
+
+    var body: some View {
+        GeometryReader { geometry in
+            let columnWidth = geometry.size.width / CGFloat(TutorWhiteboard.gridColumns)
+
+            ZStack(alignment: .topLeading) {
+                // Arrows first so they sit behind the boxes and any overshoot
+                // is hidden rather than drawn across a label.
+                ForEach(board.edges) { edge in
+                    if let fromRect = rect(forNodeIdentifier: edge.fromIdentifier, columnWidth: columnWidth),
+                       let toRect = rect(forNodeIdentifier: edge.toIdentifier, columnWidth: columnWidth) {
+                        EdgeShape(from: fromRect, to: toRect)
+                            .stroke(
+                                BoardStyle.mutedInk.opacity(0.8),
+                                style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round)
+                            )
+
+                        if !edge.label.isEmpty {
+                            Text(edge.label)
+                                .font(BoardStyle.hand(size: 12))
+                                .foregroundStyle(BoardStyle.mutedInk)
+                                .padding(.horizontal, 4)
+                                .background(BoardStyle.paper)
+                                .position(
+                                    x: (fromRect.midX + toRect.midX) / 2,
+                                    y: (fromRect.midY + toRect.midY) / 2
+                                )
+                        }
+                    }
+                }
+
+                ForEach(board.nodes) { node in
+                    let nodeRect = rect(for: node, columnWidth: columnWidth)
+                    Text(node.label)
+                        .font(BoardStyle.hand(size: 15))
+                        .foregroundStyle(BoardStyle.ink)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, 8)
+                        .frame(width: nodeRect.width, height: nodeRect.height)
+                        .background(
+                            RoundedRectangle(cornerRadius: 5)
+                                .fill(fill(for: node.tint))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 5)
+                                        .stroke(stroke(for: node.tint), lineWidth: 1.4)
+                                )
+                        )
+                        .position(x: nodeRect.midX, y: nodeRect.midY)
+                        .transition(.opacity.combined(with: .scale(scale: 0.92)))
+                }
+            }
+        }
+    }
+
+    private func rect(for node: TutorWhiteboard.Node, columnWidth: CGFloat) -> CGRect {
+        let clampedColumn = max(0, min(node.column, TutorWhiteboard.gridColumns - 1))
+        let requestedWidth = CGFloat(max(1, node.widthInColumns)) * columnWidth - 10
+        let width = max(Self.minimumNodeWidth, requestedWidth)
+
+        return CGRect(
+            x: CGFloat(clampedColumn) * columnWidth + 5,
+            y: CGFloat(max(0, node.row)) * (Self.nodeHeight + Self.rowSpacing),
+            width: width,
+            height: Self.nodeHeight
+        )
+    }
+
+    private func rect(forNodeIdentifier identifier: String, columnWidth: CGFloat) -> CGRect? {
+        guard let node = board.nodes.first(where: { candidate in candidate.id == identifier }) else {
+            return nil
+        }
+        return rect(for: node, columnWidth: columnWidth)
+    }
+
+    private func fill(for tint: TutorWhiteboard.Node.Tint) -> Color {
+        switch tint {
+        case .blue: return BoardStyle.boxFill
+        case .green: return BoardStyle.baseFill
+        case .amber: return Color(red: 0.99, green: 0.90, blue: 0.71)
+        case .grey: return Color.white.opacity(0.7)
+        case .red: return Color(red: 0.99, green: 0.80, blue: 0.80)
+        }
+    }
+
+    private func stroke(for tint: TutorWhiteboard.Node.Tint) -> Color {
+        switch tint {
+        case .blue: return BoardStyle.boxStroke
+        case .green: return BoardStyle.baseStroke
+        case .amber: return Color(red: 0.85, green: 0.65, blue: 0.25)
+        case .grey: return BoardStyle.gridLine
+        case .red: return Color(red: 0.85, green: 0.42, blue: 0.42)
+        }
+    }
+}
+
+/// An arrow between two boxes, leaving and entering at their facing edges.
+private struct EdgeShape: Shape {
+    let from: CGRect
+    let to: CGRect
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        // Leave and arrive on whichever sides actually face each other, so the
+        // line does not cross the box it starts from.
+        let isMostlyVertical = abs(to.midY - from.midY) > abs(to.midX - from.midX)
+
+        let start: CGPoint
+        let end: CGPoint
+        if isMostlyVertical {
+            let goingDown = to.midY > from.midY
+            start = CGPoint(x: from.midX, y: goingDown ? from.maxY : from.minY)
+            end = CGPoint(x: to.midX, y: goingDown ? to.minY : to.maxY)
+        } else {
+            let goingRight = to.midX > from.midX
+            start = CGPoint(x: goingRight ? from.maxX : from.minX, y: from.midY)
+            end = CGPoint(x: goingRight ? to.minX : to.maxX, y: to.midY)
+        }
+
+        path.move(to: start)
+        path.addLine(to: end)
+
+        // Arrowhead aligned to the direction of travel.
+        let deltaX = end.x - start.x
+        let deltaY = end.y - start.y
+        let length = max(1, sqrt(deltaX * deltaX + deltaY * deltaY))
+        let angle = atan2(deltaY / length, deltaX / length)
+        let headLength: CGFloat = 9
+        let spread = Double.pi / 7
+
+        path.move(to: end)
+        path.addLine(to: CGPoint(
+            x: end.x - headLength * CGFloat(cos(angle - spread)),
+            y: end.y - headLength * CGFloat(sin(angle - spread))
+        ))
+        path.move(to: end)
+        path.addLine(to: CGPoint(
+            x: end.x - headLength * CGFloat(cos(angle + spread)),
+            y: end.y - headLength * CGFloat(sin(angle + spread))
+        ))
+
+        return path
     }
 }
 
