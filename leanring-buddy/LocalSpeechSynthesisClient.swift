@@ -39,10 +39,20 @@ final class LocalSpeechSynthesisClient: NSObject {
 
     /// Multiplier applied to the system default speech rate.
     ///
-    /// Slightly above default: explanation audio at the stock rate sounds
-    /// sluggish, but pushing it far hurts comprehension of unfamiliar terms,
-    /// which is exactly what a learner is listening for.
-    var speechRateMultiplier: Float = 1.08
+    /// Below default on purpose. This was set above default on the assumption
+    /// that stock pacing sounds sluggish, which was wrong for teaching: the
+    /// listener is meeting unfamiliar terms for the first time and needs room
+    /// to take each one in. Rushed delivery is the single thing that most makes
+    /// a synthetic voice sound like a machine reading rather than a person
+    /// explaining.
+    var speechRateMultiplier: Float = 0.94
+
+    /// Silence left after each sentence, in seconds.
+    ///
+    /// Because sentences are spoken as separate utterances, without this they
+    /// run together into one breathless stream. A real explanation has gaps at
+    /// the clause boundaries, and the gap is where the listener catches up.
+    var pauseBetweenSentencesSeconds: TimeInterval = 0.28
 
     override init() {
         self.selectedVoice = Self.resolveHighestQualityEnglishVoice()
@@ -141,6 +151,9 @@ final class LocalSpeechSynthesisClient: NSObject {
         // voice reads as cartoonish rather than warmer.
         utterance.pitchMultiplier = 1.0
         utterance.volume = 1.0
+        // The beat after each sentence, which is what turns a stream of
+        // utterances into something that sounds like someone thinking.
+        utterance.postUtteranceDelay = pauseBetweenSentencesSeconds
 
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in

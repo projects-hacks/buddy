@@ -786,11 +786,18 @@ final class CompanionManager: ObservableObject {
                     tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 450)
                 }
 
+                // Assessing an attempt has three things to cover: what was
+                // right, what was missing, and the sharper version. The terse
+                // default truncates it halfway through the second.
+                if Self.isAttemptingAnExplanation(transcript) {
+                    tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 400)
+                }
+
                 let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
                     images: labeledImages,
                     systemPrompt: Self.tutorSystemPrompt(
                         screenIndexListing: screenIndex.renderForPrompt()
-                    ) + reexplanationInstruction(),
+                    ) + reexplanationInstruction() + assessmentInstruction(forTranscript: transcript),
                     conversationHistory: historyForModel,
                     userPrompt: transcript,
                     onTextChunk: { [weak self] accumulatedText in
@@ -838,6 +845,67 @@ final class CompanionManager: ObservableObject {
                 scheduleTransientHideIfNeeded()
             }
         }
+    }
+
+    /// Whether the student is attempting an explanation rather than asking for one.
+    ///
+    /// This is the difference between a tutor and a reference. Asked a
+    /// question, you answer it. Handed an attempt, you judge it: say what is
+    /// right, name what is missing, and correct what is wrong. A learner
+    /// preparing for an interview needs the second far more than the first,
+    /// because what sinks them is a confident answer with a hole in it.
+    ///
+    /// Detection is deliberately conservative. Treating a genuine question as
+    /// an attempt produces a reply that grades something the student never
+    /// said, which is worse than simply answering.
+    private static func isAttemptingAnExplanation(_ transcript: String) -> Bool {
+        let lowercasedTranscript = transcript.lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // An explicit request to be marked always counts.
+        let explicitCheckPhrases = [
+            "check my", "is this right", "is that right", "am i right",
+            "did i get", "how did i do", "grade my", "mark my",
+            "correct me", "what did i miss", "my answer is",
+            "let me explain", "let me try", "i think it", "here's my"
+        ]
+        if explicitCheckPhrases.contains(where: { phrase in lowercasedTranscript.contains(phrase) }) {
+            return true
+        }
+
+        // Otherwise only treat it as an attempt when it is clearly not a
+        // question: no question mark, not opening with a question word, and
+        // long enough to be a claim rather than a remark.
+        let questionOpeners = [
+            "what", "why", "how", "when", "where", "who", "which",
+            "is ", "are ", "do ", "does ", "did ", "can ", "could ",
+            "should ", "would ", "explain", "tell me", "show me"
+        ]
+        let opensAsQuestion = questionOpeners.contains { opener in
+            lowercasedTranscript.hasPrefix(opener)
+        }
+
+        let wordCount = lowercasedTranscript.split(separator: " ").count
+        return !lowercasedTranscript.contains("?") && !opensAsQuestion && wordCount >= 12
+    }
+
+    /// Instruction that turns the reply into an assessment of what the student said.
+    private static func explanationAssessmentInstruction(studentAttempt: String) -> String {
+        """
+
+
+        THE STUDENT IS EXPLAINING, NOT ASKING. do not answer a question. judge what they said.
+        their attempt: "\(studentAttempt)"
+
+        reply in this shape, out loud and conversational, no headings:
+        1. name the specific thing they got right. be precise about what, not just "good".
+        2. name the gap that matters most. a definition offered where a reason was wanted is a gap. a correct statement that misses why it matters is a gap.
+        3. give them the sharper version in one or two sentences, the answer you would want them to say next time.
+
+        if their attempt is wrong, say so plainly and say what breaks. do not soften it into agreement.
+        if their attempt is already strong, say so and push one level harder instead of padding.
+        mark the part of their answer you are talking about if it is on screen.
+        """
     }
 
     /// How many times running the student has said they still do not follow.
@@ -891,6 +959,20 @@ final class CompanionManager: ObservableObject {
         that did not work. do not restate it and do not paraphrase it.
         change the approach completely: \(chosenStrategy)
         """
+    }
+
+    /// Assessment instruction for this turn, empty when the student asked a question.
+    ///
+    /// Suppressed while the student is still lost, because a reply cannot both
+    /// re-teach an idea from a new angle and grade their attempt at it. The
+    /// re-explanation takes priority: they already said they do not follow.
+    private func assessmentInstruction(forTranscript transcript: String) -> String {
+        guard consecutiveReexplanationCount == 0,
+              Self.isAttemptingAnExplanation(transcript) else {
+            return ""
+        }
+        TutorDebugLog.write("🎓 treating this as the student's attempt, assessing rather than answering")
+        return Self.explanationAssessmentInstruction(studentAttempt: transcript)
     }
 
     /// Whether the user is asking for a longer, fuller explanation.
