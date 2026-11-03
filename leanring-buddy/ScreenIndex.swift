@@ -141,7 +141,7 @@ final class ScreenIndex {
             uniquingKeysWith: { first, _ in first }
         )
 
-        print("🗂️ ScreenIndex: \(collectedTargets.count) targets (\(recognizedLines.count) recognised text)")
+        TutorDebugLog.write("🗂️ ScreenIndex: \(collectedTargets.count) targets (\(recognizedLines.count) recognised text)")
     }
 
     // MARK: - On-device text recognition

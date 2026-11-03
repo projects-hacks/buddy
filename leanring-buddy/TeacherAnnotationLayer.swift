@@ -75,15 +75,31 @@ struct TeacherAnnotationLayer: View {
                     destinationRectInViewSpace: destinationRectInViewSpace(for: annotation)
                 )
             }
+            .onAppear {
+                TutorDebugLog.write("🖍️ overlay drawing \(annotationsOnThisScreen.count) of \(annotations.count) mark(s)")
+            }
         }
         .frame(width: screenFrame.width, height: screenFrame.height, alignment: .topLeading)
         .allowsHitTesting(false)
     }
 
+    /// Marks belonging to this overlay's display.
+    ///
+    /// Decided by whether this screen geometrically contains the mark, not by
+    /// comparing display frames for equality. The capture layer derives its
+    /// frame from `NSScreen` but falls back to `SCDisplay.frame` when the
+    /// lookup misses, and those use different origins, so an equality test can
+    /// silently match nothing and draw an empty overlay. Containment is both
+    /// robust to that and the thing actually being asked.
     private var annotationsOnThisScreen: [TeacherAnnotation] {
         annotations.filter { annotation in
-            annotation.displayFrame == screenFrame
+            screenFrame.contains(centerPoint(of: annotation.rectInGlobalPoints))
+                || screenFrame.intersects(annotation.rectInGlobalPoints)
         }
+    }
+
+    private func centerPoint(of rect: CGRect) -> CGPoint {
+        CGPoint(x: rect.midX, y: rect.midY)
     }
 
     private func destinationRectInViewSpace(for annotation: TeacherAnnotation) -> CGRect? {

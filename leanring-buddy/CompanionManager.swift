@@ -534,8 +534,15 @@ final class CompanionManager: ObservableObject {
             transientHideTask?.cancel()
             transientHideTask = nil
 
-            // If the cursor is hidden, bring it back transiently for this interaction
-            if !isClickyCursorEnabled && !isOverlayVisible {
+            // Make sure there is an overlay to draw into before answering.
+            //
+            // Upstream only reinstated it when the cursor had been switched
+            // off, because every other path had already created it during
+            // onboarding. This fork is useful before anyone sits through
+            // onboarding, and until that happens the overlay window does not
+            // exist, so marks resolve correctly and then render into nothing:
+            // the answer is spoken over a completely unmarked screen.
+            if !isOverlayVisible {
                 overlayWindowManager.hasShownOverlayBefore = true
                 overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
                 isOverlayVisible = true
@@ -738,6 +745,11 @@ final class CompanionManager: ObservableObject {
 
                 guard !Task.isCancelled else { return }
 
+                // The raw response, verbatim. When no marks appear this is the
+                // only way to tell the two causes apart: the model emitting no
+                // tags at all, versus tags that failed to resolve to a target.
+                TutorDebugLog.write("RAW MODEL RESPONSE:\n\(fullResponseText)\n--- end ---")
+
                 // Flush whatever trailed the final sentence terminator, which
                 // the streaming path deliberately held back.
                 enqueueRemainder(ofStreamedText: fullResponseText)
@@ -801,6 +813,10 @@ final class CompanionManager: ObservableObject {
     private func enqueueParsedSegment(_ segment: ParsedTeacherResponse) {
         // A segment that was nothing but tags still carries marks worth drawing.
         guard !segment.spokenText.isEmpty || !segment.directives.isEmpty else { return }
+
+        if !segment.directives.isEmpty {
+            TutorDebugLog.write("✏️ segment carries \(segment.directives.count) mark(s)")
+        }
 
         pendingSpeechSegments.append(segment)
         startSpeechConsumerIfIdle()
@@ -895,11 +911,11 @@ final class CompanionManager: ObservableObject {
             )
 
             if let recoveredTarget = screenIndex.bestTextMatch(forSpokenPhrase: leadingPhrase) {
-                print("↩️ Recovered bad id \(identifier) as \(recoveredTarget.id) via \"\(recoveredTarget.displayedText)\"")
+                TutorDebugLog.write("↩️ Recovered bad id \(identifier) as \(recoveredTarget.id) via \"\(recoveredTarget.displayedText)\"")
                 return globalRect(for: recoveredTarget)
             }
 
-            print("⚠️ Tutor referenced unknown target \(identifier), and nothing nearby matched")
+            TutorDebugLog.write("⚠️ unknown target \(identifier), nothing nearby matched")
             return nil
         }
 

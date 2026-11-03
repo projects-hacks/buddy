@@ -37,6 +37,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
 
+        TutorDebugLog.beginSession()
         ClickyAnalytics.configure()
         ClickyAnalytics.trackAppOpened()
 
