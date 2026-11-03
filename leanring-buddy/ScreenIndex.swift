@@ -397,13 +397,46 @@ final class ScreenIndex {
             return "(no text could be read from the screen)"
         }
 
-        // Highest confidence first, so truncation drops the least reliable
-        // entries rather than whatever happened to be recognised last.
-        let targetsForPrompt = orderedTargets
+        // Recognised text comes first, always.
+        //
+        // This was previously ranked by confidence alone, which quietly broke
+        // the feature on a real screen. Accessibility elements are assigned a
+        // confidence of 1 because their rectangles are exact, so on a browser
+        // page the 107 of them outranked all 62 recognised lines and filled
+        // almost the whole listing with window chrome. The model could see the
+        // study material in the screenshot, found no id for any of it, and
+        // started inventing ids, which is what produced a spotlight over
+        // sixteen imaginary targets.
+        //
+        // Exact rectangles are not the same as useful targets. What the
+        // student is studying is the text on the page, so that is ranked
+        // first, and the controls around it get whatever room is left.
+        let recognisedTextTargets = orderedTargets
+            .filter { target in target.locationSource == .recognizedText }
             .sorted { firstTarget, secondTarget in
                 firstTarget.confidence > secondTarget.confidence
             }
-            .prefix(maximumTargets)
+
+        // Anything the recogniser already found is dropped from the control
+        // list, since a button whose label was read anyway would otherwise
+        // appear twice under two different ids and invite the model to mark
+        // the wrong one.
+        let alreadyListedText = Set(recognisedTextTargets.map { target in
+            target.displayedText.lowercased()
+        })
+        let accessibilityTargets = orderedTargets
+            .filter { target in
+                target.locationSource == .accessibilityElement
+                    && !alreadyListedText.contains(target.displayedText.lowercased())
+            }
+
+        // Controls are capped well below the overall limit so they can never
+        // squeeze out the content again, however many a page exposes.
+        let accessibilityAllowance = max(0, min(accessibilityTargets.count, maximumTargets / 4))
+        let textAllowance = maximumTargets - accessibilityAllowance
+
+        let targetsForPrompt = Array(recognisedTextTargets.prefix(textAllowance))
+            + Array(accessibilityTargets.prefix(accessibilityAllowance))
 
         return targetsForPrompt.map { target in
             // Collapse newlines so one target stays on one line and the

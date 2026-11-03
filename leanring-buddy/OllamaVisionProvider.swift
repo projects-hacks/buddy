@@ -7,6 +7,7 @@
 //  local model and a hosted one without restructuring the pipeline.
 //
 
+import AppKit
 import Foundation
 
 /// Streaming vision chat against a local Ollama server.
@@ -53,10 +54,23 @@ final class OllamaVisionProvider {
     /// correctness on a DSA or system-design question beats time-to-first-word.
     var allowExtendedThinking: Bool
 
+    /// Longest edge, in pixels, that a screenshot is reduced to before sending.
+    ///
+    /// Image tokens dominate prefill, and prefill is the delay before the first
+    /// spoken word. A full capture cost over a thousand tokens. The picture no
+    /// longer has to carry the text, because `ScreenIndex` supplies that
+    /// exactly, so it only has to convey layout, colour and diagrams, which
+    /// survives a smaller image. Below roughly 900 the model starts losing
+    /// track of where things sit relative to each other.
+    var maximumImageDimension: CGFloat = 1024
+
     init(
         baseURL: String = OllamaVisionProvider.defaultBaseURL,
         model: String,
-        contextWindowTokens: Int = 16_384,
+        // 16K was overkill: the prompt, the index and one screenshot come in
+        // well under half of this, and the KV cache is allocated against it,
+        // which is memory a 16 GB machine does not have spare.
+        contextWindowTokens: Int = 8_192,
         maximumResponseTokens: Int = 200,
         allowExtendedThinking: Bool = false
     ) {
@@ -254,7 +268,10 @@ final class OllamaVisionProvider {
         var userMessage: [String: Any] = ["role": "user", "content": promptText]
         if !images.isEmpty {
             userMessage["images"] = images.map { labeledImage in
-                labeledImage.data.base64EncodedString()
+                Self.reduced(
+                    imageData: labeledImage.data,
+                    toLongestEdge: maximumImageDimension
+                ).base64EncodedString()
             }
         }
         messages.append(userMessage)
@@ -289,6 +306,67 @@ final class OllamaVisionProvider {
         print("🦙 Ollama \(model): \(String(format: "%.1f", payloadMB))MB, \(images.count) image(s), ctx \(contextWindowTokens)")
 
         return request
+    }
+
+    /// Scales a screenshot down so its longest edge is at most `longestEdge`.
+    ///
+    /// Returns the original bytes untouched when it is already small enough or
+    /// cannot be decoded, because sending a slightly large image is recoverable
+    /// and sending none is not.
+    private static func reduced(imageData: Data, toLongestEdge longestEdge: CGFloat) -> Data {
+        guard let sourceImage = NSImage(data: imageData),
+              let sourceCGImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return imageData
+        }
+
+        let sourceWidth = CGFloat(sourceCGImage.width)
+        let sourceHeight = CGFloat(sourceCGImage.height)
+        let currentLongestEdge = max(sourceWidth, sourceHeight)
+        guard currentLongestEdge > longestEdge else { return imageData }
+
+        let scale = longestEdge / currentLongestEdge
+        let targetWidth = Int(sourceWidth * scale)
+        let targetHeight = Int(sourceHeight * scale)
+
+        // Built at exact pixel dimensions rather than through NSImage, which
+        // on a Retina display would silently produce a bitmap at twice the
+        // requested size and undo the reduction entirely.
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: targetWidth,
+            pixelsHigh: targetHeight,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else {
+            return imageData
+        }
+        bitmap.size = NSSize(width: targetWidth, height: targetHeight)
+
+        NSGraphicsContext.saveGraphicsState()
+        let graphicsContext = NSGraphicsContext(bitmapImageRep: bitmap)
+        NSGraphicsContext.current = graphicsContext
+        graphicsContext?.imageInterpolation = .high
+        sourceImage.draw(
+            in: NSRect(x: 0, y: 0, width: targetWidth, height: targetHeight),
+            from: NSRect(origin: .zero, size: sourceImage.size),
+            operation: .copy,
+            fraction: 1.0
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        guard let reducedData = bitmap.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.8]
+        ) else {
+            return imageData
+        }
+
+        return reducedData
     }
 
     private func validate(response: URLResponse, byteStream: URLSession.AsyncBytes) throws {
