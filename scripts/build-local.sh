@@ -63,7 +63,11 @@ echo "signed by: $(codesign -dvvv "$APP_PATH" 2>&1 | grep '^Authority=' | head -
 
 pkill -f "Clicky.app/Contents/MacOS" 2>/dev/null || true
 sleep 1
-rm -f ~/Library/Logs/ClickyLocal.log
+# Keep the previous session's log: it is the record of the last test, and
+# deleting it on rebuild has already destroyed evidence once.
+if [ -f ~/Library/Logs/ClickyLocal.log ]; then
+  mv ~/Library/Logs/ClickyLocal.log ~/Library/Logs/ClickyLocal.previous.log
+fi
 open "$APP_PATH"
 sleep 4
 

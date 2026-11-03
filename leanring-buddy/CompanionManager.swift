@@ -1003,6 +1003,13 @@ final class CompanionManager: ObservableObject {
         speechConsumerTask = Task { [weak self] in
             guard let self else { return }
 
+            // Audio for the sentence after the current one, rendered while the
+            // current one plays. Without this the speech stopped for a second
+            // and a half before every sentence, which is what made it sound
+            // halting instead of fluent: rendering only started once the
+            // previous sentence had finished.
+            var prefetchedClipTask: Task<KokoroSpeechClient.GeneratedClip, Error>?
+
             while !self.pendingSpeechSegments.isEmpty {
                 guard !Task.isCancelled else { break }
 
@@ -1012,7 +1019,22 @@ final class CompanionManager: ObservableObject {
                     self.voiceState = .responding
                 }
 
-                await self.speak(segment: segment)
+                let clipTaskForThisSegment = prefetchedClipTask
+                prefetchedClipTask = nil
+
+                // Start the next sentence rendering before speaking this one.
+                // Rendering runs about twice realtime, so it finishes well
+                // inside the current sentence and the next one begins straight
+                // away.
+                if self.isUsingNeuralVoice,
+                   let nextSegment = self.pendingSpeechSegments.first,
+                   !nextSegment.spokenText.isEmpty {
+                    prefetchedClipTask = self.kokoroClient.beginGeneratingClip(
+                        for: nextSegment.spokenText
+                    )
+                }
+
+                await self.speak(segment: segment, prerenderedClip: clipTaskForThisSegment)
             }
 
             self.speechConsumerTask = nil
@@ -1027,7 +1049,10 @@ final class CompanionManager: ObservableObject {
     /// no timing at all, so its offsets are interpolated from elapsed playback.
     /// That is an estimate, and it only has to be close enough to land a mark
     /// in the right clause.
-    private func speak(segment: ParsedTeacherResponse) async {
+    private func speak(
+        segment: ParsedTeacherResponse,
+        prerenderedClip: Task<KokoroSpeechClient.GeneratedClip, Error>? = nil
+    ) async {
         var undispatchedDirectives = segment.directives
 
         func drawMarksReached(upToCharacterOffset offset: Int) {
@@ -1049,7 +1074,10 @@ final class CompanionManager: ObservableObject {
                 drawMarksReached(upToCharacterOffset: reachedOffset)
             }
             do {
-                try await kokoroClient.speakText(segment.spokenText)
+                // Already rendering, or rendered, from the previous iteration.
+                let clipTask = prerenderedClip
+                    ?? kokoroClient.beginGeneratingClip(for: segment.spokenText)
+                try await kokoroClient.play(clip: try await clipTask.value)
             } catch {
                 // Falling back for the rest of the session rather than retrying
                 // each sentence: whatever broke the helper will break it again,

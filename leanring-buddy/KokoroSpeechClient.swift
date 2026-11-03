@@ -136,11 +136,47 @@ final class KokoroSpeechClient: NSObject {
 
     // MARK: - Speaking
 
-    /// Generates and plays `text`, returning once playback finishes.
-    /// Throws if generation failed, so the caller can fall back.
-    func speakText(_ text: String) async throws {
+    /// A rendered sentence, ready to play.
+    struct GeneratedClip {
+        let path: String
+        let text: String
+    }
+
+    /// The most recent generation, used to serialise requests to the helper.
+    ///
+    /// The helper speaks one request at a time over a single pipe, so two
+    /// overlapping requests would interleave and each would read the other's
+    /// response. Chaining keeps them in order while still letting a caller
+    /// start the next one early.
+    private var lastGenerationTask: Task<GeneratedClip, Error>?
+
+    /// Begins rendering `text` and returns a handle to await.
+    ///
+    /// Separated from playback so the next sentence can render while the
+    /// current one is still being spoken. Rendering and playing in lockstep
+    /// left roughly a second and a half of silence before every sentence,
+    /// which is what made the speech sound halting rather than fluent.
+    @discardableResult
+    func beginGeneratingClip(for text: String) -> Task<GeneratedClip, Error> {
+        let previousGeneration = lastGenerationTask
+
+        let generationTask = Task { [weak self] () throws -> GeneratedClip in
+            // Wait for any earlier render to finish with the pipe. Its failure
+            // is not this sentence's problem, hence the discarded result.
+            _ = try? await previousGeneration?.value
+
+            guard let self else { throw KokoroError.notRunning }
+            return try await self.renderClip(for: text)
+        }
+
+        lastGenerationTask = generationTask
+        return generationTask
+    }
+
+    /// Sends one request to the helper and waits for the rendered file.
+    private func renderClip(for text: String) async throws -> GeneratedClip {
         let spokenText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !spokenText.isEmpty else { return }
+        guard !spokenText.isEmpty else { throw KokoroError.badRequest }
         guard isReady, let helperInput else { throw KokoroError.notRunning }
 
         let request: [String: Any] = [
@@ -163,7 +199,18 @@ final class KokoroSpeechClient: NSObject {
             throw KokoroError.generationFailed(response["error"] as? String ?? "unknown")
         }
 
-        try await playClip(atPath: clipPath, forText: spokenText)
+        return GeneratedClip(path: clipPath, text: spokenText)
+    }
+
+    /// Plays an already-rendered clip, returning when it finishes.
+    func play(clip: GeneratedClip) async throws {
+        try await playClip(atPath: clip.path, forText: clip.text)
+    }
+
+    /// Renders and plays in one step. Kept for callers with nothing to overlap.
+    func speakText(_ text: String) async throws {
+        let clip = try await beginGeneratingClip(for: text).value
+        try await play(clip: clip)
     }
 
     private func playClip(atPath clipPath: String, forText text: String) async throws {
