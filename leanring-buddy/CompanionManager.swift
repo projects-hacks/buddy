@@ -192,6 +192,20 @@ final class CompanionManager: ObservableObject {
     /// Regions kept lit while the rest of the screen dims. Empty means no spotlight.
     @Published private(set) var spotlightRectsInGlobalPoints: [CGRect] = []
 
+    /// How much of the answer has been spoken, 0 to 1.
+    ///
+    /// The board is drawn up to this point. Screen marks already fire from
+    /// per-word callbacks, but the diagram arrives as one shape from the
+    /// second pass, so without this it would appear complete in an instant
+    /// while the explanation is still in its first sentence.
+    @Published private(set) var boardRevealFraction: Double = 0
+
+    /// Characters spoken so far across every segment of this answer.
+    private var charactersSpokenInAnswer = 0
+
+    /// Length of the whole answer, known once the stream completes.
+    private var totalCharactersInAnswer = 0
+
     /// The scratch board the tutor draws on while explaining. Built up as it
     /// speaks, so the picture assembles in the order it is described.
     @Published private(set) var whiteboard = TutorWhiteboard()
@@ -888,6 +902,9 @@ final class CompanionManager: ObservableObject {
         currentResponseTask = Task {
             voiceState = .processing
             clearAnnotations()
+            charactersSpokenInAnswer = 0
+            totalCharactersInAnswer = 0
+            boardRevealFraction = 0
 
             do {
                 let screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
@@ -963,6 +980,7 @@ final class CompanionManager: ObservableObject {
                 enqueueRemainder(ofStreamedText: fullResponseText)
 
                 let spokenOnlyText = TeacherResponseParser.parse(rawResponse: fullResponseText).spokenText
+                totalCharactersInAnswer = max(totalCharactersInAnswer, spokenOnlyText.count)
 
                 // Drawn on a fast model in parallel, because the model that
                 // explains well will not draw cheaply: offering Argon a layout
@@ -1262,8 +1280,26 @@ final class CompanionManager: ObservableObject {
         prerenderedClip: Task<KokoroSpeechClient.GeneratedClip, Error>? = nil
     ) async {
         var undispatchedDirectives = segment.directives
+        let charactersBeforeThisSegment = charactersSpokenInAnswer
+
+        // Until the stream finishes the total is unknown, so it is estimated
+        // from what has been queued. Otherwise the first segment would divide
+        // by nothing and the board would appear complete immediately.
+        if totalCharactersInAnswer == 0 {
+            totalCharactersInAnswer = max(1, charactersBeforeThisSegment + segment.spokenText.count * 3)
+        }
 
         func drawMarksReached(upToCharacterOffset offset: Int) {
+            let spokenOverall = charactersBeforeThisSegment + offset
+            charactersSpokenInAnswer = max(charactersSpokenInAnswer, spokenOverall)
+            let fraction = Double(charactersSpokenInAnswer) / Double(max(1, totalCharactersInAnswer))
+            // Monotonic: a diagram must never un-draw itself mid-sentence.
+            if fraction > boardRevealFraction {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    boardRevealFraction = min(1.0, fraction)
+                }
+            }
+
             while let next = undispatchedDirectives.first,
                   next.characterOffsetInSpokenText <= offset {
                 undispatchedDirectives.removeFirst()
@@ -1332,7 +1368,8 @@ final class CompanionManager: ObservableObject {
 
         // Anything the progress callback never reached, because speech was cut
         // short or the tag sat past the final word.
-        drawMarksReached(upToCharacterOffset: Int.max)
+        drawMarksReached(upToCharacterOffset: segment.spokenText.count)
+        charactersSpokenInAnswer = charactersBeforeThisSegment + segment.spokenText.count
     }
 
     /// Whether either speech engine is currently producing audio.

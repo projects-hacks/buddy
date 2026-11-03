@@ -332,6 +332,10 @@ private enum BoardStyle {
 struct TutorWhiteboardView: View {
     let board: TutorWhiteboard
 
+    /// Proportion of the explanation already spoken, used to decide how much
+    /// of the diagram has been drawn.
+    let revealFraction: Double
+
     /// Height the positioned diagram needs, from the deepest row used.
     private var diagramHeight: CGFloat {
         let deepestRow = board.nodes.map(\.row).max() ?? 0
@@ -356,7 +360,7 @@ struct TutorWhiteboardView: View {
                 }
 
                 if !board.nodes.isEmpty {
-                    DiagramCanvas(board: board)
+                    DiagramCanvas(board: board, revealFraction: revealFraction)
                         .frame(height: diagramHeight)
                         .transition(.opacity)
                 }
@@ -585,6 +589,14 @@ struct TutorWhiteboardView: View {
 private struct DiagramCanvas: View {
     let board: TutorWhiteboard
 
+    /// How much of the explanation has been spoken, 0 to 1.
+    ///
+    /// The board is drawn up to this point rather than all at once. A diagram
+    /// that appears complete is an illustration; one that builds while the
+    /// words arrive is someone drawing for you, and that difference is the
+    /// whole reason the board exists.
+    let revealFraction: Double
+
     /// Smallest a labelled box may be drawn, regardless of grid width.
     private static let minimumNodeWidth: CGFloat = 112
     private static let nodeHeight: CGFloat = 54
@@ -597,7 +609,7 @@ private struct DiagramCanvas: View {
             ZStack(alignment: .topLeading) {
                 // Arrows first so they sit behind the boxes and any overshoot
                 // is hidden rather than drawn across a label.
-                ForEach(board.edges) { edge in
+                ForEach(revealedEdges) { edge in
                     if let fromRect = rect(forNodeIdentifier: edge.fromIdentifier, columnWidth: columnWidth),
                        let toRect = rect(forNodeIdentifier: edge.toIdentifier, columnWidth: columnWidth) {
                         EdgeShape(from: fromRect, to: toRect)
@@ -620,7 +632,7 @@ private struct DiagramCanvas: View {
                     }
                 }
 
-                ForEach(board.nodes) { node in
+                ForEach(revealedNodes) { node in
                     let nodeRect = rect(for: node, columnWidth: columnWidth)
                     Text(node.label)
                         .font(BoardStyle.hand(size: 15))
@@ -631,17 +643,39 @@ private struct DiagramCanvas: View {
                         .padding(.horizontal, 8)
                         .frame(width: nodeRect.width, height: nodeRect.height)
                         .background(
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(fill(for: node.tint))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .stroke(stroke(for: node.tint), lineWidth: 1.4)
-                                )
+                            ZStack {
+                                // Fill stays a clean rounded shape so the
+                                // wobble shows only in the ink, which is where
+                                // a hand's deviation actually appears.
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(fill(for: node.tint))
+                                HandDrawnRectangle()
+                                    .stroke(
+                                        stroke(for: node.tint),
+                                        style: StrokeStyle(lineWidth: 1.7, lineCap: .round, lineJoin: .round)
+                                    )
+                            }
                         )
                         .position(x: nodeRect.midX, y: nodeRect.midY)
                         .transition(.opacity.combined(with: .scale(scale: 0.92)))
                 }
             }
+        }
+    }
+
+    /// Boxes earned by the speech so far. Always at least one once the board
+    /// exists, so it never shows as an empty sheet of paper.
+    private var revealedNodes: [TutorWhiteboard.Node] {
+        guard !board.nodes.isEmpty else { return [] }
+        let count = max(1, Int((revealFraction * Double(board.nodes.count)).rounded(.up)))
+        return Array(board.nodes.prefix(count))
+    }
+
+    /// An arrow appears only once both of its boxes have.
+    private var revealedEdges: [TutorWhiteboard.Edge] {
+        let visible = Set(revealedNodes.map(\.id))
+        return board.edges.filter { edge in
+            visible.contains(edge.fromIdentifier) && visible.contains(edge.toIdentifier)
         }
     }
 
@@ -683,6 +717,60 @@ private struct DiagramCanvas: View {
         case .grey: return BoardStyle.gridLine
         case .red: return Color(red: 0.85, green: 0.42, blue: 0.42)
         }
+    }
+}
+
+/// A rectangle drawn the way a hand draws one: four strokes that wobble and
+/// overshoot their corners slightly.
+///
+/// Why this instead of a rounded rectangle: a geometrically perfect box reads
+/// as user interface, and the board is meant to read as someone sketching
+/// beside you. The deviation is small and deterministic from the rectangle's
+/// own size, so a box does not twitch between frames as it animates in.
+private struct HandDrawnRectangle: Shape {
+    /// How far strokes wander, in points.
+    var wobble: CGFloat = 1.6
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        // Seeded from the geometry so the same box always wobbles the same
+        // way. A random seed would make it shimmer on every redraw.
+        let seed = Double(rect.width * 31 + rect.height * 17)
+        func drift(_ index: Int) -> CGFloat {
+            // A cheap deterministic hash. Smooth randomness is not needed,
+            // only a stable spread of small offsets.
+            let value = sin(seed + Double(index) * 12.9898) * 43758.5453
+            return CGFloat(value - value.rounded(.down) - 0.5) * 2 * wobble
+        }
+
+        let topLeft = CGPoint(x: rect.minX + drift(0), y: rect.minY + drift(1))
+        let topRight = CGPoint(x: rect.maxX + drift(2), y: rect.minY + drift(3))
+        let bottomRight = CGPoint(x: rect.maxX + drift(4), y: rect.maxY + drift(5))
+        let bottomLeft = CGPoint(x: rect.minX + drift(6), y: rect.maxY + drift(7))
+
+        // Each side is its own stroke with a slight bow, as a pen leaves.
+        func side(from start: CGPoint, to end: CGPoint, bowIndex: Int) {
+            let controlPoint = CGPoint(
+                x: (start.x + end.x) / 2 + drift(bowIndex),
+                y: (start.y + end.y) / 2 + drift(bowIndex + 1)
+            )
+            path.move(to: start)
+            path.addQuadCurve(to: end, control: controlPoint)
+        }
+
+        side(from: topLeft, to: topRight, bowIndex: 8)
+        side(from: topRight, to: bottomRight, bowIndex: 10)
+        side(from: bottomRight, to: bottomLeft, bowIndex: 12)
+        // The closing stroke overshoots its start, the way a hand does when
+        // coming back round to where it began.
+        side(
+            from: bottomLeft,
+            to: CGPoint(x: topLeft.x + drift(14), y: topLeft.y - wobble),
+            bowIndex: 15
+        )
+
+        return path
     }
 }
 

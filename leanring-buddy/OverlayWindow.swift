@@ -199,7 +199,10 @@ struct BlueCursorView: View {
             // a copy on every monitor would be noise, and sitting above the
             // marks because it is a separate surface rather than an annotation.
             if isCursorOnThisScreen && companionManager.whiteboard.hasContent {
-                TutorWhiteboardView(board: companionManager.whiteboard)
+                TutorWhiteboardView(
+                    board: companionManager.whiteboard,
+                    revealFraction: companionManager.boardRevealFraction
+                )
                     .position(
                         x: min(360, screenFrame.width * 0.3),
                         y: screenFrame.height * 0.36
