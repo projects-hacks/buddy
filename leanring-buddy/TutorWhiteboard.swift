@@ -76,6 +76,11 @@ struct TutorWhiteboard {
     var title: String = ""
 
     /// Freely positioned boxes, for diagrams that are not a row of columns.
+    ///
+    /// Populated by expanding a named shape rather than by the model placing
+    /// boxes itself. The renderer is the same either way; only the source of
+    /// the positions differs, and the measured difference was 49 seconds
+    /// against 3 for the same resulting picture.
     var nodes: [Node] = []
 
     /// Arrows between those boxes.
@@ -100,6 +105,184 @@ struct TutorWhiteboard {
     var hasContent: Bool {
         !columns.isEmpty || !cells.isEmpty || !nodes.isEmpty
             || baseLabel != nil || caption != nil
+    }
+}
+
+// MARK: - Laying out a named shape
+
+extension DiagramShape {
+    /// Expands a named shape into positioned boxes and the arrows between them.
+    ///
+    /// Every layout here is one a person would draw the same way every time,
+    /// which is why it belongs in code: decided once, correct always, and free
+    /// at answer time. The model's contribution is the labels and which shape
+    /// fits, both of which it does instantly.
+    func expand() -> (nodes: [TutorWhiteboard.Node], edges: [TutorWhiteboard.Edge]) {
+        switch self {
+        case .pipeline(let steps):
+            return Self.layOutPipeline(steps: steps)
+        case .fanOut(let source, let branches, let sink):
+            return Self.layOutFanOut(source: source, branches: branches, sink: sink)
+        case .layers(let tiers):
+            return Self.layOutLayers(tiers: tiers)
+        case .tree(let levels):
+            return Self.layOutTree(levels: levels)
+        }
+    }
+
+    /// Steps left to right, wrapping to a second row when there are too many
+    /// to stay above the minimum readable box width.
+    private static func layOutPipeline(
+        steps: [String]
+    ) -> (nodes: [TutorWhiteboard.Node], edges: [TutorWhiteboard.Edge]) {
+        let perRow = steps.count <= 4 ? steps.count : Int(ceil(Double(steps.count) / 2.0))
+        let width = max(2, TutorWhiteboard.gridColumns / perRow)
+
+        var nodes: [TutorWhiteboard.Node] = []
+        for (index, step) in steps.enumerated() {
+            let row = index / perRow
+            let positionInRow = index % perRow
+            nodes.append(
+                TutorWhiteboard.Node(
+                    id: "p\(index)",
+                    column: positionInRow * width,
+                    row: row,
+                    widthInColumns: width,
+                    label: step,
+                    // The last step is where the data rests, so it reads as the
+                    // destination rather than another hop.
+                    tint: index == steps.count - 1 ? .green : .blue
+                )
+            )
+        }
+
+        let edges = (0..<max(0, steps.count - 1)).map { index in
+            TutorWhiteboard.Edge(fromIdentifier: "p\(index)", toIdentifier: "p\(index + 1)", label: "")
+        }
+        return (nodes, edges)
+    }
+
+    /// One box above, several beneath it, and optionally one spanning below
+    /// those. The shape of load balancing, replication and fan-out reads.
+    private static func layOutFanOut(
+        source: String,
+        branches: [String],
+        sink: String?
+    ) -> (nodes: [TutorWhiteboard.Node], edges: [TutorWhiteboard.Edge]) {
+        var nodes: [TutorWhiteboard.Node] = []
+        var edges: [TutorWhiteboard.Edge] = []
+
+        let sourceWidth = 4
+        nodes.append(
+            TutorWhiteboard.Node(
+                id: "src",
+                column: (TutorWhiteboard.gridColumns - sourceWidth) / 2,
+                row: 0,
+                widthInColumns: sourceWidth,
+                label: source,
+                tint: .amber
+            )
+        )
+
+        let branchWidth = max(2, TutorWhiteboard.gridColumns / branches.count)
+        for (index, branch) in branches.enumerated() {
+            let identifier = "b\(index)"
+            nodes.append(
+                TutorWhiteboard.Node(
+                    id: identifier,
+                    column: index * branchWidth,
+                    row: 1,
+                    widthInColumns: branchWidth,
+                    label: branch,
+                    tint: .blue
+                )
+            )
+            edges.append(TutorWhiteboard.Edge(fromIdentifier: "src", toIdentifier: identifier, label: ""))
+        }
+
+        if let sink {
+            nodes.append(
+                TutorWhiteboard.Node(
+                    id: "snk",
+                    column: 0,
+                    row: 2,
+                    widthInColumns: TutorWhiteboard.gridColumns,
+                    label: sink,
+                    tint: .green
+                )
+            )
+            // Only the outer branches are joined to the sink. Every branch
+            // connected would be a thicket, and the point reads from two.
+            for index in [0, branches.count - 1] where branches.indices.contains(index) {
+                edges.append(
+                    TutorWhiteboard.Edge(fromIdentifier: "b\(index)", toIdentifier: "snk", label: "")
+                )
+            }
+        }
+
+        return (nodes, edges)
+    }
+
+    /// Full-width tiers, top to bottom, with no arrows: a stack is read by
+    /// position rather than by flow.
+    private static func layOutLayers(
+        tiers: [String]
+    ) -> (nodes: [TutorWhiteboard.Node], edges: [TutorWhiteboard.Edge]) {
+        let nodes = tiers.enumerated().map { index, tier in
+            TutorWhiteboard.Node(
+                id: "l\(index)",
+                column: 0,
+                row: index,
+                widthInColumns: TutorWhiteboard.gridColumns,
+                label: tier,
+                tint: index == tiers.count - 1 ? .green : .blue
+            )
+        }
+        return (nodes, [])
+    }
+
+    /// Levels centred under one another, each child joined to its parent.
+    private static func layOutTree(
+        levels: [[String]]
+    ) -> (nodes: [TutorWhiteboard.Node], edges: [TutorWhiteboard.Edge]) {
+        var nodes: [TutorWhiteboard.Node] = []
+        var edges: [TutorWhiteboard.Edge] = []
+
+        for (levelIndex, level) in levels.enumerated() {
+            let width = max(2, TutorWhiteboard.gridColumns / max(1, level.count))
+            // Centred so each level sits under the middle of the one above.
+            let leadingOffset = (TutorWhiteboard.gridColumns - width * level.count) / 2
+
+            for (positionInLevel, label) in level.enumerated() {
+                let identifier = "n\(levelIndex)_\(positionInLevel)"
+                nodes.append(
+                    TutorWhiteboard.Node(
+                        id: identifier,
+                        column: leadingOffset + positionInLevel * width,
+                        row: levelIndex,
+                        widthInColumns: width,
+                        label: label,
+                        tint: levelIndex == 0 ? .amber : .blue
+                    )
+                )
+
+                // Joined to its parent, assuming a binary shape, which is what
+                // a tree drawn while explaining an algorithm almost always is.
+                if levelIndex > 0 {
+                    let parentCount = levels[levelIndex - 1].count
+                    let parentPosition = min(positionInLevel / 2, parentCount - 1)
+                    edges.append(
+                        TutorWhiteboard.Edge(
+                            fromIdentifier: "n\(levelIndex - 1)_\(parentPosition)",
+                            toIdentifier: identifier,
+                            label: ""
+                        )
+                    )
+                }
+            }
+        }
+
+        return (nodes, edges)
     }
 }
 

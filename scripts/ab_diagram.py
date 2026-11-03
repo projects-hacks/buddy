@@ -13,8 +13,9 @@ import time
 import urllib.request
 
 PROJECT = "medi-agent-490106"
-URL = (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}"
-       "/locations/global/publishers/google/models/gemini-4-argon:streamGenerateContent?alt=sse")
+def endpoint(model):
+    return (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}"
+            f"/locations/global/publishers/google/models/{model}:streamGenerateContent?alt=sse")
 
 QUESTION = "walk me through how separating storage from compute actually works"
 
@@ -47,15 +48,16 @@ def build_prompt(include_grid):
     return prompt + LENGTH_RULE
 
 
-def run(include_grid, token):
+def run(include_grid, token, model):
     body = {
         "contents": [{"role": "user", "parts": [{"text": QUESTION}]}],
         "systemInstruction": {"parts": [{"text": build_prompt(include_grid)}]},
-        "generationConfig": {"maxOutputTokens": 520,
-                             "thinkingConfig": {"thinkingLevel": "LOW"}},
+        "generationConfig": ({"maxOutputTokens": 520,
+                              "thinkingConfig": {"thinkingLevel": "LOW"}}
+                             if "argon" in model else {"maxOutputTokens": 520}),
     }
     request = urllib.request.Request(
-        URL, data=json.dumps(body).encode(),
+        endpoint(model), data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {token}",
                  "Content-Type": "application/json"})
 
@@ -80,7 +82,7 @@ def run(include_grid, token):
     total = time.time() - started
     answer = "".join(collected)
     spoken = re.sub(r"\[[^\]]*\]", "", answer)
-    label = "WITH grid   " if include_grid else "WITHOUT grid"
+    label = f"{model:18s} {'WITH' if include_grid else 'without'} grid"
     node_count = len(re.findall(r"\[NODE:", answer))
     column_count = len(re.findall(r"\[COL:", answer))
     prompt_size = len(build_prompt(include_grid))
@@ -93,8 +95,10 @@ if __name__ == "__main__":
     token = access_token()
     if len(token) < 50:
         print("no token"); sys.exit(1)
-    for include in (False, True):
-        try:
-            run(include, token)
-        except Exception as error:  # noqa: BLE001
-            print(f"  {'WITH' if include else 'WITHOUT'} grid failed: {error}")
+    models = sys.argv[1:] or ["gemini-4-argon"]
+    for model in models:
+        for include in (False, True):
+            try:
+                run(include, token, model)
+            except Exception as error:  # noqa: BLE001
+                print(f"  {model} {'WITH' if include else 'without'} grid failed: {error}")

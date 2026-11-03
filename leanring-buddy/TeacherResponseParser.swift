@@ -106,6 +106,19 @@ struct TeacherDirective {
 
         /// An arrow between two nodes, optionally labelled.
         case addBoardEdge(fromIdentifier: String, toIdentifier: String, label: String)
+
+        /// A whole diagram of a named shape, filled with labels.
+        ///
+        /// The third approach to drawing, and the one that works. Asking the
+        /// model for a grid position per box was measured at 49 seconds to
+        /// first byte against 3 for columns, and produced the same answer:
+        /// deciding *where* things go is reasoning work, and a frontier model
+        /// pays for it in latency rather than accuracy.
+        ///
+        /// So it is not asked. It names a shape it recognises and supplies the
+        /// labels, which is recall rather than deliberation, and the layout for
+        /// each shape is hand-tuned here once.
+        case drawDiagram(shape: DiagramShape)
         /// Fall back to an explicit coordinate when no indexed target fits,
         /// preserving the upstream tag format.
         case pointAtCoordinate(x: Double, y: Double, label: String, displayIndex: Int)
@@ -116,6 +129,25 @@ struct TeacherDirective {
     /// Index into `ParsedTeacherResponse.spokenText` where this tag appeared.
     /// Speech reaching this offset is the cue to draw the mark.
     let characterOffsetInSpokenText: Int
+}
+
+/// A diagram the app knows how to lay out, filled with the model's labels.
+///
+/// Deliberately a small, closed set. Each shape answers a question that comes
+/// up constantly in system design and algorithms, and every one of them has a
+/// layout a person would draw the same way every time, which is exactly the
+/// kind of decision worth making once in code rather than per answer in a
+/// model.
+enum DiagramShape {
+    /// A request moving through stages: client, balancer, server, cache, store.
+    case pipeline(steps: [String])
+    /// One thing feeding many, optionally converging on one underneath.
+    /// The shape of load balancing, replication and fan-out reads.
+    case fanOut(source: String, branches: [String], sink: String?)
+    /// Stacked tiers, top to bottom. API over logic over storage.
+    case layers(tiers: [String])
+    /// A binary tree by levels, for walking an algorithm over structure.
+    case tree(levels: [[String]])
 }
 
 /// Where a board pointer sits, before the row length is known.
@@ -180,7 +212,7 @@ enum TeacherResponseParser {
         "STRIKE", "STRIKETHROUGH", "ARROW", "STEP", "LABEL", "NOTE",
         "SPOTLIGHT", "FOCUS", "CLEAR", "ERASE",
         "BOARD", "COL", "COLUMN", "BASE", "CELLS", "PTR", "POINTER", "CAPTION",
-        "NODE", "EDGE"
+        "NODE", "EDGE", "DIAGRAM"
     ]
 
     /// Matches a board tag sitting alone on its line, with the lines under it.
@@ -436,6 +468,59 @@ enum TeacherResponseParser {
             let pointerName = components[1].trimmingCharacters(in: .whitespaces)
             guard !pointerName.isEmpty else { return nil }
             return .addBoardPointer(position: position, name: pointerName)
+
+        case "DIAGRAM":
+            // shape : payload, where the payload's shape depends on the shape.
+            guard let separatorRange = trimmedPayload.range(of: ":") else { return nil }
+            let shapeName = String(trimmedPayload[..<separatorRange.lowerBound])
+                .trimmingCharacters(in: .whitespaces)
+                .lowercased()
+            let payload = String(trimmedPayload[separatorRange.upperBound...])
+                .trimmingCharacters(in: .whitespaces)
+
+            /// Splits a comma list, dropping blanks so a trailing comma is harmless.
+            func items(_ text: String) -> [String] {
+                text.components(separatedBy: ",")
+                    .map { item in item.trimmingCharacters(in: .whitespaces) }
+                    .filter { item in !item.isEmpty }
+            }
+
+            switch shapeName {
+            case "pipeline", "flow", "path":
+                let steps = items(payload)
+                guard steps.count >= 2 else { return nil }
+                return .drawDiagram(shape: .pipeline(steps: Array(steps.prefix(6))))
+
+            case "fanout", "fan-out", "spread":
+                // source | branch,branch | sink   (sink optional)
+                let groups = payload.components(separatedBy: "|")
+                    .map { group in group.trimmingCharacters(in: .whitespaces) }
+                guard groups.count >= 2 else { return nil }
+                let branches = items(groups[1])
+                guard !groups[0].isEmpty, !branches.isEmpty else { return nil }
+                let sink = groups.count >= 3 && !groups[2].isEmpty ? groups[2] : nil
+                return .drawDiagram(shape: .fanOut(
+                    source: groups[0],
+                    branches: Array(branches.prefix(4)),
+                    sink: sink
+                ))
+
+            case "layers", "stack", "tiers":
+                let tiers = items(payload)
+                guard tiers.count >= 2 else { return nil }
+                return .drawDiagram(shape: .layers(tiers: Array(tiers.prefix(5))))
+
+            case "tree":
+                // root | a,b | c,d,e,f   one group per level
+                let levels = payload.components(separatedBy: "|")
+                    .map { level in items(level) }
+                    .filter { level in !level.isEmpty }
+                guard levels.count >= 2 else { return nil }
+                return .drawDiagram(shape: .tree(levels: Array(levels.prefix(4))))
+
+            default:
+                return nil
+            }
 
         case "NODE":
             // id : column,row : widthInColumns : label [: tint]

@@ -172,6 +172,14 @@ final class CompanionManager: ObservableObject {
         return "\(NSHomeDirectory())/Documents/projects/clicky-local/scripts/kokoro_speech_server.py"
     }
 
+    /// Draws the board on a fast model while the slow one explains.
+    private lazy var diagramComposer = DiagramComposer(
+        projectIdentifier: Self.hostedProjectIdentifier
+    )
+
+    /// The in-flight drawing pass, cancelled when a new question arrives.
+    private var diagramTask: Task<Void, Never>?
+
     /// Inventory of what is addressable on screen for the current turn.
     ///
     /// Rebuilt per question rather than cached, because the screen has usually
@@ -677,6 +685,8 @@ final class CompanionManager: ObservableObject {
             currentResponseTask?.cancel()
             markDismissalTask?.cancel()
             markDismissalTask = nil
+            diagramTask?.cancel()
+            diagramTask = nil
             cancelSpeechAndClearQueue()
             clearDetectedElementLocation()
             clearAnnotations()
@@ -953,6 +963,35 @@ final class CompanionManager: ObservableObject {
                 enqueueRemainder(ofStreamedText: fullResponseText)
 
                 let spokenOnlyText = TeacherResponseParser.parse(rawResponse: fullResponseText).spokenText
+
+                // Drawn on a fast model in parallel, because the model that
+                // explains well will not draw cheaply: offering Argon a layout
+                // decision took first byte from 3 seconds to 49, while Flash
+                // makes the same choice in 3.5. Flash sees only this finished
+                // explanation, never the screen, so it contributes no
+                // reasoning and cannot contradict what was already said.
+                //
+                // Nothing awaits this. A slow or failed drawing pass costs the
+                // student nothing; they simply get no picture.
+                if budget.allowsBoard, !whiteboard.hasContent {
+                    diagramTask?.cancel()
+                    let explanationForDrawing = spokenOnlyText
+                    let indexForDrawing = screenIndex.renderForPrompt(maximumTargets: 40)
+                    diagramTask = Task { [weak self] in
+                        guard let self else { return }
+                        guard let shape = await self.diagramComposer.diagram(
+                            forExplanation: explanationForDrawing,
+                            screenIndexListing: indexForDrawing
+                        ) else { return }
+                        guard !Task.isCancelled else { return }
+                        self.apply(
+                            directive: TeacherDirective(
+                                action: .drawDiagram(shape: shape),
+                                characterOffsetInSpokenText: 0
+                            )
+                        )
+                    }
+                }
                 conversationHistory.append((
                     userTranscript: transcript,
                     assistantResponse: spokenOnlyText
@@ -1443,6 +1482,14 @@ final class CompanionManager: ObservableObject {
                     )
                 )
             }
+
+        case .drawDiagram(let shape):
+            let expanded = shape.expand()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.82)) {
+                whiteboard.nodes = expanded.nodes
+                whiteboard.edges = expanded.edges
+            }
+            TutorDebugLog.write("📐 drew \(expanded.nodes.count) boxes, \(expanded.edges.count) arrows")
 
         case .addBoardNote(let text):
             withAnimation(.easeOut(duration: 0.25)) {
