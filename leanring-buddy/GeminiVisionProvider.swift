@@ -17,16 +17,42 @@ import Foundation
 
 /// Streaming vision chat against Google's Gemini API.
 final class GeminiVisionProvider: TutorBrain {
-    /// AI Studio endpoint, which authenticates with a plain API key.
+    /// Which door to Gemini this provider uses.
     ///
-    /// Vertex AI is the other door to the same models and is what Google Cloud
-    /// trial credits bill against, but it authenticates with OAuth or a service
-    /// account rather than a key. This path is here because a key in the
-    /// Keychain is something the user can set up in a minute.
-    private static let endpointBase = "https://generativelanguage.googleapis.com/v1beta/models"
+    /// The same models sit behind both, but the billing does not. AI Studio
+    /// authenticates with a plain API key and bills its own account. Vertex AI
+    /// authenticates with a Google Cloud access token and bills the project,
+    /// which is what Google Cloud trial credits are attached to. A trial
+    /// credit cannot pay for an AI Studio call no matter how the key is set up.
+    enum Endpoint {
+        /// Plain API key from the Keychain.
+        case aiStudio
+        /// Google Cloud project, billed against that project's credits.
+        case vertex(projectIdentifier: String, location: String)
+    }
+
+    var endpoint: Endpoint
+
+    private static let aiStudioBase = "https://generativelanguage.googleapis.com/v1beta/models"
+
+    /// Cached Vertex access token and the moment it stops being usable.
+    ///
+    /// Minting shells out to gcloud, which takes a noticeable fraction of a
+    /// second, and the tokens last an hour. Re-minting per question would add
+    /// that to every answer for nothing.
+    private var cachedAccessToken: String?
+    private var cachedTokenExpiry: Date = .distantPast
 
     var model: String
     var maximumResponseTokens: Int = 380
+
+    /// How much the model is allowed to think before answering, on Vertex.
+    ///
+    /// "LOW", "MEDIUM" (the model's default) or "HIGH". Low by default because
+    /// the student is waiting to be spoken to, and on this model thinking is
+    /// the parameter that trades latency for depth. Raise it for a question
+    /// where being right matters more than being quick.
+    var thinkingLevel: String = "LOW"
 
     /// Longest edge a screenshot is reduced to before upload.
     ///
@@ -36,8 +62,9 @@ final class GeminiVisionProvider: TutorBrain {
 
     private let session: URLSession
 
-    init(model: String = "gemini-4-argon") {
+    init(model: String = "gemini-4-argon", endpoint: Endpoint = .aiStudio) {
         self.model = model
+        self.endpoint = endpoint
 
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 120
@@ -184,6 +211,54 @@ final class GeminiVisionProvider: TutorBrain {
 
     // MARK: - Request construction
 
+    /// Mints a Google Cloud access token through gcloud, cached until it nears expiry.
+    ///
+    /// Shelling out to gcloud rather than implementing the service-account JWT
+    /// flow: the user is already signed in on this machine, gcloud already
+    /// refreshes the credential, and reimplementing that would mean handling a
+    /// private key the app has no reason to hold.
+    private func vertexAccessToken() throws -> String {
+        if let cachedAccessToken, Date() < cachedTokenExpiry {
+            return cachedAccessToken
+        }
+
+        let gcloudPaths = ["/opt/homebrew/bin/gcloud", "/usr/local/bin/gcloud",
+                           "\(NSHomeDirectory())/google-cloud-sdk/bin/gcloud"]
+        guard let gcloudPath = gcloudPaths.first(where: {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }) else {
+            throw GeminiError.gcloudUnavailable
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gcloudPath)
+        process.arguments = ["auth", "application-default", "print-access-token"]
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+        } catch {
+            throw GeminiError.gcloudUnavailable
+        }
+        process.waitUntilExit()
+
+        let tokenData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let token = String(data: tokenData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard process.terminationStatus == 0, !token.isEmpty else {
+            throw GeminiError.notSignedIn
+        }
+
+        cachedAccessToken = token
+        // Tokens last about an hour; refreshed early so one cannot expire
+        // between being checked and being used.
+        cachedTokenExpiry = Date().addingTimeInterval(50 * 60)
+        return token
+    }
+
     private func makeRequest(
         images: [(data: Data, label: String)],
         systemPrompt: String,
@@ -191,22 +266,47 @@ final class GeminiVisionProvider: TutorBrain {
         userPrompt: String,
         streaming: Bool
     ) throws -> URLRequest {
-        guard let apiKey = APIKeyStore.key(for: .gemini) else {
-            throw GeminiError.missingKey
+        let method = streaming ? "streamGenerateContent" : "generateContent"
+
+        var components: URLComponents
+        var authorizationHeader: String?
+
+        switch endpoint {
+        case .aiStudio:
+            guard let apiKey = APIKeyStore.key(for: .gemini) else {
+                throw GeminiError.missingKey
+            }
+            guard let built = URLComponents(string: "\(Self.aiStudioBase)/\(model):\(method)") else {
+                throw GeminiError.malformedResponse
+            }
+            components = built
+            components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+
+        case .vertex(let projectIdentifier, let location):
+            let host = location == "global"
+                ? "https://aiplatform.googleapis.com"
+                : "https://\(location)-aiplatform.googleapis.com"
+            let path = "/v1/projects/\(projectIdentifier)/locations/\(location)"
+                + "/publishers/google/models/\(model):\(method)"
+            guard let built = URLComponents(string: host + path) else {
+                throw GeminiError.malformedResponse
+            }
+            components = built
+            components.queryItems = []
+            authorizationHeader = "Bearer \(try vertexAccessToken())"
         }
 
-        let method = streaming ? "streamGenerateContent" : "generateContent"
-        guard var components = URLComponents(string: "\(Self.endpointBase)/\(model):\(method)") else {
-            throw GeminiError.malformedResponse
+        if streaming {
+            components.queryItems?.append(URLQueryItem(name: "alt", value: "sse"))
         }
-        var queryItems = [URLQueryItem(name: "key", value: apiKey)]
-        if streaming { queryItems.append(URLQueryItem(name: "alt", value: "sse")) }
-        components.queryItems = queryItems
         guard let url = components.url else { throw GeminiError.malformedResponse }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let authorizationHeader {
+            request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+        }
         request.timeoutInterval = 120
 
         // Gemini alternates user and model turns, and rejects two in a row, so
@@ -223,9 +323,11 @@ final class GeminiVisionProvider: TutorBrain {
                 imageData: labeledImage.data,
                 toLongestEdge: maximumImageDimension
             )
+            // camelCase, as the Vertex schema specifies. AI Studio accepts
+            // either, so one spelling serves both endpoints.
             currentParts.append([
-                "inline_data": [
-                    "mime_type": "image/jpeg",
+                "inlineData": [
+                    "mimeType": "image/jpeg",
                     "data": reducedData.base64EncodedString()
                 ]
             ])
@@ -236,14 +338,30 @@ final class GeminiVisionProvider: TutorBrain {
         currentParts.append(["text": userPrompt])
         contents.append(["role": "user", "parts": currentParts])
 
+        // Built per endpoint because Gemini 4 Argon rejects or ignores several
+        // parameters the older API took. Its docs state that temperature, topP
+        // and topK are ignored, and that frequencyPenalty, presencePenalty and
+        // candidateCount return HTTP 400. Sending ignored parameters is merely
+        // untidy; sending rejected ones fails the request.
+        var generationConfig: [String: Any] = ["maxOutputTokens": maximumResponseTokens]
+
+        switch endpoint {
+        case .vertex:
+            // Reasoning depth is the one real control on this model. LOW is
+            // chosen deliberately: the answer is spoken aloud while the student
+            // waits, and depth bought with latency is a bad trade here. MEDIUM
+            // is the model's default.
+            generationConfig["thinkingConfig"] = ["thinkingLevel": thinkingLevel]
+        case .aiStudio:
+            // AI Studio still honours sampling parameters.
+            generationConfig["temperature"] = 0.4
+            generationConfig["topP"] = 0.9
+        }
+
         let body: [String: Any] = [
             "contents": contents,
             "systemInstruction": ["parts": [["text": systemPrompt]]],
-            "generationConfig": [
-                "maxOutputTokens": maximumResponseTokens,
-                "temperature": 0.4,
-                "topP": 0.9
-            ]
+            "generationConfig": generationConfig
         ]
 
         let bodyData = try JSONSerialization.data(withJSONObject: body)
