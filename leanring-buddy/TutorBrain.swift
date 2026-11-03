@@ -21,13 +21,18 @@ import Foundation
 enum TutorBrainKind: String, CaseIterable {
     /// On-device model via Ollama. Free, private, offline, weaker on facts.
     case local
-    /// Hosted frontier model. Costs per question, needs a key and a network.
+    /// Gemini 4 Argon on Vertex. Bills the Google Cloud project's credits.
     case hosted
+    /// Claude on the first-party API. Starts speaking in about two seconds
+    /// where Argon took eight to twelve on the same question. Billed to the
+    /// Anthropic account, not the Google Cloud credits.
+    case claude
 
     var displayName: String {
         switch self {
         case .local: return "Local"
-        case .hosted: return "Cloud"
+        case .hosted: return "Gemini"
+        case .claude: return "Claude"
         }
     }
 }
