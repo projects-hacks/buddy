@@ -156,8 +156,70 @@ enum TeacherResponseParser {
         "BOARD", "COL", "COLUMN", "BASE", "CELLS", "PTR", "POINTER", "CAPTION"
     ]
 
+    /// Matches a board tag sitting alone on its line, with the lines under it.
+    ///
+    /// The model writes a board the way a person writes a slide: the tag as a
+    /// heading, the contents as prose beneath it.
+    ///
+    ///     [COLUMN:what snowflake does]
+    ///     data lives once in cheap storage
+    ///     any cluster reads it without owning it
+    ///
+    /// Taken literally that is a column with no content followed by two
+    /// sentences of speech, so the column renders empty and the text that
+    /// should have been drawn gets read aloud instead. That is the whole of
+    /// the "it just reads everything out" complaint.
+    private static let boardTagWithTrailingLinesPattern = try! NSRegularExpression(
+        pattern: #"\[(COL|COLUMN|BASE)\s*:\s*([^\]:]+)\][ \t]*\n((?:[ \t]*[^\[\n][^\n]*\n?)+)"#,
+        options: [.caseInsensitive]
+    )
+
+    /// Folds lines written under a board tag back into the tag itself.
+    ///
+    /// Rewriting the model's output is preferable to insisting it change: the
+    /// heading-then-content shape is how it naturally writes a diagram, and the
+    /// intent is unambiguous.
+    private static func foldTrailingLinesIntoBoardTags(_ rawResponse: String) -> String {
+        let sourceText = rawResponse as NSString
+        let matches = boardTagWithTrailingLinesPattern.matches(
+            in: rawResponse,
+            options: [],
+            range: NSRange(location: 0, length: sourceText.length)
+        )
+        guard !matches.isEmpty else { return rawResponse }
+
+        let rewritten = NSMutableString(string: rawResponse)
+
+        for match in matches.reversed() {
+            let tagName = sourceText.substring(with: match.range(at: 1))
+            let label = sourceText.substring(with: match.range(at: 2))
+                .trimmingCharacters(in: .whitespaces)
+            let trailingBlock = sourceText.substring(with: match.range(at: 3))
+
+            let contentLines = trailingBlock
+                .components(separatedBy: .newlines)
+                .map { line in line.trimmingCharacters(in: .whitespaces) }
+                .filter { line in !line.isEmpty }
+
+            guard !contentLines.isEmpty else { continue }
+
+            // Joined rather than kept as separate lines because a column holds
+            // one short piece of content, and the colon is dropped so it cannot
+            // be mistaken for another field of the tag.
+            let joinedContent = contentLines
+                .joined(separator: ", ")
+                .replacingOccurrences(of: ":", with: " ")
+            let folded = "[\(tagName):\(label):\(joinedContent)]"
+
+            rewritten.replaceCharacters(in: match.range, with: folded + "\n")
+        }
+
+        return rewritten as String
+    }
+
     /// Removes tags from `rawResponse` and returns them alongside the clean text.
     static func parse(rawResponse: String) -> ParsedTeacherResponse {
+        let rawResponse = foldTrailingLinesIntoBoardTags(rawResponse)
         let sourceText = rawResponse as NSString
         let matches = tagPattern.matches(
             in: rawResponse,
@@ -309,7 +371,15 @@ enum TeacherResponseParser {
 
         case "BASE":
             guard !trimmedPayload.isEmpty else { return nil }
-            return .addBoardBase(label: trimmedPayload)
+            // A base bar takes one field, but folding lines written underneath
+            // it produces "label:detail". Rendered with the colon intact that
+            // reads as a stray separator, so it is normalised to a readable
+            // phrase instead.
+            let readableLabel = trimmedPayload
+                .replacingOccurrences(of: ":", with: ", ")
+                .replacingOccurrences(of: ", ,", with: ",")
+                .trimmingCharacters(in: .whitespaces)
+            return .addBoardBase(label: readableLabel)
 
         case "CELLS":
             let values = trimmedPayload
@@ -435,6 +505,25 @@ enum TeacherResponseParser {
             with: ", ",
             options: .regularExpression
         )
+
+        // Sentences that only announce what is about to happen. The prompt
+        // bans these and the model writes them anyway, and once the board is
+        // drawing, "let me show you" is both filler and a lie: the showing is
+        // already happening. Matched whole and exactly, so a sentence that
+        // merely begins with these words is left alone.
+        let pureAnnouncementSentences = [
+            "let me show you", "let's take a look", "let me explain",
+            "here's what i mean", "let's break this down", "let me walk you through",
+            "let's walk through this", "here's the thing", "let me draw this",
+            "let's picture this", "i'll show you"
+        ]
+        for announcement in pureAnnouncementSentences {
+            tidied = tidied.replacingOccurrences(
+                of: "(?i)(^|[.!?]\\s+)\(NSRegularExpression.escapedPattern(for: announcement))[.!]?(\\s+|$)",
+                with: "$1",
+                options: .regularExpression
+            )
+        }
 
         tidied = tidied.replacingOccurrences(
             of: "[ \\t]{2,}",

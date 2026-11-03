@@ -825,7 +825,11 @@ final class CompanionManager: ObservableObject {
                 // Keeping the default tight is what stops the tutor
                 // monologuing, but a request to go deeper is exactly when a
                 // long answer is the right answer.
-                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 700 : 200
+                // 200 kept truncating mid-explanation once the board tags
+                // started appearing: the structure costs tokens that the spoken
+                // answer then does not have. Cut off halfway is worse than
+                // slightly long, and the filler rules keep the prose tight.
+                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 700 : 380
 
                 // A second attempt at the same idea needs room to actually
                 // work the example through, not the terse default.
