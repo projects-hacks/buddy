@@ -695,6 +695,15 @@ final class CompanionManager: ObservableObject {
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
+        // Counted before the answer is built, so the instruction reflects how
+        // many times this idea has already failed to land.
+        if Self.isAskingAgain(transcript) && !conversationHistory.isEmpty {
+            consecutiveReexplanationCount += 1
+            TutorDebugLog.write("🔁 student still lost, attempt \(consecutiveReexplanationCount + 1): switching tactic")
+        } else {
+            consecutiveReexplanationCount = 0
+        }
+
         currentResponseTask = Task {
             voiceState = .processing
             clearAnnotations()
@@ -737,11 +746,17 @@ final class CompanionManager: ObservableObject {
                 // long answer is the right answer.
                 tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 700 : 200
 
+                // A second attempt at the same idea needs room to actually
+                // work the example through, not the terse default.
+                if consecutiveReexplanationCount > 0 {
+                    tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 450)
+                }
+
                 let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
                     images: labeledImages,
                     systemPrompt: Self.tutorSystemPrompt(
                         screenIndexListing: screenIndex.renderForPrompt()
-                    ),
+                    ) + reexplanationInstruction(),
                     conversationHistory: historyForModel,
                     userPrompt: transcript,
                     onTextChunk: { [weak self] accumulatedText in
@@ -789,6 +804,59 @@ final class CompanionManager: ObservableObject {
                 scheduleTransientHideIfNeeded()
             }
         }
+    }
+
+    /// How many times running the student has said they still do not follow.
+    ///
+    /// Reset by any question that is not a push-back, because the counter
+    /// tracks one idea failing to land rather than the length of the session.
+    private var consecutiveReexplanationCount = 0
+
+    /// Whether the student is saying the last explanation did not work.
+    private static func isAskingAgain(_ transcript: String) -> Bool {
+        let lowercasedTranscript = transcript.lowercased()
+        let pushBackPhrases = [
+            "again", "didn't get", "didnt get", "don't get", "dont get",
+            "don't understand", "dont understand", "not clear", "unclear",
+            "confused", "confusing", "still", "what do you mean",
+            "simpler", "another way", "rephrase", "lost me", "huh"
+        ]
+        return pushBackPhrases.contains { phrase in lowercasedTranscript.contains(phrase) }
+    }
+
+    /// Instruction telling the model its last explanation failed, and how to
+    /// change tack.
+    ///
+    /// A tutor that repeats itself when the student says "I still don't get it"
+    /// is not teaching, and a model given no instruction will paraphrase rather
+    /// than rethink. Naming a different strategy each time, and quoting back
+    /// the attempt that failed, is what forces a genuinely new angle instead of
+    /// the same explanation with different words.
+    private func reexplanationInstruction() -> String {
+        guard consecutiveReexplanationCount > 0 else { return "" }
+
+        // Ordered from cheapest shift to most drastic, so a student who keeps
+        // pushing back gets progressively more concrete rather than more words.
+        let strategiesInEscalatingOrder = [
+            "take one small concrete example with real numbers and walk it through a step at a time. no definitions.",
+            "use an analogy from ordinary life, nothing to do with computers, then tie it back in one sentence.",
+            "stop explaining and show it. mark up what is on their screen and talk only about what you marked.",
+            "start from what goes wrong without it. describe the failure first, then the fix."
+        ]
+        let chosenStrategy = strategiesInEscalatingOrder[
+            min(consecutiveReexplanationCount - 1, strategiesInEscalatingOrder.count - 1)
+        ]
+
+        let failedAttempt = conversationHistory.last?.assistantResponse ?? ""
+
+        return """
+
+
+        THE STUDENT STILL DOES NOT FOLLOW. this is attempt \(consecutiveReexplanationCount + 1).
+        your previous attempt was: "\(failedAttempt.prefix(350))"
+        that did not work. do not restate it and do not paraphrase it.
+        change the approach completely: \(chosenStrategy)
+        """
     }
 
     /// Whether the user is asking for a longer, fuller explanation.
