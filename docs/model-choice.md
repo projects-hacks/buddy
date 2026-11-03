@@ -149,3 +149,89 @@ The lesson generalises past this feature. Pixels were refused early because a
 Spatial layout is reasoning work, and a frontier model pays for it in latency
 rather than in accuracy. Asking a model to decide *what* to draw is cheap;
 asking it to decide *where* is expensive, whatever the model.
+
+## Claude against Argon, same screen and prompt
+
+`scripts/brain_race.py` sends every contender the app's real system prompt
+(read out of `CompanionManager.swift`), the same screenshot and index, and the
+app's own length budgets, twice per question. "First sentence" is when the
+voice can start, since speech goes sentence by sentence.
+
+| Brain | First sentence, short | medium | long | Over the three-mark rule |
+|---|---|---|---|---|
+| gemini-4-argon, thinking LOW | 9.2 to 13.1s | 3.5 to 6.2s | 4.4 to 5.3s | no |
+| claude-sonnet-5-5, thinking off | 2.2 to 2.8s | 2.7 to 2.9s | 2.6 to 2.8s | yes, 5 and 6 marks on the long question |
+| claude-opus-5-5, effort low | 2.7 to 3.3s | 4.2 to 5.2s | 2.6 to 2.8s | no |
+| claude-haiku-5-5, thinking off | 0.8 to 1.1s | 0.9 to 1.1s | 0.8 to 1.3s | no |
+
+All four found the bug (`high = len(buckets)`) on every run and named no id
+outside the listing. The differences are elsewhere:
+
+- Argon is slow specifically on short questions, eight to thirteen seconds of
+  silence for a one-sentence answer. On longer ones it is competitive and its
+  boards are good.
+- Sonnet is the steadiest: under three seconds to the first sentence on every
+  question. It over-marks on long answers and drew a board in one of the two
+  long runs.
+- Opus at low effort teaches best. It was the only one to draw a stepped
+  array for the off-by-one, and it drew a board on every long run. It costs
+  twice Sonnet per token and is slower to start on medium questions.
+- Haiku is fastest and not usable as the tutor: it ignores the spoken-style
+  rules (capitals, backticks, "Line 3") and gives a walk-through in 41 words.
+
+Sonnet 5.5 is the default Claude brain. Argon stays selectable in the panel,
+and is the one billed against the Google Cloud credits.
+
+### Re-explanations and design judgements
+
+Second run, `brain_race.py 2 <out> extra`, first spoken sentence:
+
+| Brain | "i still don't get it" | "should this be a hash map instead" |
+|---|---|---|
+| gemini-4-argon, thinking LOW | 5.0 to 15.9s | 4.3 to 5.2s |
+| claude-sonnet-5-5, thinking off | 2.0 to 2.5s | 1.8 to 2.0s |
+| claude-sonnet-5-5, thinking low | 3.4 to 5.4s | 2.1s |
+| claude-opus-5-5, effort low | 4.6 to 4.9s | 3.2 to 3.9s |
+| claude-opus-5-5, effort medium | 6.4 to 7.3s | 4.2 to 4.8s |
+
+Every re-explanation switched to a worked example on the board, as the
+push-back instruction asks. Opus traced every step of its example exactly;
+Sonnet without thinking slipped one step ("low becomes 2, then 3, then 4"
+where it goes 3 then 4). On the design question all said hash map, but only
+Opus and Argon noticed the function belongs on a consistent hashing ring, and
+only Opus that it returns exact matches when a ring needs the next bucket up.
+
+Routing that follows from both runs, in `ClaudeAnswerProfile`:
+
+| Question kind | Model | Thinking |
+|---|---|---|
+| quick, normal | Sonnet 5.5 | off |
+| teach, re-explain, trade-off | Opus 5.5 | low effort |
+
+Medium effort is used for nothing: never better than low, always slower.
+
+## Sorting the question
+
+Which model answers depends on what kind of question it is, so the sorting
+was graded on its own: 50 spoken phrasings, 10 per kind, all mid-conversation,
+labelled by hand, none of them among the examples the sorters learn from.
+`scripts/question_sorting/sort_test.py`, with `--all` for the online ones.
+
+| Sorter | Kind right | Model right | Wrongly decided the student was lost | Median time |
+|---|---|---|---|---|
+| Keyword lists (the app before) | 30/50 | 35/50 | 0 | 0ms |
+| macOS contextual embedding, nearest examples | 40/50 | 45/50 | 1 | 8ms |
+| macOS sentence embedding, nearest examples | 36/50 | 42/50 | 1 | 2ms |
+| claude-haiku-5-5, thinking off | 43/50 | 45/50 | 3 | 705ms |
+| Laya (open Jev-style decision model), question only | 18/50 | 31/50 | 1 | 71ms |
+| Laya, with the previous answer | 18/50 | 31/50 | 29 | 101ms |
+
+The contextual embedding ships: as often right about the model as Haiku, on
+the machine, free, ninety times faster, and less prone to the expensive
+mistake, which tells the tutor its last answer failed. Laya was used
+zero-shot; its own documentation says the base checkpoint is weak until
+fine-tuned on the domain, and here it never once recognised a quick question.
+
+The labels and phrasings were written by one person who also wrote the keyword
+lists, so the margins are indicative. 50 phrasings is enough to separate 30
+from 40, not 40 from 43.

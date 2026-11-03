@@ -22,7 +22,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
 - **Voice Input**: Push-to-talk via `AVAudioEngine` + pluggable transcription-provider layer. System-wide keyboard shortcut via listen-only CGEvent tap.
 - **Screen Index**: Apple Vision text recognition plus the accessibility tree produce a numbered inventory of everything addressable on screen. This is injected into every prompt and is how marks resolve to exact rectangles.
-- **Element Marking**: the model emits `[CIRCLE:t42]`-style tags naming index ids, never coordinates. `TeacherResponseParser` strips them from the spoken text and records where each sat, so marks are drawn as the words describing them are spoken.
+- **Drawing**: the model answers with a JavaScript drawing program in beats (`step`, `say`, then marks). Screen marks name index ids or screenshot pixels; cards are drawn on calm space. See `DrawingEngine/`. The older inline-tag path (`TeacherResponseParser`) still handles an answer that comes back as prose.
 - **Concurrency**: `@MainActor` isolation, async/await throughout
 - **Analytics**: none. `ClickyAnalytics.swift` is an inert no-op surface.
 
@@ -31,6 +31,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 | Need | Service | Auth |
 |------|---------|------|
 | Vision + reasoning | `gemini-4-argon` on Vertex AI | gcloud access token, cached 50 min |
+| Vision + reasoning, alternative | `claude-sonnet-5-5`, thinking off | Keychain |
 | Text-to-speech | Deepgram `aura-2-hera-en` | Keychain |
 | Speech-to-text | Apple Speech framework | on-device |
 | Text recognition | Apple Vision framework | on-device |
@@ -88,6 +89,15 @@ raw model response.
 | `BuddyAudioConversionSupport.swift` | ~108 | Audio conversion helpers. Converts live mic buffers to PCM16 mono audio and builds WAV payloads for upload-based providers. |
 | `GlobalPushToTalkShortcutMonitor.swift` | ~132 | System-wide push-to-talk monitor. Owns the listen-only `CGEvent` tap and publishes press/release transitions. |
 | `ClaudeAPI.swift` | ~291 | Unused. Hosted Claude client kept from upstream for reference. |
+| `ClaudeVisionProvider.swift` | ~300 | Claude brain on the first-party Messages API. Selected in the panel. Raced against Argon in `docs/model-choice.md`: under three seconds to the first spoken sentence where Argon took up to thirteen. |
+| `DrawingEngine/` | ~1000 | The tutor answers as a drawing program (`step`/`say` beats plus marks and cards). `draw-engine.js` is our own engine: runs the program, renders hand-drawn shapes with rough.js and tapered pen strokes with perfect-freehand (both MIT, vendored as `draw-vendor-*.js`), and reveals each sentence's strokes across that sentence's audio. `draw-page.html` has no network access. |
+| `DrawingOverlay.swift` | ~240 | Click-through full-screen window hosting the engine in a WKWebView, with navigation refused and every URL load blocked. |
+| `ProgramStream.swift` | ~160 | Cuts the streaming program into sentences (spoken the moment a `say(...)` closes) and runnable pieces (cut at each `say`/`step` line). |
+| `NarrationVoice.swift` | ~280 | Deepgram per sentence: streams the first, downloads each next one while the current plays, reports exact sentence lengths for pen pacing. Falls back to the system voice. |
+| `LessonProgramPlayer.swift` | ~150 | Ties stream, voice, engine and notch together for one answer. |
+| `TutorProgramPrompt.swift` | ~200 | The cached system prompt (teaching rules and the drawing API) and the per-turn note (time, front app, canvas size, screen text with boxes, length per question kind). |
+| `TutorControlBar.swift` | ~560 | The notch panel: status, the sentence being said, and on hover the last lesson as a paper card or the full transcript, with follow-ups, Stop and Clear. Saves each day's transcript to `~/Library/Application Support/ClickyLocal/Transcripts`. |
+| `QuestionSorter.swift` | ~170 | Sorts each spoken question by meaning (macOS's built-in sentence model, nearest examples in `QuestionKindExamples.json`) into the kind that picks the model, the answer length and whether to re-explain. Keyword lists in `CompanionManager` are the fallback. Graded by `scripts/question_sorting/sort_test.py`. |
 | `OllamaVisionProvider.swift` | ~250 | Local vision chat client. Mirrors `ClaudeAPI`'s method surface so the two are swappable. Parses newline-delimited JSON, not SSE. Handles server probing and model preload. |
 | `ScreenIndex.swift` | ~390 | Numbered inventory of on-screen targets from Vision text recognition and the accessibility tree. Recognition runs off the main actor. Renders the listing for prompts and resolves ids back to exact rectangles. |
 | `TeacherResponseParser.swift` | ~330 | Splits a response into spoken text and drawing directives, recording each tag's character offset so marks sync to speech. Also releases complete sentences for progressive speech. |

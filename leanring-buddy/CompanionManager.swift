@@ -97,12 +97,18 @@ final class CompanionManager: ObservableObject {
         endpoint: .vertex(projectIdentifier: Self.hostedProjectIdentifier, location: "global")
     )
 
-    /// The brain in use. Both conform to the same protocol, so nothing
+    private lazy var claudeBrain = ClaudeVisionProvider(model: "claude-sonnet-5-5")
+
+    /// Sorts each question by meaning into the kind that decides who answers.
+    private let questionSorter = QuestionSorter()
+
+    /// The brain in use. All conform to the same protocol, so nothing
     /// downstream of here knows or cares which one answered.
     private var tutorBrain: TutorBrain {
         switch brainKind {
         case .local: return localBrain
         case .hosted: return hostedBrain
+        case .claude: return claudeBrain
         }
     }
 
@@ -282,9 +288,27 @@ final class CompanionManager: ObservableObject {
 
     /// Whether the user has completed onboarding at least once. Persisted
     /// to UserDefaults so the Start button only appears on first launch.
+    ///
+    /// Always true in this app. Upstream's onboarding was its author's video,
+    /// music and an email sign-up for a public release; none of it applies to
+    /// a study helper that runs for one person, and the only setup that
+    /// matters, the four permissions, is checked separately.
     var hasCompletedOnboarding: Bool {
-        get { UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") }
+        get { true }
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
+    }
+
+    /// Lessons from today's conversation, newest first, for the menu panel.
+    var recentLessonTitles: [String] {
+        controlBar.model.transcript.compactMap(\.lessonTitle).reversed().prefix(4).map { $0 }
+    }
+
+    /// Opens the folder holding each day's saved transcript.
+    func openTranscriptsFolder() {
+        let folder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/ClickyLocal/Transcripts")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(folder)
     }
 
     /// Whether the user has submitted their email during onboarding.
@@ -311,6 +335,8 @@ final class CompanionManager: ObservableObject {
         bindVoiceStateObservation()
         bindAudioPowerLevel()
         bindShortcutTransitions()
+        bindMarkLifetime()
+        Task { await questionSorter.prepare() }
         // Load the weights now rather than on the first question. A cold load
         // costs around ten seconds, which would otherwise land entirely inside
         // the user's first interaction and read as the app being broken.
@@ -602,6 +628,55 @@ final class CompanionManager: ObservableObject {
                 // Re-probe far less often than permissions. This exists so the
                 // "Ollama is not running" warning clears on its own once the
                 // user starts it, instead of needing an app restart.
+                if FileManager.default.fileExists(atPath: CalibrationSnapshot.triggerURL.path) {
+                    try? FileManager.default.removeItem(at: CalibrationSnapshot.triggerURL)
+                    await self.runCalibration()
+                }
+
+                self.keepSettingsOpenWhileSetupIsNeeded()
+
+                if let tabName = try? String(contentsOf: CalibrationSnapshot.openNotchURL, encoding: .utf8) {
+                    try? FileManager.default.removeItem(at: CalibrationSnapshot.openNotchURL)
+                    let model = self.controlBar.model
+                    switch tabName.trimmingCharacters(in: .whitespacesAndNewlines) {
+                    case "transcript": model.selectedTab = .transcript
+                    case "settings": model.selectedTab = .settings
+                    default: model.selectedTab = .lesson
+                    }
+                    model.isPinnedOpen = true
+                    model.isExpanded = true
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 8_000_000_000)
+                        guard self.allPermissionsGranted else { return }
+                        model.isPinnedOpen = false
+                        model.isExpanded = false
+                    }
+                }
+
+                // A question in this file is asked as if spoken, so the whole
+                // pipeline can be checked from a terminal: capture, model,
+                // voice, drawing.
+                if let question = try? String(contentsOf: CalibrationSnapshot.askURL, encoding: .utf8) {
+                    try? FileManager.default.removeItem(at: CalibrationSnapshot.askURL)
+                    let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmedQuestion.isEmpty {
+                        TutorDebugLog.write("🧪 asked from file")
+                        self.sendTranscriptToTutorWithScreenshot(transcript: trimmedQuestion)
+                    }
+                }
+
+                // A picture of the screen with whatever is drawn on it, to
+                // check a drawing by looking at it.
+                if FileManager.default.fileExists(atPath: CalibrationSnapshot.snapshotTriggerURL.path) {
+                    try? FileManager.default.removeItem(at: CalibrationSnapshot.snapshotTriggerURL)
+                    do {
+                        try await CalibrationSnapshot.captureIncludingOverlay()
+                        TutorDebugLog.write("📸 snapshot saved")
+                    } catch {
+                        TutorDebugLog.write("⚠️ snapshot failed: \(error.localizedDescription)")
+                    }
+                }
+
                 if shouldProbeModelServer {
                     let (isReachable, _) = await self.tutorBrain.probeServer()
                     if isReachable != self.isLocalModelReachable {
@@ -673,6 +748,11 @@ final class CompanionManager: ObservableObject {
             guard !buddyDictationManager.isDictationInProgress else { return }
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
+            // The student is about to talk for a few seconds. That is free
+            // time to open the secure connections the answer will need, so
+            // the handshake is not paid after they stop.
+            if brainKind == .claude { claudeBrain.prewarmConnection() }
+            narrationVoice.prewarmConnection()
 
             // Cancel any pending transient hide so the overlay stays visible
             transientHideTask?.cancel()
@@ -735,6 +815,7 @@ final class CompanionManager: ObservableObject {
                 )
             }
         case .released:
+            shortcutReleasedAt = Date()
             // Cancel the pending start task in case the user released the shortcut
             // before the async startPushToTalk had a chance to begin recording.
             // Without this, a quick press-and-release drops the release event and
@@ -878,6 +959,74 @@ final class CompanionManager: ObservableObject {
     /// Clears the board and marks once the answer has had time to be read.
     private var markDismissalTask: Task<Void, Never>?
 
+    /// The strip at the bottom while the tutor talks or has drawn: the
+    /// sentence being said, the follow-ups it offered, Stop and Clear.
+    private lazy var controlBar = TutorControlBarController(
+        onAsk: { [weak self] question in self?.askFollowUp(question) },
+        onStop: { [weak self] in self?.stopAnswering() },
+        onClear: { [weak self] in self?.clearAnnotations() },
+        settingsView: { [weak self] in
+            guard let self else { return AnyView(EmptyView()) }
+            return AnyView(CompanionPanelView(companionManager: self, isEmbedded: true))
+        }
+    )
+
+    /// The notch is the only window the app has, so setup happens there:
+    /// while a permission is missing, it stays open on its settings tab.
+    func keepSettingsOpenWhileSetupIsNeeded() {
+        let model = controlBar.model
+        if !allPermissionsGranted {
+            guard !notchIsPinnedForSetup else { return }
+            notchIsPinnedForSetup = true
+            model.selectedTab = .settings
+            model.isPinnedOpen = true
+            model.isExpanded = true
+        } else if notchIsPinnedForSetup {
+            // Only undoes its own pin: this runs every couple of seconds, and
+            // must not close the notch when something else opened it.
+            notchIsPinnedForSetup = false
+            model.isPinnedOpen = false
+            model.isExpanded = false
+            model.selectedTab = .lesson
+        }
+    }
+    private var notchIsPinnedForSetup = false
+    private var controlBarDrawingCancellable: AnyCancellable?
+    private var notchActivityCancellable: AnyCancellable?
+
+    /// When the keys were let go and when this answer began, for the stage
+    /// timings in the log: the only latency the student feels is from the
+    /// first to the first spoken word.
+    private var shortcutReleasedAt: Date?
+    private var answerStartedAt = Date()
+
+    private func logStage(_ stage: String) {
+        let sinceStart = Date().timeIntervalSince(answerStartedAt)
+        var line = "⏱ \(stage): \(String(format: "%.2f", sinceStart))s"
+        if let released = shortcutReleasedAt, Date().timeIntervalSince(released) < 60 {
+            line += " (\(String(format: "%.2f", Date().timeIntervalSince(released)))s after release)"
+        }
+        TutorDebugLog.write(line)
+    }
+
+    /// Where drawing programs are drawn, who speaks them, and what ties the two.
+    private lazy var drawingOverlay = DrawingOverlay()
+    private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
+    private lazy var lessonPlayer: LessonProgramPlayer = {
+        let player = LessonProgramPlayer(overlay: drawingOverlay, voice: narrationVoice, bar: controlBar.model)
+        player.onFirstSentenceHeard = { [weak self] in self?.logStage("first sentence heard") }
+        return player
+    }()
+
+    /// Whether this answer is a drawing program or plain prose. Decided from
+    /// its first characters: a model that ignores the format still gets
+    /// spoken, through the older tag pipeline.
+    private enum AnswerFormat { case undecided, program, prose }
+    private var currentAnswerFormat: AnswerFormat = .undecided
+    private var escapeKeyMonitor: Any?
+    private var scrollWheelMonitor: Any?
+    private var applicationSwitchObserver: NSObjectProtocol?
+
     /// Captures the screen, indexes it, asks the local model, and narrates the
     /// answer while drawing on screen.
     ///
@@ -890,9 +1039,19 @@ final class CompanionManager: ObservableObject {
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
+        TutorDebugLog.write("🎙️ asked: \(transcript)")
+        controlBar.model.recordStudent(transcript)
+        answerStartedAt = Date()
+        logStage("question in")
+        let hasPreviousAnswer = !conversationHistory.isEmpty
+        let kindByMeaning = questionSorter.kind(of: transcript, hasPreviousAnswer: hasPreviousAnswer)
+        let questionKind = kindByMeaning
+            ?? Self.questionKindFromKeywords(transcript, hasPreviousAnswer: hasPreviousAnswer)
+        TutorDebugLog.write("🧭 sorted as \(questionKind.rawValue) by \(kindByMeaning == nil ? "keywords" : "meaning")")
+
         // Counted before the answer is built, so the instruction reflects how
         // many times this idea has already failed to land.
-        if Self.isAskingAgain(transcript) && !conversationHistory.isEmpty {
+        if questionKind == .reexplain {
             consecutiveReexplanationCount += 1
             TutorDebugLog.write("🔁 student still lost, attempt \(consecutiveReexplanationCount + 1): switching tactic")
         } else {
@@ -926,6 +1085,7 @@ final class CompanionManager: ObservableObject {
                     )
                 )
                 guard !Task.isCancelled else { return }
+                logStage("screen captured and read")
 
                 let labeledImages = screenCaptures.map { capture in
                     let dimensionInfo = " (image dimensions: \(capture.screenshotWidthInPixels)x\(capture.screenshotHeightInPixels) pixels)"
@@ -946,25 +1106,66 @@ final class CompanionManager: ObservableObject {
                 // started appearing: the structure costs tokens that the spoken
                 // answer then does not have. Cut off halfway is worse than
                 // slightly long, and the filler rules keep the prose tight.
-                let budget = Self.answerBudget(for: transcript)
-                tutorBrain.maximumResponseTokens = budget.maximumTokens
+                let budget = Self.answerBudget(for: questionKind)
+                tutorBrain.maximumResponseTokens = TutorProgramPrompt.maximumTokens(for: questionKind)
 
-                // A second attempt at the same idea needs room to actually
-                // work the example through, not the terse default.
-                if consecutiveReexplanationCount > 0 {
-                    tutorBrain.maximumResponseTokens = max(tutorBrain.maximumResponseTokens, 420)
+                if brainKind == .claude {
+                    let profile = ClaudeAnswerProfile.forQuestion(budget.questionKind)
+                    claudeBrain.apply(profile)
+                    TutorDebugLog.write("🧭 answered by \(profile.summary)")
                 }
 
+                // The screenshot is the canvas the program draws on, so it is
+                // sent at the size it was captured. Reducing it would put every
+                // coordinate the model reads off it on a different scale.
+                claudeBrain.maximumImageDimension = 1280
+                hostedBrain.maximumImageDimension = 1280
+                let canvasSize = CGSize(
+                    width: primaryCapture.screenshotWidthInPixels,
+                    height: primaryCapture.screenshotHeightInPixels
+                )
+                let (screenListing, screenBoxes) = screenIndex.listingWithBoxes(
+                    canvasSize: canvasSize,
+                    displaySizeInPoints: CGSize(
+                        width: primaryCapture.displayWidthInPoints,
+                        height: primaryCapture.displayHeightInPoints
+                    )
+                )
+                let (frontAppName, frontWindowTitle) = TutorProgramPrompt.frontmostAppAndWindow()
+                let turnPrompt = TutorProgramPrompt.turnContext(
+                    transcript: transcript,
+                    canvasSize: canvasSize,
+                    screenListing: screenListing,
+                    lengthInstruction: TutorProgramPrompt.lengthInstruction(for: questionKind),
+                    reexplanationInstruction: reexplanationInstruction(),
+                    frontAppName: frontAppName,
+                    frontWindowTitle: frontWindowTitle
+                )
 
+                let screenForDrawing = NSScreen.screens.first { screen in
+                    screen.frame == primaryCapture.displayFrame
+                } ?? NSScreen.main
+                if let screenForDrawing {
+                    lessonPlayer.begin(
+                        on: screenForDrawing,
+                        canvasSize: canvasSize,
+                        targets: screenBoxes,
+                        screenInkHex: "#3380FF"
+                    )
+                }
+                currentAnswerFormat = .undecided
+
+                // Only the cursor's screen: that one screenshot is the canvas.
+                let imagesForModel = [(data: primaryCapture.imageData, label: "")]
+
+                logStage("request sent")
                 let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
-                    images: labeledImages,
-                    systemPrompt: Self.tutorSystemPrompt(
-                        screenIndexListing: screenIndex.renderForPrompt()
-                    ) + "\n\n" + budget.shapeInstruction + reexplanationInstruction(),
+                    images: imagesForModel,
+                    systemPrompt: TutorProgramPrompt.system,
                     conversationHistory: historyForModel,
-                    userPrompt: transcript,
+                    userPrompt: turnPrompt,
                     onTextChunk: { [weak self] accumulatedText in
-                        self?.enqueueCompletedSentences(fromStreamedText: accumulatedText)
+                        self?.routeStreamedText(accumulatedText)
                     }
                 )
 
@@ -974,6 +1175,30 @@ final class CompanionManager: ObservableObject {
                 // only way to tell the two causes apart: the model emitting no
                 // tags at all, versus tags that failed to resolve to a target.
                 TutorDebugLog.write("RAW MODEL RESPONSE:\n\(fullResponseText)\n--- end ---")
+
+                if currentAnswerFormat == .undecided {
+                    routeStreamedText(fullResponseText)
+                    if currentAnswerFormat == .undecided { currentAnswerFormat = .prose }
+                }
+
+                if currentAnswerFormat == .program {
+                    await lessonPlayer.finish(fullText: fullResponseText)
+                    if let lessonTitle = lessonPlayer.lessonTitle {
+                        TutorDebugLog.write("📘 lesson: \(lessonTitle)")
+                        controlBar.model.recordLessonTitle(lessonTitle)
+                    }
+                    // The whole program, not only what was said: the next
+                    // answer has to know what it drew to build on it or to
+                    // explain it differently.
+                    conversationHistory.append((
+                        userTranscript: transcript,
+                        assistantResponse: fullResponseText
+                    ))
+                    if conversationHistory.count > 10 {
+                        conversationHistory.removeFirst(conversationHistory.count - 10)
+                    }
+                    print("🧠 Answered in \(String(format: "%.1f", duration))s as a drawing program")
+                } else {
 
                 // Flush whatever trailed the final sentence terminator, which
                 // the streaming path deliberately held back.
@@ -1019,11 +1244,13 @@ final class CompanionManager: ObservableObject {
                 }
 
                 print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
+                }
 
             } catch is CancellationError {
                 // User spoke again; the previous answer was abandoned on purpose.
             } catch {
                 print("⚠️ Tutor response error: \(error.localizedDescription)")
+                TutorDebugLog.write("⚠️ answer failed: \(error.localizedDescription)")
                 await speakLocalErrorFallback(for: error)
             }
 
@@ -1035,10 +1262,52 @@ final class CompanionManager: ObservableObject {
                     if Task.isCancelled { break }
                 }
                 voiceState = .idle
-                scheduleMarkDismissal()
+                if currentAnswerFormat == .program {
+                    // A drawing stays until the next question, Clear, Esc, or
+                    // the content under it changing: it is the part worth
+                    // looking at once the talking stops.
+                    await lessonPlayer.waitUntilSpoken()
+                    controlBar.model.caption = ""
+                } else {
+                    scheduleMarkDismissal()
+                }
                 scheduleTransientHideIfNeeded()
             }
         }
+    }
+
+    /// Sends streamed text to the program player or the prose pipeline,
+    /// deciding which on the first few characters.
+    private func routeStreamedText(_ accumulatedText: String) {
+        if currentAnswerFormat == .undecided, let isProgram = ProgramStream.looksLikeProgram(accumulatedText) {
+            currentAnswerFormat = isProgram ? .program : .prose
+            TutorDebugLog.write(isProgram ? "🖌️ answer is a drawing program" : "📝 answer is prose")
+            logStage("first words from the model")
+            if isProgram { voiceState = .responding }
+        }
+        switch currentAnswerFormat {
+        case .program:
+            lessonPlayer.feed(accumulatedText: accumulatedText)
+        case .prose:
+            enqueueCompletedSentences(fromStreamedText: accumulatedText)
+        case .undecided:
+            break
+        }
+    }
+
+    /// A follow-up the tutor offered, asked as if the student had said it.
+    private func askFollowUp(_ question: String) {
+        TutorDebugLog.write("👆 follow-up tapped: \(question)")
+        sendTranscriptToTutorWithScreenshot(transcript: question)
+    }
+
+    /// Stop on the bar: stops talking and the answer being written, and
+    /// leaves what is drawn.
+    private func stopAnswering() {
+        currentResponseTask?.cancel()
+        cancelSpeechAndClearQueue()
+        voiceState = .idle
+        controlBar.model.caption = ""
     }
 
     /// How many times running the student has said they still do not follow.
@@ -1107,6 +1376,7 @@ final class CompanionManager: ObservableObject {
     /// the sampler, because a model told to write three sentences writes three
     /// sentences, while a model cut off at 150 tokens stops mid-thought.
     struct AnswerBudget {
+        let questionKind: QuestionKind
         let maximumTokens: Int
         /// Shape instruction injected into the prompt.
         let shapeInstruction: String
@@ -1114,52 +1384,111 @@ final class CompanionManager: ObservableObject {
         let allowsBoard: Bool
     }
 
-    /// Classifies the question into a budget.
-    ///
-    /// Keyword matching rather than a model call: this runs on every question
-    /// and a second of inference spent deciding how long the next answer may be
-    /// costs more than it saves.
-    private static func answerBudget(for transcript: String) -> AnswerBudget {
+    /// Sorts by keywords. The fallback for when the meaning-based sorter is
+    /// not ready: it got 30 of 50 test phrasings right where meaning got 40.
+    private static func questionKindFromKeywords(
+        _ transcript: String,
+        hasPreviousAnswer: Bool
+    ) -> QuestionKind {
         let question = transcript.lowercased()
 
         func mentions(_ phrases: [String]) -> Bool {
             phrases.contains { phrase in question.contains(phrase) }
         }
 
-        // Asked to teach it properly. Worth a diagram and the room to build one.
+        if hasPreviousAnswer && isAskingAgain(transcript) {
+            return .reexplain
+        }
+
         if mentions(["walk me through", "step by step", "teach me", "explain more",
                      "go deeper", "in detail", "more detail", "from scratch",
                      "full explanation", "properly", "whole thing", "how does it work"]) {
+            return .teach
+        }
+
+        // Checked before the quick test: "is this better than a hash map"
+        // starts like a quick question but is asking for a judgement.
+        if mentions(["should i", "should it", "should we", "should this", "better",
+                     "trade off", "tradeoff", "trade-off", "versus", " vs ", "compare",
+                     "instead of", "why not", "which one", "pros and cons", "worth it",
+                     "would it be", "right call", "right choice"]) {
+            return .tradeOff
+        }
+
+        if mentions(["what is", "what does", "what's", "whats", "is this", "is that",
+                     "which line", "where is", "does this", "did i", "can i"])
+            && question.split(separator: " ").count <= 12 {
+            return .quick
+        }
+
+        return .normal
+    }
+
+    /// How much room each kind of question gets.
+    private static func answerBudget(for questionKind: QuestionKind) -> AnswerBudget {
+        switch questionKind {
+        case .teach:
+            // Asked to teach it properly. Worth a diagram and the room to build one.
             return AnswerBudget(
+                questionKind: .teach,
                 maximumTokens: 520,
                 shapeInstruction: """
                 LENGTH: they asked to be taught this properly. take the room: up to eight sentences, and draw a board if the idea has structure. still no preamble and no reading the screen back.
                 """,
                 allowsBoard: true
             )
-        }
 
-        // A quick factual or local question. One sentence is the honest answer.
-        if mentions(["what is", "what does", "what's", "whats", "is this", "is that",
-                     "which line", "where is", "does this", "did i", "can i"])
-            && question.split(separator: " ").count <= 12 {
+        case .tradeOff:
+            // A judgement between designs. Same length as a normal answer, but
+            // it goes to the model that reasons, because the race showed the
+            // difference here is insight rather than speed: asked whether
+            // find_slot should be a binary search, Sonnet said "use a hash
+            // map", while Opus noticed the function only returns exact
+            // matches, which is the wrong lookup for the consistent hashing
+            // ring it belongs to.
             return AnswerBudget(
+                questionKind: .tradeOff,
+                maximumTokens: 190,
+                shapeInstruction: """
+                LENGTH: THREE sentences carrying one idea. they asked for a judgement, so give the verdict first and the deciding reason second. draw a board only if the comparison genuinely has stages.
+                """,
+                allowsBoard: true
+            )
+
+        case .quick:
+            // A small specific question. One sentence is the honest answer.
+            return AnswerBudget(
+                questionKind: .quick,
                 maximumTokens: 90,
                 shapeInstruction: """
                 LENGTH: ONE sentence. they asked something specific and small. answer it and stop. no board.
                 """,
                 allowsBoard: false
             )
-        }
 
-        // Everything else: a real question wanting a real but compact answer.
-        return AnswerBudget(
-            maximumTokens: 190,
-            shapeInstruction: """
-            LENGTH: THREE sentences carrying one idea. they are waiting in silence while you write, so every extra sentence is a longer wait. draw a board only if the idea genuinely has stages or data to step through.
-            """,
-            allowsBoard: true
-        )
+        case .reexplain:
+            // A second attempt at the same idea needs room to actually work
+            // the example through, not the terse default.
+            return AnswerBudget(
+                questionKind: .reexplain,
+                maximumTokens: 420,
+                shapeInstruction: """
+                LENGTH: THREE sentences carrying one idea. they are waiting in silence while you write, so every extra sentence is a longer wait. draw a board only if the idea genuinely has stages or data to step through.
+                """,
+                allowsBoard: true
+            )
+
+        case .normal:
+            // A real question wanting a real but compact answer.
+            return AnswerBudget(
+                questionKind: .normal,
+                maximumTokens: 190,
+                shapeInstruction: """
+                LENGTH: THREE sentences carrying one idea. they are waiting in silence while you write, so every extra sentence is a longer wait. draw a board only if the idea genuinely has stages or data to step through.
+                """,
+                allowsBoard: true
+            )
+        }
     }
 
     // MARK: - Progressive speech
@@ -1216,6 +1545,9 @@ final class CompanionManager: ObservableObject {
                 guard !Task.isCancelled else { break }
 
                 let segment = self.pendingSpeechSegments.removeFirst()
+                if !segment.spokenText.isEmpty {
+                    self.controlBar.model.recordTutorSentence(segment.spokenText)
+                }
 
                 if self.voiceState != .responding {
                     self.voiceState = .responding
@@ -1301,7 +1633,10 @@ final class CompanionManager: ObservableObject {
             }
 
             while let next = undispatchedDirectives.first,
-                  next.characterOffsetInSpokenText <= offset {
+                  Self.offsetWhereMarkedPhraseBegins(
+                    tagOffset: next.characterOffsetInSpokenText,
+                    spokenText: segment.spokenText
+                  ) <= offset {
                 undispatchedDirectives.removeFirst()
                 apply(directive: next, spokenContext: segment.spokenText)
             }
@@ -1374,7 +1709,7 @@ final class CompanionManager: ObservableObject {
 
     /// Whether either speech engine is currently producing audio.
     private var isAnyVoicePlaying: Bool {
-        speechClient.isPlaying || kokoroClient.isPlaying || deepgramClient.isPlaying
+        speechClient.isPlaying || kokoroClient.isPlaying || deepgramClient.isPlaying || narrationVoice.isSpeaking
     }
 
     private func cancelSpeechAndClearQueue() {
@@ -1388,6 +1723,8 @@ final class CompanionManager: ObservableObject {
         kokoroClient.stopPlayback()
         deepgramClient.onSpokenProgress = nil
         deepgramClient.stopPlayback()
+        lessonPlayer.stop()
+        currentAnswerFormat = .undecided
     }
 
     // MARK: - Drawing on screen
@@ -1630,6 +1967,75 @@ final class CompanionManager: ObservableObject {
         TutorDebugLog.write("🖊️ \(identifier) -> rect (\(Int(rect.minX)),\(Int(rect.minY))) \(Int(rect.width))x\(Int(rect.height)) on display \(Int(displayFrame.width))x\(Int(displayFrame.height)) at \(Int(displayFrame.origin.x)),\(Int(displayFrame.origin.y)) — total now \(activeAnnotations.count), overlayVisible=\(isOverlayVisible)")
     }
 
+    /// Boxes every indexed target and photographs the result.
+    ///
+    /// Runs the exact capture, indexing and drawing path a real answer uses,
+    /// minus the model, so a misplaced box here is misplaced for the same
+    /// reason a misplaced mark is in an answer.
+    func runCalibration() async {
+        TutorDebugLog.write("🎯 calibration: starting")
+        do {
+            if !isOverlayVisible {
+                overlayWindowManager.hasShownOverlayBefore = true
+                overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+                isOverlayVisible = true
+            }
+
+            let captures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
+            guard let capture = captures.first(where: { candidate in candidate.isCursorScreen })
+                    ?? captures.first else { return }
+            displayFrameForCurrentAnswer = capture.displayFrame
+
+            await screenIndex.rebuild(
+                fromScreenshot: capture.imageData,
+                displayIndex: 0,
+                displayBoundsInPoints: CGSize(
+                    width: capture.displayWidthInPoints,
+                    height: capture.displayHeightInPoints
+                )
+            )
+
+            clearAnnotations()
+            let targets = screenIndex.orderedTargets
+                .filter { target in target.locationSource == .recognizedText }
+                .prefix(40)
+            for target in targets {
+                apply(directive: TeacherDirective(action: .box(targetIdentifier: target.id),
+                                                  characterOffsetInSpokenText: 0))
+            }
+            TutorDebugLog.write("🎯 calibration: boxed \(targets.count) targets, waiting for render")
+
+            // The board from a real answer that came out clipped and mostly
+            // empty, so its size and placement are in the same picture.
+            let sampleBoard = TeacherResponseParser.parse(rawResponse: """
+            [BOARD:Separated Storage and Compute][COL:Finance Cluster:Stateless CPUs]\
+            [COL:Data Science:Stateless CPUs][BASE:Shared Cloud Storage (S3)]\
+            [CAPTION:Workers own zero data, they only cache it]
+            """)
+            for directive in sampleBoard.directives {
+                apply(directive: directive)
+            }
+            boardRevealFraction = 1
+
+            // Long enough for every box's stroke animation to finish.
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            try await CalibrationSnapshot.captureIncludingOverlay()
+            TutorDebugLog.write("🎯 calibration: saved \(CalibrationSnapshot.outputURL.path)")
+
+            // A sample of indexed text and rectangles, so the image can be
+            // checked against what the index believed.
+            for target in targets.prefix(8) {
+                let r = target.boundsInDisplayPoints
+                TutorDebugLog.write("🎯   \(target.id) '\(target.displayedText.prefix(30))' bottomLeft (\(Int(r.minX)),\(Int(r.minY))) \(Int(r.width))x\(Int(r.height))")
+            }
+
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            clearAnnotations()
+        } catch {
+            TutorDebugLog.write("⚠️ calibration failed: \(error.localizedDescription)")
+        }
+    }
+
     /// Takes the board and marks down a while after the answer finishes.
     ///
     /// They previously stayed until the next question, so a board left behind
@@ -1645,8 +2051,153 @@ final class CompanionManager: ObservableObject {
         }
     }
 
+    /// Where the words a mark belongs to start, so the mark appears as they
+    /// are spoken rather than after.
+    ///
+    /// The model writes a tag after the phrase it marks: "the real separation
+    /// is between workers and a shared storage layer like s3 [UNDERLINE:t44]".
+    /// Fired at the tag, that underline landed ten seconds into the sentence,
+    /// after the student had finished hearing about the thing it underlines.
+    /// Backed up to the start of the clause, it appears as the phrase begins.
+    /// Capped at about four seconds of speech, so a long clause does not mark
+    /// its subject before it has been named at all.
+    private static func offsetWhereMarkedPhraseBegins(tagOffset: Int, spokenText: String) -> Int {
+        let characters = Array(spokenText)
+        let clampedTagOffset = min(max(tagOffset, 0), characters.count)
+        let longestLeadInCharacters = 60
+        let clauseBoundaries: Set<Character> = [".", ",", ";", ":", "!", "?"]
+
+        var phraseStart = clampedTagOffset
+        // Step over any boundary sitting right at the tag, so "s3 [TAG]." backs
+        // into its own clause rather than stopping at its own full stop.
+        while phraseStart > 0, characters[phraseStart - 1] == " " {
+            phraseStart -= 1
+        }
+        while phraseStart > 0,
+              clampedTagOffset - phraseStart < longestLeadInCharacters,
+              !clauseBoundaries.contains(characters[phraseStart - 1]) {
+            phraseStart -= 1
+        }
+        // The cap can stop mid-word. Finish the word, so the count is in words.
+        while phraseStart > 0, characters[phraseStart - 1].isLetter || characters[phraseStart - 1].isNumber {
+            phraseStart -= 1
+        }
+        return phraseStart
+    }
+
+    /// Keeps marks attached to what they point at, and gives the student ways
+    /// to get rid of them.
+    ///
+    /// A mark is drawn at a fixed place on the screen, and the content under
+    /// it does not stay put: the student scrolls, or switches to another app,
+    /// and the underline that was under "data lives once" is now under
+    /// something else, or across a different window entirely.
+    private func bindMarkLifetime() {
+        notchActivityCancellable = $voiceState
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                guard let self else { return }
+                switch state {
+                case .idle: self.controlBar.model.activity = .ready
+                case .listening: self.controlBar.model.activity = .listening
+                case .processing: self.controlBar.model.activity = .thinking
+                case .responding: self.controlBar.model.activity = .speaking
+                }
+            }
+
+        controlBarDrawingCancellable = Publishers.CombineLatest3(
+            $activeAnnotations, $spotlightRectsInGlobalPoints, $whiteboard
+        )
+        .map { annotations, spotlightRects, whiteboard in
+            !annotations.isEmpty || !spotlightRects.isEmpty || whiteboard.hasContent
+        }
+        .removeDuplicates()
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] somethingIsDrawn in
+            guard let self else { return }
+            self.controlBar.model.hasDrawing = somethingIsDrawn || self.lessonPlayer.hasDrawing
+        }
+
+        // Esc clears, while there is something to clear. Observed, never
+        // swallowed: the app in front still gets its Esc too.
+        escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == 53 else { return }
+            Task { @MainActor in
+                TutorDebugLog.write("⎋ Esc: clearing the drawing")
+                self?.clearAnnotations()
+            }
+        }
+
+        scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            let hasPreciseDeltas = event.hasPreciseScrollingDeltas
+            let verticalDelta = event.scrollingDeltaY
+            Task { @MainActor in
+                self?.followScroll(verticalDelta: verticalDelta, hasPreciseDeltas: hasPreciseDeltas)
+            }
+        }
+
+        // Marks belong to the window they were drawn over. In another app
+        // they point at nothing. The board stays: it is about the idea, not
+        // about a place on the screen.
+        applicationSwitchObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            // This app coming forward (for a permission prompt) is not the
+            // student leaving the content.
+            let activatedApplication = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard activatedApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
+            Task { @MainActor in self?.clearScreenMarks() }
+        }
+    }
+
+    /// Moves screen marks with the content as it scrolls.
+    ///
+    /// A trackpad reports scrolling in points, and browsers move the page by
+    /// that amount, so the marks can move with it. A mouse wheel reports
+    /// lines, whose size in points depends on the app, so rather than guess,
+    /// the marks are cleared. Positive deltas move content down the screen,
+    /// which is downward in AppKit's bottom-left coordinates.
+    private func followScroll(verticalDelta: CGFloat, hasPreciseDeltas: Bool) {
+        guard verticalDelta != 0 else { return }
+        if lessonPlayer.hasDrawing {
+            // The drawing page is top-left origin, so content moving down is
+            // a positive offset there.
+            if hasPreciseDeltas {
+                lessonPlayer.scrollScreenMarks(byPoints: verticalDelta)
+            } else {
+                lessonPlayer.clearScreenMarks()
+            }
+        }
+        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+
+        guard hasPreciseDeltas else {
+            clearScreenMarks()
+            return
+        }
+
+        activeAnnotations = activeAnnotations.map { annotation in
+            annotation.shiftedVertically(by: -verticalDelta)
+        }
+        spotlightRectsInGlobalPoints = spotlightRectsInGlobalPoints.map { rect in
+            rect.offsetBy(dx: 0, dy: -verticalDelta)
+        }
+    }
+
+    /// Removes marks drawn over screen content, keeping the board.
+    private func clearScreenMarks() {
+        lessonPlayer.clearScreenMarks()
+        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            activeAnnotations.removeAll()
+            spotlightRectsInGlobalPoints.removeAll()
+        }
+    }
+
     /// Wipes every mark and takes down the board.
     func clearAnnotations() {
+        lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty
             && spotlightRectsInGlobalPoints.isEmpty
             && !whiteboard.hasContent
@@ -1692,11 +2243,18 @@ final class CompanionManager: ObservableObject {
         let (isReachable, _) = await tutorBrain.probeServer()
         isLocalModelReachable = isReachable
 
+        // Said per brain, because the fix differs completely: telling a cloud
+        // user to start Ollama sends them after a server they are not using.
         let spokenExplanation: String
-        if !isReachable {
+        switch (brainKind, isReachable) {
+        case (.hosted, false):
+            spokenExplanation = "i can't reach the cloud model. your google cloud sign in has probably expired. run gcloud auth application default login in a terminal."
+        case (.claude, false):
+            spokenExplanation = "i can't reach claude. there's no anthropic key in the keychain."
+        case (.local, false):
             spokenExplanation = "i can't reach the local model. start it by running brew services start ollama in a terminal."
-        } else {
-            spokenExplanation = "something went wrong answering that. check the console for details."
+        default:
+            spokenExplanation = "something went wrong answering that. the details are in the clicky log."
         }
 
         voiceState = .responding

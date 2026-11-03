@@ -501,10 +501,8 @@ final class ScreenIndex {
     ///
     /// Terse on purpose: this rides along with a screenshot on every turn, and
     /// a 16 GB machine cannot spare context on formatting.
-    func renderForPrompt(maximumTargets: Int = 120) -> String {
-        guard !orderedTargets.isEmpty else {
-            return "(no text could be read from the screen)"
-        }
+    /// The targets worth showing the model, in the order they are listed.
+    private func targetsForPrompt(maximumTargets: Int) -> [ScreenTarget] {
 
         // Recognised text comes first, always.
         //
@@ -544,10 +542,17 @@ final class ScreenIndex {
         let accessibilityAllowance = max(0, min(accessibilityTargets.count, maximumTargets / 4))
         let textAllowance = maximumTargets - accessibilityAllowance
 
-        let targetsForPrompt = Array(recognisedTextTargets.prefix(textAllowance))
+        let selectedTargets = Array(recognisedTextTargets.prefix(textAllowance))
             + Array(accessibilityTargets.prefix(accessibilityAllowance))
+        return selectedTargets
+    }
 
-        return targetsForPrompt.map { target in
+    func renderForPrompt(maximumTargets: Int = 120) -> String {
+        guard !orderedTargets.isEmpty else {
+            return "(no text could be read from the screen)"
+        }
+        let selectedTargets = targetsForPrompt(maximumTargets: maximumTargets)
+        return selectedTargets.map { target in
             // Collapse newlines so one target stays on one line and the
             // listing cannot be mistaken for free-form text.
             let singleLineText = target.displayedText
@@ -556,6 +561,38 @@ final class ScreenIndex {
             return "\(target.id): \(singleLineText)"
         }
         .joined(separator: "\n")
+    }
+
+    /// The listing for a drawing program: each line carries its box in the
+    /// screenshot's pixels, top-left origin, which is the canvas the program
+    /// draws on. Returned with the same boxes keyed by id, for the engine.
+    func listingWithBoxes(
+        canvasSize: CGSize,
+        displaySizeInPoints: CGSize,
+        maximumTargets: Int = 120
+    ) -> (listing: String, boxes: [String: [Double]]) {
+        guard !orderedTargets.isEmpty, displaySizeInPoints.width > 0, displaySizeInPoints.height > 0 else {
+            return ("(no text could be read from the screen)", [:])
+        }
+        let scaleX = canvasSize.width / displaySizeInPoints.width
+        let scaleY = canvasSize.height / displaySizeInPoints.height
+        var boxes: [String: [Double]] = [:]
+        let lines = targetsForPrompt(maximumTargets: maximumTargets).map { target -> String in
+            let bounds = target.boundsInDisplayPoints
+            // Bottom-left points to top-left pixels.
+            let box = [
+                (bounds.minX * scaleX).rounded(),
+                ((displaySizeInPoints.height - bounds.maxY) * scaleY).rounded(),
+                (bounds.width * scaleX).rounded(),
+                (bounds.height * scaleY).rounded()
+            ].map(Double.init)
+            boxes[target.id] = box
+            let singleLineText = target.displayedText
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: " ")
+            return "\(target.id) [\(Int(box[0])), \(Int(box[1])), \(Int(box[2])), \(Int(box[3]))] \(singleLineText)"
+        }
+        return (lines.joined(separator: "\n"), boxes)
     }
 
     /// Resolves an identifier the model emitted back to its exact rectangle.
