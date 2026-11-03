@@ -103,12 +103,7 @@ final class DeepgramSpeechClient {
             throw DeepgramError.httpStatus(http.statusCode)
         }
 
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: Self.sampleRate,
-            channels: 1,
-            interleaved: true
-        ) else {
+        guard let format = Self.playbackFormat else {
             throw DeepgramError.malformedResponse
         }
 
@@ -163,7 +158,22 @@ final class DeepgramSpeechClient {
         }
     }
 
-    /// Converts one chunk of PCM to a buffer and queues it for playback.
+    /// Format the engine plays, and the format buffers must be built in.
+    ///
+    /// Float32 rather than the Int16 the API returns. The player node has to be
+    /// connected with the same format as the buffers scheduled on it, and
+    /// AVAudioEngine's mixer works in float: connecting with Int16 left every
+    /// buffer unplayed, the completion handler never fired, and the whole
+    /// pipeline waited forever on a sentence that was never spoken. The
+    /// samples are converted on the way in instead.
+    private static let playbackFormat = AVAudioFormat(
+        commonFormat: .pcmFormatFloat32,
+        sampleRate: sampleRate,
+        channels: 1,
+        interleaved: false
+    )
+
+    /// Converts one chunk of 16-bit PCM to a float buffer and queues it.
     private func scheduleChunk(_ chunk: Data, format: AVAudioFormat) {
         let frameCount = AVAudioFrameCount(chunk.count / 2)
         guard frameCount > 0,
@@ -174,8 +184,12 @@ final class DeepgramSpeechClient {
 
         chunk.withUnsafeBytes { rawBuffer in
             guard let source = rawBuffer.bindMemory(to: Int16.self).baseAddress,
-                  let destination = buffer.int16ChannelData?[0] else { return }
-            destination.update(from: source, count: Int(frameCount))
+                  let destination = buffer.floatChannelData?[0] else { return }
+            // Int16 full scale is 32768, so this maps to the -1...1 range the
+            // engine expects.
+            for frameIndex in 0..<Int(frameCount) {
+                destination[frameIndex] = Float(source[frameIndex]) / 32_768.0
+            }
         }
 
         scheduledFrameCount += AVAudioFramePosition(frameCount)
@@ -211,8 +225,14 @@ final class DeepgramSpeechClient {
     private func startEngineIfNeeded() throws {
         guard !isEngineRunning else { return }
 
-        let outputFormat = audioEngine.outputNode.inputFormat(forBus: 0)
-        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: outputFormat)
+        // Connected with the buffer format, not the output device's format.
+        // The engine resamples to the hardware rate itself; scheduling buffers
+        // whose format differs from the connection is what silently dropped
+        // every one of them.
+        guard let format = Self.playbackFormat else {
+            throw DeepgramError.malformedResponse
+        }
+        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: format)
         try audioEngine.start()
         isEngineRunning = true
     }

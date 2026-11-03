@@ -1106,10 +1106,12 @@ final class CompanionManager: ObservableObject {
                 prefetchedClipTask = nil
 
                 // Start the next sentence rendering before speaking this one.
-                // Rendering runs about twice realtime, so it finishes well
-                // inside the current sentence and the next one begins straight
-                // away.
-                if self.isUsingNeuralVoice,
+                // Only Kokoro needs this: it renders a whole clip before
+                // playing, so without a lookahead every sentence began with a
+                // second and a half of silence. Deepgram streams into the
+                // engine as bytes arrive and reaches first audio in about a
+                // sixth of a second, so there is no gap worth hiding.
+                if self.voiceEngine == .kokoro,
                    let nextSegment = self.pendingSpeechSegments.first,
                    !nextSegment.spokenText.isEmpty {
                     prefetchedClipTask = self.kokoroClient.beginGeneratingClip(
@@ -1117,7 +1119,29 @@ final class CompanionManager: ObservableObject {
                     )
                 }
 
-                await self.speak(segment: segment, prerenderedClip: clipTaskForThisSegment)
+                // A ceiling on how long one sentence may take. Without it a
+                // single stalled playback holds the pipeline open and the user
+                // gets no answer at all and no error explaining why, which is
+                // precisely what an audio format mismatch caused: buffers were
+                // silently dropped, the completion handler never fired, and
+                // everything waited on a sentence that was never spoken.
+                let finishedSpeaking: Void? = try? await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask { @MainActor in
+                        await self.speak(segment: segment, prerenderedClip: clipTaskForThisSegment)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 45_000_000_000)
+                        throw CancellationError()
+                    }
+                    try await group.next()
+                    group.cancelAll()
+                }
+
+                if finishedSpeaking == nil {
+                    TutorDebugLog.write("⚠️ sentence never finished speaking, abandoning the rest")
+                    self.cancelSpeechAndClearQueue()
+                    break
+                }
             }
 
             self.speechConsumerTask = nil
