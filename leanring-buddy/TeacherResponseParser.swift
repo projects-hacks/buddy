@@ -400,9 +400,43 @@ enum TeacherResponseParser {
 
     // MARK: - Text preparation
 
-    /// Collapses the gaps left behind by removed tags.
+    /// Collapses the gaps left behind by removed tags, and strips markdown.
+    ///
+    /// Markdown is banned in the prompt and the model emits it anyway: its
+    /// first real answer used blockquotes to read the screen back. Every one
+    /// of those characters is spoken aloud, so they are removed here rather
+    /// than left to the model's good behaviour.
     private static func tidyWhitespace(in text: String) -> String {
-        var tidied = text.replacingOccurrences(
+        var tidied = text
+
+        // Blockquote and heading markers at the start of a line.
+        tidied = tidied.replacingOccurrences(
+            of: "(?m)^\\s*[>#]+\\s*",
+            with: "",
+            options: .regularExpression
+        )
+        // Bullet markers, which otherwise get read out as "dash".
+        tidied = tidied.replacingOccurrences(
+            of: "(?m)^\\s*[-*•]\\s+",
+            with: "",
+            options: .regularExpression
+        )
+        // Bold and italic markers.
+        tidied = tidied.replacingOccurrences(
+            of: "\\*{1,3}([^*]+)\\*{1,3}",
+            with: "$1",
+            options: .regularExpression
+        )
+        // Backticks around code, which are silent but make the voice stumble.
+        tidied = tidied.replacingOccurrences(of: "`", with: "")
+        // An em or en dash used as punctuation reads as a hard stop.
+        tidied = tidied.replacingOccurrences(
+            of: "\\s*[—–]\\s*",
+            with: ", ",
+            options: .regularExpression
+        )
+
+        tidied = tidied.replacingOccurrences(
             of: "[ \\t]{2,}",
             with: " ",
             options: .regularExpression
