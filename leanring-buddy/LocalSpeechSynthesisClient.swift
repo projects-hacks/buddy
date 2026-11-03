@@ -58,40 +58,65 @@ final class LocalSpeechSynthesisClient: NSObject {
 
     // MARK: - Voice selection
 
+    /// Narrator voices, in fallback order.
+    ///
+    /// macOS installs these alongside character voices such as Grandma, Rocko
+    /// and Bubbles, which are indistinguishable by any API flag. On the machine
+    /// this was built for, every installed English voice reported `default`
+    /// quality, so a pure quality ranking left every voice tied and the winner
+    /// was whichever the sort happened to favour. An explicit list is the only
+    /// reliable way to keep a tutor from explaining binary search in Bubbles.
+    private static let narratorVoiceNamesInFallbackOrder = [
+        "Samantha", "Alex", "Ava", "Allison", "Susan", "Tom",
+        "Rishi", "Daniel", "Serena", "Kate",
+        "Karen", "Moira", "Fiona", "Tessa"
+    ]
+
     /// Picks the best-sounding installed English voice.
     ///
-    /// macOS ships a compact default and lets users download premium and
-    /// enhanced voices that sound dramatically better. Preferring those when
-    /// present is the single largest quality win available without leaving
-    /// the device, and costs nothing when they are absent.
+    /// Quality first, because a downloaded premium or enhanced voice is a far
+    /// larger improvement than any choice among compact ones. Then a voice
+    /// whose region matches the user's locale, so the accent is not jarring.
+    /// Then the narrator list, which is what breaks the all-compact tie.
     private static func resolveHighestQualityEnglishVoice() -> AVSpeechSynthesisVoice? {
         let englishVoices = AVSpeechSynthesisVoice.speechVoices().filter { voice in
             voice.language.hasPrefix("en")
         }
-
         guard !englishVoices.isEmpty else { return nil }
 
-        func qualityRank(for voice: AVSpeechSynthesisVoice) -> Int {
+        let currentRegionCode = Locale.current.region?.identifier ?? "US"
+
+        func score(for voice: AVSpeechSynthesisVoice) -> Int {
+            var total = 0
+
             switch voice.quality {
-            case .premium: return 3
-            case .enhanced: return 2
-            case .default: return 1
-            @unknown default: return 0
+            case .premium: total += 10_000
+            case .enhanced: total += 5_000
+            default: break
             }
+
+            // Region match, for example an en-IN voice for a user in India.
+            if voice.language.hasSuffix("-\(currentRegionCode)") { total += 1_000 }
+
+            // Earlier in the narrator list scores higher. A voice absent from
+            // the list scores nothing here, which is what demotes the
+            // character voices without needing to enumerate them.
+            if let listPosition = narratorVoiceNamesInFallbackOrder.firstIndex(where: { name in
+                voice.name.localizedCaseInsensitiveContains(name)
+            }) {
+                total += 100 * (narratorVoiceNamesInFallbackOrder.count - listPosition)
+            }
+
+            return total
         }
 
-        // Prefer quality first, then a voice matching the user's own locale so
-        // the accent is not jarring against their expectations.
-        let preferredLanguageCode = Locale.current.identifier.replacingOccurrences(of: "_", with: "-")
-
+        // Compare on score, falling back to name so the result is stable rather
+        // than depending on the sort's handling of equal elements.
         return englishVoices.max { firstVoice, secondVoice in
-            let firstRank = qualityRank(for: firstVoice)
-            let secondRank = qualityRank(for: secondVoice)
-            if firstRank != secondRank { return firstRank < secondRank }
-
-            let firstMatchesLocale = preferredLanguageCode.hasPrefix(firstVoice.language)
-            let secondMatchesLocale = preferredLanguageCode.hasPrefix(secondVoice.language)
-            return !firstMatchesLocale && secondMatchesLocale
+            let firstScore = score(for: firstVoice)
+            let secondScore = score(for: secondVoice)
+            if firstScore != secondScore { return firstScore < secondScore }
+            return firstVoice.name > secondVoice.name
         }
     }
 
