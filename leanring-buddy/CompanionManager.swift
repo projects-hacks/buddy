@@ -72,9 +72,15 @@ final class CompanionManager: ObservableObject {
     /// as private as data gets.
     /// Which brain answers this session. Persisted so the choice survives a
     /// restart, defaulting to local because it is free, private and offline.
+    /// Defaults to the hosted brain. The local model reasons well about what
+    /// is on screen and invents technical facts that are not, which is the
+    /// failure that matters for studying: it named three different wrong
+    /// inventors for quicksort across three runs, where Argon answered
+    /// correctly first time. Local remains one switch away for working
+    /// offline or avoiding the per-question cost.
     @Published private(set) var brainKind: TutorBrainKind = TutorBrainKind(
         rawValue: UserDefaults.standard.string(forKey: "tutorBrainKind") ?? ""
-    ) ?? .local
+    ) ?? .hosted
 
     private lazy var localBrain = OllamaVisionProvider(model: selectedModel)
     /// Google Cloud project the hosted brain bills against.
@@ -289,6 +295,7 @@ final class CompanionManager: ObservableObject {
         Task {
             let (isReachable, installedModels) = await tutorBrain.probeServer()
             isLocalModelReachable = isReachable
+            TutorDebugLog.write("🧠 brain: \(brainKind.displayName) — \(isReachable ? "ready" : "UNREACHABLE")")
 
             guard isReachable else {
                 print("⚠️ Ollama unreachable. Start it with: brew services start ollama")

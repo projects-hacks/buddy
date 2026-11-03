@@ -78,8 +78,21 @@ final class GeminiVisionProvider: TutorBrain {
     // MARK: - Readiness
 
     func probeServer() async -> (isReachable: Bool, installedModels: [String]) {
+        // The two endpoints authenticate completely differently, and checking
+        // for the wrong credential reports a working setup as unreachable.
+        // Vertex uses a gcloud access token and needs no stored key at all.
+        if case .vertex = endpoint {
+            do {
+                _ = try vertexAccessToken()
+                return (true, [model])
+            } catch {
+                TutorDebugLog.write("⚠️ Vertex credential unusable: \(error.localizedDescription)")
+                return (false, [])
+            }
+        }
+
         guard let apiKey = APIKeyStore.key(for: .gemini) else {
-            TutorDebugLog.write("⚠️ no Gemini key in the keychain")
+            TutorDebugLog.write("⚠️ no Gemini API key in the keychain (AI Studio endpoint)")
             return (false, [])
         }
 
