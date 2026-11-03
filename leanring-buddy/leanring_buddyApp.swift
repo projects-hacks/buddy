@@ -47,6 +47,12 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         registerAsLoginItemIfNeeded()
     }
 
+    /// Clicking Buddy in the Dock opens the notch, its only window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        companionManager.openNotchBriefly(on: .lesson)
+        return false
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         companionManager.stop()
     }
@@ -56,6 +62,19 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     /// General > Login Items, letting the user toggle it off if they want.
     private func registerAsLoginItemIfNeeded() {
         let loginItemService = SMAppService.mainApp
+        // Registered once from a build folder, the login item would go on
+        // starting that copy. When this is a different copy, the one in
+        // Applications, the registration is renewed so login starts it.
+        let registeredPathKey = "loginItemRegisteredBundlePath"
+        let registeredPath = UserDefaults.standard.string(forKey: registeredPathKey)
+        if loginItemService.status == .enabled, registeredPath != Bundle.main.bundlePath {
+            try? loginItemService.unregister()
+        }
+        defer {
+            if loginItemService.status == .enabled {
+                UserDefaults.standard.set(Bundle.main.bundlePath, forKey: registeredPathKey)
+            }
+        }
         if loginItemService.status != .enabled {
             do {
                 try loginItemService.register()

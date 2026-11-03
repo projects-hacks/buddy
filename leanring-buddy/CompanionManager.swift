@@ -637,19 +637,10 @@ final class CompanionManager: ObservableObject {
 
                 if let tabName = try? String(contentsOf: CalibrationSnapshot.openNotchURL, encoding: .utf8) {
                     try? FileManager.default.removeItem(at: CalibrationSnapshot.openNotchURL)
-                    let model = self.controlBar.model
                     switch tabName.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    case "transcript": model.selectedTab = .transcript
-                    case "settings": model.selectedTab = .settings
-                    default: model.selectedTab = .lesson
-                    }
-                    model.isPinnedOpen = true
-                    model.isExpanded = true
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 8_000_000_000)
-                        guard self.allPermissionsGranted else { return }
-                        model.isPinnedOpen = false
-                        model.isExpanded = false
+                    case "transcript": self.openNotchBriefly(on: .transcript)
+                    case "settings": self.openNotchBriefly(on: .settings)
+                    default: self.openNotchBriefly(on: .lesson)
                     }
                 }
 
@@ -991,6 +982,21 @@ final class CompanionManager: ObservableObject {
         }
     }
     private var notchIsPinnedForSetup = false
+
+    /// Opens the notch on a tab for a few seconds, then lets the mouse decide.
+    /// For the Dock icon, which has no window of its own to show.
+    func openNotchBriefly(on tab: NotchTab) {
+        let model = controlBar.model
+        model.selectedTab = tab
+        model.isPinnedOpen = true
+        model.isExpanded = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard !self.notchIsPinnedForSetup else { return }
+            model.isPinnedOpen = false
+            model.isExpanded = false
+        }
+    }
     private var controlBarDrawingCancellable: AnyCancellable?
     private var notchActivityCancellable: AnyCancellable?
 

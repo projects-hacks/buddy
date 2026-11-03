@@ -61,19 +61,33 @@ fi
 
 echo "signed by: $(codesign -dvvv "$APP_PATH" 2>&1 | grep '^Authority=' | head -1)"
 
-pkill -f "Clicky.app/Contents/MacOS" 2>/dev/null || true
+# Installed into Applications so there is one copy to launch, keep in the
+# Dock, and start at login. The build products folder is not a place to run
+# an app from: it is replaced on every build, and Launch Services would list
+# two Clickys. The installed copy keeps the same signature, so the Screen
+# Recording and Accessibility grants carry over.
+INSTALLED_APP="/Applications/Buddy.app"
+
+# Matches this app's binary only, never HeyClicky's.
+pkill -f "Contents/MacOS/Clicky$" 2>/dev/null || true
 sleep 1
+
+rm -rf "$INSTALLED_APP"
+ditto "$APP_PATH" "$INSTALLED_APP"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$APP_PATH" 2>/dev/null || true
+echo "installed: $INSTALLED_APP"
+
 # Keep the previous session's log: it is the record of the last test, and
 # deleting it on rebuild has already destroyed evidence once.
 if [ -f ~/Library/Logs/ClickyLocal.log ]; then
   mv ~/Library/Logs/ClickyLocal.log ~/Library/Logs/ClickyLocal.previous.log
 fi
-open "$APP_PATH"
+open "$INSTALLED_APP"
 sleep 4
 
-if pgrep -f "Clicky.app/Contents/MacOS" >/dev/null; then
+if pgrep -f "Contents/MacOS/Clicky$" >/dev/null; then
   echo "running. logs: ~/Library/Logs/ClickyLocal.log"
 else
   echo "failed to launch. run the binary directly to see why:"
-  echo "  \"$APP_PATH/Contents/MacOS/Clicky\""
+  echo "  \"$INSTALLED_APP/Contents/MacOS/Clicky\""
 fi
