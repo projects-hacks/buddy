@@ -37,6 +37,15 @@ final class OllamaVisionProvider {
     /// leaves ample room for the image, the screen index and a few turns of history.
     var contextWindowTokens: Int
 
+    /// Hard ceiling on how much the model may say in one answer.
+    ///
+    /// The system prompt asks for two to four sentences and the model ignored
+    /// it, producing 25 seconds of continuous speech for a single question.
+    /// A tutor that monologues is worse than one that says less: the student
+    /// cannot interrupt, and the next question is faster than the rest of the
+    /// answer. Instructions alone did not hold this, so it is enforced.
+    var maximumResponseTokens: Int
+
     /// Whether to let a thinking-capable model emit a reasoning pass first.
     ///
     /// Off for conversational turns because the latency is felt in a voice loop.
@@ -48,12 +57,14 @@ final class OllamaVisionProvider {
         baseURL: String = OllamaVisionProvider.defaultBaseURL,
         model: String,
         contextWindowTokens: Int = 16_384,
+        maximumResponseTokens: Int = 200,
         allowExtendedThinking: Bool = false
     ) {
         self.baseURL = URL(string: baseURL)!
         self.chatURL = URL(string: baseURL)!.appendingPathComponent("api/chat")
         self.model = model
         self.contextWindowTokens = contextWindowTokens
+        self.maximumResponseTokens = maximumResponseTokens
         self.allowExtendedThinking = allowExtendedThinking
 
         // Generous timeouts: a cold model load pulls several GB off disk into
@@ -257,6 +268,7 @@ final class OllamaVisionProvider {
             "keep_alive": "30m",
             "options": [
                 "num_ctx": contextWindowTokens,
+                "num_predict": maximumResponseTokens,
                 // Low but non-zero: explanations should stay grounded in what is
                 // actually on screen, without reading as flat and repetitive.
                 "temperature": 0.4,

@@ -731,6 +731,12 @@ final class CompanionManager: ObservableObject {
 
                 streamedCharactersAlreadyQueued = 0
 
+                // The ceiling is lifted only when the user asks for depth.
+                // Keeping the default tight is what stops the tutor
+                // monologuing, but a request to go deeper is exactly when a
+                // long answer is the right answer.
+                tutorBrain.maximumResponseTokens = Self.isRequestForDepth(transcript) ? 700 : 200
+
                 let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
                     images: labeledImages,
                     systemPrompt: Self.tutorSystemPrompt(
@@ -783,6 +789,21 @@ final class CompanionManager: ObservableObject {
                 scheduleTransientHideIfNeeded()
             }
         }
+    }
+
+    /// Whether the user is asking for a longer, fuller explanation.
+    ///
+    /// Deliberately a keyword check rather than a model call: it runs on every
+    /// question, and spending a second of inference to decide how long the next
+    /// answer may be would cost more than it saves.
+    private static func isRequestForDepth(_ transcript: String) -> Bool {
+        let lowercasedTranscript = transcript.lowercased()
+        let depthPhrases = [
+            "explain more", "go deeper", "deeper", "elaborate", "in detail",
+            "more detail", "walk me through", "step by step", "why does",
+            "teach me", "full explanation", "properly", "from scratch"
+        ]
+        return depthPhrases.contains { phrase in lowercasedTranscript.contains(phrase) }
     }
 
     // MARK: - Progressive speech
