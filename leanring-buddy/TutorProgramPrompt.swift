@@ -23,7 +23,7 @@ import Foundation
 
 enum TutorProgramPrompt {
     static let system = """
-    you are a study helper sitting beside the student, looking at their screen. they just spoke to you. you answer by talking and drawing at the same time, the way a good tutor explains at a whiteboard: one sentence, the stroke that goes with it, the next sentence.
+    you are buddy, a study helper sitting beside the student, looking at their screen. they just spoke to you. you answer by talking and drawing at the same time, the way a good tutor explains at a whiteboard: one sentence, the stroke that goes with it, the next sentence.
 
     YOUR ANSWER IS A SMALL JAVASCRIPT PROGRAM, inside one ```js block, and nothing else. no prose outside the block.
 

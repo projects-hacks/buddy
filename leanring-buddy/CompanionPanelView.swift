@@ -79,7 +79,7 @@ struct CompanionPanelView: View {
                 Text("A few permissions first")
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundColor(DS.Colors.textPrimary)
-                Text("Clicky reads your screen only when you hold the keys, and draws on it while it explains.")
+                Text("Buddy reads your screen only when you hold the keys, and draws on it while it explains.")
                     .font(.system(size: 11.5))
                     .foregroundColor(DS.Colors.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -155,7 +155,7 @@ struct CompanionPanelView: View {
                     .frame(width: 8, height: 8)
                     .shadow(color: statusDotColor.opacity(0.6), radius: 4)
 
-                Text("Clicky Study")
+                Text("Buddy")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(DS.Colors.textPrimary)
             }
@@ -627,7 +627,7 @@ struct CompanionPanelView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "power")
                         .font(.system(size: 11, weight: .medium))
-                    Text("Quit Clicky")
+                    Text("Quit Buddy")
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundColor(DS.Colors.textTertiary)

@@ -1035,7 +1035,8 @@ final class CompanionManager: ObservableObject {
     /// roughly two and a half times faster than speech plays back, so once the
     /// first sentence is out the voice never catches up to the generator, and
     /// the only latency the user perceives is time-to-first-sentence.
-    private func sendTranscriptToTutorWithScreenshot(transcript: String) {
+    private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String) {
+        let transcript = Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
@@ -1293,6 +1294,23 @@ final class CompanionManager: ObservableObject {
         case .undecided:
             break
         }
+    }
+
+    /// The question without a "hey Buddy" in front of it.
+    ///
+    /// Holding the keys is what starts listening, so the name is never
+    /// needed, but people address an assistant by name out of habit, and the
+    /// sorter and the model both do better on the question alone. The old
+    /// name is stripped too, since the habit outlives the rename.
+    static func questionWithoutGreeting(_ transcript: String) -> String {
+        let pattern = #"^\s*(?:(?:hey|hi|hello|okay|ok|yo)[\s,]+)?(?:buddy|hey\s*clicky|clicky)\b[\s,.!?:;-]*"#
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return transcript
+        }
+        let range = NSRange(transcript.startIndex..., in: transcript)
+        let stripped = expression.stringByReplacingMatches(in: transcript, range: range, withTemplate: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped.isEmpty ? transcript : stripped
     }
 
     /// A follow-up the tutor offered, asked as if the student had said it.
