@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Nothing loads from anywhere: the scripts are inlined by the app, and the
+     tutor's program can draw but cannot reach the network. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data:">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
+  svg#board { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+  text { user-select: none; }
+</style>
+</head>
+<body>
+<svg id="board" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- A soft glow in the ink's own colour, so a mark reads on dark and light pages alike. -->
+    <filter id="ink-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="blur"/>
+      <feFlood flood-color="#ffffff" flood-opacity="0.55"/>
+      <feComposite in2="blur" operator="in" result="halo"/>
+      <feMerge><feMergeNode in="halo"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="card-shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <g id="screen-layer"></g>
+  <g id="card-layer"></g>
+</svg>
+<!--SCRIPTS-->
+</body>
+</html>
