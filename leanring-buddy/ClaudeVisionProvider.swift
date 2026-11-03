@@ -283,7 +283,7 @@ final class ClaudeVisionProvider: TutorBrain {
             messages.append(["role": "user", "content": exchange.userPlaceholder])
             var answerBlock: [String: Any] = ["type": "text", "text": exchange.assistantResponse]
             if historyIndex == conversationHistory.count - 1 {
-                answerBlock["cache_control"] = ["type": "ephemeral"]
+                answerBlock["cache_control"] = ["type": "ephemeral", "ttl": "1h"]
             }
             messages.append(["role": "assistant", "content": [answerBlock]])
         }
@@ -316,13 +316,18 @@ final class ClaudeVisionProvider: TutorBrain {
         // question it is read from cache at a tenth of the price. Caching
         // changes nothing the model sees; it only skips re-reading an
         // identical prefix.
+        //
+        // One hour rather than the default five minutes. Measured in real
+        // use, questions came 8 and 46 minutes apart, so a five-minute entry
+        // had always expired and every question paid for a fresh write. An
+        // hour costs a little more to write and covers a study session.
         let body: [String: Any] = [
             "model": model,
             "max_tokens": maximumResponseTokens + thinkingTokenHeadroom,
             "system": [[
                 "type": "text",
                 "text": systemPrompt,
-                "cache_control": ["type": "ephemeral"]
+                "cache_control": ["type": "ephemeral", "ttl": "1h"]
             ]],
             "messages": messages,
             "thinking": thinkingConfiguration,
