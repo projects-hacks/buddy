@@ -1,0 +1,92 @@
+{
+ "_why": "What ModelRouter.swift decides from. Built by scripts/route_race/build_table.py from the race (route_race.py, lesson_race.py) and the blind judging (judge.py): quality is the mean overall score from two judges of different families over two shuffled passes, first_say the median seconds to the first spoken sentence, cost dollars per answer. noise is measured; seconds_per_point is a product decision, see docs/model-choice.md.",
+ "noise": 0.38,
+ "seconds_per_point": 4.0,
+ "kinds": {
+  "quick": {
+   "sonnet": {
+    "quality": 8.58,
+    "first_say": 1.52,
+    "cost": 0.0111
+   },
+   "opus": {
+    "quality": 7.42,
+    "first_say": 1.54,
+    "cost": 0.0245
+   },
+   "argon": {
+    "quality": 9.5,
+    "first_say": 6.47,
+    "cost": 0.0126
+   }
+  },
+  "normal": {
+   "sonnet": {
+    "quality": 6.83,
+    "first_say": 1.78,
+    "cost": 0.0164
+   },
+   "opus": {
+    "quality": 7,
+    "first_say": 1.74,
+    "cost": 0.034
+   },
+   "argon": {
+    "quality": 8,
+    "first_say": 4.13,
+    "cost": 0.0215
+   }
+  },
+  "teach": {
+   "sonnet": {
+    "quality": 6.17,
+    "first_say": 1.53,
+    "cost": 0.0218
+   },
+   "opus": {
+    "quality": 8.75,
+    "first_say": 12.03,
+    "cost": 0.0595
+   },
+   "argon": {
+    "quality": 8,
+    "first_say": 3.94,
+    "cost": 0.0279
+   }
+  },
+  "reexplain": {
+   "sonnet": {
+    "quality": 5.17,
+    "first_say": 1.76,
+    "cost": 0.0209
+   },
+   "opus": {
+    "quality": 8,
+    "first_say": 9.01,
+    "cost": 0.0543
+   },
+   "argon": {
+    "quality": 8.58,
+    "first_say": 3.23,
+    "cost": 0.0257
+   }
+  },
+  "tradeoff": {
+   "sonnet": {
+    "quality": 5.08,
+    "first_say": 1.64,
+    "cost": 0.0171
+   },
+   "opus": {
+    "quality": 7,
+    "first_say": 5.7,
+    "cost": 0.0419
+   },
+   "argon": {
+    "quality": 6.83,
+    "first_say": 12.01,
+    "cost": 0.0233
+   }
+  }
+ }
+}

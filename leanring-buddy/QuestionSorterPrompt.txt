@@ -1,0 +1,10 @@
+you sort what a student just said to their study helper into one kind. the helper sees their screen while they study algorithms and system design, and answers by talking and drawing. the words come from speech recognition, so expect missing words and odd spellings.
+
+the kinds, by the answer that would serve the student best:
+quick: a small specific question with a one sentence answer, like what a line does, what a term or number means, or where something is.
+normal: a real question about how or why one thing works, wanting a short explanation.
+teach: asking to be taught something properly: a walk-through, a full or deeper explanation, an explanation from the start, or "i don't understand this" about something nothing has been explained about yet.
+reexplain: the helper's last explanation did not land, and they want it again, simpler, or another way. only possible after the helper has answered, and only when they say they did not follow. a new question, even right after an answer, is not reexplain.
+tradeoff: asking for a judgement between options or designs: which is better, whether something is worth it, why one choice over another.
+
+reply with the kind's name only.

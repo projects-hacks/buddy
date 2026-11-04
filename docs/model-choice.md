@@ -263,3 +263,91 @@ Every lesson ran to 9 to 12 sentences with no drawing errors. Drawn and read:
   thinking headed its card "search for 9" and then traced a search for 20.
 - Argon is the only one of the two strong lessons that starts speaking in a
   few seconds, and it bills the Google Cloud credits.
+
+## Auto routing: which brain answers which question
+
+The Brain setting's default, Auto, sends each question to Sonnet, Opus or
+Argon. Routers that hold up in production share a shape: a cheap on-device
+first stage, a stronger classifier only when that stage is unsure, decisions
+weighed by calibrated probabilities, a fallback with deadlines, and a log that
+shows when it drifts. Simple nearest-neighbour routers also lose less accuracy
+than learned ones on questions unlike their training (arXiv 2505.12601,
+RouterBench), which is why nothing here is trained beyond one temperature.
+
+### Sorting, measured on questions it had never seen
+
+The sorter's first test (above) was written by the same hand as its examples.
+A blind set of 100 spoken questions, written without seeing the examples and
+in the long, padded way real questions arrived
+(`scripts/question_sorting/spoken_test.json`), was split in two: every choice
+was made on the dev half and the test half was scored once.
+
+| Sorter | Test half right | Wrongly decided the student was lost |
+|---|---|---|
+| On-device, as it shipped | 32/50 | 1 |
+| On-device, plus spoken-style examples | 33/50 | 1 |
+| Claude Haiku, `QuestionSorterPrompt.txt` | 46/50 | 0 |
+| Shipped: on-device when over 0.95 sure, else Haiku | 46/50 | 0 |
+
+The on-device sorter had been fitted to the phrasing of its examples: 40 of 50 on
+its own test, 32 of 50 on a blind one. Its confidence is still honest (right
+every time above 0.9, a quarter of the time below 0.5, calibration error
+0.08), which is what makes it a usable first stage. Haiku takes 0.66s median
+and 0.8 to 1.1s at the slowest tenth; it runs while the screen is captured and
+read (0.7s), and is dropped if more than 0.35s late. Reproduce with
+`calibrate.py` and `cascade_test.py`.
+
+### What each brain is good at
+
+`scripts/route_race/route_race.py` raced the three brains on twelve questions
+across quick, normal, trade-off and re-explain in the drawing format, twice
+each; teach comes from the lesson race above. `judge.py` graded every answer
+blind: the three answers to a question side by side, shuffled, twice with
+different orders, by two judges of different families (Opus and Argon).
+
+| Kind | Sonnet, thinking off | Opus, effort low | Argon, LOW |
+|---|---|---|---|
+| quick | 8.6, 1.5s, $0.011 | 7.4, 1.5s, $0.025 | 9.5, 6.5s, $0.013 |
+| normal | 6.8, 1.8s, $0.016 | 7.0, 1.7s, $0.034 | 8.0, 4.1s, $0.021 |
+| teach | 6.2, 1.5s, $0.022 | 8.8, 12.0s, $0.059 | 8.0, 3.9s, $0.028 |
+| re-explain | 5.2, 1.8s, $0.021 | 8.0, 9.0s, $0.054 | 8.6, 3.2s, $0.026 |
+| trade-off | 5.1, 1.6s, $0.017 | 7.0, 5.7s, $0.042 | 6.8, 12.0s, $0.023 |
+
+Each cell is judged quality out of 10, median seconds to the first spoken
+sentence, and cost per answer. The two passes differed by 0.48 points on
+average, and a difference between two brains under 0.38 is treated as a tie.
+The Argon judge rated Argon 0.8 above Opus where the Opus judge rated it 0.3
+above, so each judge's scores were also routed alone: quick, teach and
+re-explain route the same either way. Opus padded quick answers, which is why
+it scores lowest there. Argon went silent for 20, 27 and once 138 seconds on
+three of its 30 raced answers.
+
+### The decision
+
+Each brain's value is quality minus its wait, at four seconds of silence
+before the first word per point of quality, summed over the question's kind
+probabilities. Within the noise of the best, the cheaper brain wins.
+
+| Seconds per point | 1 | 2 | 3 | 4 | 6 | 8 | 12 |
+|---|---|---|---|---|---|---|---|
+| quick | Sonnet | Sonnet | Sonnet | **Sonnet** | Sonnet | Sonnet | Argon |
+| normal | Sonnet | Sonnet | Argon | **Argon** | Argon | Argon | Argon |
+| teach | Sonnet | Argon | Argon | **Argon** | Argon | Argon | Argon |
+| re-explain | Argon | Argon | Argon | **Argon** | Argon | Argon | Argon |
+| trade-off | Sonnet | Sonnet | Opus | **Opus** | Opus | Opus | Opus |
+
+The rate is a product decision, not a fitted number, so the table shows that
+the routing holds anywhere from 3 to 8 seconds per point. At 4: quick goes to
+Sonnet, trade-offs to Opus, and everything else to Argon.
+
+Around that: a brain that has not started talking by twice its usual time
+for the kind (at least 8s) loses the question to the next one, a brain that
+errors before speaking is benched for five minutes, and without an Anthropic
+key Auto uses Argon alone. `scripts/route_race/route_report.py` reads the log
+for how real questions were sorted and routed, the fallbacks, and which
+brain's answers were followed by "I didn't follow", the cue to rerun the race.
+
+What this does not show: twelve raced questions on one screen and one judging
+rubric. The ties between Argon and Opus on teaching are inside what a few
+more questions could move. The race scripts take any screenshot, and rerunning
+them on a different study screen is the cheapest way to strengthen it.

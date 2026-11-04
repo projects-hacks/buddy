@@ -67,20 +67,15 @@ final class CompanionManager: ObservableObject {
     // Response text is now displayed inline on the cursor overlay via
     // streamingResponseText, so no separate response overlay manager is needed.
 
-    /// Local inference server. No proxy and no API keys, because nothing
-    /// leaves the machine: screen contents during a study session are about
-    /// as private as data gets.
-    /// Which brain answers this session. Persisted so the choice survives a
-    /// restart, defaulting to local because it is free, private and offline.
-    /// Defaults to the hosted brain. The local model reasons well about what
-    /// is on screen and invents technical facts that are not, which is the
-    /// failure that matters for studying: it named three different wrong
-    /// inventors for quicksort across three runs, where Argon answered
-    /// correctly first time. Local remains one switch away for working
-    /// offline or avoiding the per-question cost.
+    /// Which brain answers. Persisted so the choice survives a restart.
+    ///
+    /// Defaults to Auto, which picks among Sonnet, Opus and Argon per
+    /// question (ModelRouter). Local stays out of the default: it reasons
+    /// well about what is on screen and invents technical facts that are not,
+    /// naming three different wrong inventors for quicksort across three runs.
     @Published private(set) var brainKind: TutorBrainKind = TutorBrainKind(
         rawValue: UserDefaults.standard.string(forKey: "tutorBrainKind") ?? ""
-    ) ?? .hosted
+    ) ?? .auto
 
     private lazy var localBrain = OllamaVisionProvider(model: selectedModel)
     /// Google Cloud project the hosted brain bills against.
@@ -102,6 +97,13 @@ final class CompanionManager: ObservableObject {
     /// Sorts each question by meaning into the kind that decides who answers.
     private let questionSorter = QuestionSorter()
 
+    /// Picks Sonnet, Opus or Argon per question under Auto, and Sonnet or
+    /// Opus under Claude.
+    private let modelRouter = ModelRouter()
+
+    /// The brain Auto picked for the answer in progress.
+    private var autoAnsweringBrain: RoutedBrain = .argon
+
     /// The brain in use. All conform to the same protocol, so nothing
     /// downstream of here knows or cares which one answered.
     private var tutorBrain: TutorBrain {
@@ -109,6 +111,7 @@ final class CompanionManager: ObservableObject {
         case .local: return localBrain
         case .hosted: return hostedBrain
         case .claude: return claudeBrain
+        case .auto: return autoAnsweringBrain == .argon ? hostedBrain : claudeBrain
         }
     }
 
@@ -742,7 +745,9 @@ final class CompanionManager: ObservableObject {
             // The student is about to talk for a few seconds. That is free
             // time to open the secure connections the answer will need, so
             // the handshake is not paid after they stop.
-            if brainKind == .claude { claudeBrain.prewarmConnection() }
+            // Claude is warmed under every setting that has a key, because the
+            // question classifier uses the same connection whichever brain answers.
+            if APIKeyStore.hasKey(for: .anthropic) { claudeBrain.prewarmConnection() }
             narrationVoice.prewarmConnection()
 
             // Cancel any pending transient hide so the overlay stays visible
@@ -1051,19 +1056,17 @@ final class CompanionManager: ObservableObject {
         answerStartedAt = Date()
         logStage("question in")
         let hasPreviousAnswer = !conversationHistory.isEmpty
-        let kindByMeaning = questionSorter.kind(of: transcript, hasPreviousAnswer: hasPreviousAnswer)
-        let questionKind = kindByMeaning
-            ?? Self.questionKindFromKeywords(transcript, hasPreviousAnswer: hasPreviousAnswer)
-        TutorDebugLog.write("🧭 sorted as \(questionKind.rawValue) by \(kindByMeaning == nil ? "keywords" : "meaning")")
+        let localProbabilities = questionSorter.probabilities(of: transcript, hasPreviousAnswer: hasPreviousAnswer)
+        let localConfidence = localProbabilities?.values.max() ?? 0
 
-        // Counted before the answer is built, so the instruction reflects how
-        // many times this idea has already failed to land.
-        if questionKind == .reexplain {
-            consecutiveReexplanationCount += 1
-            TutorDebugLog.write("🔁 student still lost, attempt \(consecutiveReexplanationCount + 1): switching tactic")
-        } else {
-            consecutiveReexplanationCount = 0
-        }
+        // Haiku is asked only when the on-device sorter is unsure, and asked
+        // now, so it works while the screen is captured and read.
+        let classifierTask: Task<QuestionKind?, Never>? =
+            localConfidence < QuestionSorter.confidentEnough && APIKeyStore.hasKey(for: .anthropic)
+            ? Task { [claudeBrain] in
+                await claudeBrain.classifyQuestion(transcript, hasPreviousAnswer: hasPreviousAnswer)
+            }
+            : nil
 
         currentResponseTask = Task {
             voiceState = .processing
@@ -1094,6 +1097,23 @@ final class CompanionManager: ObservableObject {
                 guard !Task.isCancelled else { return }
                 logStage("screen captured and read")
 
+                let (questionKind, kindProbabilities) = await settleQuestionKind(
+                    transcript: transcript,
+                    hasPreviousAnswer: hasPreviousAnswer,
+                    localProbabilities: localProbabilities,
+                    classifierTask: classifierTask
+                )
+                guard !Task.isCancelled else { return }
+
+                // Counted before the answer is built, so the instruction
+                // reflects how many times this idea has already failed to land.
+                if questionKind == .reexplain {
+                    consecutiveReexplanationCount += 1
+                    TutorDebugLog.write("🔁 student still lost after \(lastAnsweringBrainName), attempt \(consecutiveReexplanationCount + 1): switching tactic")
+                } else {
+                    consecutiveReexplanationCount = 0
+                }
+
                 let labeledImages = screenCaptures.map { capture in
                     let dimensionInfo = " (image dimensions: \(capture.screenshotWidthInPixels)x\(capture.screenshotHeightInPixels) pixels)"
                     return (data: capture.imageData, label: capture.label + dimensionInfo)
@@ -1114,13 +1134,13 @@ final class CompanionManager: ObservableObject {
                 // answer then does not have. Cut off halfway is worse than
                 // slightly long, and the filler rules keep the prose tight.
                 let budget = Self.answerBudget(for: questionKind)
-                tutorBrain.maximumResponseTokens = TutorProgramPrompt.maximumTokens(for: questionKind)
+                // Set on both, because under Auto which one answers is decided
+                // per question and may change on a fallback.
+                claudeBrain.maximumResponseTokens = TutorProgramPrompt.maximumTokens(for: questionKind)
+                hostedBrain.maximumResponseTokens = TutorProgramPrompt.maximumTokens(for: questionKind)
+                localBrain.maximumResponseTokens = TutorProgramPrompt.maximumTokens(for: questionKind)
 
-                if brainKind == .claude {
-                    let profile = ClaudeAnswerProfile.forQuestion(budget.questionKind)
-                    claudeBrain.apply(profile)
-                    TutorDebugLog.write("🧭 answered by \(profile.summary)")
-                }
+                let routing = routeQuestion(probabilities: kindProbabilities)
 
                 // The screenshot is the canvas the program draws on, so it is
                 // sent at the size it was captured. Reducing it would put every
@@ -1166,15 +1186,48 @@ final class CompanionManager: ObservableObject {
                 let imagesForModel = [(data: primaryCapture.imageData, label: "")]
 
                 logStage("request sent")
-                let (fullResponseText, duration) = try await tutorBrain.analyzeImageStreaming(
-                    images: imagesForModel,
-                    systemPrompt: TutorProgramPrompt.system,
-                    conversationHistory: historyForModel,
-                    userPrompt: turnPrompt,
-                    onTextChunk: { [weak self] accumulatedText in
-                        self?.routeStreamedText(accumulatedText)
+                // Tries the router's choices in order. A brain that fails before
+                // saying anything is benched and the next one answers; once
+                // words have been spoken, a failure is reported as before,
+                // because starting again would repeat what was already heard.
+                var attempt = 0
+                var answer: (text: String, duration: TimeInterval)?
+                while answer == nil {
+                    if attempt < routing.count { activate(routing[attempt]) }
+                    let brainForAttempt = tutorBrain
+                    // Only a fallback is worth a deadline: with nobody to hand
+                    // over to, a slow answer still beats none.
+                    let deadline: TimeInterval? = attempt + 1 < routing.count
+                        ? modelRouter.firstWordsDeadline(for: routing[attempt], probabilities: kindProbabilities)
+                        : nil
+                    do {
+                        answer = try await withFirstWordsDeadline(deadline) {
+                            try await brainForAttempt.analyzeImageStreaming(
+                                images: imagesForModel,
+                                systemPrompt: TutorProgramPrompt.system,
+                                conversationHistory: historyForModel,
+                                userPrompt: turnPrompt,
+                                onTextChunk: { [weak self] accumulatedText in
+                                    self?.routeStreamedText(accumulatedText)
+                                }
+                            )
+                        }
+                    } catch {
+                        guard !Task.isCancelled,
+                              error is FirstWordsDeadlineMissed || !(error is CancellationError),
+                              currentAnswerFormat == .undecided,
+                              attempt + 1 < routing.count else { throw error }
+                        let failedBrain = routing[attempt]
+                        if error is FirstWordsDeadlineMissed {
+                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[attempt + 1].rawValue) answers instead")
+                        } else {
+                            modelRouter.bench(failedBrain)
+                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) failed before speaking (\(error.localizedDescription)), \(routing[attempt + 1].rawValue) answers instead")
+                        }
+                        attempt += 1
                     }
-                )
+                }
+                guard let (fullResponseText, duration) = answer else { return }
 
                 guard !Task.isCancelled else { return }
 
@@ -1360,6 +1413,135 @@ final class CompanionManager: ObservableObject {
     /// than rethink. Naming a different strategy each time, and quoting back
     /// the attempt that failed, is what forces a genuinely new angle instead of
     /// the same explanation with different words.
+    // MARK: - Choosing who answers
+
+    /// How long Haiku may run past the end of the screen capture before the
+    /// on-device answer is used without it. Its slowest tenth took about 0.8s
+    /// to 1.1s in all, and the capture about 0.7s, so most answers arrive
+    /// inside this and a slow one costs at most this much.
+    private static let classifierGraceSeconds: Double = 0.35
+
+    /// How much Haiku's kind is trusted against the on-device probabilities:
+    /// its accuracy on the blind spoken set, 90 of 100.
+    private static let classifierWeight = 0.9
+
+    private struct FirstWordsDeadlineMissed: Error {}
+
+    /// Runs an answer, giving up if no words have arrived by the deadline.
+    /// Once words have arrived the answer runs to the end however long it takes.
+    private func withFirstWordsDeadline<Answer: Sendable>(
+        _ deadline: TimeInterval?,
+        _ work: @escaping @MainActor () async throws -> Answer
+    ) async throws -> Answer {
+        guard let deadline else { return try await work() }
+        return try await withThrowingTaskGroup(of: Answer?.self) { group in
+            group.addTask { @MainActor in try await work() }
+            group.addTask { @MainActor [weak self] in
+                try await Task.sleep(nanoseconds: UInt64(deadline * 1_000_000_000))
+                if self?.currentAnswerFormat == .undecided { throw FirstWordsDeadlineMissed() }
+                // Words are flowing: wait to be cancelled when the answer ends.
+                while !Task.isCancelled { try await Task.sleep(nanoseconds: 3_600_000_000_000) }
+                return nil
+            }
+            defer { group.cancelAll() }
+            while let finished = try await group.next() {
+                if let answer = finished { return answer }
+            }
+            throw CancellationError()
+        }
+    }
+
+    /// Who answered the last question, for the push-back log line.
+    private var lastAnsweringBrainName = "nobody"
+
+    /// The question's kind, and how likely each kind is, from the on-device
+    /// sorter, Haiku when it was asked and is back in time, or keywords when
+    /// neither is available.
+    private func settleQuestionKind(
+        transcript: String,
+        hasPreviousAnswer: Bool,
+        localProbabilities: [QuestionKind: Double]?,
+        classifierTask: Task<QuestionKind?, Never>?
+    ) async -> (kind: QuestionKind, probabilities: [QuestionKind: Double]) {
+        var classifierKind: QuestionKind?
+        if let classifierTask {
+            enum Outcome { case answered(QuestionKind?), timedOut }
+            let outcome = await withTaskGroup(of: Outcome.self) { group -> Outcome in
+                group.addTask { .answered(await classifierTask.value) }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: UInt64(Self.classifierGraceSeconds * 1_000_000_000))
+                    return .timedOut
+                }
+                let first = await group.next() ?? .timedOut
+                group.cancelAll()
+                return first
+            }
+            switch outcome {
+            case .answered(let kind):
+                classifierKind = kind
+            case .timedOut:
+                classifierTask.cancel()
+                TutorDebugLog.write("⌛ question classifier late, the on-device sorter decides")
+            }
+        }
+
+        let fallback = localProbabilities ?? [
+            Self.questionKindFromKeywords(transcript, hasPreviousAnswer: hasPreviousAnswer): 1.0
+        ]
+        var probabilities = fallback
+        var source = localProbabilities == nil ? "keywords" : "on device"
+        if let classifierKind {
+            probabilities = fallback.mapValues { $0 * (1 - Self.classifierWeight) }
+            probabilities[classifierKind, default: 0] += Self.classifierWeight
+            source = "haiku"
+        }
+        if !hasPreviousAnswer, let pushBack = probabilities[.reexplain], pushBack > 0 {
+            probabilities[.reexplain] = 0
+            probabilities[.teach, default: 0] += pushBack
+        }
+
+        let kind = probabilities.max { $0.value < $1.value }?.key ?? .normal
+        let spread = probabilities
+            .filter { $0.value >= 0.05 }
+            .sorted { $0.value > $1.value }
+            .map { "\($0.key.rawValue) \(String(format: "%.2f", $0.value))" }
+            .joined(separator: ", ")
+        TutorDebugLog.write("🧭 sorted as \(kind.rawValue) by \(source) (\(spread))")
+        return (kind, probabilities)
+    }
+
+    /// The brains to try, best first, for the current Brain setting. Empty
+    /// when the setting names a single brain.
+    private func routeQuestion(probabilities: [QuestionKind: Double]) -> [RoutedBrain] {
+        let allowed: Set<RoutedBrain>
+        switch brainKind {
+        case .auto:
+            allowed = APIKeyStore.hasKey(for: .anthropic) ? [.sonnet, .opus, .argon] : [.argon]
+        case .claude:
+            allowed = [.sonnet, .opus]
+        case .hosted, .local:
+            controlBar.model.answeredBy = ""
+            lastAnsweringBrainName = brainKind.displayName
+            return []
+        }
+        let choice = modelRouter.choose(probabilities: probabilities, allowed: allowed)
+        TutorDebugLog.write("🧭 route: \(choice.ranking.map(\.rawValue).joined(separator: " > ")) (\(choice.explanation))")
+        return choice.ranking
+    }
+
+    /// Points the answer at one brain and sets it up for this question.
+    private func activate(_ brain: RoutedBrain) {
+        autoAnsweringBrain = brain
+        switch brain {
+        case .sonnet: claudeBrain.apply(.sonnetWithoutThinking)
+        case .opus: claudeBrain.apply(.opusThinkingLow)
+        case .argon: break
+        }
+        controlBar.model.answeredBy = brain.displayName
+        lastAnsweringBrainName = brain.displayName
+        TutorDebugLog.write("🧭 answered by \(brain.displayName)")
+    }
+
     private func reexplanationInstruction() -> String {
         guard consecutiveReexplanationCount > 0 else { return "" }
 
@@ -2275,6 +2457,8 @@ final class CompanionManager: ObservableObject {
             spokenExplanation = "i can't reach the cloud model. your google cloud sign in has probably expired. run gcloud auth application default login in a terminal."
         case (.claude, false):
             spokenExplanation = "i can't reach claude. there's no anthropic key in the keychain."
+        case (.auto, false):
+            spokenExplanation = "i can't reach any of the models right now. the details are in the clicky log."
         case (.local, false):
             spokenExplanation = "i can't reach the local model. start it by running brew services start ollama in a terminal."
         default:

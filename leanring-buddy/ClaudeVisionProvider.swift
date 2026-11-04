@@ -26,7 +26,7 @@ final class ClaudeVisionProvider: TutorBrain {
     private static let messagesURL = URL(string: "https://api.anthropic.com/v1/messages")!
 
     /// The API version this request shape is written against.
-    private static let apiVersion = "2026-10-21"
+    static let apiVersion = "2026-10-21"
 
     var model: String
     var maximumResponseTokens: Int = 380
@@ -54,7 +54,8 @@ final class ClaudeVisionProvider: TutorBrain {
     /// text the answer depends on comes from the on-device index anyway.
     var maximumImageDimension: CGFloat = 1024
 
-    private let session: URLSession
+    /// Shared with the question classifier, so one warmed connection serves both.
+    let session: URLSession
 
     /// Sets model, thinking and effort for the next question in one step, so
     /// a profile can never be half applied.
@@ -460,15 +461,6 @@ struct ClaudeAnswerProfile {
         // answer is what gets cut short.
         thinkingTokenHeadroom: 1500
     )
-
-    static func forQuestion(_ questionKind: QuestionKind) -> ClaudeAnswerProfile {
-        switch questionKind {
-        case .quick, .normal:
-            return .sonnetWithoutThinking
-        case .teach, .reexplain, .tradeOff:
-            return .opusThinkingLow
-        }
-    }
 }
 
 // MARK: - Errors

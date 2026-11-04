@@ -27,9 +27,13 @@ enum TutorBrainKind: String, CaseIterable {
     /// where Argon took eight to twelve on the same question. Billed to the
     /// Anthropic account, not the Google Cloud credits.
     case claude
+    /// Each question goes to Sonnet, Opus or Argon, whichever ModelRouter
+    /// measured best for that kind of question.
+    case auto
 
     var displayName: String {
         switch self {
+        case .auto: return "Auto"
         case .local: return "Local"
         case .hosted: return "Gemini"
         case .claude: return "Claude"

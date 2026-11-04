@@ -16,6 +16,13 @@
 //  did three times, and that mistake is the costly one, because it tells the
 //  tutor its last answer failed and to start again differently.
 //
+//  On a blind set of 100 spoken questions written by someone who had never
+//  seen the examples (scripts/question_sorting/spoken_test.json), it fared
+//  worse: 33 of the 50 held-out ones. Its examples had been written in the
+//  same short style as its first test. It is now the first of two stages: it
+//  decides alone only when it is very sure, and otherwise Claude Haiku
+//  decides (QuestionKindClassifier.swift), which got 46 of the 50.
+//
 //  The keyword lists stay as the fallback for the moment before the model has
 //  loaded, or if macOS has not downloaded it.
 //
@@ -75,7 +82,8 @@ final class QuestionSorter {
         }
 
         var builtVectors: [(vector: [Double], kind: QuestionKind)] = []
-        for (kindName, phrasings) in examplesFile.examples {
+        let allExamples = examplesFile.examples.merging(examplesFile.spokenExamples ?? [:]) { $0 + $1 }
+        for (kindName, phrasings) in allExamples {
             guard let kind = QuestionKind(exampleFileName: kindName) else { continue }
             for phrasing in phrasings {
                 if let vector = normalisedVector(for: phrasing) {
@@ -87,12 +95,23 @@ final class QuestionSorter {
         TutorDebugLog.write("🗂️ question sorter ready: \(builtVectors.count) examples")
     }
 
-    /// The kind of question, or nil when the sorter is not ready and the
+    /// Turns similarity scores into probabilities. Fitted by leave-one-out
+    /// over the examples alone (scripts/question_sorting/calibrate.py); on the
+    /// blind spoken test half the stated confidence was within 8 points of
+    /// how often it was right, and every answer above 0.9 was right.
+    static let temperature = 0.008
+
+    /// Above this the on-device answer is trusted without asking Haiku.
+    /// Chosen on the dev half of the blind spoken set.
+    static let confidentEnough = 0.95
+
+    /// How likely each kind is, or nil when the sorter is not ready and the
     /// caller should fall back to keywords.
     ///
-    /// Push-back needs something to push back on, so with no previous answer
-    /// a "re-explain" verdict is read as a normal question.
-    func kind(of transcript: String, hasPreviousAnswer: Bool) -> QuestionKind? {
+    /// Push-back needs something to push back on. With no previous answer,
+    /// "i don't understand this" is a request to be taught, so whatever
+    /// weight re-explaining had goes to teaching.
+    func probabilities(of transcript: String, hasPreviousAnswer: Bool) -> [QuestionKind: Double]? {
         guard isReady, let questionVector = normalisedVector(for: transcript.lowercased()) else {
             return nil
         }
@@ -106,20 +125,27 @@ final class QuestionSorter {
         }
 
         // Each kind scores the mean of its three closest examples, so one
-        // stray close example cannot decide it alone. Three is under half of
-        // the eight examples each kind has.
+        // stray close example cannot decide it alone.
         let scoresByKind = similaritiesByKind.mapValues { similarities in
             let closest = similarities.sorted(by: >).prefix(3)
             return closest.reduce(0, +) / Double(closest.count)
         }
-        guard let bestKind = scoresByKind.max(by: { $0.value < $1.value })?.key else {
-            return nil
-        }
+        guard let highestScore = scoresByKind.values.max() else { return nil }
 
-        if bestKind == .reexplain && !hasPreviousAnswer {
-            return .normal
+        var weights = scoresByKind.mapValues { exp(($0 - highestScore) / Self.temperature) }
+        if !hasPreviousAnswer, let reexplainWeight = weights[.reexplain] {
+            weights[.reexplain] = 0
+            weights[.teach, default: 0] += reexplainWeight
         }
-        return bestKind
+        let total = weights.values.reduce(0, +)
+        return weights.mapValues { $0 / total }
+    }
+
+    /// The likeliest kind and how sure the sorter is of it.
+    func kind(of transcript: String, hasPreviousAnswer: Bool) -> (kind: QuestionKind, confidence: Double)? {
+        guard let probabilities = probabilities(of: transcript, hasPreviousAnswer: hasPreviousAnswer),
+              let best = probabilities.max(by: { $0.value < $1.value }) else { return nil }
+        return (best.key, best.value)
     }
 
     /// Mean of the model's per-token vectors, scaled to length one so a dot
@@ -148,6 +174,13 @@ final class QuestionSorter {
 
     private struct ExamplesFile: Decodable {
         let examples: [String: [String]]
+        /// Long, padded phrasings in the way real questions arrive.
+        let spokenExamples: [String: [String]]?
+
+        enum CodingKeys: String, CodingKey {
+            case examples
+            case spokenExamples = "spoken_examples"
+        }
     }
 }
 

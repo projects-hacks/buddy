@@ -568,6 +568,7 @@ struct CompanionPanelView: View {
         switch companionManager.brainKind {
         case .hosted: return "Google Cloud sign-in expired. Run: gcloud auth application-default login"
         case .claude: return "No Anthropic key in the Keychain."
+        case .auto: return "No Anthropic key in the Keychain, so Auto can only use Argon."
         case .local: return "Ollama is not running. Run: brew services start ollama"
         }
     }
@@ -583,6 +584,7 @@ struct CompanionPanelView: View {
             // Local is left out: its models are not installed by default, and
             // a button that can only fail is worse than no button.
             HStack(spacing: 0) {
+                brainOptionButton(kind: .auto)
                 brainOptionButton(kind: .claude)
                 brainOptionButton(kind: .hosted)
             }

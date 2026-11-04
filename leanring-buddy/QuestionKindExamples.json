@@ -1,5 +1,5 @@
 {
- "_why": "Example phrasings for each question kind. The app sorts a question by which kind's examples it is closest to in meaning (QuestionSorter.swift). scripts/question_sorting/sort_test.py grades that against test phrasings kept separately, which must never be copied in here, or the test stops measuring anything.",
+ "_why": "Example phrasings for each question kind. The app sorts a question by which kind's examples it is closest to in meaning (QuestionSorter.swift), using both lists. 'spoken_examples' are long, padded phrasings in the way real questions arrived; they were added because they lifted the blind spoken set's dev half from 32 to 34 of 50 and its log loss from 1.52 to 0.93 (scripts/question_sorting/calibrate.py). No test phrasing from phrasings.json or spoken_test.json may be copied in here, or the tests stop measuring anything.",
  "examples": {
   "quick": [
    "what does this line do",
@@ -50,6 +50,38 @@
    "would a cdn be the right call",
    "sql versus nosql for this",
    "pros and cons of sharding by user"
+  ]
+ },
+ "spoken_examples": {
+  "quick": [
+   "um sorry what's the name of this thing here the box on the left",
+   "quick one what does qps stand for",
+   "is this line the base case",
+   "hey buddy what does the dash arrow mean on this diagram"
+  ],
+  "normal": [
+   "okay so how does the cache know the data changed in the database",
+   "can you tell me why they put a queue between these two services here",
+   "I'm looking at this solution and I want to know why it uses two pointers instead of one",
+   "how come this recursion doesn't run forever"
+  ],
+  "teach": [
+   "I'm preparing for system design interviews and I don't understand this question at all can you explain the question and the solution and draw it on the screen",
+   "I have never learned dynamic programming can you teach me from the beginning using this problem",
+   "can you please explain this whole article to me properly like I'm new to it",
+   "I want to really understand how this algorithm works can you go through it with a diagram"
+  ],
+  "reexplain": [
+   "sorry I still didn't follow that part can you explain it in another way",
+   "hmm no that's not making sense to me yet",
+   "can you slow down and say that again with an example",
+   "I got lost when you started talking about the pointers"
+  ],
+  "tradeoff": [
+   "for this design would you go with kafka or a simple queue and why",
+   "is it better to use a heap here or just sort the whole array",
+   "should I denormalize this table or keep the joins what would you do",
+   "is the extra complexity of sharding worth it at this scale"
   ]
  }
 }

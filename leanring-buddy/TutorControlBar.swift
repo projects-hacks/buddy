@@ -62,6 +62,9 @@ final class TutorControlBarModel: ObservableObject {
     @Published var hasDrawing = false
     @Published var copiedButtonID: UUID?
     @Published var activity: TutorActivity = .ready
+    /// Which brain is answering, when Auto picked it, so a surprising pick is
+    /// visible at the moment it happens.
+    @Published var answeredBy: String = ""
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -423,6 +426,12 @@ struct TutorNotchView: View {
                 Text(activityWord)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
+                if model.activity != .ready, !model.answeredBy.isEmpty {
+                    Text(model.answeredBy)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.45))
+                        .lineLimit(1)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
