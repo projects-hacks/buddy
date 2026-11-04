@@ -76,6 +76,7 @@
     state.canvasWidth = options.canvasWidth || 1280;
     state.canvasHeight = options.canvasHeight || 800;
     state.targets = options.targets || {};
+    state.targetLabels = options.targetLabels || {};
     state.screenInk = options.screenInk || state.screenInk;
     state.unitsPerPoint = options.unitsPerPoint || 1;
 
@@ -443,10 +444,30 @@
   const penWidth = points => points * state.unitsPerPoint;
   let uniqueId = 0;
 
+  // A program sometimes names a control by its label ("File") instead of its
+  // id. The label is matched to the listed text: exactly first, ignoring case,
+  // trailing dots and colons, then the shortest listed text that contains it,
+  // so "Export" finds "Export as PDF…" but never a whole paragraph.
+  const normalLabel = text => String(text).toLowerCase().replace(/[\u2026.:]+$/u, '').replace(/\s+/g, ' ').trim();
+  function targetIdFor(name) {
+    if (state.targets[name]) return name;
+    const wanted = normalLabel(name);
+    if (!wanted) return null;
+    let containing = null;
+    for (const [id, label] of Object.entries(state.targetLabels)) {
+      const listed = normalLabel(label);
+      if (listed === wanted) return id;
+      const asWords = ` ${listed} `.includes(` ${wanted} `) || listed.startsWith(`${wanted} `);
+      if (asWords && listed.length <= wanted.length + 24
+          && (!containing || listed.length < containing.length)) containing = { id, length: listed.length };
+    }
+    return containing ? containing.id : null;
+  }
+
   // A target is an id from the screen listing or explicit numbers.
   function rectOf(args) {
     if (typeof args[0] === 'string') {
-      const rect = state.targets[args[0]];
+      const rect = state.targets[targetIdFor(args[0])];
       if (!rect) { state.errors.push(`unknown target ${args[0]}`); return null; }
       return { x: rect[0], y: rect[1], w: rect[2], h: rect[3], rest: args.slice(1) };
     }
@@ -456,8 +477,8 @@
   }
   const centreOf = target => {
     if (Array.isArray(target)) return { x: target[0], y: target[1] };
-    if (typeof target === 'string' && state.targets[target]) {
-      const [x, y, w, h] = state.targets[target];
+    if (typeof target === 'string' && state.targets[targetIdFor(target)]) {
+      const [x, y, w, h] = state.targets[targetIdFor(target)];
       return { x: x + w / 2, y: y + h / 2, rect: { x, y, w, h } };
     }
     if (target && typeof target === 'object' && 'x' in target) return { x: target.x + (target.w || 0) / 2, y: target.y + (target.h || 0) / 2 };
@@ -940,7 +961,7 @@
     // Constants and small helpers a drawing program reaches for.
     range: n => Array.from({ length: Math.max(0, n | 0) }, (_, i) => i),
     target: id => {
-      const rect = state.targets[id];
+      const rect = state.targets[targetIdFor(id)];
       return rect ? { x: rect[0], y: rect[1], w: rect[2], h: rect[3] } : null;
     }
   };

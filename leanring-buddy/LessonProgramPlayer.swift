@@ -61,7 +61,8 @@ final class LessonProgramPlayer {
     /// Readies the screen for a new answer over a screenshot of `canvasSize`.
     /// Whatever the last answer drew is cleared: the screen may have changed
     /// under it, and a new question deserves a clean board.
-    func begin(on screen: NSScreen, canvasSize: CGSize, targets: [String: [Double]], screenInkHex: String) {
+    func begin(on screen: NSScreen, canvasSize: CGSize, targets: [String: [Double]],
+               targetLabels: [String: String] = [:], screenInkHex: String) {
         stop()
         stream = ProgramStream()
         sentences = []
@@ -69,7 +70,7 @@ final class LessonProgramPlayer {
         lessonTitle = nil
         overlay.show(on: screen)
         overlay.clearAll()
-        overlay.beginAnswer(canvasSize: canvasSize, targets: targets, screenInkHex: screenInkHex)
+        overlay.beginAnswer(canvasSize: canvasSize, targets: targets, targetLabels: targetLabels, screenInkHex: screenInkHex)
         hasDrawing = false
         bar.caption = ""
         bar.followUps = []

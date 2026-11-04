@@ -12,7 +12,6 @@
 | `question_sorting/` | The question sorter's calibration and its blind spoken test |
 | `sounds/make_sounds.py` | Buddy's interface sounds |
 | `draw_icon.py` | Buddy's app icon |
-| `kokoro_speech_server.py` | The local voice used by the Local brain setting |
 | `experiments/` | One-off measurements quoted in docs/model-choice.md |
 
 Scripts that call Vertex read the Google Cloud project from `VERTEX_PROJECT`; scripts that call Claude read the key from the Keychain on stdin, never from an argument.

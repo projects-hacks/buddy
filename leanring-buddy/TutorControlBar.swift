@@ -589,10 +589,9 @@ final class TutorControlBarController {
         rememberAppBeingStudied()
         model.selectedTab = .transcript
         isHeldClosedUntilPointerLeaves = false
-        if !model.isExpanded {
-            InterfaceSounds.shared.play(.drop)
-            setExpanded(true)
-        }
+        // Its own sound, so typing and talking are told apart by ear.
+        InterfaceSounds.shared.play(.type)
+        if !model.isExpanded { setExpanded(true) }
         panel?.makeKey()
         model.wantsChatFocus = true
         TutorDebugLog.write("⌨️ chat open: panel key=\(panel?.isKeyWindow == true) app active=\(NSApp.isActive)")

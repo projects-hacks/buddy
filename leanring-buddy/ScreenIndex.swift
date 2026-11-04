@@ -614,6 +614,7 @@ final class ScreenIndex {
         let scaleX = canvasSize.width / displaySizeInPoints.width
         let scaleY = canvasSize.height / displaySizeInPoints.height
         var boxes: [String: [Double]] = [:]
+        var labels: [String: String] = [:]
         let lines = targetsForPrompt(maximumTargets: maximumTargets).map { target -> String in
             let bounds = target.boundsInDisplayPoints
             // Bottom-left points to top-left pixels.
@@ -627,10 +628,16 @@ final class ScreenIndex {
             let singleLineText = target.displayedText
                 .replacingOccurrences(of: "\n", with: " ")
                 .replacingOccurrences(of: "\r", with: " ")
+            labels[target.id] = singleLineText
             return "\(target.id) [\(Int(box[0])), \(Int(box[1])), \(Int(box[2])), \(Int(box[3]))] \(singleLineText)"
         }
+        lastListedLabels = labels
         return (lines.joined(separator: "\n"), boxes)
     }
+
+    /// The text of each target in the last listing, by id. The engine uses it
+    /// when a program names a control by its label instead of its id.
+    private(set) var lastListedLabels: [String: String] = [:]
 
     /// Resolves an identifier the model emitted back to its exact rectangle.
     /// Returns nil for an identifier that was invented rather than chosen.

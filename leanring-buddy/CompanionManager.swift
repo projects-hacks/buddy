@@ -324,15 +324,14 @@ final class CompanionManager: ObservableObject {
     /// the system voice, which is worse but always works.
     private var isUsingNeuralVoice = false
 
-    /// Location of the speech helper.
-    ///
-    /// Overridable through defaults so the script can be moved without a
-    /// rebuild, defaulting to its place in the checkout.
+    /// Location of the speech helper: shipped inside the app, so it is found
+    /// on any Mac and wherever the source checkout lives. Overridable through
+    /// defaults, for trying a changed script without a rebuild.
     private static var kokoroHelperScriptPath: String {
         if let overridePath = UserDefaults.standard.string(forKey: "kokoroHelperScriptPath") {
             return overridePath
         }
-        return "\(NSHomeDirectory())/Documents/projects/clicky-local/scripts/kokoro_speech_server.py"
+        return Bundle.main.path(forResource: "kokoro_speech_server", ofType: "py") ?? ""
     }
 
     /// Draws the board on a fast model while the slow one explains.
@@ -928,6 +927,10 @@ final class CompanionManager: ObservableObject {
     /// box opens with the keyboard in it.
     private func openChatForTyping() {
         TutorDebugLog.write("⌨️ chat opened from the keyboard")
+        // Normally the T beats the talk delay and nothing was started. A slow
+        // T finds listening begun, which is dropped without sending.
+        pendingTalkStart?.cancel()
+        pendingTalkStart = nil
         pendingKeyboardShortcutStartTask?.cancel()
         pendingKeyboardShortcutStartTask = nil
         buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
@@ -939,6 +942,8 @@ final class CompanionManager: ObservableObject {
     /// spoken one is, out loud and drawn, and lands in the same conversation.
     private func askTypedQuestion(_ question: String) {
         TutorDebugLog.write("⌨️ typed: \(question.count) characters")
+        // Timed from sending, not from the last time the talk keys were let go.
+        shortcutReleasedAt = nil
         if APIKeyStore.hasKey(for: .anthropic) { claudeBrain.prewarmConnection() }
         narrationVoice.prewarmConnection()
         if !isOverlayVisible {
@@ -955,9 +960,40 @@ final class CompanionManager: ObservableObject {
         switch transition {
         case .pressed:
             guard !buddyDictationManager.isDictationInProgress else { return }
-            stopGuide(reason: "the student is talking")
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
+            // Control + Option + T starts with the same two keys. Waiting a
+            // fifth of a second before listening lets the T arrive first, so
+            // typing never turns the mic on, plays the listening sound or
+            // cuts off an answer. It is shorter than anyone takes to start
+            // speaking after the keys go down.
+            pendingTalkStart?.cancel()
+            pendingTalkStart = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.talkStartDelaySeconds * 1_000_000_000))
+                guard !Task.isCancelled, let self else { return }
+                self.pendingTalkStart = nil
+                self.beginTalking()
+            }
+        case .released:
+            // Let go before listening began: a tap of the keys, or the T took
+            // them for typing. Nothing was started, so nothing is stopped.
+            if let pendingTalkStart {
+                pendingTalkStart.cancel()
+                self.pendingTalkStart = nil
+                return
+            }
+            finishTalking()
+        case .none:
+            break
+        }
+    }
+
+    private var pendingTalkStart: Task<Void, Never>?
+    private static let talkStartDelaySeconds: TimeInterval = 0.2
+
+    private func beginTalking() {
+            guard !buddyDictationManager.isDictationInProgress else { return }
+            stopGuide(reason: "the student is talking")
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.
             InterfaceSounds.shared.play(.listen)
@@ -1030,7 +1066,9 @@ final class CompanionManager: ObservableObject {
                     }
                 )
             }
-        case .released:
+    }
+
+    private func finishTalking() {
             shortcutReleasedAt = Date()
             // Cancel the pending start task in case the user released the shortcut
             // before the async startPushToTalk had a chance to begin recording.
@@ -1040,9 +1078,6 @@ final class CompanionManager: ObservableObject {
             pendingKeyboardShortcutStartTask?.cancel()
             pendingKeyboardShortcutStartTask = nil
             buddyDictationManager.stopPushToTalkFromKeyboardShortcut()
-        case .none:
-            break
-        }
     }
 
     // MARK: - Companion Prompt
@@ -1482,6 +1517,7 @@ final class CompanionManager: ObservableObject {
                         on: screenForDrawing,
                         canvasSize: canvasSize,
                         targets: screenBoxes,
+                        targetLabels: screenIndex.lastListedLabels,
                         screenInkHex: "#3380FF"
                     )
                 }
@@ -1741,6 +1777,7 @@ final class CompanionManager: ObservableObject {
     /// A follow-up the tutor offered, asked as if the student had said it.
     private func askFollowUp(_ question: String) {
         TutorDebugLog.write("👆 follow-up tapped: \(question)")
+        shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: question)
     }
 
@@ -1973,6 +2010,7 @@ final class CompanionManager: ObservableObject {
         guard let step = currentGuideStep else { return }
         guideChangedRegion = changedRegion
         TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) looks done, looking again")
+        shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: GuideMode.continuationQuestion(after: step), guideStep: step)
     }
     /// Which try at the current answer is live. A brain given up on at its

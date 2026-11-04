@@ -110,3 +110,26 @@ error = mix(
     (int(0.09 * RATE), tone(0.18, lambda t: 330, decay=0.1, harmonic=0.3)),
 )
 write("sound-error", error, peak=0.42)
+
+# Typing: three quick, slightly uneven key taps, for the chat box opening on
+# Control + Option + T. Taps of noise with no note in them, so typing is told
+# apart from talking (the rising pair) by ear, not only by what appears.
+taps = random.Random(11)
+
+
+def tap(brightness, seconds=0.028):
+    total = int(seconds * RATE)
+    samples, smoothed = [], 0.0
+    for index in range(total):
+        t = index / RATE
+        smoothed += brightness * (taps.uniform(-1, 1) - smoothed)
+        samples.append(smoothed * math.exp(-t / 0.006) * envelope(index, total, 0.0008 * RATE, 0.01 * RATE))
+    return samples
+
+
+typing = mix(
+    (0, tap(0.35)),
+    (int(0.06 * RATE), [0.8 * v for v in tap(0.45)]),
+    (int(0.105 * RATE), [0.65 * v for v in tap(0.3)]),
+)
+write("sound-type", typing, peak=0.42)

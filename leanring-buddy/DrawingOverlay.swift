@@ -67,13 +67,14 @@ final class DrawingOverlay: NSObject {
     /// Prepares the page for a new answer drawn over a screenshot of
     /// `canvasSize` pixels. `targets` maps listing ids to boxes in the same
     /// pixels, so the program can mark a line by id.
-    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], screenInkHex: String) {
+    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], targetLabels: [String: String] = [:], screenInkHex: String) {
         canvasSizeForCurrentAnswer = canvasSize
         let unitsPerPoint = screenFrame.width > 0 ? canvasSize.width / screenFrame.width : 1
         let options: [String: Any] = [
             "canvasWidth": canvasSize.width,
             "canvasHeight": canvasSize.height,
             "targets": targets,
+            "targetLabels": targetLabels,
             "screenInk": screenInkHex,
             "unitsPerPoint": unitsPerPoint
         ]

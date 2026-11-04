@@ -17,10 +17,6 @@
 #                         on a self-signed certificate the main binary and the
 #                         dylib disagree and dyld refuses to map it.
 #
-#   The disable-library-validation entitlement, set in the entitlements file,
-#   exists for the same reason one level out: the hardened runtime requires
-#   linked code to share the process Team ID, and PostHog has none here.
-#
 # Create the certificate once in Keychain Access: Certificate Assistant >
 # Create a Certificate, named "Clicky Local Dev", Self Signed Root, Code Signing.
 

@@ -24,7 +24,7 @@ import Foundation
 @MainActor
 final class InterfaceSounds {
     enum Sound: String, CaseIterable {
-        case drop, listen, sent, tick, wipe, error
+        case drop, listen, type, sent, tick, wipe, error
     }
 
     static let shared = InterfaceSounds()
@@ -89,6 +89,7 @@ final class InterfaceSounds {
         switch sound {
         case .drop: return 0.22
         case .listen: return 0.35
+        case .type: return 0.32
         case .sent: return 0.28
         case .tick: return 0.25
         case .wipe: return 0.3

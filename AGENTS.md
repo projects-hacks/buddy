@@ -52,9 +52,9 @@ Upstream's Cloudflare Worker and Sparkle updater are removed: keys are each pers
 Always build with `scripts/build-local.sh`. Every flag in it is load-bearing:
 a self-signed certificate keeps the designated requirement stable so Screen
 Recording and Accessibility grants survive rebuilds, `ENABLE_DEBUG_DYLIB=NO`
-avoids a Team ID mismatch with Xcode's preview dylib, and the
-disable-library-validation entitlement lets the hardened runtime load
-PostHog's code without a Team ID. Diagnostics go to `~/Library/Logs/Buddy.log`, including the
+and avoids a Team ID mismatch with Xcode's preview dylib. The app links no
+third-party packages, so the hardened runtime keeps library validation on:
+only Apple's code and Buddy's own can load into it. Diagnostics go to `~/Library/Logs/Buddy.log`, including the
 raw model response.
 
 ### Key Architecture Decisions
@@ -91,7 +91,7 @@ raw model response.
 | `LessonProgramPlayer.swift` | ~150 | Ties stream, voice, engine and notch together for one answer. |
 | `TutorProgramPrompt.swift` | ~210 | The cached system prompt (teaching rules and the drawing API) and the per-turn note (time, front app, canvas size, screen text with boxes, length per question kind, and the study notes from memory, practice hints or diagram review). |
 | `TutorControlBar.swift` | ~1600 | The notch panel in a fixed clear window that passes the mouse through outside the shape, opened by hover after a short dwell and closed after a grace period: status, the sentence being said, and on hover the last lesson as a paper card or the chat (the day's conversation), with the chat box, follow-ups, Stop and Clear. The panel takes the keyboard only for the chat box and, being non-activating, leaves the studied app frontmost; sending closes the notch and hands the keyboard back. Saves each day's transcript to `~/Library/Application Support/Buddy/Transcripts`. |
-| `InterfaceSounds.swift` | ~110 | Short interface sounds made by `scripts/sounds/make_sounds.py` into `Sounds/`: listening and sent on push-to-talk, a water drop when the student opens the notch, a tick on copy, a wipe on Clear or Esc, a low tone on failure. Decorative ones never play over the voice; all respect the Sounds switch and macOS's interface sound setting. |
+| `InterfaceSounds.swift` | ~110 | Short interface sounds made by `scripts/sounds/make_sounds.py` into `Sounds/`: listening and sent on push-to-talk, three key taps when Control + Option + T opens the chat, a water drop when the student opens the notch, a tick on copy, a wipe on Clear or Esc, a low tone on failure. Decorative ones never play over the voice; all respect the Sounds switch and macOS's interface sound setting. |
 | `QuestionSorter.swift` | ~190 | First stage of sorting a spoken question into its kind (quick, normal, teach, re-explain, trade-off): macOS's built-in sentence model and the nearest examples in `QuestionKindExamples.json`, returning calibrated probabilities. Decides alone only above 0.95 confidence. Keyword lists in `CompanionManager` are the last fallback. Graded by `scripts/question_sorting/calibrate.py`. |
 | `QuestionKindClassifier.swift` | ~80 | Second stage: Claude Haiku with `QuestionSorterPrompt.txt`, asked while the screen is captured and dropped if it is more than 0.35s late. Graded by `scripts/question_sorting/cascade_test.py` on a blind spoken set. |
 | `ModelRouter.swift` | ~190 | Under Brain: Auto, picks Sonnet, Opus or Argon per question from `RouteTable.json` (judged quality, time to first word and cost per kind, built by `scripts/route_race/`), weighing every kind by its probability. Ties within the judges' noise go to the cheaper brain. A brain that fails before speaking is benched for five minutes and the next one answers. `scripts/route_race/route_report.py` reads the log for how routing does on real questions. |
@@ -106,6 +106,7 @@ raw model response.
 | `AppUpdater.swift` | ~300 | Daily check of GitHub's latest release; on Update downloads the disk image, verifies its published checksum and that the app inside satisfies this app's own designated requirement (same identifier, same certificate), then a shell helper swaps it in after quit and relaunches. Never automatic on a debug build. |
 | `AppIdentity.swift` | ~40 | Where Buddy keeps its things (Keychain names, data folder, log), derived from the bundle identifier, so a copy under another identifier starts empty and never touches Buddy's own. |
 | `QAHooks.swift` | ~170 | Debug builds only, off unless switched on: a control channel for scripted end-to-end tests (ask, snapshot, state, fake key, setup steps), driven by `scripts/qa/`. |
+| `kokoro_speech_server.py` | ~120 | The Local voice's helper, shipped inside the app and run with uv, so it is found on any Mac. Overridable with the `kokoroHelperScriptPath` default. |
 | `OllamaVisionProvider.swift` | ~250 | Local vision chat client. Mirrors `ClaudeAPI`'s method surface so the two are swappable. Parses newline-delimited JSON, not SSE. Handles server probing and model preload. |
 | `ScreenIndex.swift` | ~390 | Numbered inventory of on-screen targets from Vision text recognition and the accessibility tree. Recognition runs off the main actor. Renders the listing for prompts and resolves ids back to exact rectangles. |
 | `TeacherResponseParser.swift` | ~330 | Splits a response into spoken text and drawing directives, recording each tag's character offset so marks sync to speech. Also releases complete sentences for progressive speech. |
