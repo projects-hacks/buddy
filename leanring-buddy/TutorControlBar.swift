@@ -270,12 +270,30 @@ final class TutorControlBarController {
     let model = TutorControlBarModel()
     private var panel: NSPanel?
     private var hostingView: NSHostingView<TutorNotchView>?
-    private var cancellables: Set<AnyCancellable> = []
 
     private let onAsk: (String) -> Void
     private let onStop: () -> Void
     private let onClear: () -> Void
     private let settingsView: () -> AnyView
+
+    /// The size of the black shape as last laid out, which is what the mouse
+    /// is tested against. The window itself is larger and transparent.
+    private var notchShapeSize: CGSize = .zero
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
+    /// Runs only while the pointer is over the notch or the notch is open:
+    /// once the window takes the mouse, the global monitor stops hearing it.
+    private var hoverPollTimer: Timer?
+    private var pointerEnteredNotchAt: Date?
+    private var pointerLeftNotchAt: Date?
+
+    /// A short dwell before opening, so a pointer passing through the menu bar
+    /// does not throw the notch open, and a longer grace before closing, so a
+    /// small overshoot past the edge does not slam it shut.
+    private static let openAfterSeconds: TimeInterval = 0.09
+    private static let closeAfterSeconds: TimeInterval = 0.32
+    /// Space around the open shape that still counts as over it.
+    private static let openShapeMargin: CGFloat = 16
 
     init(
         onAsk: @escaping (String) -> Void,
@@ -288,24 +306,29 @@ final class TutorControlBarController {
         self.onClear = onClear
         self.settingsView = settingsView
 
-        model.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async { self?.refresh() }
-            }
-            .store(in: &cancellables)
-        DispatchQueue.main.async { [weak self] in self?.refresh() }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.panel = self.makePanel()
+            self.placePanel()
+            self.watchMouse()
+        }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.placePanel() }
+        }
     }
 
-    /// Keeps the panel hugging the notch at whatever size its content needs.
-    private func refresh() {
-        let panel = self.panel ?? makePanel()
-        self.panel = panel
-        guard let hostingView else { return }
+    private static var notchScreen: NSScreen? {
+        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
+    }
 
-        let size = hostingView.fittingSize
-        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
-        guard let screen else { return }
+    /// The window never changes size. Resizing it per frame cannot keep up
+    /// with a spring, so the shape grows and shrinks inside a fixed, clear
+    /// window and the mouse passes through everywhere the shape is not.
+    private func placePanel() {
+        guard let panel, let screen = Self.notchScreen else { return }
+        let size = TutorNotchView.windowSize(for: screen)
         panel.setFrame(NSRect(
             x: screen.frame.midX - size.width / 2,
             y: screen.frame.maxY - size.height,
@@ -316,8 +339,10 @@ final class TutorControlBarController {
     }
 
     private func makePanel() -> NSPanel {
+        let screen = Self.notchScreen
+        let windowSize = screen.map(TutorNotchView.windowSize(for:)) ?? CGSize(width: 720, height: 700)
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 40),
+            contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -327,12 +352,13 @@ final class TutorControlBarController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.acceptsMouseMovedEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary]
         // Non-activating so a click here does not pull focus from the app the
         // student is studying in.
         panel.becomesKeyOnlyIfNeeded = true
 
-        let screen = NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
         let notchWidth = Self.notchWidth(of: screen)
         let notchHeight = max(screen?.safeAreaInsets.top ?? 0, NSStatusBar.system.thickness)
 
@@ -340,17 +366,110 @@ final class TutorControlBarController {
             model: model,
             notchWidth: notchWidth,
             notchHeight: notchHeight,
+            windowSize: windowSize,
             onAsk: { [weak self] question in self?.onAsk(question) },
             onCopy: { [weak self] button in self?.copy(button) },
             onCopyTranscript: { [weak self] in self?.copyTranscript() },
             onStop: { [weak self] in self?.onStop() },
             onClear: { [weak self] in self?.onClear() },
+            onShapeSizeChange: { [weak self] size in
+                // Hover depends on this arriving, so its first arrival is logged.
+                if self?.notchShapeSize == .zero {
+                    TutorDebugLog.write("🫥 notch shape laid out: \(Int(size.width))×\(Int(size.height))")
+                }
+                self?.notchShapeSize = size
+                self?.updateHover()
+            },
+            onOpenRequested: { [weak self] in self?.setExpanded(true) },
             settingsView: settingsView
         )
         let hostingView = NSHostingView(rootView: view)
+        // The window is sized by placePanel, never by the content: letting
+        // SwiftUI resize it mid-animation is what made the notch jump.
+        hostingView.sizingOptions = []
         panel.contentView = hostingView
         self.hostingView = hostingView
         return panel
+    }
+
+    /// Where the black shape is on screen: hanging from the top centre.
+    private var notchShapeRectOnScreen: NSRect? {
+        guard let screen = Self.notchScreen, notchShapeSize != .zero else { return nil }
+        return NSRect(
+            x: screen.frame.midX - notchShapeSize.width / 2,
+            y: screen.frame.maxY - notchShapeSize.height,
+            width: notchShapeSize.width,
+            height: notchShapeSize.height
+        )
+    }
+
+    private func watchMouse() {
+        // Global while the pointer is over other apps, local once the notch
+        // itself has the mouse.
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+            Task { @MainActor in self?.updateHover() }
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            self?.updateHover()
+            return event
+        }
+    }
+
+    private func updateHover() {
+        guard let panel, let shapeRect = notchShapeRectOnScreen else { return }
+        let pointer = NSEvent.mouseLocation
+        let isButtonDown = NSEvent.pressedMouseButtons & 1 != 0
+
+        // The window takes the mouse only over the shape itself.
+        let isOverShape = shapeRect.insetBy(dx: -1, dy: -1).contains(pointer)
+        let shouldPassThrough = !(isOverShape || (isButtonDown && !panel.ignoresMouseEvents))
+        if panel.ignoresMouseEvents != shouldPassThrough {
+            panel.ignoresMouseEvents = shouldPassThrough
+        }
+
+        // Open, the margin around the shape still counts, so leaving takes
+        // intent. Closed, the strip up to the screen edge counts, so flinging
+        // the pointer to the top of the screen lands on it.
+        let hoverRect = model.isExpanded
+            ? shapeRect.insetBy(dx: -Self.openShapeMargin, dy: -Self.openShapeMargin)
+            : NSRect(x: shapeRect.minX, y: shapeRect.minY, width: shapeRect.width, height: shapeRect.height + 4)
+        let isInside = hoverRect.contains(pointer)
+        let now = Date()
+
+        if isInside {
+            pointerLeftNotchAt = nil
+            if pointerEnteredNotchAt == nil { pointerEnteredNotchAt = now }
+            if !model.isExpanded, let entered = pointerEnteredNotchAt,
+               now.timeIntervalSince(entered) >= Self.openAfterSeconds {
+                setExpanded(true)
+            }
+        } else {
+            pointerEnteredNotchAt = nil
+            if pointerLeftNotchAt == nil { pointerLeftNotchAt = now }
+            // Not while a button is held: a text selection or a scroll-bar
+            // drag can wander outside and should not lose the notch.
+            if model.isExpanded, !model.isPinnedOpen, !isButtonDown, let left = pointerLeftNotchAt,
+               now.timeIntervalSince(left) >= Self.closeAfterSeconds {
+                setExpanded(false)
+            }
+        }
+
+        let needsPolling = isInside || model.isExpanded
+        if needsPolling, hoverPollTimer == nil {
+            let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+                Task { @MainActor in self?.updateHover() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            hoverPollTimer = timer
+        } else if !needsPolling, let timer = hoverPollTimer {
+            timer.invalidate()
+            hoverPollTimer = nil
+        }
+    }
+
+    private func setExpanded(_ expanded: Bool) {
+        guard model.isExpanded != expanded else { return }
+        model.isExpanded = expanded
     }
 
     /// Width of the camera housing, from the areas macOS reports either side
@@ -377,62 +496,139 @@ final class TutorControlBarController {
 
 // MARK: - The view
 
+/// How the notch moves, in one place so opening, closing and everything that
+/// changes inside it feel like one object.
+private enum NotchMotion {
+    /// Opening overshoots a touch, the way a sheet pulled out of the notch
+    /// would; closing settles without a bounce so it reads as put away.
+    static let open = Animation.spring(response: 0.42, dampingFraction: 0.78)
+    static let close = Animation.spring(response: 0.34, dampingFraction: 1.0)
+    /// Content arrives just after the shape starts to grow, and leaves before
+    /// it starts to shrink, so nothing is ever cut off by the edge.
+    static let contentIn = Animation.easeOut(duration: 0.26).delay(0.07)
+    static let contentOut = Animation.easeIn(duration: 0.1)
+    static let change = Animation.smooth(duration: 0.28)
+    static let reduced = Animation.easeInOut(duration: 0.18)
+}
+
+/// Fades content through a light blur and a slight drop from the top edge,
+/// so it seems to come out of the notch rather than pop in.
+private struct NotchContentFade: ViewModifier {
+    let isHidden: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isHidden ? 0 : 1)
+            .blur(radius: isHidden && !reduceMotion ? 6 : 0)
+            .scaleEffect(isHidden && !reduceMotion ? 0.97 : 1, anchor: .top)
+    }
+}
+
+private extension AnyTransition {
+    static func notchContent(reduceMotion: Bool) -> AnyTransition {
+        let fade = AnyTransition.modifier(
+            active: NotchContentFade(isHidden: true, reduceMotion: reduceMotion),
+            identity: NotchContentFade(isHidden: false, reduceMotion: reduceMotion)
+        )
+        return .asymmetric(
+            insertion: fade.animation(reduceMotion ? NotchMotion.reduced : NotchMotion.contentIn),
+            removal: fade.animation(reduceMotion ? NotchMotion.reduced : NotchMotion.contentOut)
+        )
+    }
+}
+
 struct TutorNotchView: View {
     @ObservedObject var model: TutorControlBarModel
     let notchWidth: CGFloat
     let notchHeight: CGFloat
+    let windowSize: CGSize
     let onAsk: (String) -> Void
     let onCopy: (TutorFollowUpButton) -> Void
     let onCopyTranscript: () -> Void
     let onStop: () -> Void
     let onClear: () -> Void
+    /// The shape's laid-out size, so the controller knows where the mouse
+    /// should be caught and where it should pass through.
+    let onShapeSizeChange: (CGSize) -> Void
+    let onOpenRequested: () -> Void
     let settingsView: () -> AnyView
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var tabIndicator
 
     /// Wide enough for a status either side of the camera.
     private var collapsedWidth: CGFloat { notchWidth + 230 }
     private var expandedWidth: CGFloat { max(collapsedWidth, 600) }
 
+    /// The concave curves where the shape meets the top edge, as the real
+    /// notch has, so the panel reads as part of the hardware.
+    private var shoulderRadius: CGFloat { model.isExpanded ? 14 : 7 }
+    private var bottomRadius: CGFloat { model.isExpanded ? 26 : 13 }
+
+    /// The fixed window the shape lives in: room for the widest, tallest open
+    /// state plus its shadow. Clear everywhere the shape is not.
+    static func windowSize(for screen: NSScreen) -> CGSize {
+        CGSize(width: 760, height: min(screen.frame.height * 0.85, 820))
+    }
+
     var body: some View {
+        notchShape
+            .frame(width: windowSize.width, height: windowSize.height, alignment: .top)
+    }
+
+    private var notchShape: some View {
         VStack(spacing: 0) {
             statusRow
             if model.isExpanded {
                 expandedContent
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.notchContent(reduceMotion: reduceMotion))
             } else {
                 collapsedExtras
             }
         }
         .frame(width: model.isExpanded ? expandedWidth : collapsedWidth)
+        .padding(.horizontal, shoulderRadius)
+        // Content is clipped to the shape while it animates; the fill and its
+        // shadow go behind, outside the clip, so the shadow is not cut off.
+        .clipShape(NotchShape(shoulderRadius: shoulderRadius, bottomRadius: bottomRadius))
         .background(
-            NotchShape(cornerRadius: model.isExpanded ? 22 : 14)
+            NotchShape(shoulderRadius: shoulderRadius, bottomRadius: bottomRadius)
                 .fill(Color.black)
+                .shadow(color: .black.opacity(model.isExpanded ? 0.45 : 0), radius: 22, y: 10)
         )
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                model.isExpanded = hovering || model.isPinnedOpen
-            }
-        }
+        .contentShape(NotchShape(shoulderRadius: shoulderRadius, bottomRadius: bottomRadius))
         .fixedSize()
+        .onGeometryChange(for: CGSize.self) { proxy in proxy.size } action: { size in
+            onShapeSizeChange(size)
+        }
+        .animation(reduceMotion ? NotchMotion.reduced : (model.isExpanded ? NotchMotion.open : NotchMotion.close),
+                   value: model.isExpanded)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.caption)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.followUps)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.selectedTab)
     }
 
     // The row level with the camera: status on the left, lesson on the right.
     private var statusRow: some View {
         HStack(spacing: 0) {
             HStack(spacing: 6) {
-                Circle()
-                    .fill(activityColour)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: activityColour.opacity(0.8), radius: 3)
+                ActivityDot(colour: activityColour, isBusy: model.activity == .listening || model.activity == .thinking,
+                            reduceMotion: reduceMotion)
                 Text(activityWord)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
+                    .contentTransition(.opacity)
                 if model.activity != .ready, !model.answeredBy.isEmpty {
                     Text(model.answeredBy)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(.white.opacity(0.45))
                         .lineLimit(1)
+                        .transition(.opacity)
                 }
             }
+            .animation(NotchMotion.change, value: model.activity)
+            .animation(NotchMotion.change, value: model.answeredBy)
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer().frame(width: notchWidth)
@@ -441,10 +637,15 @@ struct TutorNotchView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.6))
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .contentTransition(.opacity)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 14)
         .frame(height: notchHeight)
+        .contentShape(Rectangle())
+        // A click opens it at once, for anyone who clicks rather than waits.
+        .onTapGesture { if !model.isExpanded { onOpenRequested() } }
     }
 
     /// Under the notch while collapsed: the sentence being said, and the
@@ -458,53 +659,64 @@ struct TutorNotchView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
-                .animation(.easeOut(duration: 0.15), value: model.caption)
+                .transition(.notchContent(reduceMotion: reduceMotion))
         } else if !model.followUps.isEmpty && !model.isSpeaking {
             followUpRow
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
+                .transition(.notchContent(reduceMotion: reduceMotion))
         }
     }
 
     private var expandedContent: some View {
         VStack(spacing: 14) {
-            HStack {
-                NotchTabButton(systemImage: "book.closed", isSelected: model.selectedTab == .lesson) {
-                    model.selectedTab = .lesson
-                }
-                NotchTabButton(systemImage: "text.bubble", isSelected: model.selectedTab == .transcript) {
-                    model.selectedTab = .transcript
-                }
+            HStack(spacing: 2) {
+                tabButton(.lesson, systemImage: "book.closed", help: "Last lesson")
+                tabButton(.transcript, systemImage: "text.bubble", help: "Today's conversation")
                 Spacer()
-                NotchTabButton(systemImage: "gearshape", isSelected: model.selectedTab == .settings) {
-                    model.selectedTab = .settings
-                }
+                tabButton(.settings, systemImage: "gearshape", help: "Settings")
             }
             .padding(.horizontal, 18)
 
-            if model.selectedTab == .settings {
-                settingsView()
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
-            } else {
-                talkingContent
+            Group {
+                if model.selectedTab == .settings {
+                    settingsView()
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 8)
+                } else {
+                    talkingContent
+                }
             }
+            .id(model.selectedTab == .settings ? "settings" : "talking")
+            .transition(.opacity)
         }
         .padding(.top, 6)
     }
 
+    private func tabButton(_ tab: NotchTab, systemImage: String, help: String) -> some View {
+        NotchTabButton(systemImage: systemImage, isSelected: model.selectedTab == tab,
+                       indicatorNamespace: tabIndicator, help: help) {
+            model.selectedTab = tab
+        }
+    }
+
     private var talkingContent: some View {
         VStack(spacing: 14) {
-            VStack(spacing: 4) {
-                Text(greeting)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                Text("Hold Control + Option and ask about anything on your screen.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+            // The welcome is for an empty notch. Once something has been
+            // asked, the space goes to the lesson.
+            if model.transcript.isEmpty {
+                VStack(spacing: 4) {
+                    Text(greeting)
+                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                    Text("Hold Control + Option and ask about anything on your screen.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
 
             Group {
@@ -513,6 +725,8 @@ struct TutorNotchView: View {
                 default: LessonCard(model: model, onAsk: onAsk, onCopy: onCopy)
                 }
             }
+            .id(model.selectedTab)
+            .transition(.opacity)
             .padding(.horizontal, 18)
 
             HStack(spacing: 8) {
@@ -525,11 +739,15 @@ struct TutorNotchView: View {
                 Spacer()
                 if model.isSpeaking {
                     NotchButton(systemImage: "stop.fill", title: "Stop", action: onStop)
+                        .transition(.opacity)
                 }
                 if model.hasDrawing {
                     NotchButton(systemImage: "xmark", title: "Clear drawing  esc", action: onClear)
+                        .transition(.opacity)
                 }
             }
+            .animation(NotchMotion.change, value: model.isSpeaking)
+            .animation(NotchMotion.change, value: model.hasDrawing)
             .padding(.horizontal, 18)
             .padding(.bottom, 16)
         }
@@ -555,7 +773,8 @@ struct TutorNotchView: View {
             .frame(height: 380)
             .onAppear { if let last = model.transcript.last { reader.scrollTo(last.id, anchor: .bottom) } }
             .onChange(of: model.transcript.count) { _, _ in
-                if let last = model.transcript.last { reader.scrollTo(last.id, anchor: .bottom) }
+                guard let last = model.transcript.last else { return }
+                withAnimation(NotchMotion.change) { reader.scrollTo(last.id, anchor: .bottom) }
             }
         }
     }
@@ -599,6 +818,36 @@ struct TutorNotchView: View {
         case .thinking: return Color(red: 1.0, green: 0.78, blue: 0.3)
         case .speaking: return Color(red: 0.2, green: 0.5, blue: 1.0)
         }
+    }
+}
+
+/// The status light. While listening or thinking a ring breathes out of it,
+/// so a glance tells the student the tutor heard them and is working.
+private struct ActivityDot: View {
+    let colour: Color
+    let isBusy: Bool
+    let reduceMotion: Bool
+
+    var body: some View {
+        Circle()
+            .fill(colour)
+            .frame(width: 7, height: 7)
+            .shadow(color: colour.opacity(0.8), radius: 3)
+            .background {
+                if isBusy && !reduceMotion {
+                    Circle()
+                        .stroke(colour, lineWidth: 1.5)
+                        .phaseAnimator([0.0, 1.0]) { ring, phase in
+                            ring
+                                .scaleEffect(1 + phase * 1.3)
+                                .opacity(0.85 - phase * 0.85)
+                        } animation: { phase in
+                            phase == 1.0 ? .easeOut(duration: 1.1) : .linear(duration: 0)
+                        }
+                        .frame(width: 7, height: 7)
+                }
+            }
+            .animation(NotchMotion.change, value: colour)
     }
 }
 
@@ -738,6 +987,8 @@ private struct GelChip: View {
 private struct NotchTabButton: View {
     let systemImage: String
     let isSelected: Bool
+    let indicatorNamespace: Namespace.ID
+    let help: String
     let action: () -> Void
     @State private var isHovering = false
 
@@ -745,35 +996,65 @@ private struct NotchTabButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(isSelected ? 0.95 : 0.55))
+                .foregroundStyle(.white.opacity(isSelected ? 0.95 : (isHovering ? 0.8 : 0.55)))
                 .frame(width: 38, height: 30)
-                .background(
-                    Capsule().fill(Color.white.opacity(isSelected ? 0.16 : (isHovering ? 0.08 : 0)))
-                )
+                .background {
+                    // One highlight that slides between tabs rather than two
+                    // that blink on and off.
+                    if isSelected {
+                        Capsule()
+                            .fill(Color.white.opacity(0.16))
+                            .matchedGeometryEffect(id: "selected tab", in: indicatorNamespace)
+                    } else if isHovering {
+                        Capsule().fill(Color.white.opacity(0.07))
+                    }
+                }
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .pointerCursor()
-        .onHover { hovering in isHovering = hovering }
+        .help(help)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+        }
     }
 }
 
-/// The notch's own silhouette: square at the top where it meets the screen
-/// edge, rounded at the bottom.
+/// The notch's own silhouette: flush with the top edge, with concave
+/// shoulders where it meets the screen, the way the camera housing curves
+/// into the menu bar, and rounded at the bottom. The rect includes the
+/// shoulders, so content sits inset by `shoulderRadius` on each side.
 private struct NotchShape: Shape {
-    var cornerRadius: CGFloat
-    var animatableData: CGFloat {
-        get { cornerRadius }
-        set { cornerRadius = newValue }
+    var shoulderRadius: CGFloat
+    var bottomRadius: CGFloat
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(shoulderRadius, bottomRadius) }
+        set {
+            shoulderRadius = newValue.first
+            bottomRadius = newValue.second
+        }
     }
 
     func path(in rect: CGRect) -> Path {
+        let shoulder = min(shoulderRadius, rect.width / 4, rect.height / 2)
+        let bottom = min(bottomRadius, (rect.width - 2 * shoulder) / 2, rect.height - shoulder)
+        let bodyLeft = rect.minX + shoulder
+        let bodyRight = rect.maxX - shoulder
+
         var path = Path()
         path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - cornerRadius))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX - cornerRadius, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + cornerRadius, y: rect.maxY))
-        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - cornerRadius), control: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: bodyLeft, y: rect.minY + shoulder),
+                          control: CGPoint(x: bodyLeft, y: rect.minY))
+        path.addLine(to: CGPoint(x: bodyLeft, y: rect.maxY - bottom))
+        path.addQuadCurve(to: CGPoint(x: bodyLeft + bottom, y: rect.maxY),
+                          control: CGPoint(x: bodyLeft, y: rect.maxY))
+        path.addLine(to: CGPoint(x: bodyRight - bottom, y: rect.maxY))
+        path.addQuadCurve(to: CGPoint(x: bodyRight, y: rect.maxY - bottom),
+                          control: CGPoint(x: bodyRight, y: rect.maxY))
+        path.addLine(to: CGPoint(x: bodyRight, y: rect.minY + shoulder))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY),
+                          control: CGPoint(x: bodyRight, y: rect.minY))
         path.closeSubpath()
         return path
     }
