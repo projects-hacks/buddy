@@ -6,6 +6,16 @@ Buddy is a study helper, not a tutor. It never quizzes and never grades. It reme
 
 Every design choice below was measured rather than assumed, and the scripts that measured it are in `scripts/`.
 
+## Download
+
+**[Download Buddy for Mac](https://github.com/projects-hacks/clicky-studdy/releases/latest)** (Apple silicon, macOS 14.2 or later)
+
+1. Open the disk image and drag **Buddy** into **Applications**.
+2. Open Buddy. The first time, macOS asks before opening an app that is not notarized: open **System Settings > Privacy & Security** and click **Open Anyway**.
+3. The setup window asks your name and your API keys, tests each key as you paste it, and walks through the three permissions.
+
+Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/settings/keys) key is recommended, and [Gemini](https://aistudio.google.com/apikey) and [Deepgram](https://console.deepgram.com/) keys are optional. A question costs about one to six cents. Step by step, with troubleshooting: [docs/install.md](docs/install.md). How to get the most out of it: [docs/using-buddy.md](docs/using-buddy.md).
+
 ## What it does
 
 | | |
@@ -83,20 +93,12 @@ Memory that grows forever and is searched while the student waits has three prob
 
 Everything lives in `~/Library/Application Support/ClickyLocal/Memory` and can be switched off or forgotten in one click from Settings.
 
-## Requirements
+## Building from source
 
-- macOS 14.2 or later, on Apple silicon
-- Xcode 16 or later, to build
-- At least one model provider:
-  - an [Anthropic API key](https://console.anthropic.com/) for Claude Sonnet, Opus and Haiku, and
-  - a Google Cloud project with Vertex enabled and the `gcloud` CLI signed in, for Gemini Argon
-- Optional: a [Deepgram](https://deepgram.com/) key for the voice; without one the system voice speaks
+For working on Buddy itself; to use it, the download above is enough.
 
-With only an Anthropic key, Auto routes between Sonnet and Opus. With only Google Cloud, everything goes to Argon. With both, all three are used.
-
-## Build and run
-
-Once, create a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**, and create it. Then:
+- macOS 14.2 or later on Apple silicon, and Xcode 16 or later
+- Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**.
 
 ```bash
 git clone https://github.com/projects-hacks/clicky-studdy.git
@@ -104,25 +106,19 @@ cd clicky-studdy
 zsh scripts/build-local.sh
 ```
 
-The build script signs with that certificate, installs `/Applications/Buddy.app` and launches it.
+The script builds, signs with that certificate, installs `/Applications/Buddy.app` and launches it; on first launch the setup window takes the keys. To bill Gemini Argon to a Google Cloud project through Vertex instead of a key, choose **Google Cloud** in the Gemini card and give the project ID, with the `gcloud` CLI signed in (`gcloud auth application-default login`). Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/ClickyLocal.log`.
 
-Keys live in the macOS Keychain, never in the repository or the app. Each command below prompts for the key, so it never appears in shell history:
-
-```bash
-security add-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -U -w
-security add-generic-password -a api-key -s com.maverickrajeev.clicky-local.deepgram -U -w
-gcloud auth application-default login
-```
-
-On first launch macOS asks for Microphone, Screen Recording and Accessibility. The notch stays open on its settings tab until all three are granted. Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/ClickyLocal.log`.
+`zsh scripts/make-release.sh <version>` builds the downloadable disk image; [docs/releasing.md](docs/releasing.md) covers publishing it.
 
 ## Using it
 
 - **Ask:** hold Control + Option, speak, let go. Your words appear under the notch as you talk.
-- **Look back:** hover the notch for the last lesson, or switch to the transcript tab for the whole day.
+- **Look back:** hover the notch for the last lesson, or the transcript tab for the whole day.
 - **Follow-ups:** tap the buttons under an answer to ask the next question it suggests, or copy the code it offers.
 - **Clear:** Esc or Clear removes the drawing. Stop silences the voice.
-- **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, and Learning memory with Forget all.
+- **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, Learning memory, and Name and API keys.
+
+More in [docs/using-buddy.md](docs/using-buddy.md); the inside story in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Privacy
 
@@ -132,13 +128,13 @@ The screen is captured only while you hold the keys. Speech is transcribed on th
 
 | Path | What it holds |
 |---|---|
-| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift` and `DiagramReview.swift` are the features above. |
+| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift` and `DiagramReview.swift` are the features above. |
 | `leanring-buddy/DrawingEngine/` | The drawing engine the answers run in. |
 | `scripts/route_race/` | The model race, the blind judging and the routing table. |
 | `scripts/question_sorting/` | The question sorter's calibration and its blind test. |
 | `scripts/learning_memory/` | Memory's blind recall test, timing, and an end-to-end test of the real store. |
 | `scripts/study_modes/` | The hint ladder and diagram review checks. |
-| `docs/model-choice.md` | Every model decision and the numbers behind it. |
+| `docs/` | Install, usage and how-it-works guides, every model decision with its numbers, and how releases are made. |
 
 `AGENTS.md` is the detailed map of every source file.
 

@@ -1,4 +1,6 @@
-# Local model choice
+# Model choice: the measurements
+
+Every model decision in Buddy, in the order it was made, with the numbers behind it. Earlier sections cover the local model that was measured and set aside; later ones cover Claude against Argon, sorting questions, and Auto routing, which is what ships. [how-it-works.md](how-it-works.md) is the shorter tour.
 
 Measured on the target machine, not inferred from benchmarks published elsewhere.
 
