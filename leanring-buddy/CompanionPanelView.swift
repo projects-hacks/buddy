@@ -34,6 +34,10 @@ struct CompanionPanelView: View {
                 modelPickerRow
                     .padding(.horizontal, 16)
 
+                Spacer().frame(height: 6)
+                interfaceSoundsToggleRow
+                    .padding(.horizontal, 16)
+
                 Spacer().frame(height: 10)
                 lessonsSection
                     .padding(.horizontal, 16)
@@ -489,6 +493,35 @@ struct CompanionPanelView: View {
     }
 
 
+
+    // MARK: - Sounds Toggle
+
+    @AppStorage(InterfaceSounds.enabledDefaultsKey) private var interfaceSoundsEnabled = true
+
+    private var interfaceSoundsToggleRow: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: interfaceSoundsEnabled ? "speaker.wave.2" : "speaker.slash")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .frame(width: 16)
+
+                Text("Sounds")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(DS.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $interfaceSoundsEnabled)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .tint(DS.Colors.accent)
+                .scaleEffect(0.8)
+                .pointerCursor()
+        }
+        .padding(.vertical, 4)
+    }
 
     // MARK: - Show Clicky Cursor Toggle
 

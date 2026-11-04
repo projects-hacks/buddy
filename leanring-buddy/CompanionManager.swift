@@ -339,6 +339,7 @@ final class CompanionManager: ObservableObject {
         bindAudioPowerLevel()
         bindShortcutTransitions()
         bindMarkLifetime()
+        InterfaceSounds.shared.prepare()
         Task { await questionSorter.prepare() }
         // Load the weights now rather than on the first question. A cold load
         // costs around ten seconds, which would otherwise land entirely inside
@@ -742,6 +743,9 @@ final class CompanionManager: ObservableObject {
             guard !buddyDictationManager.isDictationInProgress else { return }
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
+            // First, so it lands the instant the keys go down: the student
+            // hears that the mic is live without looking for the red dot.
+            InterfaceSounds.shared.play(.listen)
             // The student is about to talk for a few seconds. That is free
             // time to open the secure connections the answer will need, so
             // the handshake is not paid after they stop.
@@ -803,6 +807,7 @@ final class CompanionManager: ObservableObject {
                         // Partial transcripts are hidden (waveform-only UI)
                     },
                     submitDraftText: { [weak self] finalTranscript in
+                        InterfaceSounds.shared.play(.sent)
                         self?.lastTranscript = finalTranscript
                         print("🗣️ Companion received transcript: \(finalTranscript)")
                         ClickyAnalytics.trackUserMessageSent(transcript: finalTranscript)
@@ -960,7 +965,9 @@ final class CompanionManager: ObservableObject {
     private lazy var controlBar = TutorControlBarController(
         onAsk: { [weak self] question in self?.askFollowUp(question) },
         onStop: { [weak self] in self?.stopAnswering() },
-        onClear: { [weak self] in self?.clearAnnotations() },
+        onClear: { [weak self] in
+            if self?.clearAnnotations() == true { InterfaceSounds.shared.play(.wipe) }
+        },
         settingsView: { [weak self] in
             guard let self else { return AnyView(EmptyView()) }
             return AnyView(CompanionPanelView(companionManager: self, isEmbedded: true))
@@ -1004,6 +1011,7 @@ final class CompanionManager: ObservableObject {
     }
     private var controlBarDrawingCancellable: AnyCancellable?
     private var notchActivityCancellable: AnyCancellable?
+    private var notchHeardWordsCancellable: AnyCancellable?
 
     /// When the keys were let go and when this answer began, for the stage
     /// timings in the log: the only latency the student feels is from the
@@ -1053,6 +1061,7 @@ final class CompanionManager: ObservableObject {
 
         TutorDebugLog.write("🎙️ asked: \(transcript)")
         controlBar.model.recordStudent(transcript)
+        controlBar.model.heardWords = transcript
         answerStartedAt = Date()
         logStage("question in")
         let hasPreviousAnswer = !conversationHistory.isEmpty
@@ -2305,10 +2314,24 @@ final class CompanionManager: ObservableObject {
                 guard let self else { return }
                 switch state {
                 case .idle: self.controlBar.model.activity = .ready
-                case .listening: self.controlBar.model.activity = .listening
+                case .listening:
+                    // A new question: the last one's words must not linger.
+                    self.controlBar.model.heardWords = ""
+                    self.controlBar.model.activity = .listening
                 case .processing: self.controlBar.model.activity = .thinking
                 case .responding: self.controlBar.model.activity = .speaking
                 }
+                InterfaceSounds.shared.isTutorSpeaking = state == .responding
+            }
+
+        notchHeardWordsCancellable = buddyDictationManager.$liveTranscriptText
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] liveTranscriptText in
+                // Empty when the session resets on release; the final question
+                // is put in place by sendTranscriptToTutorWithScreenshot.
+                guard let self, !liveTranscriptText.isEmpty else { return }
+                self.controlBar.model.heardWords = Self.questionWithoutGreeting(liveTranscriptText)
             }
 
         controlBarDrawingCancellable = Publishers.CombineLatest3(
@@ -2330,7 +2353,7 @@ final class CompanionManager: ObservableObject {
             guard event.keyCode == 53 else { return }
             Task { @MainActor in
                 TutorDebugLog.write("⎋ Esc: clearing the drawing")
-                self?.clearAnnotations()
+                if self?.clearAnnotations() == true { InterfaceSounds.shared.play(.wipe) }
             }
         }
 
@@ -2402,18 +2425,24 @@ final class CompanionManager: ObservableObject {
     }
 
     /// Wipes every mark and takes down the board.
-    func clearAnnotations() {
+    /// Whether anything was on screen to clear, so the student's own Clear
+    /// and Esc can be heard to work while the clears that come with every
+    /// new question stay silent.
+    @discardableResult
+    func clearAnnotations() -> Bool {
+        let lessonHadDrawing = lessonPlayer.hasDrawing
         lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty
             && spotlightRectsInGlobalPoints.isEmpty
             && !whiteboard.hasContent
-        guard !hasNothingToClear else { return }
+        guard !hasNothingToClear else { return lessonHadDrawing }
 
         withAnimation(.easeOut(duration: 0.25)) {
             activeAnnotations.removeAll()
             spotlightRectsInGlobalPoints.removeAll()
             whiteboard = TutorWhiteboard()
         }
+        return true
     }
 
     /// If the cursor is in transient mode, waits for speech and any pointing
@@ -2446,6 +2475,7 @@ final class CompanionManager: ObservableObject {
     /// The common cause is the local server not running, which has a specific
     /// and actionable fix, so it gets its own message.
     private func speakLocalErrorFallback(for error: Error) async {
+        InterfaceSounds.shared.play(.error)
         let (isReachable, _) = await tutorBrain.probeServer()
         isLocalModelReachable = isReachable
 

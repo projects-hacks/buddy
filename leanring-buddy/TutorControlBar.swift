@@ -65,6 +65,9 @@ final class TutorControlBarModel: ObservableObject {
     /// Which brain is answering, when Auto picked it, so a surprising pick is
     /// visible at the moment it happens.
     @Published var answeredBy: String = ""
+    /// What the student is saying, live while the keys are held, then the
+    /// question as sent while the answer is prepared.
+    @Published var heardWords: String = ""
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -367,7 +370,10 @@ final class TutorControlBarController {
             notchWidth: notchWidth,
             notchHeight: notchHeight,
             windowSize: windowSize,
-            onAsk: { [weak self] question in self?.onAsk(question) },
+            onAsk: { [weak self] question in
+                InterfaceSounds.shared.play(.sent)
+                self?.onAsk(question)
+            },
             onCopy: { [weak self] button in self?.copy(button) },
             onCopyTranscript: { [weak self] in self?.copyTranscript() },
             onStop: { [weak self] in self?.onStop() },
@@ -380,7 +386,7 @@ final class TutorControlBarController {
                 self?.notchShapeSize = size
                 self?.updateHover()
             },
-            onOpenRequested: { [weak self] in self?.setExpanded(true) },
+            onOpenRequested: { [weak self] in self?.openByStudent() },
             settingsView: settingsView
         )
         let hostingView = NSHostingView(rootView: view)
@@ -441,7 +447,7 @@ final class TutorControlBarController {
             if pointerEnteredNotchAt == nil { pointerEnteredNotchAt = now }
             if !model.isExpanded, let entered = pointerEnteredNotchAt,
                now.timeIntervalSince(entered) >= Self.openAfterSeconds {
-                setExpanded(true)
+                openByStudent()
             }
         } else {
             pointerEnteredNotchAt = nil
@@ -467,6 +473,14 @@ final class TutorControlBarController {
         }
     }
 
+    /// Opened by the student's hover or click, which gets the water drop.
+    /// Opened by the app (setup, the Dock icon) it stays silent.
+    private func openByStudent() {
+        guard !model.isExpanded else { return }
+        InterfaceSounds.shared.play(.drop)
+        setExpanded(true)
+    }
+
     private func setExpanded(_ expanded: Bool) {
         guard model.isExpanded != expanded else { return }
         model.isExpanded = expanded
@@ -486,11 +500,13 @@ final class TutorControlBarController {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         model.copiedButtonID = button.id
+        InterfaceSounds.shared.play(.tick)
     }
 
     private func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(model.transcriptText, forType: .string)
+        InterfaceSounds.shared.play(.tick)
     }
 }
 
@@ -615,6 +631,10 @@ struct TutorNotchView: View {
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.open, value: isIdle)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.caption)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.followUps)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: isShowingHeardWords)
+        // New words arrive several times a second; a quick ease keeps the
+        // height change from lagging behind the speaker.
+        .animation(.easeOut(duration: 0.12), value: model.heardWords)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.selectedTab)
     }
 
@@ -675,12 +695,52 @@ struct TutorNotchView: View {
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
                 .transition(.notchContent(reduceMotion: reduceMotion))
+        } else if isShowingHeardWords {
+            heardWordsRow
+                .padding(.horizontal, 18)
+                .padding(.bottom, 10)
+                .frame(width: collapsedWidth)
+                .transition(.notchContent(reduceMotion: reduceMotion))
         } else if !model.followUps.isEmpty && !model.isSpeaking {
             followUpRow
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
                 .transition(.notchContent(reduceMotion: reduceMotion))
         }
+    }
+
+    private var isShowingHeardWords: Bool {
+        (model.activity == .listening || model.activity == .thinking) && !model.heardWords.isEmpty
+    }
+
+    /// The student's own words, bright while they are still speaking and
+    /// dimmed once sent. Cut from the front, so the newest words stay in view
+    /// however long the question runs.
+    private var heardWordsRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: model.activity == .listening ? "waveform" : "text.quote")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.white.opacity(0.5))
+                .contentTransition(.symbolEffect(.replace))
+            Text(Self.newestWords(of: model.heardWords))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(model.activity == .listening ? 0.92 : 0.55))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .animation(.easeOut(duration: 0.15), value: model.activity)
+    }
+
+    /// About two lines' worth from the end, cut at a word. SwiftUI's own
+    /// head truncation cuts two-line text mid-word on the second line.
+    private static func newestWords(of words: String) -> String {
+        let roughlyTwoLines = 88
+        guard words.count > roughlyTwoLines else { return words }
+        let tail = words.suffix(roughlyTwoLines)
+        let fromWordStart = tail.firstIndex(of: " ").map { tail[tail.index(after: $0)...] } ?? tail
+        return "\u{2026}" + fromWordStart
     }
 
     private var expandedContent: some View {
@@ -868,6 +928,13 @@ private struct LessonCard: View {
     @ObservedObject var model: TutorControlBarModel
     let onAsk: (String) -> Void
     let onCopy: (TutorFollowUpButton) -> Void
+    @State private var isShowingWholeAnswer = false
+
+    /// Past this, the answer is folded to a few lines with a way to open it.
+    private static let foldAfterCharacters = 420
+    /// Opened, a long answer scrolls inside the card instead of pushing the
+    /// notch off the bottom of the screen.
+    private static let openAnswerMaximumHeight: CGFloat = 300
 
     private var lastTutorTurn: TranscriptEntry? {
         model.transcript.last(where: { $0.speaker == .tutor })
@@ -877,37 +944,35 @@ private struct LessonCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
-                Text(lastTutorTurn?.lessonTitle ?? "Your lesson")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.black.opacity(0.7))
-                if model.isSpeaking {
-                    Text("· Explaining")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.black.opacity(0.45))
-                }
+                Text(model.isSpeaking ? "EXPLAINING NOW" : "LAST LESSON")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(Color.black.opacity(model.isSpeaking ? 0.55 : 0.4))
+                    .contentTransition(.opacity)
                 Spacer()
             }
 
             if let lastTutorTurn {
-                if let lastQuestion {
-                    Text("\u{201C}\(lastQuestion)\u{201D}")
-                        .font(.system(size: 19, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.black.opacity(0.88))
-                        .lineLimit(2)
-                }
-                Text(lastTutorTurn.text)
-                    .font(.system(size: 13.5, weight: .medium))
-                    .foregroundStyle(Color.black.opacity(0.78))
-                    .lineLimit(6)
+                // The lesson's own name leads. The question as speech
+                // recognition heard it is often rough ("we consistency venture
+                // consistency"), so it sits underneath, small, as a reminder.
+                Text(lastTutorTurn.lessonTitle ?? lastQuestion ?? "Your lesson")
+                    .font(.system(size: 19, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.88))
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color(red: 1.0, green: 0.93, blue: 0.72).opacity(0.65))
-                    )
+                if lastTutorTurn.lessonTitle != nil, let lastQuestion {
+                    Text("You asked: \u{201C}\(lastQuestion)\u{201D}")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.black.opacity(0.48))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                answer(lastTutorTurn.text)
+
                 if !model.followUps.isEmpty {
                     HStack(spacing: 8) {
                         ForEach(model.followUps) { button in
@@ -919,6 +984,7 @@ private struct LessonCard: View {
                             }
                         }
                     }
+                    .padding(.top, 2)
                 }
             } else {
                 Text("Ask about the code, diagram or question in front of you. The tutor explains out loud and draws on your screen as it goes.")
@@ -938,6 +1004,55 @@ private struct LessonCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.white.opacity(0.25), lineWidth: 1)
         )
+        // A new lesson starts folded again.
+        .onChange(of: lastTutorTurn?.id) { _, _ in isShowingWholeAnswer = false }
+    }
+
+    @ViewBuilder
+    private func answer(_ answerText: String) -> some View {
+        let isLong = answerText.count > Self.foldAfterCharacters
+        VStack(alignment: .leading, spacing: 8) {
+            if isLong && isShowingWholeAnswer {
+                ScrollView {
+                    answerTextView(answerText, lineLimit: nil)
+                }
+                .frame(maxHeight: Self.openAnswerMaximumHeight)
+            } else {
+                answerTextView(answerText, lineLimit: isLong ? 6 : nil)
+            }
+            if isLong {
+                Button(action: {
+                    withAnimation(.smooth(duration: 0.28)) { isShowingWholeAnswer.toggle() }
+                }) {
+                    HStack(spacing: 4) {
+                        Text(isShowingWholeAnswer ? "Show less" : "Show the whole answer")
+                        Image(systemName: isShowingWholeAnswer ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 9, weight: .bold))
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.16, green: 0.36, blue: 0.85))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(Color(red: 1.0, green: 0.93, blue: 0.72).opacity(0.65))
+        )
+    }
+
+    private func answerTextView(_ answerText: String, lineLimit: Int?) -> some View {
+        Text(answerText)
+            .font(.system(size: 13.5, weight: .medium))
+            .lineSpacing(2)
+            .foregroundStyle(Color.black.opacity(0.78))
+            .textSelection(.enabled)
+            .lineLimit(lineLimit)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

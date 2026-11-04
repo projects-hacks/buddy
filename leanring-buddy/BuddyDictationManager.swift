@@ -227,6 +227,10 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     @Published private(set) var isFinalizingTranscript = false
     @Published private(set) var isPreparingToRecord = false
     @Published private(set) var currentAudioPowerLevel: CGFloat = 0
+    /// The words recognised so far while the keys are held, so the student
+    /// can see a misheard question before it is sent rather than after the
+    /// answer comes back about something else.
+    @Published private(set) var liveTranscriptText = ""
     @Published private(set) var recordedAudioPowerHistory = Array(
         repeating: BuddyDictationManager.recordedAudioPowerHistoryBaselineLevel,
         count: BuddyDictationManager.recordedAudioPowerHistoryLength
@@ -522,6 +526,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
             onTranscriptUpdate: { [weak self] transcriptText in
                 Task { @MainActor in
                     self?.latestRecognizedText = transcriptText
+                    self?.liveTranscriptText = transcriptText
                 }
             },
             onFinalTranscriptReady: { [weak self] transcriptText in
@@ -633,6 +638,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         activeStartSource = nil
         draftTextBeforeCurrentDictation = ""
         latestRecognizedText = ""
+        liveTranscriptText = ""
         shouldAutomaticallySubmitFinalDraft = false
         hasFinishedCurrentDictationSession = false
         isPreparingToRecord = false
