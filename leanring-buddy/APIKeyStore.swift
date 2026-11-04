@@ -6,10 +6,11 @@
 //
 //  Why the Keychain and not the upstream approach: the original build routes
 //  every request through a Cloudflare Worker that holds the keys, which exists
-//  because that app ships to strangers and a key compiled into a distributed
-//  binary is a key published. This build runs on its owner's machine, so the
-//  proxy would add a network hop, an account and a deploy step to protect a
-//  key from the person who owns it.
+//  because that app ships with its author's keys and a key compiled into a
+//  distributed binary is a key published. Here every person brings their own
+//  keys, entered in the setup window, so there is nothing to hide in the
+//  binary and the proxy would only add a network hop, an account and a
+//  deploy step.
 //
 //  Why not a plist, a dotfile or an environment variable: all three leave the
 //  key readable by anything running as the user, and a dotfile inside the
@@ -89,12 +90,22 @@ enum APIKeyStore {
     // MARK: - Writing
 
     /// Saves or replaces the key. Returns false if the Keychain refused.
+    ///
+    /// Through `/usr/bin/security`, the same tool keys are read through, so
+    /// the Keychain trusts the reader it will be asked by and never puts a
+    /// password prompt in front of the student, even after an update changes
+    /// the app's signature. The key goes over a pipe, never as an argument,
+    /// so it never appears in the process list.
     @discardableResult
     static func save(key: String, for service: Service) -> Bool {
         cache.store(nil, for: service)
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedKey.isEmpty, let keyData = trimmedKey.data(using: .utf8) else {
+        guard !trimmedKey.isEmpty, !trimmedKey.contains("\n"), let keyData = trimmedKey.data(using: .utf8) else {
             return false
+        }
+        if saveThroughSecurityTool(trimmedKey, for: service) {
+            cache.store(trimmedKey, for: service)
+            return true
         }
 
         // Delete first rather than branch on whether one exists: an update on a
@@ -118,8 +129,32 @@ enum APIKeyStore {
     @discardableResult
     static func deleteKey(for service: Service) -> Bool {
         cache.store(nil, for: service)
+        _ = runSecurityTool(["delete-generic-password", "-a", "api-key", "-s", service.rawValue], input: nil)
         let status = SecItemDelete(baseQuery(for: service) as CFDictionary)
+        cache.recordMissing(service)
         return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    /// `security add-generic-password -w` asks for the secret twice on its
+    /// input when no value follows the flag.
+    private static func saveThroughSecurityTool(_ key: String, for service: Service) -> Bool {
+        runSecurityTool(["add-generic-password", "-a", "api-key", "-s", service.rawValue, "-U", "-w"],
+                        input: "\(key)\n\(key)\n") == 0
+    }
+
+    private static func runSecurityTool(_ arguments: [String], input: String?) -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = arguments
+        let inputPipe = Pipe()
+        process.standardInput = inputPipe
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do { try process.run() } catch { return -1 }
+        if let input { inputPipe.fileHandleForWriting.write(Data(input.utf8)) }
+        try? inputPipe.fileHandleForWriting.close()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 
     // MARK: - Private
