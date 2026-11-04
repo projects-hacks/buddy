@@ -1,0 +1,9 @@
+a student just asked their study helper a question out loud. it was transcribed by speech recognition, so words may be misheard ("item potent" for idempotent, "try" for trie).
+
+below are ideas the helper explained to them in earlier sessions. say which of these ideas the question is actually about, or directly builds on, so the helper can connect its answer to what they already learned.
+
+- only an idea the question is really about. sharing a word is not enough: "how do i clear my browser cache" is not about cache invalidation, and "family tree" is not about b-trees.
+- at most three, most relevant first.
+- if none of them, say none. most questions are about none of them.
+
+answer with only the numbers, separated by commas, like "3" or "2, 5", or the word none.

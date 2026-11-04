@@ -96,6 +96,10 @@ final class CompanionManager: ObservableObject {
 
     /// Sorts each question by meaning into the kind that decides who answers.
     private let questionSorter = QuestionSorter()
+    /// What the student has learned with Buddy across sessions.
+    let learningMemory = LearningMemory()
+    /// How far up the hint ladder they are on each practice problem.
+    private let practiceHintLadder = PracticeHintLadder()
 
     /// Picks Sonnet, Opus or Argon per question under Auto, and Sonnet or
     /// Opus under Claude.
@@ -340,7 +344,13 @@ final class CompanionManager: ObservableObject {
         bindShortcutTransitions()
         bindMarkLifetime()
         InterfaceSounds.shared.prepare()
-        Task { await questionSorter.prepare() }
+        configureLearningMemory()
+        Task {
+            await questionSorter.prepare()
+            // After the sorter, whose sentence model memory shares.
+            await learningMemory.load()
+            await learningMemory.embedMissingVectorsInBackground()
+        }
         // Load the weights now rather than on the first question. A cold load
         // costs around ten seconds, which would otherwise land entirely inside
         // the user's first interaction and read as the app being broken.
@@ -1070,6 +1080,13 @@ final class CompanionManager: ObservableObject {
 
         // Haiku is asked only when the on-device sorter is unsure, and asked
         // now, so it works while the screen is captured and read.
+        // Memory starts now too, so its Haiku call also runs during capture.
+        let (earlyFrontAppName, earlyWindowTitle) = TutorProgramPrompt.frontmostAppAndWindow()
+        let recallTask = learningMemory.startRecall(
+            question: transcript, windowTitle: earlyWindowTitle,
+            questionVector: questionSorter.sentenceVector(for: transcript))
+        _ = earlyFrontAppName
+
         let classifierTask: Task<QuestionKind?, Never>? =
             localConfidence < QuestionSorter.confidentEnough && APIKeyStore.hasKey(for: .anthropic)
             ? Task { [claudeBrain] in
@@ -1105,6 +1122,7 @@ final class CompanionManager: ObservableObject {
                 )
                 guard !Task.isCancelled else { return }
                 logStage("screen captured and read")
+                let screenReadAt = Date()
 
                 let (questionKind, kindProbabilities) = await settleQuestionKind(
                     transcript: transcript,
@@ -1117,6 +1135,7 @@ final class CompanionManager: ObservableObject {
                 // Counted before the answer is built, so the instruction
                 // reflects how many times this idea has already failed to land.
                 if questionKind == .reexplain {
+                    learningMemory.studentGotLost()
                     consecutiveReexplanationCount += 1
                     TutorDebugLog.write("🔁 student still lost after \(lastAnsweringBrainName), attempt \(consecutiveReexplanationCount + 1): switching tactic")
                 } else {
@@ -1168,14 +1187,52 @@ final class CompanionManager: ObservableObject {
                     )
                 )
                 let (frontAppName, frontWindowTitle) = TutorProgramPrompt.frontmostAppAndWindow()
+
+                // What the student has learned before that this is about.
+                let recollections = await settleRecollections(
+                    recallTask: recallTask, question: transcript,
+                    screenContext: (frontWindowTitle ?? "") + "\n" + screenListing,
+                    deadline: screenReadAt.addingTimeInterval(Self.classifierGraceSeconds))
+                guard !Task.isCancelled else { return }
+                controlBar.model.buildsOn = recollections.map(\.concept.name)
+                var studyNotes = [LearningMemory.promptNote(for: recollections)]
+
+                // A practice problem gets hints in steps; a drawing of their
+                // own gets a peer's review. A practice problem wins when both
+                // seem to apply, unless they said it is their drawing.
+                var lengthInstruction = TutorProgramPrompt.lengthInstruction(for: questionKind)
+                currentPracticeProblem = nil
+                let diagramTool = DiagramReview.detect(
+                    frontAppName: frontAppName, windowTitle: frontWindowTitle, transcript: transcript)
+                if let problem = PracticeHints.detect(
+                    frontAppName: frontAppName, windowTitle: frontWindowTitle, screenListing: screenListing),
+                   diagramTool == nil || !transcript.lowercased().contains("my ") {
+                    let levelSoFar = practiceHintLadder.level(for: problem)
+                    let levelToGive = PracticeHints.requestedLevel(transcript: transcript, levelSoFar: levelSoFar)
+                    studyNotes.append(PracticeHints.instruction(problem: problem, levelToGive: levelToGive, levelSoFar: levelSoFar))
+                    if let levelToGive {
+                        lengthInstruction = "follow the step under THEY ARE PRACTISING, not a usual length."
+                        if levelToGive == 4 {
+                            claudeBrain.maximumResponseTokens = max(claudeBrain.maximumResponseTokens, 2_600)
+                            hostedBrain.maximumResponseTokens = max(hostedBrain.maximumResponseTokens, 2_600)
+                        }
+                    }
+                    currentPracticeProblem = problem
+                    TutorDebugLog.write("🧩 practice: \(problem.site), hints so far \(levelSoFar), giving \(levelToGive.map(String.init) ?? "none (not a solve request)")")
+                } else if let diagramTool {
+                    studyNotes.append(DiagramReview.instruction(tool: diagramTool))
+                    TutorDebugLog.write("✏️ reviewing their drawing in \(diagramTool)")
+                }
+
                 let turnPrompt = TutorProgramPrompt.turnContext(
                     transcript: transcript,
                     canvasSize: canvasSize,
                     screenListing: screenListing,
-                    lengthInstruction: TutorProgramPrompt.lengthInstruction(for: questionKind),
+                    lengthInstruction: lengthInstruction,
                     reexplanationInstruction: reexplanationInstruction(),
                     frontAppName: frontAppName,
-                    frontWindowTitle: frontWindowTitle
+                    frontWindowTitle: frontWindowTitle,
+                    studyNotes: studyNotes
                 )
 
                 let screenForDrawing = NSScreen.screens.first { screen in
@@ -1256,6 +1313,13 @@ final class CompanionManager: ObservableObject {
                         TutorDebugLog.write("📘 lesson: \(lessonTitle)")
                         controlBar.model.recordLessonTitle(lessonTitle)
                     }
+                    if let problem = currentPracticeProblem,
+                       let levelGiven = PracticeHints.levelGiven(inProgram: fullResponseText) {
+                        practiceHintLadder.record(level: levelGiven, for: problem)
+                    }
+                    fileLessonInMemory(question: transcript, lessonTitle: lessonPlayer.lessonTitle,
+                                       spokenAnswer: Self.spokenSentences(inProgram: fullResponseText),
+                                       questionKind: questionKind)
                     // The whole program, not only what was said: the next
                     // answer has to know what it drew to build on it or to
                     // explain it differently.
@@ -1308,6 +1372,8 @@ final class CompanionManager: ObservableObject {
                     userTranscript: transcript,
                     assistantResponse: spokenOnlyText
                 ))
+                fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
+                                   questionKind: questionKind)
                 if conversationHistory.count > 10 {
                     conversationHistory.removeFirst(conversationHistory.count - 10)
                 }
@@ -1549,6 +1615,67 @@ final class CompanionManager: ObservableObject {
         controlBar.model.answeredBy = brain.displayName
         lastAnsweringBrainName = brain.displayName
         TutorDebugLog.write("🧭 answered by \(brain.displayName)")
+    }
+
+    private func configureLearningMemory() {
+        learningMemory.embed = { [weak self] text in self?.questionSorter.sentenceVector(for: text) }
+        learningMemory.embeddingModelIdentifier = { [weak self] in self?.questionSorter.embeddingModelIdentifier }
+        learningMemory.extract = { [claudeBrain] lesson, known in
+            guard APIKeyStore.hasKey(for: .anthropic) else { return nil }
+            return await claudeBrain.extractLessonConcepts(lesson, known: known)
+        }
+        learningMemory.choose = { [claudeBrain] question, windowTitle, candidates in
+            guard APIKeyStore.hasKey(for: .anthropic) else { return nil }
+            return await claudeBrain.chooseRememberedConcepts(
+                question: question, windowTitle: windowTitle, candidates: candidates)
+        }
+    }
+
+    private var currentPracticeProblem: PracticeProblem?
+
+    /// Hands the finished lesson to memory, after it has been said: filing it
+    /// costs a Haiku call the student never waits for.
+    private func fileLessonInMemory(question: String, lessonTitle: String?, spokenAnswer: String, questionKind: QuestionKind) {
+        let lesson = LessonToRemember(
+            question: question, lessonTitle: lessonTitle, spokenAnswer: spokenAnswer,
+            questionKind: questionKind.tableName, answeredBy: lastAnsweringBrainName, date: Date())
+        Task { [learningMemory] in await learningMemory.remember(lesson) }
+    }
+
+    /// Every say("...") in a drawing program, in order: the whole answer as
+    /// heard, even while the voice is still partway through it.
+    static func spokenSentences(inProgram program: String) -> String {
+        guard let expression = try? NSRegularExpression(pattern: #"say\(\s*"((?:[^"\\]|\\.)*)"\s*\)"#) else { return "" }
+        let range = NSRange(program.startIndex..., in: program)
+        return expression.matches(in: program, range: range).compactMap { match in
+            Range(match.range(at: 1), in: program).map { String(program[$0]) }
+        }.joined(separator: " ")
+    }
+
+    /// Waits for memory's choice until the same moment the question
+    /// classifier was given up on, then falls back to names alone.
+    private func settleRecollections(
+        recallTask: Task<[ConceptRecollection]?, Never>,
+        question: String,
+        screenContext: String,
+        deadline: Date
+    ) async -> [ConceptRecollection] {
+        let remaining = max(0, deadline.timeIntervalSinceNow)
+        let chosen: [ConceptRecollection]?? = await withTaskGroup(of: [ConceptRecollection]??.self) { group in
+            group.addTask { await recallTask.value }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                return .some(nil)
+            }
+            let first = await group.next() ?? .some(nil)
+            group.cancelAll()
+            return first
+        }
+        if let chosen, let recollections = chosen { return recollections }
+        if remaining <= 0 || chosen == .some(nil) {
+            TutorDebugLog.write("⌛ memory chooser late or unavailable, recalling by name")
+        }
+        return learningMemory.namesOnlyRecall(question: question, screenContext: screenContext)
     }
 
     private func reexplanationInstruction() -> String {

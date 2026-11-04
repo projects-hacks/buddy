@@ -38,6 +38,9 @@ struct CompanionPanelView: View {
                 interfaceSoundsToggleRow
                     .padding(.horizontal, 16)
 
+                learningMemoryRow
+                    .padding(.horizontal, 16)
+
                 Spacer().frame(height: 10)
                 lessonsSection
                     .padding(.horizontal, 16)
@@ -521,6 +524,73 @@ struct CompanionPanelView: View {
                 .pointerCursor()
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Learning Memory
+
+    @AppStorage(LearningMemory.enabledDefaultsKey) private var learningMemoryEnabled = true
+    /// Forgetting is permanent, so it takes a second click within a few seconds.
+    @State private var isConfirmingForget = false
+
+    private var learningMemoryRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "brain")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(DS.Colors.textTertiary)
+                        .frame(width: 16)
+
+                    Text("Learning memory")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $learningMemoryEnabled)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .tint(DS.Colors.accent)
+                    .scaleEffect(0.8)
+                    .pointerCursor()
+            }
+
+            HStack(spacing: 8) {
+                Text(learningMemoryCaption)
+                    .font(.system(size: 11))
+                    .foregroundColor(DS.Colors.textTertiary)
+                Spacer()
+                if companionManager.learningMemory.conceptCount > 0 {
+                    Button(action: forgetButtonTapped) {
+                        Text(isConfirmingForget ? "Click again to forget all" : "Forget all")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(isConfirmingForget ? .red : DS.Colors.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                }
+            }
+            .padding(.leading, 24)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var learningMemoryCaption: String {
+        let count = companionManager.learningMemory.conceptCount
+        guard learningMemoryEnabled else { return "Off. Each answer starts fresh." }
+        if count == 0 { return "Remembers what you learn, on this Mac only." }
+        return count == 1 ? "1 idea remembered, on this Mac only." : "\(count) ideas remembered, on this Mac only."
+    }
+
+    private func forgetButtonTapped() {
+        if isConfirmingForget {
+            companionManager.learningMemory.forgetEverything()
+            isConfirmingForget = false
+        } else {
+            isConfirmingForget = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { isConfirmingForget = false }
+        }
     }
 
     // MARK: - Show Clicky Cursor Toggle

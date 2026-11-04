@@ -1,0 +1,333 @@
+{
+ "_why": "Concepts as Buddy would have remembered them after explaining each once. The questions are written separately, blind to the tuning, in blind_questions.json.",
+ "concepts": [
+  {
+   "name": "binary search",
+   "aliases": [],
+   "summary": "halve a sorted range each step, keeping low and high so the answer stays inside"
+  },
+  {
+   "name": "two pointers",
+   "aliases": [],
+   "summary": "one pointer from each end of a sorted array moving inward until they meet"
+  },
+  {
+   "name": "sliding window",
+   "aliases": [],
+   "summary": "grow the right edge, shrink the left edge while the window breaks the rule"
+  },
+  {
+   "name": "hash map",
+   "aliases": [
+    "hash table",
+    "dictionary"
+   ],
+   "summary": "keys hashed to buckets so a lookup goes straight to its bucket in constant time"
+  },
+  {
+   "name": "heap",
+   "aliases": [
+    "priority queue",
+    "min heap",
+    "max heap"
+   ],
+   "summary": "a tree kept in an array where the parent is always smaller, so the minimum is at the top"
+  },
+  {
+   "name": "dijkstra's algorithm",
+   "aliases": [
+    "dijkstra"
+   ],
+   "summary": "always expand the closest unvisited node next, using a min heap of distances"
+  },
+  {
+   "name": "breadth first search",
+   "aliases": [
+    "bfs"
+   ],
+   "summary": "visit neighbours level by level with a queue, which finds shortest paths in unweighted graphs"
+  },
+  {
+   "name": "depth first search",
+   "aliases": [
+    "dfs"
+   ],
+   "summary": "go as deep as possible down one branch before backing up, using recursion or a stack"
+  },
+  {
+   "name": "topological sort",
+   "aliases": [
+    "topo sort"
+   ],
+   "summary": "order tasks so every prerequisite comes first, by repeatedly removing nodes with no incoming edges"
+  },
+  {
+   "name": "union find",
+   "aliases": [
+    "disjoint set"
+   ],
+   "summary": "each element points to a parent; path compression and union by rank keep the trees flat"
+  },
+  {
+   "name": "dynamic programming",
+   "aliases": [
+    "dp"
+   ],
+   "summary": "break a problem into overlapping subproblems and store each answer so it is computed once"
+  },
+  {
+   "name": "memoization",
+   "aliases": [],
+   "summary": "cache the result of a recursive call keyed by its arguments, top down, versus filling a table bottom up"
+  },
+  {
+   "name": "knapsack problem",
+   "aliases": [
+    "knapsack"
+   ],
+   "summary": "for each item and capacity choose the better of taking it or leaving it"
+  },
+  {
+   "name": "trie",
+   "aliases": [
+    "prefix tree"
+   ],
+   "summary": "a tree of characters where each path from the root spells a prefix, for fast autocomplete"
+  },
+  {
+   "name": "segment tree",
+   "aliases": [],
+   "summary": "a tree over array ranges so range sums or minimums and point updates take log n"
+  },
+  {
+   "name": "quicksort",
+   "aliases": [
+    "quick sort"
+   ],
+   "summary": "pick a pivot, partition smaller to the left and larger to the right, recurse on each side"
+  },
+  {
+   "name": "merge sort",
+   "aliases": [],
+   "summary": "split in half, sort each half, then merge the two sorted halves in linear time"
+  },
+  {
+   "name": "big o notation",
+   "aliases": [
+    "time complexity",
+    "space complexity"
+   ],
+   "summary": "how the work grows as the input grows, ignoring constants, like n log n"
+  },
+  {
+   "name": "recursion",
+   "aliases": [],
+   "summary": "a function that calls itself on a smaller input until it reaches a base case"
+  },
+  {
+   "name": "backtracking",
+   "aliases": [],
+   "summary": "build a candidate step by step and undo the last choice as soon as it cannot lead to a solution"
+  },
+  {
+   "name": "linked list cycle detection",
+   "aliases": [
+    "floyd's cycle detection",
+    "tortoise and hare"
+   ],
+   "summary": "a slow pointer and a fast pointer; if there is a loop the fast one laps the slow one"
+  },
+  {
+   "name": "monotonic stack",
+   "aliases": [],
+   "summary": "a stack kept in increasing order, popping smaller items, to find the next greater element"
+  },
+  {
+   "name": "prefix sum",
+   "aliases": [
+    "running total"
+   ],
+   "summary": "store the total up to each index so any range sum is one subtraction"
+  },
+  {
+   "name": "bit manipulation",
+   "aliases": [
+    "bitwise operations"
+   ],
+   "summary": "use and, or, xor and shifts on the binary form, like x and x minus one clearing the lowest set bit"
+  },
+  {
+   "name": "lru cache",
+   "aliases": [
+    "least recently used cache"
+   ],
+   "summary": "a hash map plus a doubly linked list so the least recently used entry is evicted in constant time"
+  },
+  {
+   "name": "consistent hashing",
+   "aliases": [],
+   "summary": "servers sit on a hash ring with virtual nodes, so adding one moves only the keys next to it"
+  },
+  {
+   "name": "eventual consistency",
+   "aliases": [],
+   "summary": "replicas may disagree for a moment after a write but all catch up, like a profile name update reaching server b later"
+  },
+  {
+   "name": "strong consistency",
+   "aliases": [
+    "linearizability"
+   ],
+   "summary": "every read sees the latest write, as if there were one copy, at the cost of waiting on replicas"
+  },
+  {
+   "name": "cap theorem",
+   "aliases": [
+    "cap"
+   ],
+   "summary": "during a network partition a system must choose between staying available and staying consistent"
+  },
+  {
+   "name": "load balancer",
+   "aliases": [],
+   "summary": "spreads incoming requests across servers, by round robin or least connections, and drops unhealthy ones"
+  },
+  {
+   "name": "rate limiting",
+   "aliases": [
+    "throttling"
+   ],
+   "summary": "cap how many requests a client may make in a period so one user cannot overwhelm the service"
+  },
+  {
+   "name": "token bucket",
+   "aliases": [],
+   "summary": "tokens refill at a fixed rate up to a limit and each request spends one, allowing short bursts"
+  },
+  {
+   "name": "database sharding",
+   "aliases": [
+    "sharding",
+    "partitioning"
+   ],
+   "summary": "split one table's rows across databases by a shard key such as user id"
+  },
+  {
+   "name": "replication",
+   "aliases": [
+    "read replicas"
+   ],
+   "summary": "copies of the data on several machines, a leader taking writes and followers serving reads"
+  },
+  {
+   "name": "leader election",
+   "aliases": [
+    "raft"
+   ],
+   "summary": "nodes vote so exactly one becomes leader for a term, and a new vote starts if its heartbeats stop"
+  },
+  {
+   "name": "write-ahead log",
+   "aliases": [
+    "wal"
+   ],
+   "summary": "write the change to an append only log before applying it, so a crash can be replayed"
+  },
+  {
+   "name": "content delivery network",
+   "aliases": [
+    "cdn"
+   ],
+   "summary": "copies of static files on edge servers near users so they load from close by"
+  },
+  {
+   "name": "cache invalidation",
+   "aliases": [
+    "cache aside",
+    "ttl"
+   ],
+   "summary": "removing or expiring cached entries when the source changes, so readers do not see stale data"
+  },
+  {
+   "name": "message queue",
+   "aliases": [
+    "kafka",
+    "rabbitmq",
+    "pub sub"
+   ],
+   "summary": "producers put messages on a queue and consumers take them at their own pace, decoupling the two"
+  },
+  {
+   "name": "idempotency key",
+   "aliases": [
+    "idempotent requests"
+   ],
+   "summary": "the client sends a unique key so a retried payment is recognised and not charged twice"
+  },
+  {
+   "name": "database indexing",
+   "aliases": [
+    "index"
+   ],
+   "summary": "a sorted structure on a column so a query jumps to matching rows instead of scanning the table"
+  },
+  {
+   "name": "b-tree",
+   "aliases": [
+    "b plus tree",
+    "b+ tree"
+   ],
+   "summary": "a wide shallow tree with many keys per node, kept balanced, used by databases on disk"
+  },
+  {
+   "name": "two-phase commit",
+   "aliases": [
+    "2pc"
+   ],
+   "summary": "a coordinator asks every participant to prepare, then tells all to commit or all to abort"
+  },
+  {
+   "name": "saga pattern",
+   "aliases": [
+    "saga"
+   ],
+   "summary": "a long transaction as a chain of local steps, each with a compensating step to undo it"
+  },
+  {
+   "name": "bloom filter",
+   "aliases": [],
+   "summary": "a bit array and several hashes that can say definitely not present or probably present"
+  },
+  {
+   "name": "gossip protocol",
+   "aliases": [],
+   "summary": "each node tells a few random peers what it knows, so news spreads through the cluster like a rumour"
+  },
+  {
+   "name": "quorum",
+   "aliases": [
+    "read and write quorums"
+   ],
+   "summary": "with n replicas, reading from r and writing to w where r plus w is more than n guarantees overlap"
+  },
+  {
+   "name": "api gateway",
+   "aliases": [],
+   "summary": "one entry point in front of services that handles authentication, routing and rate limits"
+  },
+  {
+   "name": "websockets",
+   "aliases": [
+    "websocket"
+   ],
+   "summary": "a long lived two way connection so the server can push updates without the client polling"
+  },
+  {
+   "name": "backpressure",
+   "aliases": [
+    "back pressure"
+   ],
+   "summary": "a slow consumer signals the producer to slow down instead of being flooded"
+  }
+ ]
+}

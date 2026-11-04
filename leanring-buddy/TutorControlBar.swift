@@ -68,6 +68,8 @@ final class TutorControlBarModel: ObservableObject {
     /// What the student is saying, live while the keys are held, then the
     /// question as sent while the answer is prepared.
     @Published var heardWords: String = ""
+    /// Ideas from earlier sessions the current answer builds on.
+    @Published var buildsOn: [String] = []
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -963,6 +965,20 @@ private struct LessonCard: View {
                     .foregroundStyle(Color.black.opacity(0.88))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                if !model.buildsOn.isEmpty {
+                    HStack(spacing: 5) {
+                        Image(systemName: "link")
+                            .font(.system(size: 9.5, weight: .bold))
+                        Text("Builds on " + model.buildsOn.joined(separator: " · "))
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(Color(red: 0.36, green: 0.27, blue: 0.62))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(red: 0.86, green: 0.82, blue: 0.97)))
+                    .help("Ideas from earlier sessions this lesson connects to")
+                }
                 if lastTutorTurn.lessonTitle != nil, let lastQuestion {
                     Text("You asked: \u{201C}\(lastQuestion)\u{201D}")
                         .font(.system(size: 12, weight: .medium))

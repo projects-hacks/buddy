@@ -22,7 +22,8 @@
 #   embedded frameworks to share the process Team ID, and Sparkle and PostHog
 #   have none here.
 #
-# Create the certificate once with scripts/make-signing-cert.sh.
+# Create the certificate once in Keychain Access: Certificate Assistant >
+# Create a Certificate, named "Clicky Local Dev", Self Signed Root, Code Signing.
 
 set -e
 
@@ -34,7 +35,7 @@ SIGNING_IDENTITY="Clicky Local Dev"
 if ! codesign -s "$SIGNING_IDENTITY" --dryrun /dev/null 2>/dev/null; then
   if ! security find-certificate -c "$SIGNING_IDENTITY" >/dev/null 2>&1; then
     echo "Signing certificate '$SIGNING_IDENTITY' not found."
-    echo "Run scripts/make-signing-cert.sh first, or permissions will reset on every build."
+    echo "Create it in Keychain Access > Certificate Assistant > Create a Certificate (Self Signed Root, Code Signing), or permissions will reset on every build."
     exit 1
   fi
 fi

@@ -43,6 +43,23 @@ final class QuestionSorter {
 
     var isReady: Bool { !exampleVectors.isEmpty }
 
+    /// The last question embedded, so learning memory reuses it instead of
+    /// paying for the same sentence twice.
+    private var lastEmbedded: (text: String, vector: [Double])?
+
+    /// A sentence's unit vector, for learning memory. Nil until the model loads.
+    func sentenceVector(for text: String) -> [Float]? {
+        let lowered = text.lowercased()
+        if let lastEmbedded, lastEmbedded.text == lowered { return lastEmbedded.vector.map(Float.init) }
+        return normalisedVector(for: lowered).map { $0.map(Float.init) }
+    }
+
+    /// Which model the vectors come from, so vectors from another one are
+    /// never compared with them after a macOS update replaces it.
+    var embeddingModelIdentifier: String? {
+        embeddingModel.map { "\($0.modelIdentifier)#\($0.revision)" }
+    }
+
     /// Loads the model and embeds the examples. Called at launch so the first
     /// question does not pay for it.
     func prepare() async {
@@ -115,6 +132,7 @@ final class QuestionSorter {
         guard isReady, let questionVector = normalisedVector(for: transcript.lowercased()) else {
             return nil
         }
+        lastEmbedded = (transcript.lowercased(), questionVector)
 
         var similaritiesByKind: [QuestionKind: [Double]] = [:]
         for example in exampleVectors {

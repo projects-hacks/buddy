@@ -1,0 +1,182 @@
+// End-to-end test of LearningMemory itself, in a scratch folder, with real
+// Claude Haiku calls through the prompts that ship. Nothing is spoken or
+// drawn. Checks filing, merging the same idea under another wording, spaced
+// strengthening, getting lost, saving and reloading, archiving stale ideas,
+// recall through the cascade and by name, and the note the tutor gets.
+//
+// build and run (from the repository root), key on stdin, never printed:
+//   cp scripts/learning_memory/memory_flow_test.swift /tmp/flow/main.swift
+//   xcrun swiftc -O -o /tmp/flow/test leanring-buddy/ConceptIndex.swift leanring-buddy/LearningMemory.swift /tmp/flow/main.swift
+//   security find-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -w | /tmp/flow/test /tmp/flow/store
+
+import Foundation
+import NaturalLanguage
+
+enum TutorDebugLog { static func write(_ line: String) { print("   log:", line) } }
+
+let apiKey = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+let storeFolder = URL(fileURLWithPath: CommandLine.arguments[1])
+try? FileManager.default.removeItem(at: storeFolder)
+let promptFolder = URL(fileURLWithPath: "leanring-buddy")
+let lessonPrompt = try! String(contentsOf: promptFolder.appendingPathComponent("LessonConceptPrompt.txt"), encoding: .utf8)
+let recallPrompt = try! String(contentsOf: promptFolder.appendingPathComponent("MemoryRecallPrompt.txt"), encoding: .utf8)
+
+let model = NLContextualEmbedding(language: .english)!
+try! model.load()
+nonisolated(unsafe) let embeddingLock = NSLock()
+func embed(_ text: String) -> [Float]? {
+    let sentence = text.lowercased()
+    guard let result = try? model.embeddingResult(for: sentence, language: .english) else { return nil }
+    var summed = [Double](repeating: 0, count: model.dimension)
+    var count = 0
+    result.enumerateTokenVectors(in: sentence.startIndex..<sentence.endIndex) { vector, _ in
+        for index in 0..<min(vector.count, summed.count) { summed[index] += vector[index] }
+        count += 1
+        return true
+    }
+    let length = sqrt(summed.reduce(0) { $0 + $1 * $1 })
+    guard count > 0, length > 0 else { return nil }
+    return summed.map { Float($0 / length) }
+}
+
+func haiku(_ system: String, _ message: String, _ maximumTokens: Int) async -> String? {
+    var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
+    request.httpMethod = "POST"
+    request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+    request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+    request.setValue("application/json", forHTTPHeaderField: "content-type")
+    request.httpBody = try! JSONSerialization.data(withJSONObject: [
+        "model": "claude-haiku-5-5", "max_tokens": maximumTokens, "system": system,
+        "thinking": ["type": "disabled"], "messages": [["role": "user", "content": message]]])
+    guard let (data, _) = try? await URLSession.shared.data(for: request),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let content = json["content"] as? [[String: Any]] else { return nil }
+    return content.compactMap { $0["text"] as? String }.joined()
+}
+
+// The same message shapes as LearningMemoryCalls.swift.
+@MainActor func configure(_ memory: LearningMemory) {
+    memory.embed = embed
+    memory.embeddingModelIdentifier = { "\(model.modelIdentifier)#\(model.revision)" }
+    memory.extract = { lesson, known in
+        var ids: [String: UUID] = [:]
+        let knownLines = known.map { concept -> String in
+            let short = String(concept.id.uuidString.prefix(8)).lowercased()
+            ids[short] = concept.id
+            return "\(short): \(concept.name)"
+        }
+        let message = "KNOWN:\n\(knownLines.isEmpty ? "(none)" : knownLines.joined(separator: "\n"))\n\nTHE STUDENT ASKED: \(lesson.question)\nLESSON TITLE: \(lesson.lessonTitle ?? "(none)")\nTHE EXPLANATION: \(lesson.spokenAnswer)"
+        guard let reply = await haiku(lessonPrompt, message, 700),
+              let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"),
+              let json = try? JSONSerialization.jsonObject(with: Data(String(reply[start...end]).utf8)) as? [String: Any],
+              let concepts = json["concepts"] as? [[String: Any]] else { return nil }
+        return concepts.compactMap { entry in
+            guard let name = entry["name"] as? String else { return nil }
+            return ExtractedConcept(name: name, sameAsID: (entry["same_as"] as? String).flatMap { ids[$0.lowercased()] },
+                                    aliases: entry["aliases"] as? [String] ?? [], cues: entry["cues"] as? [String] ?? [],
+                                    summary: entry["summary"] as? String ?? "", angle: entry["angle"] as? String)
+        }
+    }
+    memory.choose = { question, window, candidates in
+        let ideas = candidates.enumerated().map { "\($0.offset + 1). \($0.element.name): \($0.element.summary)" }.joined(separator: "\n")
+        guard let reply = await haiku(recallPrompt, "the student said: \(question)\nwindow: \(window ?? "unknown")\n\nideas:\n\(ideas)", 12)?.lowercased() else { return nil }
+        if reply.contains("none") { return [] }
+        return reply.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.filter { (1...candidates.count).contains($0) }.map { $0 - 1 }
+    }
+}
+
+var failures = 0
+func check(_ condition: Bool, _ description: String) {
+    print(condition ? "PASS" : "FAIL", description)
+    if !condition { failures += 1 }
+}
+
+let day: TimeInterval = 86_400
+let start = Date().addingTimeInterval(-10 * day)
+
+await MainActor.run {} // enter the main actor's world for the test body below
+let result: Int = await Task { @MainActor in
+    let memory = LearningMemory(folder: storeFolder)
+    configure(memory)
+    await memory.load()
+
+    print("\n1. filing two lessons")
+    await memory.remember(LessonToRemember(
+        question: "can you explain how consistent hashing works with these servers", lessonTitle: "Consistent Hashing",
+        spokenAnswer: "servers sit on a ring of hash values. each key goes to the first server clockwise from its hash. adding a server only moves the keys between it and the one before it. virtual nodes give each server many points on the ring so load stays even.",
+        questionKind: "teach", answeredBy: "argon", date: start))
+    await memory.remember(LessonToRemember(
+        question: "what's eventual consistency", lessonTitle: "Eventual Consistency",
+        spokenAnswer: "after a write, replicas can disagree for a moment. your friend may still see your old bio on another server. given time with no new writes, every replica catches up to the same value.",
+        questionKind: "normal", answeredBy: "sonnet", date: start.addingTimeInterval(600)))
+    let names = memory.index.concepts.map(\.name)
+    print("   known:", names)
+    check(names.contains { $0.contains("consistent hashing") }, "consistent hashing filed")
+    check(names.contains { $0.contains("eventual consistency") }, "eventual consistency filed")
+    check(memory.index.concepts.allSatisfy { !($0.cues ?? []).isEmpty }, "every idea got cues")
+    let countAfterTwo = memory.conceptCount
+
+    print("\n2. the same idea, two days later, worded differently")
+    await memory.remember(LessonToRemember(
+        question: "wait how does the hash ring deal with a new box being added", lessonTitle: "Adding Nodes to a Hash Ring",
+        spokenAnswer: "the new server takes a spot on the ring and only claims the keys just before it, so almost every key stays where it was.",
+        questionKind: "normal", answeredBy: "sonnet", date: start.addingTimeInterval(2 * day)))
+    let hashing = memory.index.concepts.first { $0.name.contains("consistent hashing") }
+    print("   known:", memory.index.concepts.map(\.name))
+    check(hashing?.timesExplained == 2, "merged into the known idea, explained twice (got \(hashing?.timesExplained ?? 0))")
+    check((hashing?.stabilityDays ?? 0) > ForgettingCurve.initialStabilityDays, "spaced re-explaining strengthened it (stability \(String(format: "%.1f", hashing?.stabilityDays ?? 0)) days)")
+    check(hashing?.summary.contains("new") == true || hashing?.summary.contains("add") == true, "summary replaced by the latest explanation: \(hashing?.summary ?? "")")
+    check(memory.conceptCount <= countAfterTwo + 1, "no duplicate idea (count \(memory.conceptCount))")
+
+    print("\n3. the student did not follow the last lesson")
+    let stabilityBefore = hashing?.stabilityDays ?? 0
+    memory.studentGotLost()
+    let lost = memory.index.concepts.first { $0.name.contains("consistent hashing") }
+    check(lost?.timesLost == 1, "marked as not followed")
+    check((lost?.stabilityDays ?? 99) < stabilityBefore, "memory estimate weakened")
+
+    print("\n4. recall through the cascade")
+    let describing = "so if i add one more server how many of the keys actually have to move"
+    let found = await memory.startRecall(question: describing, windowTitle: "Excalidraw", questionVector: embed(describing)).value ?? []
+    print("   recalled:", found.map(\.concept.name))
+    check(found.first?.concept.name.contains("consistent hashing") == true, "a question describing it without its name finds it")
+    let unrelated = "how do i center a div in css"
+    let none = await memory.startRecall(question: unrelated, windowTitle: "Visual Studio Code", questionVector: embed(unrelated)).value ?? []
+    check(none.isEmpty, "an unrelated question finds nothing (got \(none.map(\.concept.name)))")
+    let byName = memory.namesOnlyRecall(question: "remind me what eventual consistency means", screenContext: "")
+    check(byName.first?.concept.name.contains("eventual consistency") == true, "names-only fallback finds a named idea")
+
+    print("\n5. the note the tutor gets")
+    let note = LearningMemory.promptNote(for: found + byName)
+    print(note.split(separator: "\n").map { "   " + $0 }.joined(separator: "\n"))
+    check(note.contains("did not follow"), "note says they got lost last time")
+
+    print("\n6. saving, a stale idea, and reloading")
+    await memory.remember(LessonToRemember(
+        question: "what is a bloom filter", lessonTitle: "Bloom Filters",
+        spokenAnswer: "a bit array and a few hash functions. it can say definitely not present, or probably present.",
+        questionKind: "normal", answeredBy: "argon", date: Date().addingTimeInterval(-200 * day)))
+    await memory.flushWrites()
+    let reloaded = LearningMemory(folder: storeFolder)
+    configure(reloaded)
+    await reloaded.load()
+    let reloadedNames = reloaded.index.concepts.map(\.name)
+    print("   after reload:", reloadedNames)
+    check(!reloadedNames.contains { $0.contains("bloom") }, "met once, 200 days ago: archived, out of the live index")
+    check(reloaded.index.concepts.contains { $0.name.contains("consistent hashing") && $0.timesLost == 1 }, "history survives a relaunch")
+    check((0..<reloaded.conceptCount).allSatisfy { reloaded.index.vector(at: $0) != nil }, "vectors survive a relaunch")
+    await reloaded.remember(LessonToRemember(
+        question: "what was a bloom filter again", lessonTitle: "Bloom Filters",
+        spokenAnswer: "a bit array with several hashes: definitely not there, or maybe there.",
+        questionKind: "quick", answeredBy: "sonnet", date: Date()))
+    let restored = reloaded.index.concepts.first { $0.name.contains("bloom") }
+    check(restored?.timesExplained == 2, "coming up again restores it from the archive with its history (explained \(restored?.timesExplained ?? 0) times)")
+
+    print("\n7. forgetting everything")
+    reloaded.forgetEverything()
+    await reloaded.flushWrites()
+    check(reloaded.conceptCount == 0 && !FileManager.default.fileExists(atPath: storeFolder.path), "store and files gone")
+    return failures
+}.value
+print(result == 0 ? "\nall checks passed" : "\n\(result) checks failed")
+exit(result == 0 ? 0 : 1)

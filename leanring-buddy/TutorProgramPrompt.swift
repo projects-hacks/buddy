@@ -112,7 +112,8 @@ enum TutorProgramPrompt {
         lengthInstruction: String,
         reexplanationInstruction: String,
         frontAppName: String?,
-        frontWindowTitle: String?
+        frontWindowTitle: String?,
+        studyNotes: [String] = []
     ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm, EEEE d MMM yyyy"
@@ -125,6 +126,12 @@ enum TutorProgramPrompt {
         lines.append("CANVAS: W = \(Int(canvasSize.width)), H = \(Int(canvasSize.height)) pixels.")
         lines.append("SCREEN TEXT (id [x, y, w, h] text):")
         lines.append(screenListing)
+        // What memory, practice hints or diagram review add for this turn.
+        // In the turn, never the cached system part, so the cache holds.
+        for note in studyNotes where !note.isEmpty {
+            lines.append("")
+            lines.append(note)
+        }
         lines.append("")
         lines.append("HOW MUCH TO SAY: \(lengthInstruction)")
         if !reexplanationInstruction.isEmpty {

@@ -1,173 +1,151 @@
-## Get HeyClicky for Mac and Windows
+# Buddy
 
-The official app is **[HeyClicky](https://www.heyclicky.com/)**, an AI buddy for Mac and Windows, made by me and the team.
+A study helper for macOS that sees your screen, explains out loud, and draws on what you are looking at while it talks. Hold Control + Option, ask about the LeetCode problem, the system design diagram or the code in front of you, and Buddy answers the way a friend at a whiteboard would: one sentence, the stroke that goes with it, the next sentence.
 
-- **Mac:** [download HeyClicky for Mac](https://www.heyclicky.com/for-mac) (macOS 14.2 or later)
-- **Windows:** [download HeyClicky for Windows](https://www.heyclicky.com/for-windows) (Windows 10 and 11)
+Buddy is a study helper, not a tutor. It never quizzes and never grades. It remembers what you have learned together, holds back the answer on practice problems until you ask for it, and talks through your own diagrams as a peer would.
 
-Those are the only official downloads. Other Windows apps built from this repo are community ports, not made by us.
+Every design choice below was measured rather than assumed, and the scripts that measured it are in `scripts/`.
 
----
+## What it does
 
-Update: April 27, 2026.
+| | |
+|---|---|
+| **Explains while drawing** | Answers are small drawing programs. Each spoken sentence arrives with its marks: rings, underlines and arrows on your real screen, and hand-drawn cards on calm space for pictures the screen does not have. The pen is paced to the voice. |
+| **Lives in the notch** | Status, the sentence being said, and your own words live as you speak. Hover for the last lesson as a paper card, or the whole day's conversation. Idle, it disappears into the camera housing. |
+| **Remembers what you learned** | Ideas explained in earlier sessions are recalled when a new question touches them, so an answer can build on Tuesday's lesson instead of starting over. Ideas you did not follow get a different example next time. Kept on your Mac only. |
+| **Hints before answers** | On LeetCode, HackerRank and similar sites, help comes in steps: a nudge, the approach, a walk through by hand, then the code. You choose how far to go, and the code is always one sentence away. |
+| **Reviews your own diagrams** | Drawing a design in Excalidraw, draw.io, Miro or Freeform, Buddy marks your own boxes and draws what it would add beside them, dashed and purple, so a suggestion reads as a suggestion. No score. |
+| **Picks the right model per question** | Under Brain: Auto, quick questions go to Claude Sonnet, explanations to Gemini Argon, trade-offs to Claude Opus, each choice taken from a measured table of quality, wait and cost. |
+| **Writes it all down** | Every question and answer is saved as a plain Markdown file per day, readable in any editor. |
+| **Quiet sounds** | A soft tone when the mic opens and when a question is sent, a water drop when the notch opens. Never over the voice; one switch turns them off. |
 
-Hi there! I'm Farza, the guy that made Clicky.
+## How it works
 
-The existing codebase remains open source. Tinker with it, make it yours, start a company out of it, do whatever you want I don't mind. But, for all the new stuff I'm hacking on, gonna keep it private. To get the latest version, HeyClicky for Mac or Windows, go to [heyclicky.com](https://www.heyclicky.com/).
+```mermaid
+flowchart TD
+    keys([Hold Control + Option]):::input --> speech[Apple Speech, on device<br/>live words in the notch]:::device
+    speech --> sort[Question sorter<br/>on device, Haiku when unsure]:::device
+    speech --> recall[Learning memory<br/>shortlist on device, Haiku chooses]:::device
+    speech --> capture[Screen capture and index<br/>Vision text and accessibility tree]:::device
 
-I also tweeted about this [here](https://x.com/FarzaTV/status/2043402737828962489).
+    subgraph prepare [While the screen is captured, about 0.7 s]
+        sort
+        recall
+        capture
+    end
 
-Go crazy with this repo!! It's an MIT license.
+    sort --> route[Router<br/>measured quality, wait and cost]:::logic
+    recall --> note[Turn note<br/>memory, hint step, diagram review]:::logic
+    capture --> note
+    route --> brain{{Sonnet, Opus or Argon}}:::cloud
+    note --> brain
+    brain -->|streamed drawing program| stream[Program stream<br/>cut at each sentence]:::logic
+    stream --> voice[Deepgram voice<br/>first sentence in about 0.2 s]:::cloud
+    stream --> pen[Drawing engine<br/>rough.js and perfect-freehand]:::device
+    voice --> you([You hear and see it together]):::input
+    pen --> you
+    brain -. after the answer .-> file[Filed into memory<br/>off your clock]:::device
 
-# Hi, this is Clicky.
-It's an AI teacher that lives as a buddy next to your cursor. It can see your screen, talk to you, and even point at stuff. Kinda like having a real teacher next to you.
-
-Download HeyClicky for free for [Mac](https://www.heyclicky.com/for-mac) or [Windows](https://www.heyclicky.com/for-windows).
-
-Here's the [original tweet](https://x.com/FarzaTV/status/2041314633978659092) that kinda blew up for a demo for more context.
-
-![Clicky — an ai buddy that lives on your mac](clicky-demo.gif)
-
-This is the open-source version of Clicky for those that want to hack on it, build their own features, or just see how it works under the hood.
-
-## Get started with Claude Code
-
-The fastest way to get this running is with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
-
-Once you get Claude running, paste this:
-
+    classDef input fill:#fde68a,stroke:#b45309,color:#111
+    classDef device fill:#bbf7d0,stroke:#15803d,color:#111
+    classDef logic fill:#bfdbfe,stroke:#1d4ed8,color:#111
+    classDef cloud fill:#e9d5ff,stroke:#7e22ce,color:#111
+    style prepare fill:#f0fdf4,stroke:#15803d
 ```
-Hi Claude.
 
-Clone https://github.com/farzaa/clicky.git into my current directory.
+Green runs on the Mac, purple is a hosted model, blue is Buddy's own logic. The three steps in the box run at the same time, so sorting the question and recalling memory add nothing to the wait.
 
-Then read the CLAUDE.md. I want to get Clicky running locally on my Mac.
+## Measured, not assumed
 
-Help me set up everything — the Cloudflare Worker with my own API keys, the proxy URLs, and getting it building in Xcode. Walk me through it.
-```
+**Which model answers.** The three models raced on every kind of question, judged blind by two judges from different model families over two shuffled passes. Each kind goes to the model with the best quality once a second of silence before the first word is counted against it, and ties within the judges' noise go to the cheaper one. The routes held for any reasonable weighting of waiting and under either judge alone. Details in [docs/model-choice.md](docs/model-choice.md).
 
-That's it. It'll clone the repo, read the docs, and walk you through the whole setup. Once you're running you can just keep talking to it — build features, fix bugs, whatever. Go crazy.
+| Kind of question | Answered by | First word |
+|---|---|---|
+| Quick ("what's base 62?") | Sonnet | about 1.5 s |
+| How or why something works | Argon | about 4 s |
+| Teach me properly | Argon | about 4 s |
+| "I didn't get that" | Argon | about 3 s |
+| Should I use X or Y | Opus | about 6 s |
 
-## Manual setup
+**Sorting the question.** On 100 spoken questions written by someone who never saw the examples, the on-device sorter alone was right on 33 of the 50 held out; with Claude Haiku deciding the uncertain ones it was right on 46, and never mistook a new question for "I didn't follow".
 
-If you want to do it yourself, here's the deal.
+**Learning memory.** On 80 blind questions against 50 remembered ideas, scored on the held-out half: the full cascade found 32 of 33 relevant ideas at 91% precision and left 9 of 10 unrelated questions alone; names alone, used when Haiku is late or there is no key, found 16 at 94% precision. Shortlisting 5,000 ideas takes about 5 ms on the Mac. The choosing call takes 0.74 s at the median, inside the screen capture, for about $0.0006 a question. Filing a lesson costs about $0.002 and happens after the answer.
 
-### Prerequisites
+**Hints and diagram review.** Checked on a LeetCode problem and an Excalidraw design with both Sonnet and Argon: the first hint named no data structure and wrote no code, asking for the code gave it, a concept question on the problem page did not leak the solution, and the diagram review marked the student's own boxes, proposed a cache beside them and gave no score. 32 of 32 checks passed.
 
-- macOS 14.2+ (for ScreenCaptureKit)
-- Xcode 15+
-- Node.js 18+ (for the Cloudflare Worker)
-- A [Cloudflare](https://cloudflare.com) account (free tier works)
-- API keys for: [Anthropic](https://console.anthropic.com), [AssemblyAI](https://www.assemblyai.com), [ElevenLabs](https://elevenlabs.io)
+## How learning memory stays fast, small and current
 
-### 1. Set up the Cloudflare Worker
+Memory that grows forever and is searched while the student waits has three problems: it gets slow, it fills with duplicates, and it goes stale. Each is handled the way production agent memory handles it, on the Mac.
 
-The Worker is a tiny proxy that holds your API keys. The app talks to the Worker, the Worker talks to the APIs. This way your keys never ship in the app binary.
+- **Fast.** Writing happens after the answer is spoken: Claude Haiku names the ideas the lesson taught, matches them to ones already known, and writes the plain-words phrases a student might use for each instead of its name ("charged twice" for an idempotency key), plus likely mishearings of the name. Reading is a single in-memory scan that reuses the vector already computed for sorting the question, so the expensive understanding is paid once at filing time, never while waiting.
+- **Small.** A new explanation updates the idea it is about rather than adding a second copy, so the store grows with the number of ideas, not questions. Ideas met once and unseen for four months move to an archive and come back, history intact, if they come up again.
+- **Current.** Each idea keeps only its latest explanation, so the tutor builds on what was last heard. How well it is probably still remembered follows the FSRS forgetting curve: fresh ideas are built on, fading ones get a one-sentence reminder, forgotten ones are taught again. If a macOS update changes the sentence model, stored vectors are re-embedded in the background.
+
+Everything lives in `~/Library/Application Support/ClickyLocal/Memory` and can be switched off or forgotten in one click from Settings.
+
+## Requirements
+
+- macOS 14.2 or later, on Apple silicon
+- Xcode 16 or later, to build
+- At least one model provider:
+  - an [Anthropic API key](https://console.anthropic.com/) for Claude Sonnet, Opus and Haiku, and
+  - a Google Cloud project with Vertex enabled and the `gcloud` CLI signed in, for Gemini Argon
+- Optional: a [Deepgram](https://deepgram.com/) key for the voice; without one the system voice speaks
+
+With only an Anthropic key, Auto routes between Sonnet and Opus. With only Google Cloud, everything goes to Argon. With both, all three are used.
+
+## Build and run
+
+Once, create a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**, and create it. Then:
 
 ```bash
-cd worker
-npm install
+git clone https://github.com/projects-hacks/clicky-studdy.git
+cd clicky-studdy
+zsh scripts/build-local.sh
 ```
 
-Now add your secrets. Wrangler will prompt you to paste each one:
+The build script signs with that certificate, installs `/Applications/Buddy.app` and launches it.
+
+Keys live in the macOS Keychain, never in the repository or the app. Each command below prompts for the key, so it never appears in shell history:
 
 ```bash
-npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put ASSEMBLYAI_API_KEY
-npx wrangler secret put ELEVENLABS_API_KEY
+security add-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -U -w
+security add-generic-password -a api-key -s com.maverickrajeev.clicky-local.deepgram -U -w
+gcloud auth application-default login
 ```
 
-For the ElevenLabs voice ID, open `wrangler.toml` and set it there (it's not sensitive):
+On first launch macOS asks for Microphone, Screen Recording and Accessibility. The notch stays open on its settings tab until all three are granted. Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/ClickyLocal.log`.
 
-```toml
-[vars]
-ELEVENLABS_VOICE_ID = "your-voice-id-here"
-```
+## Using it
 
-Deploy it:
+- **Ask:** hold Control + Option, speak, let go. Your words appear under the notch as you talk.
+- **Look back:** hover the notch for the last lesson, or switch to the transcript tab for the whole day.
+- **Follow-ups:** tap the buttons under an answer to ask the next question it suggests, or copy the code it offers.
+- **Clear:** Esc or Clear removes the drawing. Stop silences the voice.
+- **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, and Learning memory with Forget all.
 
-```bash
-npx wrangler deploy
-```
+## Privacy
 
-It'll give you a URL like `https://your-worker-name.your-subdomain.workers.dev`. Copy that.
+The screen is captured only while you hold the keys. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/ClickyLocal`. Analytics are disabled.
 
-### 2. Run the Worker locally (for development)
+## Project layout
 
-If you want to test changes to the Worker without deploying:
+| Path | What it holds |
+|---|---|
+| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift` and `DiagramReview.swift` are the features above. |
+| `leanring-buddy/DrawingEngine/` | The drawing engine the answers run in. |
+| `scripts/route_race/` | The model race, the blind judging and the routing table. |
+| `scripts/question_sorting/` | The question sorter's calibration and its blind test. |
+| `scripts/learning_memory/` | Memory's blind recall test, timing, and an end-to-end test of the real store. |
+| `scripts/study_modes/` | The hint ladder and diagram review checks. |
+| `docs/model-choice.md` | Every model decision and the numbers behind it. |
 
-```bash
-cd worker
-npx wrangler dev
-```
+`AGENTS.md` is the detailed map of every source file.
 
-This starts a local server (usually `http://localhost:8787`) that behaves exactly like the deployed Worker. You'll need to create a `.dev.vars` file in the `worker/` directory with your keys:
+## Credits
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-ASSEMBLYAI_API_KEY=...
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID=...
-```
+Buddy began as a fork of [Clicky](https://github.com/farzaa/clicky) by Farza, released under the MIT license, and has since been rebuilt around the notch, drawing programs, measured routing and learning memory. The hand-drawn look comes from [rough.js](https://roughjs.com/) and [perfect-freehand](https://github.com/steveruizok/perfect-freehand), both MIT.
 
-Then update the proxy URLs in the Swift code to point to `http://localhost:8787` instead of the deployed Worker URL while developing. Grep for `clicky-proxy` to find them all.
+## License
 
-### 3. Update the proxy URLs in the app
-
-The app has the Worker URL hardcoded in a few places. Search for `your-worker-name.your-subdomain.workers.dev` and replace it with your Worker URL:
-
-```bash
-grep -r "clicky-proxy" leanring-buddy/
-```
-
-You'll find it in:
-- `CompanionManager.swift` — Claude chat + ElevenLabs TTS
-- `AssemblyAIStreamingTranscriptionProvider.swift` — AssemblyAI token endpoint
-
-### 4. Open in Xcode and run
-
-```bash
-open leanring-buddy.xcodeproj
-```
-
-In Xcode:
-1. Select the `leanring-buddy` scheme (yes, the typo is intentional, long story)
-2. Set your signing team under Signing & Capabilities
-3. Hit **Cmd + R** to build and run
-
-The app will appear in your menu bar (not the dock). Click the icon to open the panel, grant the permissions it asks for, and you're good.
-
-### Permissions the app needs
-
-- **Microphone** — for push-to-talk voice capture
-- **Accessibility** — for the global keyboard shortcut (Control + Option)
-- **Screen Recording** — for taking screenshots when you use the hotkey
-- **Screen Content** — for ScreenCaptureKit access
-
-## Architecture
-
-If you want the full technical breakdown, read `CLAUDE.md`. But here's the short version:
-
-**Menu bar app** (no dock icon) with two `NSPanel` windows — one for the control panel dropdown, one for the full-screen transparent cursor overlay. Push-to-talk streams audio over a websocket to AssemblyAI, sends the transcript + screenshot to Claude via streaming SSE, and plays the response through ElevenLabs TTS. Claude can embed `[POINT:x,y:label:screenN]` tags in its responses to make the cursor fly to specific UI elements across multiple monitors. All three APIs are proxied through a Cloudflare Worker.
-
-## Project structure
-
-```
-leanring-buddy/          # Swift source (yes, the typo stays)
-  CompanionManager.swift    # Central state machine
-  CompanionPanelView.swift  # Menu bar panel UI
-  ClaudeAPI.swift           # Claude streaming client
-  ElevenLabsTTSClient.swift # Text-to-speech playback
-  OverlayWindow.swift       # Blue cursor overlay
-  AssemblyAI*.swift         # Real-time transcription
-  BuddyDictation*.swift     # Push-to-talk pipeline
-worker/                  # Cloudflare Worker proxy
-  src/index.ts              # Three routes: /chat, /tts, /transcribe-token
-CLAUDE.md                # Full architecture doc (agents read this)
-```
-
-## Contributing
-
-PRs welcome. If you're using Claude Code, it already knows the codebase — just tell it what you want to build and point it at `CLAUDE.md`.
-
-Got feedback? DM me on X [@farzatv](https://x.com/farzatv).
+MIT. See [LICENSE](LICENSE).

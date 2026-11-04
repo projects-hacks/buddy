@@ -1,0 +1,1211 @@
+{
+ "concepts": [
+  {
+   "name": "binary search",
+   "aliases": [
+    "binary search algorithm",
+    "half interval search",
+    "logarithmic search"
+   ],
+   "cues": [
+    "finding a value fast",
+    "searching a sorted list",
+    "too slow scanning every item",
+    "check the middle element",
+    "split the list in half",
+    "keep narrowing the range",
+    "how to find without looping all",
+    "search in a sorted array",
+    "jump to middle of array",
+    "discard half each step",
+    "low and high pointers",
+    "divide and conquer searching"
+   ],
+   "summary": "halve a sorted range each step, keeping low and high so the answer stays inside"
+  },
+  {
+   "name": "two pointers",
+   "aliases": [
+    "opposite-end pointers",
+    "two pointer technique",
+    "two pointers approach"
+   ],
+   "cues": [
+    "two indexes moving",
+    "pointers from both ends",
+    "start at both ends",
+    "walk toward the middle",
+    "sorted array scan",
+    "find a pair in sorted",
+    "avoid nested loops",
+    "move left and right",
+    "shrink from both sides",
+    "meet in the middle",
+    "pair sum sorted list",
+    "reduce to linear time"
+   ],
+   "summary": "one pointer from each end of a sorted array moving inward until they meet"
+  },
+  {
+   "name": "sliding window",
+   "aliases": [
+    "sliding window technique",
+    "two pointers window",
+    "window technique"
+   ],
+   "cues": [
+    "moving range over array",
+    "subarray with a condition",
+    "track a contiguous chunk",
+    "expand then shrink range",
+    "longest substring problems",
+    "avoid recomputing each subarray",
+    "keep a running range",
+    "window that grows and shrinks",
+    "contiguous segment with limit",
+    "two moving ends of a range",
+    "slide along a list",
+    "sliding windo",
+    "sliding window"
+   ],
+   "summary": "grow the right edge, shrink the left edge while the window breaks the rule"
+  },
+  {
+   "name": "hash map",
+   "aliases": [
+    "dictionary",
+    "dictionary lookup table",
+    "hash table",
+    "hashmap"
+   ],
+   "cues": [
+    "fast lookup by key",
+    "looking up values by name",
+    "how keys find their values",
+    "why lookups are so quick",
+    "storing key value pairs",
+    "map without searching the list",
+    "where do the keys go",
+    "constant time lookup",
+    "keeping items indexed by label",
+    "avoid scanning everything",
+    "key goes to a spot",
+    "find a value without looping"
+   ],
+   "summary": "keys hashed to buckets so a lookup goes straight to its bucket in constant time"
+  },
+  {
+   "name": "heap",
+   "aliases": [
+    "heap",
+    "max heap",
+    "min heap",
+    "priority queue",
+    "priority queue structure"
+   ],
+   "cues": [
+    "smallest value on top",
+    "tree stored in an array",
+    "parent always smaller than children",
+    "quick access to minimum",
+    "keeps the lowest item first",
+    "tree where parents beat children",
+    "ordering that gives the minimum",
+    "which item comes out first",
+    "array shaped like a tree",
+    "always grab the smallest",
+    "min heap property",
+    "heep",
+    "hep",
+    "the heat"
+   ],
+   "summary": "a tree kept in an array where the parent is always smaller, so the minimum is at the top"
+  },
+  {
+   "name": "dijkstra's algorithm",
+   "aliases": [
+    "dijkstra",
+    "dijkstra's shortest path",
+    "shortest path algorithm"
+   ],
+   "cues": [
+    "shortest path between nodes",
+    "cheapest route in a graph",
+    "fewest total cost to a node",
+    "always pick closest unvisited node",
+    "greedy shortest path",
+    "min heap distances",
+    "weighted graph shortest route",
+    "how to find shortest route",
+    "graph path with weights",
+    "priority queue shortest path",
+    "which node to visit next",
+    "path with lowest total weight"
+   ],
+   "summary": "always expand the closest unvisited node next, using a min heap of distances"
+  },
+  {
+   "name": "breadth first search",
+   "aliases": [
+    "bfs",
+    "breadth first traversal",
+    "breadth-first search"
+   ],
+   "cues": [
+    "explore level by level",
+    "visit neighbours first",
+    "shortest path unweighted graph",
+    "check nearby nodes before far",
+    "graph traversal with a queue",
+    "find fewest steps between nodes",
+    "search wide before deep",
+    "layer by layer graph walk",
+    "queue based graph exploration",
+    "how to find shortest route",
+    "go out ring by ring",
+    "fewest edges between two points",
+    "breath first search",
+    "bread first search",
+    "the breadth search"
+   ],
+   "summary": "visit neighbours level by level with a queue, which finds shortest paths in unweighted graphs"
+  },
+  {
+   "name": "depth first search",
+   "aliases": [
+    "depth first traversal",
+    "depth-first search",
+    "dfs"
+   ],
+   "cues": [
+    "go as deep as possible",
+    "explore one branch fully first",
+    "follow a path until dead end",
+    "back up when stuck",
+    "visit children before siblings",
+    "recursive tree walk",
+    "stack based traversal",
+    "search deeper before wider",
+    "go down one path first",
+    "explore a maze by backtracking",
+    "graph traversal going deep",
+    "check every node in a tree"
+   ],
+   "summary": "go as deep as possible down one branch before backing up, using recursion or a stack"
+  },
+  {
+   "name": "topological sort",
+   "aliases": [
+    "dependency ordering",
+    "topo sort",
+    "topological ordering"
+   ],
+   "cues": [
+    "order tasks by dependencies",
+    "prerequisites come first",
+    "what to do before what",
+    "build order for packages",
+    "course prerequisites ordering",
+    "nodes with no incoming edges",
+    "remove nodes with no dependencies",
+    "directed acyclic graph ordering",
+    "which task goes first",
+    "schedule things with dependencies",
+    "topic sort",
+    "topical sort"
+   ],
+   "summary": "order tasks so every prerequisite comes first, by repeatedly removing nodes with no incoming edges"
+  },
+  {
+   "name": "union find",
+   "aliases": [
+    "disjoint set",
+    "disjoint set union",
+    "disjoint sets",
+    "dsu"
+   ],
+   "cues": [
+    "track which items are connected",
+    "group items into sets",
+    "are these two in the same group",
+    "merge two groups together",
+    "which component does this belong to",
+    "keep sets of nodes apart",
+    "check if two nodes are connected",
+    "find the root of a group",
+    "combine groups quickly",
+    "detect cycles in a graph",
+    "partition items into groups",
+    "join groups without rebuilding"
+   ],
+   "summary": "each element points to a parent; path compression and union by rank keep the trees flat"
+  },
+  {
+   "name": "dynamic programming",
+   "aliases": [
+    "dp",
+    "dynamic programming technique",
+    "memoization style dp"
+   ],
+   "cues": [
+    "break problem into smaller pieces",
+    "same subproblem computed repeatedly",
+    "store answers to avoid recomputing",
+    "too slow recursion repeats work",
+    "cache intermediate results",
+    "solve smaller versions first",
+    "overlapping subproblems problem",
+    "avoid redoing the same calculation",
+    "why is recursion so slow",
+    "remember previous answers",
+    "optimal substructure problems",
+    "table of stored results"
+   ],
+   "summary": "break a problem into overlapping subproblems and store each answer so it is computed once"
+  },
+  {
+   "name": "memoization",
+   "aliases": [
+    "caching function results",
+    "memo",
+    "memoizing",
+    "top down dynamic programming"
+   ],
+   "cues": [
+    "same call computed again",
+    "recursion repeats work",
+    "slow recursive function",
+    "store previous results",
+    "remember answers to subproblems",
+    "avoid recomputing the same thing",
+    "fibonacci is too slow",
+    "exponential recursion blowup",
+    "cache recursive results",
+    "speed up recursion",
+    "keep answers so I don't redo them",
+    "repeated subproblems"
+   ],
+   "summary": "cache the result of a recursive call keyed by its arguments, top down, versus filling a table bottom up"
+  },
+  {
+   "name": "knapsack problem",
+   "aliases": [
+    "0/1 knapsack",
+    "knapsack",
+    "knapsack dp"
+   ],
+   "cues": [
+    "pick items under a weight limit",
+    "maximize value with capacity",
+    "backpack with limited weight",
+    "choose which things to carry",
+    "best total value within a budget",
+    "take it or leave it choice",
+    "each item taken once or not",
+    "fit the most value in a bag",
+    "weight limit optimization",
+    "which items fit in my bag",
+    "dynamic programming item choice",
+    "subset of items with max value"
+   ],
+   "summary": "for each item and capacity choose the better of taking it or leaving it"
+  },
+  {
+   "name": "trie",
+   "aliases": [
+    "digital tree",
+    "prefix tree",
+    "radix tree"
+   ],
+   "cues": [
+    "tree of characters",
+    "stores words by letters",
+    "fast prefix lookup",
+    "autocomplete data structure",
+    "find words starting with",
+    "shared prefixes stored once",
+    "path spells a word",
+    "search by first letters",
+    "words sharing beginnings",
+    "prefix search tree",
+    "letter by letter lookup",
+    "why autocomplete is fast"
+   ],
+   "summary": "a tree of characters where each path from the root spells a prefix, for fast autocomplete"
+  },
+  {
+   "name": "segment tree",
+   "aliases": [
+    "interval tree",
+    "range query tree",
+    "segment tree data structure"
+   ],
+   "cues": [
+    "range sum queries are slow",
+    "update one element fast",
+    "query a range of an array",
+    "sum between indices quickly",
+    "minimum over a range",
+    "avoid rescanning the array",
+    "log n range updates",
+    "tree over array ranges",
+    "fast range queries and updates",
+    "prefix sums but with updates",
+    "range query with changing values",
+    "segment tee",
+    "segmented tree"
+   ],
+   "summary": "a tree over array ranges so range sums or minimums and point updates take log n"
+  },
+  {
+   "name": "quicksort",
+   "aliases": [
+    "partition sort",
+    "quick sort"
+   ],
+   "cues": [
+    "sort by picking a pivot",
+    "split around a middle value",
+    "smaller left larger right",
+    "recursive sorting algorithm",
+    "divide and conquer sorting",
+    "how does quick sort work",
+    "fast comparison sort",
+    "partitioning an array",
+    "sort the list recursively",
+    "choose a pivot element",
+    "sorting algorithm with pivot",
+    "quick sort split step"
+   ],
+   "summary": "pick a pivot, partition smaller to the left and larger to the right, recurse on each side"
+  },
+  {
+   "name": "merge sort",
+   "aliases": [
+    "divide and conquer sort",
+    "merge-sort",
+    "mergesort"
+   ],
+   "cues": [
+    "sorting by splitting the list",
+    "split list then combine sorted parts",
+    "sort the halves first",
+    "recursive sorting algorithm",
+    "why sort is n log n",
+    "combining two sorted lists",
+    "sorting without quicksort",
+    "stable sorting method",
+    "break array into pieces",
+    "merge two sorted sublists",
+    "how to sort big arrays",
+    "sorting algorithm step by step"
+   ],
+   "summary": "split in half, sort each half, then merge the two sorted halves in linear time"
+  },
+  {
+   "name": "big o notation",
+   "aliases": [
+    "asymptotic notation",
+    "big-o",
+    "o(n)",
+    "space complexity",
+    "time complexity"
+   ],
+   "cues": [
+    "how fast it slows down",
+    "work grows with input size",
+    "how efficient is my code",
+    "how long does it take",
+    "ignore constant factors",
+    "what does n mean",
+    "runtime as data grows",
+    "comparing algorithm speed",
+    "n log n meaning",
+    "worst case growth rate",
+    "scales with more items",
+    "too slow for big inputs"
+   ],
+   "summary": "how the work grows as the input grows, ignoring constants, like n log n"
+  },
+  {
+   "name": "recursion",
+   "aliases": [
+    "recursive call",
+    "recursive function",
+    "self-calling function"
+   ],
+   "cues": [
+    "function calls itself",
+    "keeps calling itself",
+    "function inside itself",
+    "smaller version of the problem",
+    "when does it stop",
+    "infinite loop of calls",
+    "call itself repeatedly",
+    "how does the function end",
+    "repeat with smaller input",
+    "calls itself until done",
+    "stopping condition for function",
+    "break down problem into smaller pieces"
+   ],
+   "summary": "a function that calls itself on a smaller input until it reaches a base case"
+  },
+  {
+   "name": "backtracking",
+   "aliases": [
+    "backtrack",
+    "backtrack search",
+    "recursive backtracking"
+   ],
+   "cues": [
+    "build a solution one step at a time",
+    "undo the last choice",
+    "try options and undo when stuck",
+    "dead end go back",
+    "explore all possibilities",
+    "prune bad paths early",
+    "step back when it fails",
+    "search every arrangement",
+    "undo a choice",
+    "brute force with pruning",
+    "trying combinations and reverting",
+    "choices that can't lead anywhere"
+   ],
+   "summary": "build a candidate step by step and undo the last choice as soon as it cannot lead to a solution"
+  },
+  {
+   "name": "linked list cycle detection",
+   "aliases": [
+    "detect loop in linked list",
+    "floyd's cycle detection",
+    "linked list loop detection",
+    "tortoise and hare"
+   ],
+   "cues": [
+    "linked list loops back on itself",
+    "detect a loop in a list",
+    "list never ends",
+    "nodes point back to earlier node",
+    "how to find a cycle",
+    "check if list is circular",
+    "infinite loop when traversing list",
+    "two pointers loop check",
+    "detect repeated nodes in list",
+    "stop traversal from looping forever"
+   ],
+   "summary": "a slow pointer and a fast pointer; if there is a loop the fast one laps the slow one"
+  },
+  {
+   "name": "monotonic stack",
+   "aliases": [
+    "mono stack",
+    "monotone stack",
+    "next greater element stack"
+   ],
+   "cues": [
+    "stack in sorted order",
+    "pop smaller elements",
+    "find next greater element",
+    "keep stack increasing",
+    "stack that stays ordered",
+    "next bigger number to the right",
+    "elements waiting for a bigger one",
+    "stack with popping",
+    "order preserved on stack",
+    "look right for larger value",
+    "stack for next greater",
+    "keep only useful candidates"
+   ],
+   "summary": "a stack kept in increasing order, popping smaller items, to find the next greater element"
+  },
+  {
+   "name": "prefix sum",
+   "aliases": [
+    "cumulative sum",
+    "prefix sums",
+    "running total"
+   ],
+   "cues": [
+    "sum of a range fast",
+    "range sum too slow",
+    "add numbers between indices",
+    "repeated range queries slow",
+    "total up to this index",
+    "precompute totals for queries",
+    "sum from start to index",
+    "avoid summing every time",
+    "subarray sum quickly",
+    "running sum of array",
+    "range query shortcut",
+    "sum between two positions"
+   ],
+   "summary": "store the total up to each index so any range sum is one subtraction"
+  },
+  {
+   "name": "bit manipulation",
+   "aliases": [
+    "bit operations",
+    "bit twiddling",
+    "bitwise operations"
+   ],
+   "cues": [
+    "operating on binary digits",
+    "working with bits directly",
+    "bitwise and or xor",
+    "shifting bits left or right",
+    "flipping individual bits",
+    "checking if a bit is set",
+    "clearing the lowest set bit",
+    "binary tricks for speed",
+    "using bits to store flags",
+    "masking bits in an integer"
+   ],
+   "summary": "use and, or, xor and shifts on the binary form, like x and x minus one clearing the lowest set bit"
+  },
+  {
+   "name": "lru cache",
+   "aliases": [
+    "least recently used cache",
+    "lru",
+    "lru eviction"
+   ],
+   "cues": [
+    "cache keeps running out of room",
+    "which item to throw out",
+    "drop the oldest unused entry",
+    "evict least recently used",
+    "fast lookup with limited memory",
+    "remember recently accessed items",
+    "cache full what gets removed",
+    "constant time cache eviction",
+    "keep only recent entries",
+    "old unused data gets deleted",
+    "hash map with a list",
+    "cache replacement policy"
+   ],
+   "summary": "a hash map plus a doubly linked list so the least recently used entry is evicted in constant time"
+  },
+  {
+   "name": "consistent hashing",
+   "aliases": [
+    "consistent hash",
+    "consistent hash ring",
+    "hash ring"
+   ],
+   "cues": [
+    "adding a server reshuffles everything",
+    "most keys move when scaling",
+    "how to spread keys across servers",
+    "minimal remapping when nodes change",
+    "keys stay on same server",
+    "hash mod n breaks on resize",
+    "distribute cache keys across nodes",
+    "why does rehashing move so much data",
+    "nodes join and leave the cluster",
+    "ring of servers and keys",
+    "load balancing cache keys",
+    "sharding without moving all data",
+    "consistant hashing",
+    "consistent hasing",
+    "hash ring"
+   ],
+   "summary": "servers sit on a hash ring with virtual nodes, so adding one moves only the keys next to it"
+  },
+  {
+   "name": "eventual consistency",
+   "aliases": [
+    "consistency model",
+    "eventual consistency model",
+    "eventually consistent"
+   ],
+   "cues": [
+    "replicas show different data",
+    "reads return stale values",
+    "copies disagree for a moment",
+    "data takes time to sync",
+    "update not visible everywhere yet",
+    "different servers show old value",
+    "all copies match eventually",
+    "write not seen right away",
+    "why do nodes disagree",
+    "does the data catch up",
+    "delayed replication of writes",
+    "some users see old data"
+   ],
+   "summary": "replicas may disagree for a moment after a write but all catch up, like a profile name update reaching server b later"
+  },
+  {
+   "name": "strong consistency",
+   "aliases": [
+    "linearizability",
+    "linearizable reads",
+    "strong consistency model"
+   ],
+   "cues": [
+    "every read sees latest write",
+    "reads never return stale data",
+    "behaves like a single copy",
+    "replicas must agree before reply",
+    "reads wait for replicas",
+    "no outdated values anywhere",
+    "all nodes show same value",
+    "writes visible immediately everywhere",
+    "database never returns old data",
+    "why do reads get slow",
+    "stale reads not allowed",
+    "one up to date copy",
+    "consistent across all servers",
+    "wait for everyone to sync"
+   ],
+   "summary": "every read sees the latest write, as if there were one copy, at the cost of waiting on replicas"
+  },
+  {
+   "name": "cap theorem",
+   "aliases": [
+    "brewer's theorem",
+    "cap",
+    "cap theorem",
+    "consistency availability partition tolerance"
+   ],
+   "cues": [
+    "can't have everything in distributed systems",
+    "pick two of three",
+    "consistent or available during failure",
+    "what happens when network splits",
+    "replicas disagree when connection drops",
+    "why databases trade off consistency",
+    "choose consistency or availability",
+    "partition tolerance tradeoff",
+    "distributed database limits",
+    "why not always consistent and available",
+    "nodes can't talk to each other",
+    "tradeoff when servers get disconnected"
+   ],
+   "summary": "during a network partition a system must choose between staying available and staying consistent"
+  },
+  {
+   "name": "load balancer",
+   "aliases": [
+    "lb",
+    "load balancer",
+    "request distribution"
+   ],
+   "cues": [
+    "too many requests hit one server",
+    "spread traffic across machines",
+    "one server gets overloaded",
+    "distribute incoming requests evenly",
+    "what sends users to different servers",
+    "server crashes under heavy traffic",
+    "add more servers for traffic",
+    "route each request to a server",
+    "keep one machine from dying",
+    "round robin between servers",
+    "send requests to healthy servers",
+    "handle more users at once",
+    "balancer picks which server",
+    "traffic split between servers"
+   ],
+   "summary": "spreads incoming requests across servers, by round robin or least connections, and drops unhealthy ones"
+  },
+  {
+   "name": "rate limiting",
+   "aliases": [
+    "api throttling",
+    "rate limit",
+    "request throttling",
+    "throttling"
+   ],
+   "cues": [
+    "too many requests from one user",
+    "server gets overwhelmed by clients",
+    "cap requests per minute",
+    "stop one user flooding the api",
+    "429 too many requests error",
+    "limit how often a client calls",
+    "protect service from abuse",
+    "prevent a client hammering the server",
+    "requests allowed per time window",
+    "why does my api block me",
+    "user spamming the endpoint",
+    "slow down clients making calls"
+   ],
+   "summary": "cap how many requests a client may make in a period so one user cannot overwhelm the service"
+  },
+  {
+   "name": "token bucket",
+   "aliases": [
+    "bucket rate limiter",
+    "token bucket algorithm",
+    "token bucket rate limiting"
+   ],
+   "cues": [
+    "allows short bursts of requests",
+    "requests spend tokens to go through",
+    "limit calls but permit spikes",
+    "tokens refill at a steady rate",
+    "capacity caps how many can save up",
+    "rate limit that still allows bursts",
+    "too many requests get blocked",
+    "how api rate limiting works",
+    "steady refill with burst allowance",
+    "throttle requests without rejecting spikes",
+    "requests wait for a token",
+    "tokens run out so requests get rejected"
+   ],
+   "summary": "tokens refill at a fixed rate up to a limit and each request spends one, allowing short bursts"
+  },
+  {
+   "name": "database sharding",
+   "aliases": [
+    "horizontal partitioning",
+    "partitioning",
+    "shard key",
+    "sharding"
+   ],
+   "cues": [
+    "one database too big",
+    "table too many rows",
+    "spread data across servers",
+    "split rows across databases",
+    "queries slow on large table",
+    "scale writes beyond one machine",
+    "pick key to divide users",
+    "same data on many machines",
+    "one server can't hold everything",
+    "split table by user id",
+    "data grows too fast",
+    "break up huge table",
+    "each machine holds part",
+    "route query to right server",
+    "need more capacity for data",
+    "distribute rows between machines",
+    "shard by customer",
+    "database scaling problem"
+   ],
+   "summary": "split one table's rows across databases by a shard key such as user id"
+  },
+  {
+   "name": "replication",
+   "aliases": [
+    "data replication",
+    "database replication",
+    "read replicas",
+    "replicas"
+   ],
+   "cues": [
+    "copies of data on machines",
+    "same data on several servers",
+    "keep data in sync across nodes",
+    "backup copies of the database",
+    "what happens if one server dies",
+    "reads from multiple machines",
+    "data copied to other servers",
+    "one server takes writes",
+    "followers serve reads",
+    "data stays available if a node fails",
+    "keep copies consistent",
+    "spread data across servers"
+   ],
+   "summary": "copies of the data on several machines, a leader taking writes and followers serving reads"
+  },
+  {
+   "name": "leader election",
+   "aliases": [
+    "electing a leader",
+    "leader selection",
+    "raft",
+    "raft leader election"
+   ],
+   "cues": [
+    "which node is in charge",
+    "picking a primary server",
+    "nodes agree on one leader",
+    "who coordinates the cluster",
+    "what if the leader dies",
+    "new leader after failure",
+    "only one node should lead",
+    "avoid two nodes acting as leader",
+    "how do servers choose a boss",
+    "votes for a coordinator",
+    "terms and heartbeats",
+    "one master among many servers"
+   ],
+   "summary": "nodes vote so exactly one becomes leader for a term, and a new vote starts if its heartbeats stop"
+  },
+  {
+   "name": "write-ahead log",
+   "aliases": [
+    "commit log",
+    "redo log",
+    "wal",
+    "write ahead logging"
+   ],
+   "cues": [
+    "log before changing data",
+    "crash recovery by replaying",
+    "append only log for durability",
+    "changes saved before applied",
+    "replay log after crash",
+    "how databases survive crashes",
+    "log first then update",
+    "undo redo after failure",
+    "sequential log of changes",
+    "data lost on power cut",
+    "durable writes before commit",
+    "rebuild state from log"
+   ],
+   "summary": "write the change to an append only log before applying it, so a crash can be replayed"
+  },
+  {
+   "name": "content delivery network",
+   "aliases": [
+    "cdn",
+    "content distribution network",
+    "edge caching"
+   ],
+   "cues": [
+    "site loads slow far away",
+    "files served from far servers",
+    "copies of files near users",
+    "faster loading for global users",
+    "static files load slowly",
+    "serve images from closer",
+    "reduce latency for visitors",
+    "distribute files worldwide",
+    "why use edge servers",
+    "website slow in other countries",
+    "cache files near customers",
+    "make downloads faster everywhere"
+   ],
+   "summary": "copies of static files on edge servers near users so they load from close by"
+  },
+  {
+   "name": "cache invalidation",
+   "aliases": [
+    "cache aside",
+    "cache busting",
+    "cache expiry",
+    "invalidating cache",
+    "ttl"
+   ],
+   "cues": [
+    "stale data showing up",
+    "cache shows old values",
+    "data not updating",
+    "cached copy is outdated",
+    "when to clear the cache",
+    "remove cached entries",
+    "expire old cache",
+    "readers see old data",
+    "cache out of sync",
+    "refresh cached values",
+    "keep cache in sync",
+    "cache never updates",
+    "cash invalidation",
+    "cache invalidated",
+    "cash invalidation"
+   ],
+   "summary": "removing or expiring cached entries when the source changes, so readers do not see stale data"
+  },
+  {
+   "name": "message queue",
+   "aliases": [
+    "kafka",
+    "message broker",
+    "mq",
+    "pub sub",
+    "queue",
+    "rabbitmq"
+   ],
+   "cues": [
+    "senders and receivers out of sync",
+    "producer faster than consumer",
+    "messages getting lost under load",
+    "services waiting on each other",
+    "consumer falls behind",
+    "process work later asynchronously",
+    "decouple two services",
+    "buffer requests between services",
+    "slow worker overwhelmed",
+    "task list for background jobs",
+    "queue up work to handle later",
+    "services talking directly break"
+   ],
+   "summary": "producers put messages on a queue and consumers take them at their own pace, decoupling the two"
+  },
+  {
+   "name": "idempotency key",
+   "aliases": [
+    "idempotency token",
+    "idempotent request key",
+    "idempotent requests",
+    "request key"
+   ],
+   "cues": [
+    "retry charged twice",
+    "payment charged twice",
+    "duplicate request problem",
+    "retry same request safely",
+    "client sends unique id",
+    "avoid double charge",
+    "recognise repeated request",
+    "safe to retry payments",
+    "request processed twice",
+    "same request sent again",
+    "stop duplicate payments",
+    "unique id per request"
+   ],
+   "summary": "the client sends a unique key so a retried payment is recognised and not charged twice"
+  },
+  {
+   "name": "database indexing",
+   "aliases": [
+    "create index",
+    "db index",
+    "index",
+    "sql index",
+    "table index"
+   ],
+   "cues": [
+    "queries are slow on big tables",
+    "searching scans every row",
+    "make lookups faster",
+    "find rows without scanning",
+    "sorted column for searching",
+    "speed up a where clause",
+    "why is my query slow",
+    "too many rows to check",
+    "lookup takes too long",
+    "jump straight to matching rows",
+    "how to speed up searches",
+    "table scan is slow"
+   ],
+   "summary": "a sorted structure on a column so a query jumps to matching rows instead of scanning the table"
+  },
+  {
+   "name": "b-tree",
+   "aliases": [
+    "b plus tree",
+    "b tree",
+    "b+ tree",
+    "b-tree index",
+    "balanced tree",
+    "btree"
+   ],
+   "cues": [
+    "how databases find rows fast",
+    "tree with many keys per node",
+    "why it stays balanced",
+    "index structure on disk",
+    "fewer disk reads to search",
+    "what makes a tree shallow",
+    "how sorted data gets indexed",
+    "why databases use trees",
+    "keys stored in each node",
+    "searching a huge sorted table",
+    "balanced search tree for storage",
+    "disk friendly tree structure",
+    "b tree vs binary tree",
+    "bee tree",
+    "be tree",
+    "b-three",
+    "the b tree thing"
+   ],
+   "summary": "a wide shallow tree with many keys per node, kept balanced, used by databases on disk"
+  },
+  {
+   "name": "two-phase commit",
+   "aliases": [
+    "2-phase commit",
+    "2pc",
+    "two phase commit"
+   ],
+   "cues": [
+    "all nodes must agree",
+    "distributed transaction stays consistent",
+    "either all commit or none",
+    "coordinator tells everyone to commit",
+    "prepare then commit",
+    "partial failure across databases",
+    "keep multiple databases in sync",
+    "atomic commit across services",
+    "one node commits, another fails",
+    "how to make transactions all or nothing",
+    "ask everyone first before committing",
+    "two rounds of messages",
+    "tu two phase commit",
+    "two face commit",
+    "to phase commit"
+   ],
+   "summary": "a coordinator asks every participant to prepare, then tells all to commit or all to abort"
+  },
+  {
+   "name": "saga pattern",
+   "aliases": [
+    "distributed saga",
+    "long-running transaction pattern",
+    "saga",
+    "saga design"
+   ],
+   "cues": [
+    "one big transaction across services",
+    "undo steps if something fails",
+    "rollback across microservices",
+    "steps that can be reversed",
+    "no single database transaction",
+    "chain of local transactions",
+    "handle failure in multi-step process",
+    "compensate when a step fails",
+    "keep data consistent across services",
+    "long process spanning many systems",
+    "what if the second service fails",
+    "avoid two-phase commit",
+    "sega pattern",
+    "the saga pattern thing",
+    "sagas in microservices"
+   ],
+   "summary": "a long transaction as a chain of local steps, each with a compensating step to undo it"
+  },
+  {
+   "name": "bloom filter",
+   "aliases": [
+    "bloom filters",
+    "bloom set",
+    "probabilistic membership filter"
+   ],
+   "cues": [
+    "checks if item is in set",
+    "fast membership test",
+    "uses little memory",
+    "false positives possible",
+    "no false negatives",
+    "set membership with hashing",
+    "bit array with hashes",
+    "says probably present",
+    "says definitely not present",
+    "space saving set check",
+    "cache lookup before disk",
+    "avoid expensive existence checks"
+   ],
+   "summary": "a bit array and several hashes that can say definitely not present or probably present"
+  },
+  {
+   "name": "gossip protocol",
+   "aliases": [
+    "epidemic protocol",
+    "gossip propagation",
+    "rumor spreading"
+   ],
+   "cues": [
+    "how nodes share news",
+    "spreads through the cluster",
+    "each node tells random peers",
+    "no central broadcaster",
+    "how cluster state propagates",
+    "how does news reach everyone",
+    "nodes passing info around",
+    "randomly chatting with peers",
+    "how membership info spreads",
+    "information spreads like a rumour",
+    "every node talks to a few others",
+    "how servers learn about each other",
+    "spreads without a coordinator"
+   ],
+   "summary": "each node tells a few random peers what it knows, so news spreads through the cluster like a rumour"
+  },
+  {
+   "name": "quorum",
+   "aliases": [
+    "quorum reads and writes",
+    "r plus w greater than n",
+    "read and write quorums",
+    "read quorum",
+    "write quorum"
+   ],
+   "cues": [
+    "how many replicas must agree",
+    "overlap between reads and writes",
+    "reads see latest write",
+    "too few nodes acknowledging",
+    "majority of replicas needed",
+    "make sure reads see writes",
+    "replicas disagree after failure",
+    "how many nodes to wait for",
+    "stale reads across replicas",
+    "guarantee fresh data distributed",
+    "distributed database consistency rule",
+    "numbers that must add up"
+   ],
+   "summary": "with n replicas, reading from r and writing to w where r plus w is more than n guarantees overlap"
+  },
+  {
+   "name": "api gateway",
+   "aliases": [
+    "api gateway pattern",
+    "edge gateway",
+    "gateway"
+   ],
+   "cues": [
+    "single entry point for services",
+    "one door in front of services",
+    "handles auth before requests",
+    "routes requests to right service",
+    "limits how many requests",
+    "checks who is calling",
+    "one front door for clients",
+    "sits in front of microservices",
+    "central place for rate limits",
+    "clients talk to one address",
+    "services hidden behind one endpoint",
+    "what does gateway do"
+   ],
+   "summary": "one entry point in front of services that handles authentication, routing and rate limits"
+  },
+  {
+   "name": "websockets",
+   "aliases": [
+    "web sockets",
+    "websocket",
+    "ws"
+   ],
+   "cues": [
+    "server pushes updates to browser",
+    "no need to keep polling",
+    "real time updates",
+    "keep connection open",
+    "two way communication",
+    "client asks server repeatedly",
+    "live data without refreshing",
+    "persistent connection to server",
+    "server sends data unprompted",
+    "chat app updates instantly",
+    "web sockets keep talking",
+    "web socket dont refresh"
+   ],
+   "summary": "a long lived two way connection so the server can push updates without the client polling"
+  },
+  {
+   "name": "backpressure",
+   "aliases": [
+    "back pressure",
+    "flow control in streams"
+   ],
+   "cues": [
+    "producer overwhelms consumer",
+    "data piles up in memory",
+    "slow reader gets flooded",
+    "fast writer, slow reader",
+    "buffer keeps growing",
+    "consumer cannot keep up",
+    "stream floods the receiver",
+    "how to slow the sender down",
+    "memory spikes with big streams",
+    "reader falls behind writer",
+    "producer keeps sending too fast",
+    "signal to pause the source"
+   ],
+   "summary": "a slow consumer signals the producer to slow down instead of being flooded"
+  }
+ ]
+}
