@@ -84,6 +84,13 @@ enum LoginItem {
 
     static func applyChoice() {
         let service = SMAppService.mainApp
+        // An install from before the choice existed, already starting at
+        // login: that counts as having said yes, and is saved as such, so a
+        // copy launched from elsewhere (an update, a build) moves the login
+        // item to itself instead of dropping it.
+        if UserDefaults.standard.object(forKey: choiceDefaultsKey) == nil, service.status == .enabled {
+            UserDefaults.standard.set(true, forKey: choiceDefaultsKey)
+        }
         let hasChosen = UserDefaults.standard.object(forKey: choiceDefaultsKey) != nil
         // Registered once from a build folder, the login item would go on
         // starting that copy; a different copy renews it.

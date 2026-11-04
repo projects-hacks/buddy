@@ -74,6 +74,15 @@ final class TutorControlBarModel: ObservableObject {
     /// screen", then "thinking". A few seconds of silence read as broken;
     /// the same seconds with a stage name read as work.
     @Published var waitingStage: String?
+    struct UpdateBanner: Equatable {
+        let text: String
+        let isWorking: Bool
+        let canInstall: Bool
+    }
+    /// A newer Buddy, while one is available or installing.
+    @Published var updateBanner: UpdateBanner?
+    var onInstallUpdate: () -> Void = {}
+    var onShowReleaseNotes: () -> Void = {}
     /// A key that stopped working, shown open in the notch until fixed.
     @Published var keyProblemMessage: String?
     /// Opens setup on the keys, for the key problem banner.
@@ -822,6 +831,31 @@ struct TutorNotchView: View {
 
     private var talkingContent: some View {
         VStack(spacing: 14) {
+            if let banner = model.updateBanner {
+                HStack(spacing: 10) {
+                    if banner.isWorking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color(red: 0.5, green: 0.75, blue: 1.0))
+                    }
+                    Text(banner.text)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.88))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    if banner.canInstall {
+                        NotchButton(systemImage: "doc.text", title: "What's new", action: model.onShowReleaseNotes)
+                        NotchButton(systemImage: "arrow.down.circle", title: "Update", action: model.onInstallUpdate)
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.blue.opacity(0.2)))
+                .padding(.horizontal, 18)
+                .animation(.smooth(duration: 0.25), value: banner)
+            }
             if let keyProblemMessage = model.keyProblemMessage {
                 HStack(spacing: 10) {
                     Image(systemName: "key.slash")

@@ -58,6 +58,9 @@ struct CompanionPanelView: View {
                 openAtLoginRow
                     .padding(.horizontal, 16)
 
+                UpdatesRow(updater: companionManager.appUpdater)
+                    .padding(.horizontal, 16)
+
                 Spacer().frame(height: 10)
                 lessonsSection
                     .padding(.horizontal, 16)
@@ -772,5 +775,77 @@ private struct PermissionStepRow: View {
         )
         .animation(.smooth(duration: 0.25), value: step.isGranted)
         .animation(.smooth(duration: 0.25), value: isNext)
+    }
+}
+
+
+/// The version, automatic checks, and a check or update on demand.
+private struct UpdatesRow: View {
+    @ObservedObject var updater: AppUpdater
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(DS.Colors.textTertiary)
+                        .frame(width: 16)
+                    Text("Check for updates")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.checksAutomatically = $0 }))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .tint(DS.Colors.accent)
+                    .scaleEffect(0.8)
+                    .pointerCursor()
+            }
+            HStack(spacing: 8) {
+                Text(statusText)
+                    .font(.system(size: 11))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .lineLimit(2)
+                Spacer()
+                Button(action: buttonTapped) {
+                    Text(buttonTitle)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(updater.state == .checking || updater.state == .downloading || updater.state == .installing)
+                .pointerCursor()
+            }
+            .padding(.leading, 24)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var statusText: String {
+        switch updater.state {
+        case .checking: return "Buddy \(updater.currentVersion), checking..."
+        case .upToDate: return "Buddy \(updater.currentVersion), up to date."
+        case .available: return "Buddy \(updater.availableRelease?.version ?? "") is ready."
+        case .downloading: return "Downloading..."
+        case .installing: return "Installing..."
+        case .failed(let message): return message
+        case .idle: return "Buddy \(updater.currentVersion)"
+        }
+    }
+
+    private var buttonTitle: String {
+        updater.state == .available ? "Update" : "Check now"
+    }
+
+    private func buttonTapped() {
+        Task {
+            if updater.state == .available {
+                await updater.installAvailableUpdate()
+            } else {
+                await updater.check()
+            }
+        }
     }
 }

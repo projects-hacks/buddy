@@ -114,6 +114,13 @@ final class QAHooks {
             companionManager.setupWindow.close()
         case "memoryRecentSeconds":
             LearningMemory.stillInConversationSeconds = TimeInterval(info["value"] ?? "") ?? 20 * 60
+        case "checkUpdate":
+            Task { @MainActor in
+                await companionManager.appUpdater.check()
+                TutorDebugLog.write("🧪 qa: update state \(companionManager.appUpdater.state), running \(companionManager.appUpdater.currentVersion)")
+            }
+        case "installUpdate":
+            Task { @MainActor in await companionManager.appUpdater.installAvailableUpdate() }
         case "forgetMemory":
             companionManager.forgetLearningMemory()
         default:

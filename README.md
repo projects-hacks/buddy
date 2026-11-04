@@ -14,6 +14,8 @@ Every design choice below was measured rather than assumed, and the scripts that
 2. Open Buddy. The first time, macOS asks before opening an app that is not notarized: open **System Settings > Privacy & Security** and click **Open Anyway**.
 3. The setup window asks your name and your API keys, tests each key as you paste it, and walks through the three permissions.
 
+After that Buddy updates itself: the notch says when a new version is ready, and one click installs it.
+
 Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/settings/keys) key is recommended, and [Gemini](https://aistudio.google.com/apikey) and [Deepgram](https://console.deepgram.com/) keys are optional. A question costs about one to six cents. Step by step, with troubleshooting: [docs/install.md](docs/install.md). How to get the most out of it: [docs/using-buddy.md](docs/using-buddy.md).
 
 ## What it does
@@ -27,6 +29,7 @@ Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/se
 | **Reviews your own diagrams** | Drawing a design in Excalidraw, draw.io, Miro or Freeform, Buddy marks your own boxes and draws what it would add beside them, dashed and purple, so a suggestion reads as a suggestion. No score. |
 | **Picks the right model per question** | Under Brain: Auto, quick questions go to Claude Sonnet, explanations to Gemini Argon, trade-offs to Claude Opus, each choice taken from a measured table of quality, wait and cost. |
 | **Writes it all down** | Every question and answer is saved as a plain Markdown file per day, readable in any editor. |
+| **Updates itself** | Once a day it checks for a new release; one click downloads it, verifies its checksum and signature, swaps it in and relaunches, with keys, memory and permissions kept. |
 | **Quiet sounds** | A soft tone when the mic opens and when a question is sent, a water drop when the notch opens. Never over the voice; one switch turns them off. |
 
 ## How it works

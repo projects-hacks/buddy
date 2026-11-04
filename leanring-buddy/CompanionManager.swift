@@ -239,6 +239,9 @@ final class CompanionManager: ObservableObject {
     private let questionSorter = QuestionSorter()
     /// What the student has learned with Buddy across sessions.
     let learningMemory = LearningMemory()
+    /// Keeps a downloaded Buddy current from GitHub releases.
+    let appUpdater = AppUpdater()
+    private var updaterStateCancellable: AnyCancellable?
     /// How far up the hint ladder they are on each practice problem.
     private let practiceHintLadder = PracticeHintLadder()
 
@@ -496,6 +499,7 @@ final class CompanionManager: ObservableObject {
         qaHooks.start()
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        bindUpdater()
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 self?.setupWindow.show(startingAt: .welcome)
@@ -1859,6 +1863,31 @@ final class CompanionManager: ObservableObject {
     func forgetLearningMemory() {
         learningMemory.forgetEverything()
         practiceHintLadder.forgetAll()
+    }
+
+    /// An available update shows in the open notch, with its progress, until
+    /// installed; a failure keeps the banner with what went wrong.
+    private func bindUpdater() {
+        let model = controlBar.model
+        model.onInstallUpdate = { [weak self] in Task { await self?.appUpdater.installAvailableUpdate() } }
+        model.onShowReleaseNotes = { [weak self] in
+            if let page = self?.appUpdater.availableRelease?.pageURL { NSWorkspace.shared.open(page) }
+        }
+        updaterStateCancellable = appUpdater.$state
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                guard let self else { return }
+                let version = self.appUpdater.availableRelease?.version ?? ""
+                switch state {
+                case .available: model.updateBanner = .init(text: "Buddy \(version) is ready.", isWorking: false, canInstall: true)
+                case .downloading: model.updateBanner = .init(text: "Downloading Buddy \(version)...", isWorking: true, canInstall: false)
+                case .installing: model.updateBanner = .init(text: "Checking and installing Buddy \(version)...", isWorking: true, canInstall: false)
+                case .failed(let message) where self.appUpdater.availableRelease != nil:
+                    model.updateBanner = .init(text: message, isWorking: false, canInstall: true)
+                default: model.updateBanner = nil
+                }
+            }
+        appUpdater.startAutomaticChecks()
     }
 
     /// Esc puts away what was opened last: the notch first, then the drawing.

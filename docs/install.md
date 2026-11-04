@@ -93,6 +93,28 @@ People already set up with the Google Cloud CLI can choose **Google Cloud** inst
 
 **Done.** A short how-to, then Buddy waits in the notch.
 
+## Updating
+
+From 1.2 on, Buddy keeps itself current. Once a day it checks for a newer release, and when there is one the open notch says **Buddy 1.3 is ready** with **What's new** and **Update**. Update downloads it, checks it against the checksum published with the release, checks it is signed by the same certificate as the copy you have, swaps it in and relaunches. Keys, memory and permissions carry over, and there is no Open Anyway this time, because Buddy downloaded it rather than a browser. Settings has **Check now** and a switch to stop the daily check.
+
+```mermaid
+flowchart TD
+    daily([Once a day]):::buddy --> check[Ask GitHub for the latest release]:::buddy
+    check -->|newer| banner[Notch: Buddy 1.3 is ready]:::you
+    banner -->|Update| download[Download the disk image]:::buddy
+    download --> sum{Matches the published checksum?}:::buddy
+    sum -->|no| stop[Nothing installed, error shown]:::stop
+    sum -->|yes| sign{Signed like the installed Buddy?}:::buddy
+    sign -->|no| stop
+    sign -->|yes| swap[Swap in, relaunch, permissions kept]:::buddy
+
+    classDef you fill:#fde68a,stroke:#b45309,color:#111
+    classDef buddy fill:#bfdbfe,stroke:#1d4ed8,color:#111
+    classDef stop fill:#fecaca,stroke:#b91c1c,color:#111
+```
+
+On 1.0 or 1.1, which have no updater, install 1.2 by hand once, the same way as the first time (download, drag into Applications, replace). Everything after that arrives on its own.
+
 ## Changing keys later
 
 Hover the notch, open the gear tab, and choose **Name and API keys**. If a key stops working while you use Buddy, it says so out loud and opens this window on the key that failed.

@@ -93,6 +93,8 @@ Hover the notch and open the gear tab.
 | Sounds | Soft tones when the mic opens and a question is sent, a water drop when the notch opens |
 | Learning memory | On or off, how many ideas are remembered, Forget all |
 | Name and API keys | Reopens setup on the keys |
+| Open at login | Whether Buddy starts when you log in |
+| Check for updates | The daily check for a newer Buddy, and Check now |
 
 ## Shortcuts
 
