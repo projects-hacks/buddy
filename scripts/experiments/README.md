@@ -12,4 +12,4 @@ One-off measurements from building Buddy, kept because their numbers are quoted 
 | `diagram-check.sh`, `ab-diagram.sh`, `ab_diagram.py` | Whether positioned diagrams were worth their cost (they were 16 times slower and changed nothing) |
 | `verify-vertex.sh` | The Vertex path for Gemini 4 Argon, end to end |
 
-All need `gcloud` signed in and your Google Cloud project in `VERTEX_PROJECT`; the Claude ones read the Anthropic key from the Keychain.
+All need `gcloud` signed in and your Google Cloud project in `VERTEX_PROJECT`, and a screenshot of study material in `STUDY_SCREEN`; the Claude ones read the Anthropic key from the Keychain.

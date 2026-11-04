@@ -6,6 +6,8 @@ Buddy is a study helper, not a tutor. It never quizzes and never grades. It reme
 
 Every design choice below was measured rather than assumed, and the scripts that measured it are in `scripts/`.
 
+<p align="center"><img src="docs/images/diagram-review.png" alt="Buddy reviewing a system design drawn in Excalidraw: rings around the app servers marked bottleneck, and a Redis cache and a read replica proposed beside the diagram in dashed purple" width="820"></p>
+
 ## Download
 
 <p align="center">
@@ -35,6 +37,13 @@ Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/se
 | **Writes it all down** | Every question and answer is saved as a plain Markdown file per day, readable in any editor. |
 | **Updates itself** | Once a day it checks for a new release; one click downloads it, verifies its checksum and signature, swaps it in and relaunches, with keys, memory and permissions kept. |
 | **Quiet sounds** | A soft tone when the mic opens and when a question is sent, a water drop when the notch opens. Never over the voice; one switch turns them off. |
+
+## What it looks like
+
+| | |
+|---|---|
+| <img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and says the first hint in the notch, without giving the solution" width="420"> | <img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, Builds on hash map lookup, beside a hand-drawn walk through of the example" width="420"> |
+| **Hints before answers.** On a practice problem the first help is a nudge: the line that matters, ringed, and one sentence. | **Remembers what you learned.** The lesson card shows what this answer builds on, beside the walk through it drew. |
 
 ## How it works
 
@@ -146,6 +155,10 @@ The screen is captured only while you hold the keys. Speech is transcribed on th
 | `docs/` | Install, usage and how-it-works guides, every model decision with its numbers, and how releases are made. |
 
 `AGENTS.md` is the detailed map of every source file.
+
+## Contributing
+
+Ideas, bugs and questions are welcome as [issues](https://github.com/projects-hacks/study-buddy/issues). Changes come in as pull requests against `main`; see [AGENTS.md](AGENTS.md) for how the code is laid out and [scripts/](scripts/README.md) for the tests each area has.
 
 ## Credits
 

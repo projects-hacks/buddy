@@ -31,10 +31,8 @@ import urllib.request
 import anthropic
 
 REPOSITORY = pathlib.Path(__file__).resolve().parent.parent
-SCREENSHOT = pathlib.Path(
-    "/private/tmp/claude-501/-Users-maverickrajeev-Documents-projects/"
-    "119fa531-54fe-45f1-a621-6ef52815cceb/scratchpad/study_screen.png"
-)
+# A screenshot of study material to race on, passed in.
+SCREENSHOT = pathlib.Path(os.environ["STUDY_SCREEN"])
 VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project
 RUNS_PER_QUESTION = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 

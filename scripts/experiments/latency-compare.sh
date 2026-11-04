@@ -10,7 +10,7 @@ PROJECT="${1:-${VERTEX_PROJECT:?set VERTEX_PROJECT to your Google Cloud project}
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tr -d '\r\n')
 [ ${#TOKEN} -lt 50 ] && { echo "no token"; exit 1; }
 
-IMG=/private/tmp/claude-501/-Users-maverickrajeev-Documents-projects/119fa531-54fe-45f1-a621-6ef52815cceb/scratchpad/study_small.png
+IMG="${STUDY_SCREEN:?set STUDY_SCREEN to a screenshot of study material}"
 python3 - "$IMG" > /tmp/lat_req.json <<'PY'
 import base64,json,sys
 b64=base64.b64encode(open(sys.argv[1],'rb').read()).decode()

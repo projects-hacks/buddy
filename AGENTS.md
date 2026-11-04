@@ -1,7 +1,6 @@
-# Clicky - Agent Instructions
+# Buddy: notes for working on the code
 
-<!-- This is the single source of truth for all AI coding agents. CLAUDE.md is a symlink to this file. -->
-<!-- AGENTS.md spec: https://github.com/agentsmd/agents.md, supported by Claude Code, Cursor, Copilot, Gemini CLI, and others. -->
+What every source file does, how the app is put together, and the conventions it follows.
 
 ## Overview
 
@@ -16,7 +15,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 - **App Type**: Menu bar-only (`LSUIElement=true`), no dock icon or main window
 - **Framework**: SwiftUI (macOS native) with AppKit bridging for menu bar panel and cursor overlay
 - **Pattern**: MVVM with `@StateObject` / `@Published` state management
-- **AI Chat**: `gemini-4-argon` on Vertex AI, SSE streaming, authenticated with a gcloud access token so usage bills the project holding the credits. Falls back to Ollama if switched to local.
+- **Answers**: `gemini-4-argon` on Vertex AI, SSE streaming, authenticated with a gcloud access token so usage bills the project holding the credits. Falls back to Ollama if switched to local.
 - **Speech-to-Text**: Apple Speech on-device (`VoiceTranscriptionProvider` is `apple` in Info.plist)
 - **Text-to-Speech**: Deepgram `aura-2-hera-en`, streamed as PCM into `AVAudioEngine` so speech starts about 0.16s after the request. Falls back to Kokoro, then `AVSpeechSynthesizer`.
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
@@ -173,8 +172,6 @@ IMPORTANT: Follow these naming rules strictly. Clarity is the top priority.
 - Do not force-push to main
 
 ## Self-Update Instructions
-
-<!-- AI agents: follow these instructions to keep this file accurate. -->
 
 When you make changes to this project that affect the information in this file, update this file to reflect those changes. Specifically:
 

@@ -64,7 +64,7 @@ fi
 echo; echo
 
 echo "=== 3. inline image (the capability this whole app depends on) ==="
-IMG=/private/tmp/claude-501/-Users-maverickrajeev-Documents-projects/119fa531-54fe-45f1-a621-6ef52815cceb/scratchpad/study_small.png
+IMG="${STUDY_SCREEN:?set STUDY_SCREEN to a screenshot of study material}"
 if [ -f "$IMG" ]; then
   B64=$(base64 -i "$IMG" | tr -d '\n')
   cat > /tmp/vertex_img_req.json <<EOF
