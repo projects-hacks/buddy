@@ -451,7 +451,7 @@ struct CompanionPanelView: View {
 
     private func forgetButtonTapped() {
         if isConfirmingForget {
-            companionManager.learningMemory.forgetEverything()
+            companionManager.forgetLearningMemory()
             isConfirmingForget = false
         } else {
             isConfirmingForget = true

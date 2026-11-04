@@ -80,13 +80,18 @@ final class SetupWindowController {
         self.window = window
         // A menu bar app is never the active app on its own; it has to ask,
         // or the window opens behind everything and cannot take typing.
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
         window.center()
         window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
+
+    var isVisible: Bool { window?.isVisible ?? false }
 
     func close() {
         window?.orderOut(nil)
+        // A pasted key that was never saved does not outlive the window.
+        model.entered = [:]
     }
 
     private func makeWindow() -> NSWindow {
@@ -225,7 +230,7 @@ struct SetupView: View {
     // MARK: Keys
 
     private var hasSomethingToThinkWith: Bool {
-        companionManager.canUseClaude || companionManager.canUseArgon
+        companionManager.canUseClaude || companionManager.canUseArgon || companionManager.brainKind == .local
     }
 
     private var keys: some View {
@@ -372,7 +377,7 @@ private struct KeyCard: View {
                     SetupSmallButton(title: state == .checking ? "Testing" : "Test and save",
                                      isEnabled: state != .checking && !(model.entered[service] ?? "").isEmpty,
                                      action: testAndSave)
-                    if case .saved = state {} else if model.editing.contains(service), APIKeyStore.hasKey(for: service) {
+                    if model.editing.contains(service), APIKeyStore.hasKey(for: service) {
                         SetupSmallButton(title: "Cancel", isEnabled: true) {
                             model.editing.remove(service)
                             model.reload(from: companionManager)
@@ -445,7 +450,8 @@ private struct KeyCard: View {
 
     private func testAndSave() {
         let key = (model.entered[service] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty else { return }
+        // Return pressed again mid-test would pay for a second identical check.
+        guard !key.isEmpty, state != .checking else { return }
         model.states[service] = .checking
         Task { @MainActor in
             let result = await APIKeyChecker.check(key, for: service)
@@ -464,7 +470,13 @@ private struct KeyCard: View {
         }
         model.entered[service] = ""
         model.editing.remove(service)
-        model.states[service] = note.map { .result($0) } ?? .saved(lastFour: String(key.suffix(4)))
+        // A clean pass is shown as saved, with Change and Remove; only a pass
+        // with something worth saying keeps its message.
+        if let note, case .worksWithNote = note {
+            model.states[service] = .result(note)
+        } else {
+            model.states[service] = .saved(lastFour: String(key.suffix(4)))
+        }
         companionManager.keysDidChange()
     }
 }
@@ -507,7 +519,12 @@ private struct GeminiCard: View {
                 googleCloud
             }
         }
-        .onAppear { projectIdentifier = companionManager.vertexProjectIdentifier }
+        .onAppear {
+            projectIdentifier = companionManager.vertexProjectIdentifier
+            if let problem = companionManager.keyProblem, problem.service == .gemini, companionManager.argonSource == .googleCloud {
+                cloudCheck = .rejected(problem.message)
+            }
+        }
     }
 
     private var googleCloud: some View {

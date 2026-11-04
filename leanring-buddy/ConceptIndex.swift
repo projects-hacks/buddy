@@ -239,11 +239,40 @@ struct ConceptIndex {
     /// Adds or replaces a concept and its vector, then refreshes the word
     /// statistics. Called after an answer, never while one is awaited.
     mutating func upsert(_ concept: RememberedConcept, vector: [Float]?) {
-        if dimension == 0, let vector { dimension = vector.count }
-        let row = vector.flatMap { $0.count == dimension ? $0 : nil } ?? [Float](repeating: 0, count: dimension)
+        place(concept, vector: vector)
+        refreshRarity()
+    }
+
+    /// Many at once, with the word statistics worked out once at the end
+    /// rather than after each, which at thousands of ideas is the difference
+    /// between instant and a frozen launch.
+    mutating func bulkInsert(_ entries: [(concept: RememberedConcept, vector: [Float]?)]) {
+        for entry in entries { place(entry.concept, vector: entry.vector) }
+        refreshRarity()
+    }
+
+    /// Gives a known concept its vector, leaving everything else about it as
+    /// it is now. Nothing happens if it is no longer in the index.
+    mutating func setVector(_ vector: [Float], for id: UUID) {
+        guard let position = index(of: id) else { return }
+        place(concepts[position], vector: vector)
+    }
+
+    private mutating func place(_ concept: RememberedConcept, vector: [Float]?) {
+        // The first real vector fixes the row length. Rows for concepts added
+        // before it, which had none, are made now, so every row always has
+        // storage and the matrix never falls out of step with the concepts.
+        if dimension == 0, let vector, !vector.isEmpty {
+            dimension = vector.count
+            vectorMatrix = [Float](repeating: 0, count: concepts.count * dimension)
+        }
+        // A vector of another length (a different sentence model) is treated
+        // as none rather than stored as a row of zeros marked usable.
+        let usable = vector.flatMap { dimension > 0 && $0.count == dimension ? $0 : nil }
+        let row = usable ?? [Float](repeating: 0, count: dimension)
         if let existing = index(of: concept.id) {
             concepts[existing] = concept
-            if vector != nil, dimension > 0 {
+            if usable != nil {
                 vectorMatrix.replaceSubrange(existing * dimension..<(existing + 1) * dimension, with: row)
                 isEmbedded[existing] = true
             }
@@ -253,12 +282,11 @@ struct ConceptIndex {
         } else {
             concepts.append(concept)
             vectorMatrix.append(contentsOf: row)
-            isEmbedded.append(vector?.count == dimension && dimension > 0)
+            isEmbedded.append(usable != nil)
             nameTokens.append(ConceptText.tokens(concept.name))
             aliasTokens.append(concept.aliases.map(ConceptText.tokens))
             vocabularyTokens.append(Self.vocabulary(of: concept))
         }
-        refreshRarity()
     }
 
     mutating func remove(id: UUID) {

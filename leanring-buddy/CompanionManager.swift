@@ -118,10 +118,43 @@ final class CompanionManager: ObservableObject {
         let trimmed = projectIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return .rejected("Type the project ID, as shown in the Google Cloud console.") }
         let provider = GeminiVisionProvider(model: "gemini-4-argon", endpoint: .vertex(projectIdentifier: trimmed, location: "global"))
-        let (isReachable, _) = await provider.probeServer()
-        return isReachable
-            ? .worksWithNote("Signed in with gcloud. Argon will bill this project, with Vertex enabled on it.")
-            : .rejected("gcloud isn't installed or isn't signed in. Install the Google Cloud CLI, then run: gcloud auth application-default login")
+        let token: String
+        do {
+            token = try await provider.vertexAccessToken()
+        } catch {
+            return .rejected("gcloud isn't installed or isn't signed in. Install the Google Cloud CLI, then run: gcloud auth application-default login")
+        }
+        // A token proves the sign-in, not the project: a one-word request
+        // proves the project exists, has Vertex on, and can use Argon.
+        guard let url = URL(string: "https://aiplatform.googleapis.com/v1/projects/\(trimmed)/locations/global/publishers/google/models/gemini-4-argon:generateContent") else {
+            return .rejected("That project ID has characters a Google Cloud project ID can't have.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "contents": [["role": "user", "parts": [["text": "hi"]]]],
+            "generationConfig": ["maxOutputTokens": 8, "thinkingConfig": ["thinkingLevel": "LOW"]]
+        ])
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            switch (response as? HTTPURLResponse)?.statusCode ?? -1 {
+            case 200...299:
+                return .worksWithNote("Works. Argon will bill \(trimmed) through Vertex.")
+            case 403:
+                return .rejected("Your Google account can't use Vertex on \(trimmed). Enable the Vertex AI API on the project, or check you have access to it.")
+            case 404:
+                return .rejected("Google can't find \(trimmed), or Gemini 4 Argon isn't available on it. Check the project ID in the Google Cloud console.")
+            case 429:
+                return .worksWithNote("Works, but \(trimmed) is at its quota right now, so answers may be slow for a moment.")
+            case let status:
+                return .rejected("Google Cloud said HTTP \(status) for \(trimmed).")
+            }
+        } catch {
+            return .couldNotCheck("Couldn't reach Google Cloud. Check the internet connection, then try again.")
+        }
     }
 
     private static func makeHostedBrain() -> GeminiVisionProvider {
@@ -182,10 +215,21 @@ final class CompanionManager: ObservableObject {
     /// Records a key that failed during use: opens setup on it when the
     /// question could not be answered at all, and otherwise just says so in
     /// the notch, since another brain covered for it.
+    /// The key problem in an error, worded for how Argon is reached: on Google
+    /// Cloud there is no Gemini key, so the fix is the project, not a key.
+    private func keyProblem(in error: Error) -> (service: APIKeyStore.Service, message: String)? {
+        guard let problem = APIKeyChecker.problem(in: error) else { return nil }
+        if problem.service == .gemini, usesVertexForArgon {
+            return (.gemini, "Argon couldn't use the Google Cloud project \(vertexProjectIdentifier). Check that Vertex is enabled on it and gcloud is signed in.")
+        }
+        return problem
+    }
+
     private func reportKeyProblem(_ problem: (service: APIKeyStore.Service, message: String), answerFailed: Bool) {
         TutorDebugLog.write("🔑 \(problem.service.humanReadableName) key problem: \(problem.message)")
         keyProblem = problem
-        controlBar.model.keyProblemMessage = "\(problem.service.humanReadableName) key: \(problem.message)"
+        let label = problem.service == .gemini && usesVertexForArgon ? "Google Cloud" : "\(problem.service.humanReadableName) key"
+        controlBar.model.keyProblemMessage = "\(label): \(problem.message)"
         if answerFailed { setupWindow.show(startingAt: .keys) }
     }
 
@@ -444,6 +488,9 @@ final class CompanionManager: ObservableObject {
         bindMarkLifetime()
         InterfaceSounds.shared.prepare()
         configureLearningMemory()
+        #if DEBUG
+        qaHooks.start()
+        #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
@@ -1093,13 +1140,17 @@ final class CompanionManager: ObservableObject {
     /// while a permission is missing, it stays open on its settings tab.
     func keepSettingsOpenWhileSetupIsNeeded() {
         let model = controlBar.model
-        if !allPermissionsGranted {
+        // The setup window walks through permissions; pinning the notch open
+        // as well would put it over the window, and after "Skip for now" it
+        // would hold the notch open with no way to close it.
+        let setupHandlesPermissions = setupWindow.isVisible || UserDefaults.standard.bool(forKey: "hasFinishedSetup")
+        if !allPermissionsGranted && !setupHandlesPermissions {
             guard !notchIsPinnedForSetup else { return }
             notchIsPinnedForSetup = true
             model.selectedTab = .settings
             model.isPinnedOpen = true
             model.isExpanded = true
-        } else if notchIsPinnedForSetup {
+        } else if notchIsPinnedForSetup, allPermissionsGranted || setupHandlesPermissions {
             // Only undoes its own pin: this runs every couple of seconds, and
             // must not close the notch when something else opened it.
             notchIsPinnedForSetup = false
@@ -1109,6 +1160,8 @@ final class CompanionManager: ObservableObject {
         }
     }
     private var notchIsPinnedForSetup = false
+    /// The latest Dock-click opening; a newer click restarts its clock.
+    private var briefOpenTask: Task<Void, Never>?
 
     /// Opens the notch on a tab for a few seconds, then lets the mouse decide.
     /// For the Dock icon, which has no window of its own to show.
@@ -1117,9 +1170,10 @@ final class CompanionManager: ObservableObject {
         model.selectedTab = tab
         model.isPinnedOpen = true
         model.isExpanded = true
-        Task { @MainActor in
+        briefOpenTask?.cancel()
+        briefOpenTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 8_000_000_000)
-            guard !self.notchIsPinnedForSetup else { return }
+            guard !Task.isCancelled, !self.notchIsPinnedForSetup else { return }
             model.isPinnedOpen = false
             model.isExpanded = false
         }
@@ -1368,6 +1422,8 @@ final class CompanionManager: ObservableObject {
                 while answer == nil {
                     if attempt < routing.count { activate(routing[attempt]) }
                     let brainForAttempt = tutorBrain
+                    currentAnswerAttempt += 1
+                    let thisAttempt = currentAnswerAttempt
                     // Only a fallback is worth a deadline: with nobody to hand
                     // over to, a slow answer still beats none.
                     let deadline: TimeInterval? = attempt + 1 < routing.count
@@ -1381,7 +1437,8 @@ final class CompanionManager: ObservableObject {
                                 conversationHistory: historyForModel,
                                 userPrompt: turnPrompt,
                                 onTextChunk: { [weak self] accumulatedText in
-                                    self?.routeStreamedText(accumulatedText)
+                                    guard let self, self.currentAnswerAttempt == thisAttempt else { return }
+                                    self.routeStreamedText(accumulatedText)
                                 }
                             )
                         }
@@ -1394,7 +1451,7 @@ final class CompanionManager: ObservableObject {
                         if error is FirstWordsDeadlineMissed {
                             TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[attempt + 1].rawValue) answers instead")
                         } else {
-                            if let problem = APIKeyChecker.problem(in: error) {
+                            if let problem = keyProblem(in: error) {
                                 reportKeyProblem(problem, answerFailed: false)
                             }
                             modelRouter.bench(failedBrain)
@@ -1653,7 +1710,16 @@ final class CompanionManager: ObservableObject {
         if let classifierTask {
             enum Outcome { case answered(QuestionKind?), timedOut }
             let outcome = await withTaskGroup(of: Outcome.self) { group -> Outcome in
-                group.addTask { .answered(await classifierTask.value) }
+                // Awaiting another task's value ignores cancellation, so the
+                // group would wait for Haiku however late it was. Passing the
+                // cancellation on stops the request itself at the deadline.
+                group.addTask {
+                    .answered(await withTaskCancellationHandler {
+                        await classifierTask.value
+                    } onCancel: {
+                        classifierTask.cancel()
+                    })
+                }
                 group.addTask {
                     try? await Task.sleep(nanoseconds: UInt64(Self.classifierGraceSeconds * 1_000_000_000))
                     return .timedOut
@@ -1748,6 +1814,41 @@ final class CompanionManager: ObservableObject {
     }
 
     private var currentPracticeProblem: PracticeProblem?
+    /// Which try at the current answer is live. A brain given up on at its
+    /// deadline may still deliver words while it unwinds; they are dropped.
+    private var currentAnswerAttempt = 0
+
+    /// Forgets the learning memory and the hint steps together, as Settings
+    /// promises.
+    func forgetLearningMemory() {
+        learningMemory.forgetEverything()
+        practiceHintLadder.forgetAll()
+    }
+
+    /// Esc puts away what was opened last: the notch first, then the drawing.
+    private func handleEscape() {
+        if controlBar.closeFromKeyboard() {
+            TutorDebugLog.write("⎋ Esc: closing the notch")
+            return
+        }
+        TutorDebugLog.write("⎋ Esc: clearing the drawing")
+        if clearAnnotations() { InterfaceSounds.shared.play(.wipe) }
+    }
+
+    #if DEBUG
+    private lazy var qaHooks = QAHooks(companionManager: self)
+
+    func qaAsk(_ text: String) { sendTranscriptToTutorWithScreenshot(transcript: text) }
+    func qaPressEscape() { handleEscape() }
+    func qaSetNotchOpen(_ open: Bool) { controlBar.model.isExpanded = open }
+    func qaLogState() {
+        let model = controlBar.model
+        TutorDebugLog.write("🧪 state: activity=\(model.activity) stage=\(model.waitingStage ?? "-") expanded=\(model.isExpanded) "
+            + "answeredBy=\(model.answeredBy) buildsOn=\(model.buildsOn) keyProblem=\(model.keyProblemMessage ?? "-") "
+            + "followUps=\(model.followUps.map(\.title)) memory=\(learningMemory.conceptCount) brain=\(brainKind.rawValue) "
+            + "claude=\(canUseClaude) argon=\(canUseArgon) vertex=\(usesVertexForArgon) setupNeeded=\(needsSetup)")
+    }
+    #endif
 
     /// Hands the finished lesson to memory, after it has been said: filing it
     /// costs a Haiku call the student never waits for.
@@ -1778,7 +1879,9 @@ final class CompanionManager: ObservableObject {
     ) async -> [ConceptRecollection] {
         let remaining = max(0, deadline.timeIntervalSinceNow)
         let chosen: [ConceptRecollection]?? = await withTaskGroup(of: [ConceptRecollection]??.self) { group in
-            group.addTask { await recallTask.value }
+            group.addTask {
+                await withTaskCancellationHandler { await recallTask.value } onCancel: { recallTask.cancel() }
+            }
             group.addTask {
                 try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
                 return .some(nil)
@@ -2595,16 +2698,7 @@ final class CompanionManager: ObservableObject {
         // swallowed: the app in front still gets its Esc too.
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == 53 else { return }
-            Task { @MainActor in
-                guard let self else { return }
-                // Open notch first: Esc puts away what was opened last.
-                if self.controlBar.closeFromKeyboard() {
-                    TutorDebugLog.write("⎋ Esc: closing the notch")
-                    return
-                }
-                TutorDebugLog.write("⎋ Esc: clearing the drawing")
-                if self.clearAnnotations() { InterfaceSounds.shared.play(.wipe) }
-            }
+            Task { @MainActor in self?.handleEscape() }
         }
 
         scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
@@ -2726,7 +2820,7 @@ final class CompanionManager: ObservableObject {
     /// and actionable fix, so it gets its own message.
     private func speakLocalErrorFallback(for error: Error) async {
         InterfaceSounds.shared.play(.error)
-        if let problem = APIKeyChecker.problem(in: error) {
+        if let problem = keyProblem(in: error) {
             reportKeyProblem(problem, answerFailed: true)
             await speakFailure("your \(problem.service.humanReadableName.lowercased()) key isn't working. i've opened setup so you can fix it.")
             return

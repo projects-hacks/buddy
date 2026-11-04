@@ -83,7 +83,7 @@ final class GeminiVisionProvider: TutorBrain {
         // Vertex uses a gcloud access token and needs no stored key at all.
         if case .vertex = endpoint {
             do {
-                _ = try vertexAccessToken()
+                _ = try await vertexAccessToken()
                 return (true, [model])
             } catch {
                 TutorDebugLog.write("⚠️ Vertex credential unusable: \(error.localizedDescription)")
@@ -101,10 +101,11 @@ final class GeminiVisionProvider: TutorBrain {
         guard var components = URLComponents(string: Self.aiStudioBase) else {
             return (false, [])
         }
-        components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
         guard let url = components.url else { return (false, []) }
 
+        // In a header, not the URL, so the key never lands in a URL log.
         var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.httpMethod = "GET"
         request.timeoutInterval = 15
 
@@ -143,7 +144,7 @@ final class GeminiVisionProvider: TutorBrain {
         onTextChunk: @MainActor @Sendable (String) -> Void
     ) async throws -> (text: String, duration: TimeInterval) {
         let startTime = Date()
-        let request = try makeRequest(
+        let request = try await makeRequest(
             images: images,
             systemPrompt: systemPrompt,
             conversationHistory: conversationHistory,
@@ -197,7 +198,7 @@ final class GeminiVisionProvider: TutorBrain {
         userPrompt: String
     ) async throws -> (text: String, duration: TimeInterval) {
         let startTime = Date()
-        let request = try makeRequest(
+        let request = try await makeRequest(
             images: images,
             systemPrompt: systemPrompt,
             conversationHistory: conversationHistory,
@@ -230,11 +231,24 @@ final class GeminiVisionProvider: TutorBrain {
     /// flow: the user is already signed in on this machine, gcloud already
     /// refreshes the credential, and reimplementing that would mean handling a
     /// private key the app has no reason to hold.
-    private func vertexAccessToken() throws -> String {
+    func vertexAccessToken() async throws -> String {
         if let cachedAccessToken, Date() < cachedTokenExpiry {
             return cachedAccessToken
         }
+        // gcloud is a Python program that takes a second or more to start and
+        // may refresh its credential over the network: off the main thread,
+        // or the notch and the setup window freeze while it runs.
+        let token = try await Task.detached(priority: .userInitiated) {
+            try Self.mintAccessTokenWithGcloud()
+        }.value
+        cachedAccessToken = token
+        // Tokens last about an hour; refreshed early so one cannot expire
+        // between being checked and being used.
+        cachedTokenExpiry = Date().addingTimeInterval(50 * 60)
+        return token
+    }
 
+    private nonisolated static func mintAccessTokenWithGcloud() throws -> String {
         let gcloudPaths = ["/opt/homebrew/bin/gcloud", "/usr/local/bin/gcloud",
                            "\(NSHomeDirectory())/google-cloud-sdk/bin/gcloud"]
         guard let gcloudPath = gcloudPaths.first(where: {
@@ -264,11 +278,6 @@ final class GeminiVisionProvider: TutorBrain {
         guard process.terminationStatus == 0, !token.isEmpty else {
             throw GeminiError.notSignedIn
         }
-
-        cachedAccessToken = token
-        // Tokens last about an hour; refreshed early so one cannot expire
-        // between being checked and being used.
-        cachedTokenExpiry = Date().addingTimeInterval(50 * 60)
         return token
     }
 
@@ -278,11 +287,12 @@ final class GeminiVisionProvider: TutorBrain {
         conversationHistory: [(userPlaceholder: String, assistantResponse: String)],
         userPrompt: String,
         streaming: Bool
-    ) throws -> URLRequest {
+    ) async throws -> URLRequest {
         let method = streaming ? "streamGenerateContent" : "generateContent"
 
         var components: URLComponents
         var authorizationHeader: String?
+        var apiKeyHeader: String?
 
         switch endpoint {
         case .aiStudio:
@@ -293,7 +303,8 @@ final class GeminiVisionProvider: TutorBrain {
                 throw GeminiError.malformedResponse
             }
             components = built
-            components.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+            components.queryItems = []
+            apiKeyHeader = apiKey
 
         case .vertex(let projectIdentifier, let location):
             let host = location == "global"
@@ -306,7 +317,7 @@ final class GeminiVisionProvider: TutorBrain {
             }
             components = built
             components.queryItems = []
-            authorizationHeader = "Bearer \(try vertexAccessToken())"
+            authorizationHeader = "Bearer \(try await vertexAccessToken())"
         }
 
         if streaming {
@@ -319,6 +330,10 @@ final class GeminiVisionProvider: TutorBrain {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let authorizationHeader {
             request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+        }
+        // The key in a header, never the URL, where proxies and logs keep it.
+        if let apiKeyHeader {
+            request.setValue(apiKeyHeader, forHTTPHeaderField: "x-goog-api-key")
         }
         request.timeoutInterval = 120
 

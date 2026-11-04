@@ -59,8 +59,8 @@ if [ -n "${BUILD_FAILED:-}" ]; then
   exit 1
 fi
 
-APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/leanring-buddy-*/Build/Products/Debug \
-  -maxdepth 1 -name "*.app" 2>/dev/null | head -1)
+# The newest build, should another checkout have its own DerivedData folder.
+APP_PATH=$(ls -td ~/Library/Developer/Xcode/DerivedData/leanring-buddy-*/Build/Products/Debug/*.app 2>/dev/null | head -1)
 
 if [ -z "$APP_PATH" ]; then
   echo "no app produced"
@@ -98,4 +98,5 @@ if pgrep -f "Contents/MacOS/Clicky$" >/dev/null; then
 else
   echo "failed to launch. run the binary directly to see why:"
   echo "  \"$INSTALLED_APP/Contents/MacOS/Clicky\""
+  exit 1
 fi

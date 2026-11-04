@@ -23,14 +23,23 @@ SIGNING_IDENTITY="Clicky Local Dev"
 VERSION="${1:-$(grep -m1 'MARKETING_VERSION' leanring-buddy.xcodeproj/project.pbxproj | sed 's/.*= \(.*\);/\1/')}"
 BUILD_NUMBER="$(git rev-list --count HEAD)"
 OUT="build/release"
-DERIVED="build/release-derived"
+# Outside the home folder: compilers write source paths into binaries, and
+# a path under /Users/<name> would ship that name to everyone.
+DERIVED="${TMPDIR:-/tmp}/buddy-release-derived"
 
 if ! security find-certificate -c "$SIGNING_IDENTITY" >/dev/null 2>&1; then
   echo "Signing certificate '$SIGNING_IDENTITY' not found. See README: Build and run."
   exit 1
 fi
-if [ -n "$(git status --porcelain -- leanring-buddy)" ]; then
-  echo "leanring-buddy has uncommitted changes; a release should be a commit. Commit or stash first."
+if [ -n "$(git status --porcelain)" ]; then
+  echo "uncommitted changes; a release should be exactly a commit. Commit or stash first."
+  exit 1
+fi
+# Personal values, checked in the source before building: a short string can
+# be folded into instructions by the optimiser and slip past a binary scan.
+if git grep -n -e "medi-agent" -e "rajeevchaurasia" -- leanring-buddy >/dev/null; then
+  echo "a personal value is in the app's source:"
+  git grep -n -e "medi-agent" -e "rajeevchaurasia" -- leanring-buddy
   exit 1
 fi
 
@@ -41,7 +50,9 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 xcodebuild -project leanring-buddy.xcodeproj \
   -scheme leanring-buddy \
   -configuration Release \
-  -destination 'platform=macOS,arch=arm64' \
+  -destination 'generic/platform=macOS' \
+  ARCHS="arm64 x86_64" \
+  ONLY_ACTIVE_ARCH=NO \
   -derivedDataPath "$DERIVED" \
   CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
   CODE_SIGN_STYLE=Manual \
@@ -60,11 +71,14 @@ ln -s /Applications "$STAGING/Applications"
 codesign --verify --deep --strict "$STAGING/Buddy.app"
 echo "signed by: $(codesign -dvvv "$STAGING/Buddy.app" 2>&1 | grep '^Authority=' | head -1)"
 
-# Nothing personal may ship: no Google Cloud project, no machine paths.
-if strings "$STAGING/Buddy.app/Contents/MacOS/"* | grep -q "medi-agent"; then
-  echo "a personal Google Cloud project is still in the binary; not packaging"
+# Nothing personal may ship: no Google Cloud project, no home folder paths,
+# in the binary or in any resource.
+if grep -rIl -e "medi-agent" -e "/Users/$USER" "$STAGING/Buddy.app" >/dev/null 2>&1 \
+   || strings "$STAGING/Buddy.app/Contents/MacOS/"* | grep -q -e "medi-agent" -e "/Users/$USER"; then
+  echo "a personal value or home folder path is in the app; not packaging"
   exit 1
 fi
+echo "architectures: $(lipo -archs "$STAGING/Buddy.app/Contents/MacOS/"*)"
 
 DMG="$OUT/Buddy-$VERSION.dmg"
 hdiutil create -volname "Buddy $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null

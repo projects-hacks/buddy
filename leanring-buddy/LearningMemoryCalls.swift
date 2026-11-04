@@ -43,10 +43,13 @@ extension ClaudeVisionProvider {
         guard let reply = await quickHaikuReply(system: systemPrompt, message: message, maximumTokens: 12, timeout: 4) else {
             return nil
         }
-        let lowered = reply.lowercased()
-        if lowered.contains("none") { return [] }
-        let numbers = lowered.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
-        return Array(numbers.filter { (1...candidates.count).contains($0) }.map { $0 - 1 }.prefix(3))
+        let numbers = reply.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
+        if numbers.isEmpty { return [] }
+        var positions: [Int] = []
+        for number in numbers where (1...candidates.count).contains(number) && !positions.contains(number - 1) {
+            positions.append(number - 1)
+        }
+        return Array(positions.prefix(3))
     }
 
     /// The ideas a finished lesson taught, or nil if Haiku could not be asked.

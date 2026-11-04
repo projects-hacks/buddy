@@ -196,9 +196,21 @@ final class PracticeHintLadder {
             let oldest = entries.sorted { $0.value.updatedAt < $1.value.updatedAt }.prefix(entries.count - Self.maximumProblems)
             oldest.forEach { entries.removeValue(forKey: $0.key) }
         }
+        save()
+    }
+
+    func forgetAll() {
+        entries = [:]
+        save()
+    }
+
+    /// A serial queue, so two quick records land in the order they happened.
+    private let writeQueue = DispatchQueue(label: "clicky.practice-hints", qos: .utility)
+
+    private func save() {
         let snapshot = entries
         let file = self.file
-        DispatchQueue.global(qos: .utility).async {
+        writeQueue.async {
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)

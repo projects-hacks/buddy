@@ -24,7 +24,7 @@ import Security
 
 enum APIKeyStore {
     /// Which hosted service a key belongs to.
-    enum Service: String {
+    enum Service: String, CaseIterable {
         /// Only used for the AI Studio endpoint. Vertex authenticates with a
         /// gcloud access token instead, so the hosted brain needs no key here.
         case gemini = "com.maverickrajeev.clicky-local.gemini"
@@ -87,6 +87,14 @@ enum APIKeyStore {
         key(for: service) != nil
     }
 
+    #if DEBUG
+    /// For scripted tests of a rejected key: the app uses this value until
+    /// it is cleared, and the Keychain is never touched.
+    static func qaReplaceInMemory(with key: String?, for service: Service) {
+        cache.store(key, for: service)
+    }
+    #endif
+
     // MARK: - Writing
 
     /// Saves or replaces the key. Returns false if the Keychain refused.
@@ -103,7 +111,10 @@ enum APIKeyStore {
         guard !trimmedKey.isEmpty, !trimmedKey.contains("\n"), let keyData = trimmedKey.data(using: .utf8) else {
             return false
         }
-        if saveThroughSecurityTool(trimmedKey, for: service) {
+        // Read back before it counts: what was stored is what the next
+        // launch will use, so it must be exactly what was typed.
+        if saveThroughSecurityTool(trimmedKey, for: service),
+           keyReadThroughSecurityTool(for: service) == trimmedKey {
             cache.store(trimmedKey, for: service)
             return true
         }

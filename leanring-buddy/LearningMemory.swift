@@ -93,6 +93,11 @@ final class LearningMemory {
     /// The ideas of the last lesson, which "I didn't follow" is about.
     private var lastLessonConceptIDs: [UUID] = []
     private(set) var isLoaded = false
+    /// Bumped by forgetEverything, so work that started before it (a lesson
+    /// waiting on Haiku, the re-embedding loop) never writes anything back.
+    private var memoryGeneration = 0
+    private var isFilingLesson = false
+    private var wasLostDuringFiling = false
 
     private let ioQueue = DispatchQueue(label: "clicky.learning-memory", qos: .utility)
     private let folder: URL
@@ -118,7 +123,8 @@ final class LearningMemory {
     private static let sameSittingSeconds: TimeInterval = 60 * 60
     /// Explained within this, it is still in the conversation history the
     /// model sees, so repeating it in the note would only cost tokens.
-    private static let stillInConversationSeconds: TimeInterval = 20 * 60
+    /// A variable only so a scripted test can shorten it.
+    static var stillInConversationSeconds: TimeInterval = 20 * 60
 
     var isEnabled: Bool {
         UserDefaults.standard.object(forKey: Self.enabledDefaultsKey) as? Bool ?? true
@@ -145,9 +151,7 @@ final class LearningMemory {
         archived = snapshot.archived
         var restoredIndex = ConceptIndex()
         restoredIndex.tuning = .namesOnly
-        for concept in snapshot.concepts {
-            restoredIndex.upsert(concept, vector: snapshot.vectors[concept.id])
-        }
+        restoredIndex.bulkInsert(snapshot.concepts.map { ($0, snapshot.vectors[$0.id]) })
         index = restoredIndex
         isLoaded = true
         let archivedNow = sweepStaleConcepts(now: Date())
@@ -166,17 +170,24 @@ final class LearningMemory {
             TutorDebugLog.write("🧠 memory: sentence model changed, re-embedding \(index.count) ideas")
         }
         let needingVectors = index.concepts.indices.filter { modelChanged || index.vector(at: $0) == nil }
-            .map { index.concepts[$0] }
+            .map { index.concepts[$0].id }
         guard !needingVectors.isEmpty else {
             storedEmbeddingModelIdentifier = currentModel
             return
         }
-        for (count, concept) in needingVectors.enumerated() {
-            if let vector = embed(Self.embeddingText(for: concept)) {
-                index.upsert(concept, vector: vector)
+        let generation = memoryGeneration
+        for (count, id) in needingVectors.enumerated() {
+            // Read the concept as it is now, not as it was when the loop
+            // began: a lesson filed during a pause must not be overwritten,
+            // and an idea archived or forgotten meanwhile stays gone.
+            guard memoryGeneration == generation else { return }
+            if let position = index.index(of: id),
+               let vector = embed(Self.embeddingText(for: index.concepts[position])) {
+                index.setVector(vector, for: id)
             }
             if count % 20 == 19 { try? await Task.sleep(nanoseconds: 80_000_000) }
         }
+        guard memoryGeneration == generation else { return }
         storedEmbeddingModelIdentifier = currentModel
         save()
     }
@@ -269,10 +280,22 @@ final class LearningMemory {
     // MARK: - Writing, after the answer
 
     /// The student said they did not follow the last lesson.
+    ///
+    /// If that lesson is still being filed (Haiku takes a few seconds), the
+    /// mark waits for it, rather than landing on the lesson before.
     func studentGotLost() {
-        guard isEnabled, !lastLessonConceptIDs.isEmpty else { return }
+        guard isEnabled else { return }
+        if isFilingLesson {
+            wasLostDuringFiling = true
+            return
+        }
+        markLost(lastLessonConceptIDs)
+    }
+
+    private func markLost(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
         let now = Date()
-        for id in lastLessonConceptIDs {
+        for id in ids {
             guard let position = index.index(of: id) else { continue }
             var concept = index.concepts[position]
             concept.timesLost += 1
@@ -285,8 +308,12 @@ final class LearningMemory {
 
     /// Files one finished lesson away. Runs after the answer; nothing waits on it.
     func remember(_ lesson: LessonToRemember) async {
-        guard isEnabled, isLoaded else { return }
+        guard isEnabled else { return }
         appendToLessonLog(lesson)
+        guard isLoaded else { return }
+        let generation = memoryGeneration
+        isFilingLesson = true
+        defer { isFilingLesson = false }
 
         // The nearest known ideas, so the extractor can say "same as" rather
         // than inventing a second name for one idea.
@@ -305,6 +332,8 @@ final class LearningMemory {
         if extracted == nil {
             extracted = Self.fallbackConcepts(for: lesson)
         }
+        // Forgotten while Haiku was working: the lesson goes with the rest.
+        guard memoryGeneration == generation else { return }
         guard let extracted, !extracted.isEmpty else {
             lastLessonConceptIDs = []
             return
@@ -315,6 +344,10 @@ final class LearningMemory {
             filedIDs.append(file(concept, from: lesson))
         }
         lastLessonConceptIDs = filedIDs
+        if wasLostDuringFiling {
+            wasLostDuringFiling = false
+            markLost(filedIDs)
+        }
         _ = sweepStaleConcepts(now: lesson.date)
         TutorDebugLog.write("🧠 memory: filed \(extracted.prefix(3).map(\.name).joined(separator: ", ")) (\(index.count) ideas known)")
         save()
@@ -445,6 +478,8 @@ final class LearningMemory {
 
     /// Deletes everything remembered. Asked for in Settings, nowhere else.
     func forgetEverything() {
+        memoryGeneration += 1
+        wasLostDuringFiling = false
         index = ConceptIndex()
         index.tuning = .namesOnly
         archived = []
@@ -517,8 +552,13 @@ private enum StoreFiles {
     static func read(from folder: URL) -> StoreSnapshot? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        guard let data = try? Data(contentsOf: folder.appendingPathComponent("concepts.json")),
-              let file = try? decoder.decode(ConceptsFile.self, from: data) else { return nil }
+        let conceptsFile = folder.appendingPathComponent("concepts.json")
+        guard let data = try? Data(contentsOf: conceptsFile) else { return nil }
+        guard let file = try? decoder.decode(ConceptsFile.self, from: data) else {
+            let aside = folder.appendingPathComponent("concepts.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: conceptsFile, to: aside)
+            return nil
+        }
         let archived = (try? Data(contentsOf: folder.appendingPathComponent("archive.json")))
             .flatMap { try? decoder.decode([RememberedConcept].self, from: $0) } ?? []
         return StoreSnapshot(
@@ -562,7 +602,8 @@ private enum StoreFiles {
         let dimension = Int(data.subdata(in: 4..<8).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
         let count = Int(data.subdata(in: 8..<12).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) })
         let recordSize = 16 + dimension * 4
-        guard dimension > 0, data.count >= 12 + count * recordSize else { return [:] }
+        let (recordsSize, overflowed) = count.multipliedReportingOverflow(by: recordSize)
+        guard dimension > 0, dimension < 100_000, !overflowed, data.count >= 12 + recordsSize else { return [:] }
         var vectors: [UUID: [Float]] = [:]
         vectors.reserveCapacity(count)
         data.withUnsafeBytes { bytes in

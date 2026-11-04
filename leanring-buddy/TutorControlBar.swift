@@ -339,8 +339,13 @@ final class TutorControlBarController {
     /// The window never changes size. Resizing it per frame cannot keep up
     /// with a spring, so the shape grows and shrinks inside a fixed, clear
     /// window and the mouse passes through everywhere the shape is not.
+    /// The screen the panel was put on. Hover is tested against it, not
+    /// against whichever screen has focus now, which can be a different one.
+    private var placedScreenFrame: NSRect?
+
     private func placePanel() {
         guard let panel, let screen = Self.notchScreen else { return }
+        placedScreenFrame = screen.frame
         let size = TutorNotchView.windowSize(for: screen)
         panel.setFrame(NSRect(
             x: screen.frame.midX - size.width / 2,
@@ -410,10 +415,10 @@ final class TutorControlBarController {
 
     /// Where the black shape is on screen: hanging from the top centre.
     private var notchShapeRectOnScreen: NSRect? {
-        guard let screen = Self.notchScreen, notchShapeSize != .zero else { return nil }
+        guard let screenFrame = placedScreenFrame ?? Self.notchScreen?.frame, notchShapeSize != .zero else { return nil }
         return NSRect(
-            x: screen.frame.midX - notchShapeSize.width / 2,
-            y: screen.frame.maxY - notchShapeSize.height,
+            x: screenFrame.midX - notchShapeSize.width / 2,
+            y: screenFrame.maxY - notchShapeSize.height,
             width: notchShapeSize.width,
             height: notchShapeSize.height
         )
@@ -605,7 +610,16 @@ struct TutorNotchView: View {
             && (model.followUps.isEmpty || model.isSpeaking)
     }
     /// Wide enough for a status either side of the camera.
-    private var activeWidth: CGFloat { notchWidth + 230 }
+    /// Wide enough for the longest stage ("reading your screen") on one
+    /// side and a model or lesson name on the other.
+    private var activeWidth: CGFloat { notchWidth + 300 }
+
+    private var isAnswering: Bool { model.activity == .thinking || model.activity == .speaking }
+
+    private var rightSideLabel: String {
+        if isAnswering, !model.answeredBy.isEmpty { return model.answeredBy }
+        return currentLessonTitle ?? ""
+    }
     private var collapsedWidth: CGFloat { isIdle ? notchWidth : activeWidth }
     private var expandedWidth: CGFloat { max(activeWidth, 600) }
 
@@ -668,17 +682,14 @@ struct TutorNotchView: View {
             HStack(spacing: 6) {
                 ActivityDot(colour: activityColour, isBusy: model.activity == .listening || model.activity == .thinking,
                             reduceMotion: reduceMotion)
+                // One line, always: a status that wraps under the camera
+                // reads as broken. Long stages shrink a little before that.
                 Text(activityWord)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .contentTransition(.opacity)
-                if model.activity != .ready, !model.answeredBy.isEmpty {
-                    Text(model.answeredBy)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .lineLimit(1)
-                        .transition(.opacity)
-                }
             }
             .animation(NotchMotion.change, value: model.activity)
             .animation(NotchMotion.change, value: model.answeredBy)
@@ -688,14 +699,18 @@ struct TutorNotchView: View {
 
             Spacer().frame(width: notchWidth)
 
-            Text(currentLessonTitle ?? "")
+            // The right side says who is answering while an answer is in
+            // flight, and what was last learned otherwise: one thing per
+            // side, never two crowded together.
+            Text(rightSideLabel)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.white.opacity(isAnswering ? 0.5 : 0.6))
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .opacity(isIdle ? 0 : 1)
+                .animation(NotchMotion.change, value: rightSideLabel)
         }
         .padding(.horizontal, isIdle ? 0 : 14)
         .frame(height: notchHeight)
@@ -711,13 +726,15 @@ struct TutorNotchView: View {
         if !model.caption.isEmpty {
             Text(model.caption)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white)
+                .lineSpacing(2)
+                .foregroundStyle(.white.opacity(0.94))
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .contentTransition(.opacity)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
+                .padding(.horizontal, 26)
+                .padding(.top, 3)
+                .padding(.bottom, 13)
                 .frame(width: collapsedWidth)
                 .transition(.notchContent(reduceMotion: reduceMotion))
         } else if isShowingHeardWords {

@@ -490,11 +490,13 @@
   }
 
   // Rough.js shape added to a layer, drawn along its outline.
-  function roughShape(layer, node, naturalSeconds) {
+  // A dashed outline fades in: drawing it on with a dash-offset animation
+  // would overwrite its own dash pattern and leave it solid.
+  function roughShape(layer, node, naturalSeconds, dashed = false) {
     const group = svgElement('g');
     group.appendChild(node);
     layer.appendChild(group);
-    return makeMark(group, naturalSeconds, strokeReveal(group));
+    return makeMark(group, naturalSeconds, dashed ? fadeReveal(group) : strokeReveal(group));
   }
 
   function roughOptions(options, defaults = {}) {
@@ -804,7 +806,7 @@
     rect(x, y, w, h, options = {}) {
       const node = state.roughSvg.rectangle(x, y, w, h, roughOptions(options));
       const layer = cardLayerFor(x, y);
-      const mark = roughShape(layer, node, 0.55);
+      const mark = roughShape(layer, node, 0.55, !!options.dashed);
       if (options.label) writeText(layer, x + w / 2, y + h / 2 + (options.size || 17) * 0.35, options.label, { size: options.labelSize || 17, anchor: 'middle' });
       return { x, y, w, h, mark };
     },
@@ -822,7 +824,7 @@
       const node = points.length === 2
         ? state.roughSvg.line(points[0][0], points[0][1], points[1][0], points[1][1], roughOptions(options))
         : state.roughSvg.linearPath(points, roughOptions(options));
-      return roughShape(currentLayerFor(points[0][0], points[0][1]), node, 0.4);
+      return roughShape(currentLayerFor(points[0][0], points[0][1]), node, 0.4, !!options.dashed);
     },
 
     arrow(points, options = {}) {
@@ -875,7 +877,7 @@
       const node = state.roughSvg.rectangle(x, y, w, h, roughOptions(Object.assign(
         { tone: 'purple', fill: 'lilac', fillAlpha: 0.16, dashed: true }, options)));
       const layer = currentLayerFor(x, y);
-      const mark = roughShape(layer, node, 0.6);
+      const mark = roughShape(layer, node, 0.6, true);
       if (words) writeText(layer, x + w / 2, y + h / 2 + 6, words, { size: 17, anchor: 'middle', tone: 'purple' });
       return { x, y, w, h, mark };
     },
