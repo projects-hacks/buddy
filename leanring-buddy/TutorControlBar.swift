@@ -39,11 +39,11 @@ struct TutorFollowUpButton: Identifiable, Equatable {
 /// One turn of the conversation as the student experienced it.
 struct TranscriptEntry: Identifiable {
     enum Speaker { case student, tutor }
-    let id = UUID()
+    var id = UUID()
     let speaker: Speaker
     var text: String
     var lessonTitle: String?
-    let time = Date()
+    var time = Date()
 }
 
 /// The two views of the opened notch.
@@ -69,70 +69,195 @@ final class TutorControlBarModel: ObservableObject {
     /// student (a missing permission).
     @Published var isPinnedOpen = false
 
-    private let transcriptWriter = TranscriptFileWriter()
+    private let transcriptStore = TranscriptStore()
+
+    /// Today's conversation comes back after a relaunch, so the notch shows
+    /// what was learned earlier in the day, not only since the app started.
+    init() {
+        transcript = transcriptStore.loadToday()
+    }
 
     func recordStudent(_ words: String) {
         transcript.append(TranscriptEntry(speaker: .student, text: words))
-        transcriptWriter.append(speaker: "You", text: words)
+        transcriptStore.record(.student, text: words)
         trimTranscript()
     }
 
     /// Adds a spoken sentence to the tutor's current turn, starting one if
     /// the last entry was the student's.
     func recordTutorSentence(_ sentence: String) {
-        if let last = transcript.indices.last, transcript[last].speaker == .tutor {
-            transcript[last].text += " " + sentence
-        } else {
+        let startsNewTurn = transcript.last?.speaker != .tutor
+        if startsNewTurn {
             transcript.append(TranscriptEntry(speaker: .tutor, text: sentence))
+        } else if let last = transcript.indices.last {
+            transcript[last].text += " " + sentence
         }
-        transcriptWriter.append(speaker: "Tutor", text: sentence)
+        transcriptStore.record(startsNewTurn ? .tutorTurnStart : .sentence, text: sentence)
     }
 
     func recordLessonTitle(_ title: String) {
         guard let last = transcript.indices.last, transcript[last].speaker == .tutor else { return }
         transcript[last].lessonTitle = title
+        transcriptStore.record(.lessonTitle, text: title)
     }
 
     /// The conversation as plain text, for copying.
     var transcriptText: String {
         transcript.map { entry in
-            (entry.speaker == .student ? "You: " : "Tutor: ") + entry.text
+            (entry.speaker == .student ? "You: " : "Buddy: ") + entry.text
         }.joined(separator: "\n\n")
     }
 
+    /// Today's conversation as a readable document, for long answers that are
+    /// easier to read in an editor than in the notch.
+    var todaysTranscriptDocument: URL { transcriptStore.todaysReadableFile }
+
     private func trimTranscript() {
-        if transcript.count > 60 { transcript.removeFirst(transcript.count - 60) }
+        if transcript.count > 80 { transcript.removeFirst(transcript.count - 80) }
     }
 }
 
-/// Appends the day's conversation to a text file, one line per sentence.
-private final class TranscriptFileWriter {
+/// Keeps each day's conversation on disk in two forms.
+///
+/// `YYYY-MM-DD.jsonl` is the record the app reads back: one event per line,
+/// only ever appended to, so a crash mid-answer loses at most the sentence
+/// being written and never corrupts what came before. `YYYY-MM-DD.md` is the
+/// same conversation for a person to read: questions as headings, answers as
+/// paragraphs, lesson names in italics.
+///
+/// Both live in ~/Library/Application Support/ClickyLocal/Transcripts and
+/// never leave the Mac.
+private final class TranscriptStore {
+    enum EventKind: String, Codable {
+        case student, tutorTurnStart = "tutor", sentence, lessonTitle = "lesson"
+    }
+
+    private struct Event: Codable {
+        let kind: EventKind
+        let text: String
+        let time: Date
+    }
+
     /// Disk writes happen here, never on the main thread, which is busy
     /// streaming the answer and pacing the pen.
-    private let queue = DispatchQueue(label: "clicky.transcript-writer", qos: .utility)
+    private let queue = DispatchQueue(label: "clicky.transcript-store", qos: .utility)
     private let folder: URL = FileManager.default
         .homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/ClickyLocal/Transcripts")
 
-    func append(speaker: String, text: String) {
-        let moment = Date()
-        queue.async { [folder] in Self.write(speaker: speaker, text: text, at: moment, in: folder) }
+    private static func dayName(for moment: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: moment)
     }
 
-    private static func write(speaker: String, text: String, at moment: Date, in folder: URL) {
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "yyyy-MM-dd"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "HH:mm"
-        let file = folder.appendingPathComponent("\(dayFormatter.string(from: moment)).txt")
-        let line = "[\(timeFormatter.string(from: moment))] \(speaker): \(text)\n"
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    var todaysReadableFile: URL {
+        folder.appendingPathComponent("\(Self.dayName(for: Date())).md")
+    }
+
+    func record(_ kind: EventKind, text: String) {
+        let event = Event(kind: kind, text: text, time: Date())
+        queue.async { [folder] in
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let day = Self.dayName(for: event.time)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            if var line = try? encoder.encode(event) {
+                line.append(0x0A)
+                Self.append(line, to: folder.appendingPathComponent("\(day).jsonl"))
+            }
+            Self.append(Data(Self.readableText(for: event).utf8), to: folder.appendingPathComponent("\(day).md"))
+        }
+    }
+
+    /// Rebuilds today's turns from the event record.
+    func loadToday() -> [TranscriptEntry] {
+        importOlderPlainTextIfNeeded()
+        let file = folder.appendingPathComponent("\(Self.dayName(for: Date())).jsonl")
+        guard let contents = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var entries: [TranscriptEntry] = []
+        for line in contents.split(separator: "\n") {
+            guard let event = try? decoder.decode(Event.self, from: Data(line.utf8)) else { continue }
+            switch event.kind {
+            case .student:
+                entries.append(TranscriptEntry(speaker: .student, text: event.text, time: event.time))
+            case .tutorTurnStart:
+                entries.append(TranscriptEntry(speaker: .tutor, text: event.text, time: event.time))
+            case .sentence:
+                if let last = entries.indices.last, entries[last].speaker == .tutor {
+                    entries[last].text += " " + event.text
+                } else {
+                    entries.append(TranscriptEntry(speaker: .tutor, text: event.text, time: event.time))
+                }
+            case .lessonTitle:
+                if let last = entries.indices.last, entries[last].speaker == .tutor {
+                    entries[last].lessonTitle = event.text
+                }
+            }
+        }
+        return Array(entries.suffix(80))
+    }
+
+    /// Earlier builds kept a plain `[HH:mm] You: ...` text file per day. The
+    /// day's file is converted once, so a conversation from before the
+    /// switch still shows in the notch.
+    private func importOlderPlainTextIfNeeded() {
+        let day = Self.dayName(for: Date())
+        let eventFile = folder.appendingPathComponent("\(day).jsonl")
+        let olderFile = folder.appendingPathComponent("\(day).txt")
+        guard !FileManager.default.fileExists(atPath: eventFile.path),
+              let older = try? String(contentsOf: olderFile, encoding: .utf8) else { return }
+
+        let timeParser = DateFormatter()
+        timeParser.dateFormat = "yyyy-MM-dd HH:mm"
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        var events = Data()
+        var readable = ""
+        var lastSpeaker = ""
+        for line in older.split(separator: "\n") {
+            // "[15:05] You: words" or "[15:05] Tutor: words"
+            guard line.hasPrefix("["), let close = line.firstIndex(of: "]") else { continue }
+            let time = String(line[line.index(after: line.startIndex)..<close])
+            let rest = line[line.index(after: close)...].trimmingCharacters(in: .whitespaces)
+            guard let colon = rest.firstIndex(of: ":") else { continue }
+            let speaker = String(rest[..<colon])
+            let text = rest[rest.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            let moment = timeParser.date(from: "\(day) \(time)") ?? Date()
+            let kind: EventKind = speaker == "You" ? .student : (lastSpeaker == "Tutor" ? .sentence : .tutorTurnStart)
+            lastSpeaker = speaker
+            let event = Event(kind: kind, text: text, time: moment)
+            if var encoded = try? encoder.encode(event) {
+                encoded.append(0x0A)
+                events.append(encoded)
+            }
+            readable += Self.readableText(for: event)
+        }
+        try? events.write(to: eventFile)
+        try? Data(readable.utf8).write(to: folder.appendingPathComponent("\(day).md"))
+    }
+
+    private static func readableText(for event: Event) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        let time = formatter.string(from: event.time)
+        switch event.kind {
+        case .student: return "\n\n## \(time) · You\n\n\(event.text)\n"
+        case .tutorTurnStart: return "\n**Buddy**\n\n\(event.text)"
+        case .sentence: return " \(event.text)"
+        case .lessonTitle: return "\n\n*Lesson: \(event.text)*\n"
+        }
+    }
+
+    private static func append(_ data: Data, to file: URL) {
         if let handle = try? FileHandle(forWritingTo: file) {
             handle.seekToEndOfFile()
-            handle.write(Data(line.utf8))
+            handle.write(data)
             try? handle.close()
         } else {
-            try? Data(line.utf8).write(to: file)
+            try? data.write(to: file)
         }
     }
 }
@@ -383,7 +508,10 @@ struct TutorNotchView: View {
 
             HStack(spacing: 8) {
                 if !model.transcript.isEmpty {
-                    NotchButton(systemImage: "doc.on.doc", title: "Copy transcript", action: onCopyTranscript)
+                    NotchButton(systemImage: "doc.on.doc", title: "Copy", action: onCopyTranscript)
+                    NotchButton(systemImage: "doc.text", title: "Open full transcript") {
+                        NSWorkspace.shared.open(model.todaysTranscriptDocument)
+                    }
                 }
                 Spacer()
                 if model.isSpeaking {
@@ -415,7 +543,7 @@ struct TutorNotchView: View {
                 }
                 .padding(.vertical, 4)
             }
-            .frame(height: 300)
+            .frame(height: 380)
             .onAppear { if let last = model.transcript.last { reader.scrollTo(last.id, anchor: .bottom) } }
             .onChange(of: model.transcript.count) { _, _ in
                 if let last = model.transcript.last { reader.scrollTo(last.id, anchor: .bottom) }
@@ -644,28 +772,85 @@ private struct NotchShape: Shape {
 
 private struct TranscriptRow: View {
     let entry: TranscriptEntry
+    @State private var isShowingAll = false
+    @State private var isHovering = false
+
+    /// Past this, an answer is folded to a few lines so one long lesson does
+    /// not push every other turn out of view.
+    private static let foldAfterCharacters = 360
+
+    private var isLong: Bool { entry.text.count > Self.foldAfterCharacters }
+    private var isStudent: Bool { entry.speaker == .student }
+
+    private var timeText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: entry.time)
+    }
 
     var body: some View {
-        VStack(alignment: entry.speaker == .student ? .trailing : .leading, spacing: 3) {
-            if let lessonTitle = entry.lessonTitle {
-                Text(lessonTitle.uppercased())
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(Color(red: 0.45, green: 0.65, blue: 1.0))
+        VStack(alignment: isStudent ? .trailing : .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                if !isStudent {
+                    Text("Buddy")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                if let lessonTitle = entry.lessonTitle {
+                    Text(lessonTitle.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.6)
+                        .foregroundStyle(Color(red: 0.45, green: 0.65, blue: 1.0))
+                        .lineLimit(1)
+                }
+                Text(timeText)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.35))
+                if isHovering {
+                    Button(action: copyThisTurn) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .help("Copy this")
+                }
             }
+
             Text(entry.text)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.white.opacity(entry.speaker == .student ? 0.95 : 0.85))
+                .font(.system(size: 13))
+                .lineSpacing(3)
+                .foregroundStyle(.white.opacity(isStudent ? 0.95 : 0.86))
                 .textSelection(.enabled)
+                .lineLimit(isLong && !isShowingAll ? 6 : nil)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, entry.speaker == .student ? 10 : 0)
-                .padding(.vertical, entry.speaker == .student ? 6 : 0)
+                .padding(.horizontal, isStudent ? 11 : 0)
+                .padding(.vertical, isStudent ? 7 : 0)
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(entry.speaker == .student ? Color.white.opacity(0.12) : Color.clear)
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(isStudent ? Color.white.opacity(0.12) : Color.clear)
                 )
+                .frame(maxWidth: isStudent ? 440 : .infinity, alignment: isStudent ? .trailing : .leading)
+
+            if isLong {
+                Button(action: { withAnimation(.easeOut(duration: 0.18)) { isShowingAll.toggle() } }) {
+                    Text(isShowingAll ? "Show less" : "Show more")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.45, green: 0.65, blue: 1.0))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+            }
         }
-        .frame(maxWidth: .infinity, alignment: entry.speaker == .student ? .trailing : .leading)
+        .frame(maxWidth: .infinity, alignment: isStudent ? .trailing : .leading)
+        .padding(.vertical, 2)
+        .onHover { hovering in isHovering = hovering }
+    }
+
+    private func copyThisTurn() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.text, forType: .string)
     }
 }
 
