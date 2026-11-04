@@ -168,7 +168,7 @@ final class ScreenIndex {
         let regionDescription = contentRegion.map { region in
             "content \(Int(region.width))x\(Int(region.height)) at \(Int(region.minX)),\(Int(region.minY))"
         } ?? "no content region found"
-        TutorDebugLog.write("🗂️ ScreenIndex: \(targetsToKeep.count) targets (\(recognizedLines.count) recognised, \(droppedOutsideContent) dropped as chrome) — \(regionDescription)")
+        TutorDebugLog.write("🗂️ ScreenIndex: \(targetsToKeep.count) targets (\(recognizedLines.count) recognised, \(droppedOutsideContent) dropped as chrome), \(regionDescription)")
     }
 
     // MARK: - On-device text recognition

@@ -665,7 +665,7 @@ enum TeacherResponseParser {
         tidied = tidied.replacingOccurrences(of: "`", with: "")
         // An em or en dash used as punctuation reads as a hard stop.
         tidied = tidied.replacingOccurrences(
-            of: "\\s*[—–]\\s*",
+            of: "\\s*[\u{2014}\u{2013}]\\s*",
             with: ", ",
             options: .regularExpression
         )

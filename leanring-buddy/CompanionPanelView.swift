@@ -4,7 +4,7 @@
 //
 //  The SwiftUI content hosted inside the menu bar panel. Shows the companion
 //  voice status, push-to-talk shortcut, and quick settings. Designed to feel
-//  like Loom's recording panel — dark, rounded, minimal, and special.
+//  like Loom's recording panel, dark, rounded, minimal, and special.
 //
 
 import AVFoundation

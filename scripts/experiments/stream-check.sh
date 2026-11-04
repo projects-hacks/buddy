@@ -9,7 +9,7 @@
 # curl never overwrote, because it received nothing, and that old error read
 # like a fresh failure.
 
-PROJECT_ID="${1:-medi-agent-490106}"
+PROJECT_ID="${1:-${VERTEX_PROJECT:?set VERTEX_PROJECT to your Google Cloud project}}"
 BASE="https://aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/global/publishers/google/models/gemini-4-argon"
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tr -d '\r\n')
 [ ${#TOKEN} -lt 50 ] && { echo "no token"; exit 1; }

@@ -35,11 +35,19 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "uncommitted changes; a release should be exactly a commit. Commit or stash first."
   exit 1
 fi
-# Personal values, checked in the source before building: a short string can
-# be folded into instructions by the optimiser and slip past a binary scan.
-if git grep -n -e "medi-agent" -e "rajeevchaurasia" -- leanring-buddy >/dev/null; then
+# Personal values of whoever is releasing (their Google Cloud project and
+# email), looked up on this machine rather than written here, and checked in
+# the source before building: a short string can be folded into instructions
+# by the optimiser and slip past a binary scan.
+PERSONAL_VALUES=()
+VERTEX_PROJECT_HERE="$(defaults read com.maverickrajeev.clicky-local vertexProjectIdentifier 2>/dev/null || true)"
+[ -n "$VERTEX_PROJECT_HERE" ] && PERSONAL_VALUES+=(-e "$VERTEX_PROJECT_HERE")
+EMAIL_HERE="$(git config user.email || true)"
+[ -n "$EMAIL_HERE" ] && PERSONAL_VALUES+=(-e "${EMAIL_HERE%@*}")
+PERSONAL_VALUES+=(-e "/Users/$USER")
+if git grep -n "${PERSONAL_VALUES[@]}" -- leanring-buddy >/dev/null; then
   echo "a personal value is in the app's source:"
-  git grep -n -e "medi-agent" -e "rajeevchaurasia" -- leanring-buddy
+  git grep -n "${PERSONAL_VALUES[@]}" -- leanring-buddy
   exit 1
 fi
 
@@ -73,8 +81,8 @@ echo "signed by: $(codesign -dvvv "$STAGING/Buddy.app" 2>&1 | grep '^Authority='
 
 # Nothing personal may ship: no Google Cloud project, no home folder paths,
 # in the binary or in any resource.
-if grep -rIl -e "medi-agent" -e "/Users/$USER" "$STAGING/Buddy.app" >/dev/null 2>&1 \
-   || strings "$STAGING/Buddy.app/Contents/MacOS/"* | grep -q -e "medi-agent" -e "/Users/$USER"; then
+if grep -rIl "${PERSONAL_VALUES[@]}" "$STAGING/Buddy.app" >/dev/null 2>&1 \
+   || strings "$STAGING/Buddy.app/Contents/MacOS/"* | grep -q "${PERSONAL_VALUES[@]}"; then
   echo "a personal value or home folder path is in the app; not packaging"
   exit 1
 fi
@@ -84,7 +92,10 @@ DMG="$OUT/Buddy-$VERSION.dmg"
 hdiutil create -volname "Buddy $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null
 CHECKSUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 echo "$CHECKSUM  Buddy-$VERSION.dmg" > "$DMG.sha256"
-rm -rf "$STAGING"
+# Unregistered before deleting: a registered copy that no longer exists is
+# where System Settings can go on finding an old name for the app.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STAGING/Buddy.app" "$BUILT_APP" 2>/dev/null || true
+rm -rf "$STAGING" "$DERIVED"
 
 echo ""
 echo "made $DMG ($(du -h "$DMG" | cut -f1)), sha256 $CHECKSUM"

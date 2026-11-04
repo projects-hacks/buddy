@@ -16,7 +16,9 @@ Two things keep the judging honest:
 usage: python3 -I judge.py <screenshot.png> <listing.txt> <route_race_dir> <lesson_race_dir> <previous_lesson.txt>
 """
 
+import os
 import base64
+VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project, for Argon on Vertex
 import json
 import pathlib
 import random
@@ -117,7 +119,7 @@ def argon_judge(prompt: str) -> str:
                              "responseMimeType": "application/json"},
     }
     request = urllib.request.Request(
-        "https://aiplatform.googleapis.com/v1/projects/medi-agent-490106/locations/global/"
+        f"https://aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}/locations/global/"
         "publishers/google/models/gemini-4-argon:generateContent",
         data=json.dumps(body).encode(),
         headers={"Authorization": f"Bearer {vertex_token}", "Content-Type": "application/json"})

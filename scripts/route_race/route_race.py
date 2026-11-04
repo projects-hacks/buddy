@@ -16,6 +16,7 @@ for judge.py.
 usage: python3 -I route_race.py <screenshot.png> <listing.txt> <previous_lesson.txt> <out_dir>
 """
 
+import os
 import base64
 import json
 import pathlib
@@ -28,6 +29,7 @@ import urllib.request
 import anthropic
 
 HERE = pathlib.Path(__file__).resolve().parent
+VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project, for Argon on Vertex
 REPOSITORY = HERE.parents[1]
 SCREENSHOT, LISTING_FILE, PREVIOUS_FILE, OUT = (pathlib.Path(argument) for argument in sys.argv[1:5])
 OUT.mkdir(parents=True, exist_ok=True)
@@ -142,7 +144,7 @@ def argon_answer(kind, question):
             "generationConfig": {"maxOutputTokens": TOKENS[kind], "thinkingConfig": {"thinkingLevel": "LOW"}},
         }
         request = urllib.request.Request(
-            "https://aiplatform.googleapis.com/v1/projects/medi-agent-490106/locations/global/"
+            f"https://aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}/locations/global/"
             "publishers/google/models/gemini-4-argon:streamGenerateContent?alt=sse",
             data=json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {vertex_token}", "Content-Type": "application/json"})

@@ -1,7 +1,7 @@
 # Clicky - Agent Instructions
 
 <!-- This is the single source of truth for all AI coding agents. CLAUDE.md is a symlink to this file. -->
-<!-- AGENTS.md spec: https://github.com/agentsmd/agents.md — supported by Claude Code, Cursor, Copilot, Gemini CLI, and others. -->
+<!-- AGENTS.md spec: https://github.com/agentsmd/agents.md, supported by Claude Code, Cursor, Copilot, Gemini CLI, and others. -->
 
 ## Overview
 
@@ -66,15 +66,13 @@ raw model response.
 
 **Global Push-To-Talk Shortcut**: Background push-to-talk uses a listen-only `CGEvent` tap instead of an AppKit global monitor so modifier-based shortcuts like `ctrl + option` are detected more reliably while the app is running in the background.
 
-**Shared URLSession for AssemblyAI**: A single long-lived `URLSession` is shared across all AssemblyAI streaming sessions (owned by the provider, not the session). Creating and invalidating a URLSession per session corrupts the OS connection pool and causes "Socket is not connected" errors after a few rapid reconnections.
-
 **Transient Cursor Mode**: When "Show Clicky" is off, pressing the hotkey fades in the cursor overlay for the duration of the interaction (recording → response → TTS → optional pointing), then fades it out automatically after 1 second of inactivity.
 
 ## Key Files
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `leanring_buddyApp.swift` | ~89 | Menu bar app entry point. Uses `@NSApplicationDelegateAdaptor` with `CompanionAppDelegate` which creates `MenuBarPanelManager` and starts `CompanionManager`. No main window — the app lives entirely in the status bar. |
+| `leanring_buddyApp.swift` | ~89 | Menu bar app entry point. Uses `@NSApplicationDelegateAdaptor` with `CompanionAppDelegate` which creates `MenuBarPanelManager` and starts `CompanionManager`. No main window, the app lives entirely in the status bar. |
 | `CompanionManager.swift` | ~1026 | Central state machine. Owns dictation, shortcut monitoring, screen capture, Claude API, ElevenLabs TTS, and overlay management. Tracks voice state (idle/listening/processing/responding), conversation history, model selection, and cursor visibility. Coordinates the full push-to-talk → screenshot → Claude → TTS → pointing pipeline. |
 | `MenuBarPanelManager.swift` | ~243 | NSStatusItem + custom NSPanel lifecycle. Creates the menu bar icon, manages the floating companion panel (show/hide/position), installs click-outside-to-dismiss monitor. |
 | `CompanionPanelView.swift` | ~761 | SwiftUI panel content for the menu bar dropdown. Shows companion status, push-to-talk instructions, model picker (Sonnet/Opus), permissions UI, DM feedback button, and quit button. Dark aesthetic using `DS` design system. |
@@ -82,13 +80,10 @@ raw model response.
 | `CompanionResponseOverlay.swift` | ~217 | SwiftUI view for the response text bubble and waveform displayed next to the cursor in the overlay. |
 | `CompanionScreenCaptureUtility.swift` | ~132 | Multi-monitor screenshot capture using ScreenCaptureKit. Returns labeled image data for each connected display. |
 | `BuddyDictationManager.swift` | ~866 | Push-to-talk voice pipeline. Handles microphone capture via `AVAudioEngine`, provider-aware permission checks, keyboard/button dictation sessions, transcript finalization, shortcut parsing, contextual keyterms, and live audio-level reporting for waveform feedback. |
-| `BuddyTranscriptionProvider.swift` | ~100 | Protocol surface and provider factory for voice transcription backends. Resolves provider based on `VoiceTranscriptionProvider` in Info.plist — AssemblyAI, OpenAI, or Apple Speech. |
-| `AssemblyAIStreamingTranscriptionProvider.swift` | ~478 | Streaming transcription provider. Fetches temp tokens from the Cloudflare Worker, opens an AssemblyAI v3 websocket, streams PCM16 audio, tracks turn-based transcripts, and delivers finalized text on key-up. Shares a single URLSession across all sessions. |
-| `OpenAIAudioTranscriptionProvider.swift` | ~317 | Upload-based transcription provider. Buffers push-to-talk audio locally, uploads as WAV on release, returns finalized transcript. |
-| `AppleSpeechTranscriptionProvider.swift` | ~147 | Local fallback transcription provider backed by Apple's Speech framework. |
+| `BuddyTranscriptionProvider.swift` | ~40 | The transcription protocol, and a factory that returns Apple Speech: speech is transcribed on the Mac. |
+| `AppleSpeechTranscriptionProvider.swift` | ~147 | Apple's Speech framework, on device, with live partial results for the notch. |
 | `BuddyAudioConversionSupport.swift` | ~108 | Audio conversion helpers. Converts live mic buffers to PCM16 mono audio and builds WAV payloads for upload-based providers. |
 | `GlobalPushToTalkShortcutMonitor.swift` | ~132 | System-wide push-to-talk monitor. Owns the listen-only `CGEvent` tap and publishes press/release transitions. |
-| `ClaudeAPI.swift` | ~291 | Unused. Hosted Claude client kept from upstream for reference. |
 | `ClaudeVisionProvider.swift` | ~470 | Claude brain on the first-party Messages API, used by the Claude and Auto settings with Sonnet or Opus per question (`ClaudeAnswerProfile`). Raced against Argon in `docs/model-choice.md`. |
 | `DrawingEngine/` | ~1000 | The tutor answers as a drawing program (`step`/`say` beats plus marks and cards). `draw-engine.js` is our own engine: runs the program, renders hand-drawn shapes with rough.js and tapered pen strokes with perfect-freehand (both MIT, vendored as `draw-vendor-*.js`), and reveals each sentence's strokes across that sentence's audio. `draw-page.html` has no network access. |
 | `DrawingOverlay.swift` | ~240 | Click-through full-screen window hosting the engine in a WKWebView, with navigation refused and every URL load blocked. |
@@ -108,39 +103,30 @@ raw model response.
 | `DiagramReview.swift` | ~70 | When the student is drawing their own design (Excalidraw, draw.io, Miro, Freeform...), a peer's review: their boxes marked by id, proposals drawn with `suggest()` beside them, no score. |
 | `SetupWindow.swift` | ~720 | First-run setup for anyone who downloads Buddy: name, keys (Anthropic; Gemini by API key or Google Cloud project; Deepgram), permissions, how to start. Reopened from Settings and when a key fails mid-use. A real window, since the notch never takes the keyboard. |
 | `APIKeyChecker.swift` | ~200 | Tests a key with the smallest real request each service accepts and turns failures (wrong key, no credit, wrong field, quota, network) into one sentence with the fix. The same reading flags keys that stop working mid-use. |
+| `AppIdentity.swift` | ~40 | Where Buddy keeps its things (Keychain names, data folder, log), derived from the bundle identifier, so a copy under another identifier starts empty and never touches Buddy's own. |
+| `QAHooks.swift` | ~170 | Debug builds only, off unless switched on: a control channel for scripted end-to-end tests (ask, snapshot, state, fake key, setup steps), driven by `scripts/qa/`. |
 | `OllamaVisionProvider.swift` | ~250 | Local vision chat client. Mirrors `ClaudeAPI`'s method surface so the two are swappable. Parses newline-delimited JSON, not SSE. Handles server probing and model preload. |
 | `ScreenIndex.swift` | ~390 | Numbered inventory of on-screen targets from Vision text recognition and the accessibility tree. Recognition runs off the main actor. Renders the listing for prompts and resolves ids back to exact rectangles. |
 | `TeacherResponseParser.swift` | ~330 | Splits a response into spoken text and drawing directives, recording each tag's character offset so marks sync to speech. Also releases complete sentences for progressive speech. |
 | `TeacherAnnotationLayer.swift` | ~340 | SwiftUI rendering of every mark: hand-drawn circles, boxes, underlines, highlights, strikethroughs, curved arrows, step badges, callouts, and the spotlight scrim. |
 | `LocalSpeechSynthesisClient.swift` | ~175 | On-device TTS. Picks the best installed English voice and reports word boundaries, which is what drives mark timing. |
-| `OpenAIAPI.swift` | ~142 | OpenAI GPT vision API client. |
-| `ElevenLabsTTSClient.swift` | ~81 | Unused. Hosted TTS client kept from upstream for reference. |
-| `ElementLocationDetector.swift` | ~335 | Unused. Upstream used Claude's Computer Use API for pixel coordinates; `ScreenIndex` replaces it. |
-| `DesignSystem.swift` | ~880 | Design system tokens — colors, corner radii, shared styles. All UI references `DS.Colors`, `DS.CornerRadius`, etc. |
+| `DesignSystem.swift` | ~880 | Design system tokens, colors, corner radii, shared styles. All UI references `DS.Colors`, `DS.CornerRadius`, etc. |
 | `ClickyAnalytics.swift` | ~55 | Inert. Same static surface, every method a no-op, so nothing is transmitted. |
 | `WindowPositionManager.swift` | ~262 | Window placement logic, Screen Recording permission flow, and accessibility permission helpers. |
 | `AppBundleConfiguration.swift` | ~28 | Runtime configuration reader for keys stored in the app bundle Info.plist. |
 
 ## Build & Run
 
-Start the model server first. Without it the app launches but says it cannot reach the model.
-
 ```bash
-brew services start ollama
-ollama pull qwen3.5:4b
+zsh scripts/build-local.sh          # builds, signs, installs /Applications/Buddy.app, relaunches
+zsh scripts/make-release.sh 1.2     # the downloadable disk image, see docs/releasing.md
 ```
 
-```bash
-# Open in Xcode
-open leanring-buddy.xcodeproj
+Build only through these scripts. They run `xcodebuild` with the `Clicky Local Dev` certificate, which is what keeps macOS's Screen Recording and Accessibility grants across builds; a plain `xcodebuild` or an Xcode build signs differently and the grants have to be given again.
 
-# Select the leanring-buddy scheme, set signing team, Cmd+R to build and run
+Known non-blocking warnings: Swift 6 concurrency warnings, the deprecated onChange in OverlayWindow.swift. Do not try to fix these.
 
-# Known non-blocking warnings: Swift 6 concurrency warnings,
-# deprecated onChange warning in OverlayWindow.swift. Do NOT attempt to fix these.
-```
-
-**Do NOT run `xcodebuild` from the terminal** — it invalidates TCC (Transparency, Consent, and Control) permissions and the app will need to re-request screen recording, accessibility, etc.
+**Testing.** `scripts/` holds every test and measurement, each with its own readme: memory, routing, question sorting, hints and diagram review, plus `scripts/qa/` for end-to-end runs of the real app through the debug-only QA channel (`QAHooks.swift`).
 
 ## Code Style & Conventions
 
@@ -177,7 +163,7 @@ IMPORTANT: Follow these naming rules strictly. Clarity is the top priority.
 - Do not add docstrings, comments, or type annotations to code you did not change
 - Do not try to fix the known non-blocking warnings (Swift 6 concurrency, deprecated onChange)
 - Do not rename the project directory or scheme (the "leanring" typo is intentional/legacy)
-- Do not run `xcodebuild` from the terminal — it invalidates TCC permissions
+- Do not build with plain `xcodebuild` or Xcode: use scripts/build-local.sh, or the permissions reset
 
 ## Git Workflow
 

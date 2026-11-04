@@ -5,6 +5,7 @@ whether the prompt offers NODE/EDGE at all. Diagram-heavy answers measured
 60 to 75 seconds to first byte where the column-only prompt measured about
 three, and that gap decides whether richer diagrams are affordable.
 """
+import os
 import json
 import re
 import subprocess
@@ -12,7 +13,7 @@ import sys
 import time
 import urllib.request
 
-PROJECT = "medi-agent-490106"
+PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project
 def endpoint(model):
     return (f"https://aiplatform.googleapis.com/v1/projects/{PROJECT}"
             f"/locations/global/publishers/google/models/{model}:streamGenerateContent?alt=sse")

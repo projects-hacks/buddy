@@ -5,7 +5,7 @@
 //  Hosted brain on Claude, first-party API.
 //
 //  Why a second hosted brain. Raced on the same screenshot, index, system
-//  prompt and length budgets (scripts/brain_race.py), Argon at its lowest
+//  prompt and length budgets (scripts/experiments/brain_race.py), Argon at its lowest
 //  thinking level took about twelve seconds to its first word, because it
 //  always thinks before answering and streams in a few large chunks near the
 //  end. Claude Sonnet 5.5 with thinking off started in about two seconds and
@@ -412,7 +412,7 @@ enum QuestionKind: String {
 
 /// Which Claude model answers, and how hard it thinks.
 ///
-/// Chosen per kind from scripts/brain_race.py, two runs each on the same
+/// Chosen per kind from scripts/experiments/brain_race.py, two runs each on the same
 /// screen and prompt. The time is to the first spoken sentence.
 ///
 ///   quick, normal  Sonnet, thinking off. 2.2 to 2.9s. Correct every time,

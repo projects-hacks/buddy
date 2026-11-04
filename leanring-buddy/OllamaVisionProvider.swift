@@ -3,7 +3,7 @@
 //  leanring-buddy
 //
 //  Local vision+chat backend backed by an Ollama server on this machine.
-//  Mirrors the `ClaudeAPI` method surface so call sites can swap between a
+//  Mirrors the other brains' method surface so call sites can swap between a
 //  local model and a hosted one without restructuring the pipeline.
 //
 
@@ -12,7 +12,7 @@ import Foundation
 
 /// Streaming vision chat against a local Ollama server.
 ///
-/// Deliberately matches `ClaudeAPI.analyzeImageStreaming` argument-for-argument.
+/// Deliberately matches the other brains' `analyzeImageStreaming` argument-for-argument.
 /// `CompanionManager` holds one of these behind `TeacherBrain`, so switching
 /// between local and hosted inference is a provider swap, not a rewrite.
 ///
@@ -143,7 +143,7 @@ final class OllamaVisionProvider: TutorBrain {
     /// Sends labeled screenshots plus a prompt to the local model, streaming text back.
     ///
     /// `onTextChunk` receives the full accumulated answer each time more arrives,
-    /// matching `ClaudeAPI`'s contract so the overlay's progressive rendering is unchanged.
+    /// matching the other brains' contract so the overlay's progressive rendering is unchanged.
     func analyzeImageStreaming(
         images: [(data: Data, label: String)],
         systemPrompt: String,

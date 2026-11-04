@@ -105,9 +105,9 @@ enum CompanionScreenCaptureUtility {
             if sortedDisplays.count == 1 {
                 screenLabel = "user's screen (cursor is here)"
             } else if isCursorScreen {
-                screenLabel = "screen \(displayIndex + 1) of \(sortedDisplays.count) — cursor is on this screen (primary focus)"
+                screenLabel = "screen \(displayIndex + 1) of \(sortedDisplays.count), cursor is on this screen (primary focus)"
             } else {
-                screenLabel = "screen \(displayIndex + 1) of \(sortedDisplays.count) — secondary screen"
+                screenLabel = "screen \(displayIndex + 1) of \(sortedDisplays.count), secondary screen"
             }
 
             capturedScreens.append(CompanionScreenCapture(

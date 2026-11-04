@@ -18,6 +18,7 @@ Keychain and the Vertex token from gcloud, inside this process.
 usage: python3 -I scripts/brain_race.py [runs_per_question] [results.json] [basic|extra]
 """
 
+import os
 import base64
 import json
 import pathlib
@@ -34,7 +35,7 @@ SCREENSHOT = pathlib.Path(
     "/private/tmp/claude-501/-Users-maverickrajeev-Documents-projects/"
     "119fa531-54fe-45f1-a621-6ef52815cceb/scratchpad/study_screen.png"
 )
-VERTEX_PROJECT = "medi-agent-490106"
+VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project
 RUNS_PER_QUESTION = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 
 # Written to match study_screen.png, in the same shape ScreenIndex renders.

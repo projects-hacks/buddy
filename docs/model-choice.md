@@ -154,7 +154,7 @@ asking it to decide *where* is expensive, whatever the model.
 
 ## Claude against Argon, same screen and prompt
 
-`scripts/brain_race.py` sends every contender the app's real system prompt
+`scripts/experiments/brain_race.py` sends every contender the app's real system prompt
 (read out of `CompanionManager.swift`), the same screenshot and index, and the
 app's own length budgets, twice per question. "First sentence" is when the
 voice can start, since speech goes sentence by sentence.

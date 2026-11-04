@@ -134,6 +134,8 @@ The screen is captured only while you hold the keys. Speech is transcribed on th
 | `scripts/question_sorting/` | The question sorter's calibration and its blind test. |
 | `scripts/learning_memory/` | Memory's blind recall test, timing, and an end-to-end test of the real store. |
 | `scripts/study_modes/` | The hint ladder and diagram review checks. |
+| `scripts/qa/` | End-to-end runs of the real app, and the fresh-install test. |
+| `scripts/experiments/` | One-off measurements quoted in docs/model-choice.md. |
 | `docs/` | Install, usage and how-it-works guides, every model decision with its numbers, and how releases are made. |
 
 `AGENTS.md` is the detailed map of every source file.

@@ -6,7 +6,7 @@
 # trivial text prompt, which is worse than the local 4B, so the trade between
 # a smarter model and a faster one needs measuring rather than assuming.
 
-PROJECT="${1:-medi-agent-490106}"
+PROJECT="${1:-${VERTEX_PROJECT:?set VERTEX_PROJECT to your Google Cloud project}}"
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tr -d '\r\n')
 [ ${#TOKEN} -lt 50 ] && { echo "no token"; exit 1; }
 

@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Same question, same budget. Only difference: whether the prompt offers the
 # positioned grid. Isolates what the richer diagram actually costs.
-PROJECT=medi-agent-490106
+PROJECT="${VERTEX_PROJECT:?set VERTEX_PROJECT to your Google Cloud project}"
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tr -d '\r\n')
 [ ${#TOKEN} -lt 50 ] && { echo "no token"; exit 1; }
 URL="https://aiplatform.googleapis.com/v1/projects/${PROJECT}/locations/global/publishers/google/models/gemini-4-argon:streamGenerateContent?alt=sse"

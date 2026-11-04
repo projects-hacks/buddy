@@ -3,7 +3,7 @@
 //  leanring-buddy
 //
 //  On-device text-to-speech via AVSpeechSynthesizer, replacing the hosted
-//  ElevenLabs path. Matches `ElevenLabsTTSClient`'s surface so the companion
+//  hosted voice path. Matches the hosted voice clients' surface so the companion
 //  pipeline can swap between them.
 //
 
@@ -134,7 +134,7 @@ final class LocalSpeechSynthesisClient: NSObject {
 
     /// Speaks `text` aloud, returning once playback finishes.
     ///
-    /// Note the contract difference from the hosted client: `ElevenLabsTTSClient`
+    /// Note the contract difference from the hosted clients, which
     /// returned as soon as playback started, because the audio was already fully
     /// downloaded. Here the utterance is synthesized progressively, so awaiting
     /// actual completion is both possible and more useful for sequencing.

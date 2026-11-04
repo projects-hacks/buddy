@@ -1,4 +1,4 @@
-# Draws the Clicky Study icon at 1024 px: the tutor's blue cursor pointing at a
+# Draws Buddy's icon at 1024 px: the tutor's blue cursor pointing at a
 # hand-drawn diagram on squared paper, on a dark macOS squircle.
 import math, random, sys
 from AppKit import (NSImage, NSBezierPath, NSColor, NSGraphicsContext, NSBitmapImageRep,

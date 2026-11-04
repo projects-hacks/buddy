@@ -88,7 +88,7 @@ struct NavigationBubbleSizePreferenceKey: PreferenceKey {
 /// The buddy's behavioral mode. Controls whether it follows the cursor,
 /// is flying toward a detected UI element, or is pointing at an element.
 enum BuddyNavigationMode {
-    /// Default — buddy follows the mouse cursor with spring animation
+    /// Default, buddy follows the mouse cursor with spring animation
     case followingCursor
     /// Buddy is animating toward a detected UI element location
     case navigatingToTarget
@@ -243,7 +243,7 @@ struct BlueCursorView: View {
                     }
             }
 
-            // Onboarding video — always in the view tree so opacity animation works
+            // Onboarding video, always in the view tree so opacity animation works
             // reliably. When no player exists or opacity is 0, nothing is visible.
             // allowsHitTesting(false) prevents it from intercepting clicks.
             OnboardingVideoPlayerView(player: companionManager.onboardingVideoPlayer)
@@ -259,7 +259,7 @@ struct BlueCursorView: View {
                 .animation(.easeInOut(duration: 2.0), value: companionManager.onboardingVideoOpacity)
                 .allowsHitTesting(false)
 
-            // Onboarding prompt — "press control + option and say hi" streamed after video ends
+            // Onboarding prompt, "press control + option and say hi" streamed after video ends
             if isCursorOnThisScreen && companionManager.showOnboardingPrompt && !companionManager.onboardingPromptText.isEmpty {
                 Text(companionManager.onboardingPromptText)
                     .font(.system(size: 11, weight: .medium))
@@ -287,7 +287,7 @@ struct BlueCursorView: View {
                     }
             }
 
-            // Navigation pointer bubble — shown when buddy arrives at a detected element.
+            // Navigation pointer bubble, shown when buddy arrives at a detected element.
             // Pops in with a scale-bounce (0.5x → 1.0x spring) and a bright initial
             // glow that settles, creating a "materializing" effect.
             if buddyNavigationMode == .pointingAtTarget && !navigationBubbleText.isEmpty {
@@ -323,13 +323,13 @@ struct BlueCursorView: View {
                     }
             }
 
-            // Blue triangle cursor — shown when idle or while TTS is playing (responding).
+            // Blue triangle cursor, shown when idle or while TTS is playing (responding).
             // All three states (triangle, waveform, spinner) stay in the view tree
             // permanently and cross-fade via opacity so SwiftUI doesn't remove/re-insert
             // them (which caused a visible cursor "pop").
             //
             // During cursor following: fast spring animation for snappy tracking.
-            // During navigation: NO implicit animation — the frame-by-frame bezier
+            // During navigation: NO implicit animation, the frame-by-frame bezier
             // timer controls position directly at 60fps for a smooth arc flight.
             Triangle()
                 .fill(DS.Colors.overlayCursorBlue)
@@ -351,14 +351,14 @@ struct BlueCursorView: View {
                     value: triangleRotationDegrees
                 )
 
-            // Blue waveform — replaces the triangle while listening
+            // Blue waveform, replaces the triangle while listening
             BlueCursorWaveformView(audioPowerLevel: companionManager.currentAudioPowerLevel)
                 .opacity(buddyIsVisibleOnThisScreen && companionManager.voiceState == .listening ? cursorOpacity : 0)
                 .position(cursorPosition)
                 .animation(.spring(response: 0.2, dampingFraction: 0.6, blendDuration: 0), value: cursorPosition)
                 .animation(.easeIn(duration: 0.15), value: companionManager.voiceState)
 
-            // Blue spinner — shown while the AI is processing (transcription + Claude + waiting for TTS)
+            // Blue spinner, shown while the AI is processing (transcription + Claude + waiting for TTS)
             BlueCursorSpinnerView()
                 .opacity(buddyIsVisibleOnThisScreen && companionManager.voiceState == .processing ? cursorOpacity : 0)
                 .position(cursorPosition)
@@ -443,7 +443,7 @@ struct BlueCursorView: View {
             self.isCursorOnThisScreen = self.screenFrame.contains(mouseLocation)
 
             // During forward flight or pointing, the buddy is NOT interrupted by
-            // mouse movement — it completes its full animation and return flight.
+            // mouse movement, it completes its full animation and return flight.
             // Only during the RETURN flight do we allow cursor movement to cancel
             // (so the buddy snaps to following if the user moves while it's flying back).
             if self.buddyNavigationMode == .navigatingToTarget && self.isReturningToCursor {
@@ -490,7 +490,7 @@ struct BlueCursorView: View {
         let targetInSwiftUI = convertScreenPointToSwiftUICoordinates(screenLocation)
 
         // Offset the target so the buddy sits beside the element rather than
-        // directly on top of it — 8px to the right, 12px below.
+        // directly on top of it, 8px to the right, 12px below.
         let offsetTarget = CGPoint(
             x: targetInSwiftUI.x + 8,
             y: targetInSwiftUI.y + 12
@@ -507,7 +507,7 @@ struct BlueCursorView: View {
         let mouseLocation = NSEvent.mouseLocation
         cursorPositionWhenNavigationStarted = convertScreenPointToSwiftUICoordinates(mouseLocation)
 
-        // Enter navigation mode — stop cursor following
+        // Enter navigation mode, stop cursor following
         buddyNavigationMode = .navigatingToTarget
         isReturningToCursor = false
 
@@ -535,7 +535,7 @@ struct BlueCursorView: View {
         let distance = hypot(deltaX, deltaY)
 
         // Flight duration scales with distance: short hops are quick, long
-        // flights are more dramatic. Clamped to 0.6s–1.4s.
+        // flights are more dramatic. Clamped to 0.6s-1.4s.
         let flightDurationSeconds = min(max(distance / 800.0, 0.6), 1.4)
         let frameInterval: Double = 1.0 / 60.0
         let totalFrames = Int(flightDurationSeconds / frameInterval)
@@ -596,7 +596,7 @@ struct BlueCursorView: View {
         }
     }
 
-    /// Transitions to pointing mode — shows a speech bubble with a bouncy
+    /// Transitions to pointing mode, shows a speech bubble with a bouncy
     /// scale-in entrance and variable-speed character streaming.
     private func startPointingAtElement() {
         buddyNavigationMode = .pointingAtTarget
@@ -604,7 +604,7 @@ struct BlueCursorView: View {
         // Rotate back to default pointer angle now that we've arrived
         triangleRotationDegrees = -35.0
 
-        // Reset navigation bubble state — start small for the scale-bounce entrance
+        // Reset navigation bubble state, start small for the scale-bounce entrance
         navigationBubbleText = ""
         navigationBubbleOpacity = 1.0
         navigationBubbleSize = .zero
@@ -617,7 +617,7 @@ struct BlueCursorView: View {
             ?? "right here!"
 
         streamNavigationBubbleCharacter(phrase: pointerPhrase, characterIndex: 0) {
-            // All characters streamed — hold for 3 seconds, then fly back
+            // All characters streamed, hold for 3 seconds, then fly back
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 guard self.buddyNavigationMode == .pointingAtTarget else { return }
                 self.navigationBubbleOpacity = 0.0
@@ -630,7 +630,7 @@ struct BlueCursorView: View {
     }
 
     /// Streams the navigation bubble text one character at a time with variable
-    /// delays (30–60ms) for a natural "speaking" rhythm.
+    /// delays (30 to 60ms) for a natural "speaking" rhythm.
     private func streamNavigationBubbleCharacter(
         phrase: String,
         characterIndex: Int,
@@ -802,7 +802,7 @@ private struct BlueCursorSpinnerView: View {
     }
 }
 
-// Manager for overlay windows — creates one per screen so the cursor
+// Manager for overlay windows, creates one per screen so the cursor
 // buddy seamlessly follows the cursor across multiple monitors.
 @MainActor
 class OverlayWindowManager {

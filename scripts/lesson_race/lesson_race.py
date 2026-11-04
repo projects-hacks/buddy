@@ -15,6 +15,7 @@ Each program is saved, so it can be rendered and the drawings compared.
 usage: python3 -I lesson_race.py <screenshot.png> <listing.txt> <out_dir>
 """
 
+import os
 import base64
 import json
 import pathlib
@@ -27,6 +28,7 @@ import urllib.request
 import anthropic
 
 HERE = pathlib.Path(__file__).resolve().parent
+VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project, for Argon on Vertex
 REPOSITORY = HERE.parents[1]
 SCREENSHOT, LISTING_FILE, OUT = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
 OUT.mkdir(parents=True, exist_ok=True)
@@ -99,7 +101,7 @@ def argon_answer(question):
             "generationConfig": {"maxOutputTokens": 3600, "thinkingConfig": {"thinkingLevel": "LOW"}},
         }
         request = urllib.request.Request(
-            "https://aiplatform.googleapis.com/v1/projects/medi-agent-490106/locations/global/"
+            f"https://aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}/locations/global/"
             "publishers/google/models/gemini-4-argon:streamGenerateContent?alt=sse",
             data=json.dumps(body).encode(),
             headers={"Authorization": f"Bearer {vertex_token}", "Content-Type": "application/json"})

@@ -2,7 +2,7 @@
 //  leanring_buddyApp.swift
 //  leanring-buddy
 //
-//  Menu bar-only companion app. No dock icon, no main window — just an
+//  Menu bar-only companion app. No dock icon, no main window, just an
 //  always-available status item in the macOS menu bar. Clicking the icon
 //  opens a floating panel with companion voice controls.
 //

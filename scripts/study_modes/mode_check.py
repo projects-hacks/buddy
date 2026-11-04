@@ -9,6 +9,7 @@ catch calls the engine does not have.
 usage: python3 -I scripts/study_modes/mode_check.py <notes.json> <out_dir>
 """
 
+import os
 import base64
 import json
 import pathlib
@@ -20,6 +21,7 @@ import urllib.request
 from PIL import Image, ImageDraw, ImageFont
 
 HERE = pathlib.Path(__file__).resolve().parent
+VERTEX_PROJECT = os.environ["VERTEX_PROJECT"]  # your Google Cloud project, for Argon on Vertex
 REPOSITORY = HERE.parents[1]
 NOTES = json.loads(pathlib.Path(sys.argv[1]).read_text())
 OUT = pathlib.Path(sys.argv[2])
@@ -112,7 +114,7 @@ def argon(image, text, tokens):
             "systemInstruction": {"parts": [{"text": SYSTEM}]},
             "generationConfig": {"maxOutputTokens": tokens, "thinkingConfig": {"thinkingLevel": "LOW"}}}
     request = urllib.request.Request(
-        "https://aiplatform.googleapis.com/v1/projects/medi-agent-490106/locations/global/publishers/google/models/gemini-4-argon:generateContent",
+        f"https://aiplatform.googleapis.com/v1/projects/{VERTEX_PROJECT}/locations/global/publishers/google/models/gemini-4-argon:generateContent",
         data=json.dumps(body).encode(), headers={"Authorization": f"Bearer {vertex_token}", "Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=180) as response:
         reply = json.loads(response.read())

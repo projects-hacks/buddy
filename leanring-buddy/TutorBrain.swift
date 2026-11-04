@@ -43,7 +43,7 @@ enum TutorBrainKind: String, CaseIterable {
 
 /// A vision-and-text model that can answer about a screenshot.
 ///
-/// Deliberately the same shape as the upstream `ClaudeAPI` surface, so the
+/// Deliberately the same shape as upstream's Claude client had, so the
 /// pipeline, the parser, the board and the speech timing are untouched by
 /// which brain is behind it.
 protocol TutorBrain: AnyObject {

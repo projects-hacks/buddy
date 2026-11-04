@@ -2,7 +2,7 @@
 # Measures the shape of a real answer: time to first byte, how long it is, and
 # how many marks it carries. Those three are the whole complaint: silence
 # before the answer, too much to follow, and marks dribbling out for a minute.
-PROJECT=medi-agent-490106
+PROJECT="${VERTEX_PROJECT:?set VERTEX_PROJECT to your Google Cloud project}"
 TOKEN=$(gcloud auth application-default print-access-token 2>/dev/null | tr -d '\r\n')
 [ ${#TOKEN} -lt 50 ] && { echo "no token"; exit 1; }
 
