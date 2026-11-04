@@ -868,6 +868,18 @@
       return makeMark(group, 0.4, fadeReveal(group));
     },
 
+    // A component the student's own design could use, drawn dashed and in
+    // purple beside their diagram, so it reads as a proposal, not a
+    // correction. On the screen, so it scrolls with their canvas.
+    suggest(x, y, w, h, words, options = {}) {
+      const node = state.roughSvg.rectangle(x, y, w, h, roughOptions(Object.assign(
+        { tone: 'purple', fill: 'lilac', fillAlpha: 0.16, dashed: true }, options)));
+      const layer = currentLayerFor(x, y);
+      const mark = roughShape(layer, node, 0.6);
+      if (words) writeText(layer, x + w / 2, y + h / 2 + 6, words, { size: 17, anchor: 'middle', tone: 'purple' });
+      return { x, y, w, h, mark };
+    },
+
     // ---- what the app does with the answer
 
     // A follow-up the student can tap. {ask: "..."} asks it as their next
@@ -883,6 +895,8 @@
 
     lessonTitle(words) { state.lessonTitle = String(words); },
     clear() { clearAll(); },
+    // Read by the app from the program text, for the practice hint ladder.
+    hintLevel() {},
     seen() {}, plan() {}, task() {}, waitForUser() {},
 
     // Constants and small helpers a drawing program reaches for.
