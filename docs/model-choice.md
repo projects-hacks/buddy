@@ -235,3 +235,31 @@ fine-tuned on the domain, and here it never once recognised a quick question.
 The labels and phrasings were written by one person who also wrote the keyword
 lists, so the margins are indicative. 50 phrasings is enough to separate 30
 from 40, not 40 from 43.
+
+## Teaching lessons in the drawing format
+
+`scripts/lesson_race/lesson_race.py` gives each brain exactly what the app
+sends (the system prompt read from `TutorProgramPrompt.swift`, the turn note
+with the screen text and boxes, the screenshot, the teach length rule) on three
+teach questions, and saves each program so it can be drawn and compared.
+
+Time to the first spoken sentence:
+
+| Teach question | Opus 5.5, effort low | Sonnet 5.5, thinking off | Sonnet 5.5, thinking low | Gemini 4 Argon, LOW |
+|---|---|---|---|---|
+| Bloom filter, from scratch | 16.2s | 1.5s | 1.6s | 7.0s |
+| Why the search crashes, for a beginner | 12.0s | 2.4s | 2.1s | 3.7s |
+| How a read goes through the path | 8.8s | 1.5s | 2.0s | 3.9s |
+| Cost per lesson | ~$0.06 | ~$0.02 | ~$0.02 | ~$0.03, on Cloud credits |
+
+Every lesson ran to 9 to 12 sentences with no drawing errors. Drawn and read:
+
+- Opus and Argon wrote the best lessons. On the crash, both traced every pass
+  with exact values and labelled the code ("one too far", "still true",
+  "crash here"); on the Bloom filter both tied the idea back to the database on
+  screen.
+- Sonnet without thinking placed its card too low, so part of it fell off the
+  screen, and its Bloom filter switches did not add up. Sonnet with low
+  thinking headed its card "search for 9" and then traced a search for 20.
+- Argon is the only one of the two strong lessons that starts speaking in a
+  few seconds, and it bills the Google Cloud credits.
