@@ -55,6 +55,9 @@ struct CompanionPanelView: View {
                 keysAndNameRow
                     .padding(.horizontal, 16)
 
+                openAtLoginRow
+                    .padding(.horizontal, 16)
+
                 Spacer().frame(height: 10)
                 lessonsSection
                     .padding(.horizontal, 16)
@@ -364,6 +367,35 @@ struct CompanionPanelView: View {
                 .tint(DS.Colors.accent)
                 .scaleEffect(0.8)
                 .pointerCursor()
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Open at login
+
+    @State private var opensAtLogin = LoginItem.isChosen
+
+    private var openAtLoginRow: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: "power")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .frame(width: 16)
+                Text("Open at login")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(DS.Colors.textSecondary)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(get: { opensAtLogin }, set: { chosen in
+                opensAtLogin = chosen
+                LoginItem.setChosen(chosen)
+            }))
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .tint(DS.Colors.accent)
+            .scaleEffect(0.8)
+            .pointerCursor()
         }
         .padding(.vertical, 4)
     }

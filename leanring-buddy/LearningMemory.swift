@@ -17,7 +17,7 @@
 //    ideas) shortlists, and Claude Haiku chooses from the shortlist while the
 //    screen is being captured, so the wait does not grow. Late or keyless, a
 //    names-only match on the device stands in. On 80 blind questions the
-//    cascade found 96% of the right ideas at 91% precision; names alone
+//    cascade found 96% of the right ideas at 88 to 91% precision; names alone
 //    found 48% at 94%. (scripts/learning_memory)
 //  - Extract, then update, not append. Like Mem0 (arXiv 2504.19413), each
 //    new explanation is matched against the nearest ideas already known and
@@ -105,7 +105,7 @@ final class LearningMemory {
     /// The folder is a parameter only so scripts/learning_memory can test the
     /// real store in a scratch folder; the app uses the default.
     init(folder: URL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/ClickyLocal/Memory")) {
+        .appendingPathComponent("Library/Application Support/\(AppIdentity.dataName)/Memory")) {
         self.folder = folder
     }
 

@@ -26,7 +26,7 @@ concepts = json.loads((HERE / "concepts.json").read_text())["concepts"]
 def file_one(concept):
     lesson = (f"KNOWN:\n(none)\n\nTHE STUDENT ASKED: explain {concept['name']}\n"
               f"LESSON TITLE: {concept['name']}\nTHE EXPLANATION: {concept['summary']}")
-    body = {"model": "claude-haiku-5-5", "max_tokens": 600, "system": PROMPT,
+    body = {"model": "claude-haiku-5-5", "max_tokens": 1600, "system": PROMPT,
             "thinking": {"type": "disabled"}, "messages": [{"role": "user", "content": lesson}]}
     request = urllib.request.Request(
         "https://api.anthropic.com/v1/messages", data=json.dumps(body).encode(),

@@ -37,6 +37,21 @@ final class QAHooks {
         TutorDebugLog.write("🧪 qa hooks listening")
     }
 
+    private static func readStandardKey(_ service: APIKeyStore.Service) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-a", "api-key", "-s",
+                             "\(AppIdentity.standardBundleIdentifier).\(service.rawValue)", "-w"]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        let key = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return key?.isEmpty == false ? key : nil
+    }
+
     private func handle(_ info: [String: String]) {
         let command = info["command"] ?? ""
         TutorDebugLog.write("🧪 qa: \(command) \(info["text"] ?? info["value"] ?? "")")
@@ -44,15 +59,18 @@ final class QAHooks {
         case "ask":
             companionManager.qaAsk(info["text"] ?? "")
         case "snapshot":
-            let path = info["value"] ?? NSTemporaryDirectory() + "buddy-qa.jpg"
+            // Buddy's own windows included, unlike the capture sent to the
+            // model: the notch and the drawing are what is being checked.
+            let path = info["value"] ?? NSTemporaryDirectory() + "buddy-qa.png"
             Task { @MainActor in
-                guard let captures = try? await CompanionScreenCaptureUtility.captureAllScreensAsJPEG(),
-                      let capture = captures.first(where: \.isCursorScreen) ?? captures.first else {
-                    TutorDebugLog.write("🧪 qa: snapshot failed")
-                    return
+                do {
+                    try await CalibrationSnapshot.captureIncludingOverlay()
+                    try? FileManager.default.removeItem(atPath: path)
+                    try FileManager.default.copyItem(at: CalibrationSnapshot.outputURL, to: URL(fileURLWithPath: path))
+                    TutorDebugLog.write("🧪 qa: snapshot saved \(path)")
+                } catch {
+                    TutorDebugLog.write("🧪 qa: snapshot failed: \(error.localizedDescription)")
                 }
-                try? capture.imageData.write(to: URL(fileURLWithPath: path))
-                TutorDebugLog.write("🧪 qa: snapshot saved \(path)")
             }
         case "state":
             companionManager.qaLogState()
@@ -71,6 +89,28 @@ final class QAHooks {
         case "setup":
             companionManager.setupWindow.show(startingAt: SetupStep(rawValue: Int(info["value"] ?? "0") ?? 0) ?? .welcome)
         case "closeSetup":
+            companionManager.setupWindow.close()
+        case "setupName":
+            companionManager.setStudentName(info["value"] ?? "")
+            TutorDebugLog.write("🧪 qa: name is now \(companionManager.studentName)")
+        case "checkKey":
+            // The same check and save the setup window's Test and save runs.
+            // The key is read from the standard Buddy's Keychain item by name,
+            // so no key ever travels in a notification.
+            guard let service = APIKeyStore.Service.allCases.first(where: { $0.humanReadableName == info["value"] }) else { return }
+            let source = info["text"] == "invalid" ? "qa-not-a-real-key-0000000000000000"
+                : (Self.readStandardKey(service) ?? "")
+            Task { @MainActor in
+                let result = await APIKeyChecker.check(source, for: service)
+                TutorDebugLog.write("🧪 qa: check \(service.humanReadableName): usable=\(result.isUsable) \(result.message)")
+                if result.isUsable {
+                    let saved = APIKeyStore.save(key: source, for: service)
+                    TutorDebugLog.write("🧪 qa: saved=\(saved)")
+                    companionManager.keysDidChange()
+                }
+            }
+        case "finishSetup":
+            companionManager.finishSetup()
             companionManager.setupWindow.close()
         case "memoryRecentSeconds":
             LearningMemory.stillInConversationSeconds = TimeInterval(info["value"] ?? "") ?? 20 * 60

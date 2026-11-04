@@ -108,6 +108,7 @@
 
   function clearAll() {
     state.cards = [];
+    state.pillRects = [];
     reportCards();
     for (const layer of [state.screenLayer, state.cardLayer]) {
       while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
@@ -118,6 +119,7 @@
   }
 
   function clearScreenMarks() {
+    state.pillRects = [];
     const layer = state.screenLayer;
     while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
     state.scrollOffset = 0;
@@ -344,6 +346,23 @@
     let box;
     try { box = group.getBBox(); } catch (_) { return; }
     if (!box || !box.height) return;
+    // Wider too: a row of boxes planned a little too wide was cut off at
+    // the card's right edge. The card grows to the screen's edge at most.
+    const right = box.x + box.width + 22;
+    if (right > card.x + card.w) {
+      const newWidth = Math.min(right - card.x, state.canvasWidth - EDGE - card.x);
+      if (newWidth > card.w) {
+        const grownBy = newWidth - card.w;
+        card.w = newWidth;
+        card.widened += grownBy;
+        for (const sheet of card.sheets) sheet.setAttribute('width', card.w);
+        card.strip.setAttribute('width', card.w);
+        card.clip.setAttribute('width', card.w);
+        if (card.title) card.title.setAttribute('x', card.x + card.w / 2);
+        card.closeButton.setAttribute('transform', `translate(${card.widened} 0)`);
+        reportCards();
+      }
+    }
     const bottom = box.y + box.height + 18;
     card.contentBottom = Math.max(card.contentBottom, bottom);
     const needed = bottom - card.y;
@@ -704,11 +723,25 @@
       let width = String(words).length * size * 0.55;
       try { width = text.getBBox().width; } catch (_) {}
       const padX = 9 * state.unitsPerPoint, height = size * 1.7;
-      const left = clampX(options.anchor === 'end' ? x - width - padX * 2 : x, width + padX * 2);
-      const pill = svgElement('rect', { x: left, y, width: width + padX * 2, height, rx: height / 2, fill: state.screenInk });
+      const pillWidth = width + padX * 2;
+      // A pill never lands on another: tried where asked, then just below,
+      // above, and further out, keeping the first spot that is free. Labels
+      // stacked on each other were the clutter people noticed first.
+      const askedLeft = clampX(options.anchor === 'end' ? x - pillWidth : x, pillWidth);
+      const gap = 4 * state.unitsPerPoint, step = height + gap;
+      const overlaps = (left, top) => (state.pillRects || []).some(r =>
+        left < r.x + r.w + gap && left + pillWidth + gap > r.x && top < r.y + r.h + gap && top + height + gap > r.y);
+      let left = askedLeft, top = y;
+      for (const dy of [0, step, -step, 2 * step, -2 * step, 3 * step]) {
+        if (!overlaps(askedLeft, y + dy)) { left = askedLeft; top = y + dy; break; }
+        const shifted = clampX(askedLeft + pillWidth * 0.6, pillWidth);
+        if (!overlaps(shifted, y + dy)) { left = shifted; top = y + dy; break; }
+      }
+      (state.pillRects = state.pillRects || []).push({ x: left, y: top, w: pillWidth, h: height });
+      const pill = svgElement('rect', { x: left, y: top, width: pillWidth, height, rx: height / 2, fill: state.screenInk });
       group.insertBefore(pill, text);
       text.setAttribute('x', left + padX);
-      text.setAttribute('y', y + height * 0.68);
+      text.setAttribute('y', top + height * 0.68);
       return makeMark(group, 0.3, fadeReveal(group));
     },
 
@@ -754,8 +787,9 @@
       // Title bar: the handle to drag the card by, and its close button.
       const strip = svgElement('rect', { x, y, width: w, height: headerHeight, rx: radius, fill: 'rgba(0,0,0,0.045)', class: 'card-handle' });
       frame.appendChild(strip);
+      let title = null;
       if (options.title) {
-        const title = svgElement('text', {
+        title = svgElement('text', {
           x: x + w / 2, y: y + 20, 'text-anchor': 'middle', 'font-size': 13,
           'font-family': '-apple-system, sans-serif', 'font-weight': 600, fill: TONES.grey, 'pointer-events': 'none'
         });
@@ -785,7 +819,7 @@
       state.cardLayer.appendChild(container);
 
       const card = { x, y, w, h, dx: 0, dy: 0, scroll: 0, headerHeight, contentBottom: y + h,
-                     container, content, clip, sheets: [shadow, sheet, grid] };
+                     container, content, clip, sheets: [shadow, sheet, grid], strip, title, closeButton, widened: 0 };
       state.cards.push(card);
       makeCardInteractive(card, strip, closeButton);
       makeMark(container, 0.35, fadeReveal(frame));

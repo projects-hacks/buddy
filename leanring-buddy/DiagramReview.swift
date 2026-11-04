@@ -58,6 +58,7 @@ enum DiagramReview {
         - their diagram is the canvas. the labels of their boxes are in SCREEN TEXT: point at their own components by id with ring, point and connect, or by coordinates for unlabelled shapes and arrows.
         - lead with the one thing that matters most for what they asked: the missing piece, the bottleneck, the single point of failure, the request path that cannot work. one point per beat, each marked on their diagram.
         - to propose something they have not drawn, draw it beside their diagram, in empty space next to where it would go: suggest(x, y, w, h, "cache"), then connect(...) it to their boxes with {tone: "purple"}. dashed and purple reads as a proposal, not a correction. at most two proposals.
+        - keep their diagram readable: at most four marks on it besides the proposals, labels of one to three words, and only on the arrows that matter. never draw across the text in their boxes, never put a label on a box, and leave their own title alone.
         - no card, unless they need a picture of something that cannot go on their canvas.
         - if you talked about this diagram earlier in the conversation, start from what they changed since.
         - end with one button asking the next question a design reviewer would ask about it, for example button("what if redis goes down?", {ask: "what happens in my design if redis goes down?"}).

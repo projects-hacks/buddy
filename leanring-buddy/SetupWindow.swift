@@ -70,6 +70,9 @@ final class SetupWindowController {
     }
 
     func show(startingAt step: SetupStep) {
+        // The drawing lives in a window above every app, setup included; an
+        // old lesson's cards would sit on top of the key fields.
+        companionManager.clearAnnotations()
         model.reload(from: companionManager)
         model.step = step
         if let problem = companionManager.keyProblem {
@@ -101,6 +104,10 @@ final class SetupWindowController {
             backing: .buffered,
             defer: false
         )
+        // Above other apps' windows while open: macOS no longer lets an app
+        // put itself in front of the one being used, and a first-run window
+        // that opens behind the browser is a setup nobody sees.
+        window.level = .floating
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -124,6 +131,7 @@ struct SetupView: View {
     @ObservedObject var model: SetupModel
     @ObservedObject var companionManager: CompanionManager
     let onFinish: () -> Void
+    @State private var opensAtLogin = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -316,11 +324,31 @@ struct SetupView: View {
                          detail: "Say \"show me the code\" whenever you want the full answer.")
             }
             .padding(.top, 6)
+
+            Toggle(isOn: $opensAtLogin) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Open Buddy when you log in")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Text("So it is in the notch whenever you sit down to study. Change it any time in Settings.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+            }
+            .toggleStyle(.switch)
+            .pointerCursor()
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.05)))
+            .padding(.top, 10)
+
             Spacer()
             SetupFooter(step: .done) {
                 SetupSecondaryButton(title: "Back") { model.step = .keys }
             } trailing: {
-                SetupPrimaryButton(title: "Start using Buddy", isEnabled: true, action: onFinish)
+                SetupPrimaryButton(title: "Start using Buddy", isEnabled: true) {
+                    LoginItem.setChosen(opensAtLogin)
+                    onFinish()
+                }
             }
         }
     }

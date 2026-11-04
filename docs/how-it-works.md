@@ -95,7 +95,7 @@ Three problems come with memory that grows forever and is read while someone wai
 - **Growth.** A new explanation updates the idea it is about instead of adding another copy, so the store grows with ideas, not questions. Ideas met once and unseen for four months move to an archive and return, history intact, when they come up again.
 - **Staleness.** Each idea keeps only its latest explanation. How well it is probably remembered follows the FSRS forgetting curve, which decides whether the tutor builds on it, gives a one-line reminder, or teaches it again. Vectors are tagged with the sentence model that made them and re-made in the background if a macOS update changes it.
 
-Measured on 80 questions written by someone who never saw the code: on the held-out half the cascade found 32 of 33 relevant ideas at 91% precision and left 9 of 10 unrelated questions alone. The tests are in `scripts/learning_memory/`.
+Measured on 80 questions written by someone who never saw the code: on the held-out half the cascade found 32 of 33 relevant ideas at 88 to 91% precision across repeated runs and left 9 of 10 unrelated questions alone. The tests are in `scripts/learning_memory/`.
 
 ## Hints and diagram review
 

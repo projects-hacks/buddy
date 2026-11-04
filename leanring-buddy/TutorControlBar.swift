@@ -159,7 +159,7 @@ private final class TranscriptStore {
     private let queue = DispatchQueue(label: "clicky.transcript-store", qos: .utility)
     private let folder: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/ClickyLocal/Transcripts")
+        .appendingPathComponent("Library/Application Support/\(AppIdentity.dataName)/Transcripts")
 
     private static func dayName(for moment: Date) -> String {
         let formatter = DateFormatter()
@@ -366,7 +366,10 @@ final class TutorControlBarController {
             defer: false
         )
         // Above the menu bar, which is where the notch is.
-        panel.level = .screenSaver
+        // One above the drawing overlay, which shares .screenSaver and is
+        // brought forward on every answer: opened, the notch must sit over
+        // the drawing, never under its cards.
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false

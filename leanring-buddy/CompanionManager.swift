@@ -256,7 +256,11 @@ final class CompanionManager: ObservableObject {
         case .local: return localBrain
         case .hosted: return hostedBrain
         case .claude: return claudeBrain
-        case .auto: return autoAnsweringBrain == .argon ? hostedBrain : claudeBrain
+        // At rest, before any question is routed, Auto points at a brain that
+        // is set up: probing an unconfigured one fails every few seconds.
+        case .auto:
+            if autoAnsweringBrain == .argon, canUseArgon || !canUseClaude { return hostedBrain }
+            return canUseClaude ? claudeBrain : hostedBrain
         }
     }
 
@@ -456,7 +460,7 @@ final class CompanionManager: ObservableObject {
     /// Opens the folder holding each day's saved transcript.
     func openTranscriptsFolder() {
         let folder = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/ClickyLocal/Transcripts")
+            .appendingPathComponent("Library/Application Support/\(AppIdentity.dataName)/Transcripts")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         NSWorkspace.shared.open(folder)
     }
@@ -794,12 +798,16 @@ final class CompanionManager: ObservableObject {
                 // Re-probe far less often than permissions. This exists so the
                 // "Ollama is not running" warning clears on its own once the
                 // user starts it, instead of needing an app restart.
+                self.keepSettingsOpenWhileSetupIsNeeded()
+
+                // Test triggers read from files in ~/Library/Logs. Debug builds
+                // only: any program on the Mac can write those files, and one
+                // of them makes Buddy capture the screen and send it to a model.
+                #if DEBUG
                 if FileManager.default.fileExists(atPath: CalibrationSnapshot.triggerURL.path) {
                     try? FileManager.default.removeItem(at: CalibrationSnapshot.triggerURL)
                     await self.runCalibration()
                 }
-
-                self.keepSettingsOpenWhileSetupIsNeeded()
 
                 if let tabName = try? String(contentsOf: CalibrationSnapshot.openNotchURL, encoding: .utf8) {
                     try? FileManager.default.removeItem(at: CalibrationSnapshot.openNotchURL)
@@ -833,6 +841,8 @@ final class CompanionManager: ObservableObject {
                         TutorDebugLog.write("⚠️ snapshot failed: \(error.localizedDescription)")
                     }
                 }
+
+                #endif
 
                 if shouldProbeModelServer {
                     let (isReachable, _) = await self.tutorBrain.probeServer()
@@ -1353,7 +1363,12 @@ final class CompanionManager: ObservableObject {
                 let recollections = await settleRecollections(
                     recallTask: recallTask, question: transcript,
                     screenContext: (frontWindowTitle ?? "") + "\n" + screenListing,
-                    deadline: screenReadAt.addingTimeInterval(Self.classifierGraceSeconds))
+                    // At least a second from the question: the chooser's reply
+                    // takes about 0.75 s, and a fast capture alone left it a
+                    // coin flip in live testing. Recalling an earlier lesson
+                    // is worth a fraction of a second more.
+                    deadline: max(screenReadAt.addingTimeInterval(Self.classifierGraceSeconds),
+                                  answerStartedAt.addingTimeInterval(Self.memoryChooserFloorSeconds)))
                 guard !Task.isCancelled else { return }
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
@@ -1448,20 +1463,40 @@ final class CompanionManager: ObservableObject {
                               currentAnswerFormat == .undecided,
                               attempt + 1 < routing.count else { throw error }
                         let failedBrain = routing[attempt]
+                        var nextAttempt = attempt + 1
                         if error is FirstWordsDeadlineMissed {
-                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[attempt + 1].rawValue) answers instead")
+                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[nextAttempt].rawValue) answers instead")
                         } else {
-                            if let problem = keyProblem(in: error) {
-                                reportKeyProblem(problem, answerFailed: false)
-                            }
+                            let problem = keyProblem(in: error)
+                            if let problem { reportKeyProblem(problem, answerFailed: false) }
                             modelRouter.bench(failedBrain)
-                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) failed before speaking (\(error.localizedDescription)), \(routing[attempt + 1].rawValue) answers instead")
+                            // Sonnet and Opus share the Anthropic key: when the
+                            // key is the problem, the other one fails the same way,
+                            // so it is skipped rather than tried.
+                            if problem?.service == .anthropic {
+                                while nextAttempt < routing.count, routing[nextAttempt] != .argon {
+                                    modelRouter.bench(routing[nextAttempt])
+                                    nextAttempt += 1
+                                }
+                                guard nextAttempt < routing.count else { throw error }
+                            }
+                            TutorDebugLog.write("↪️ \(failedBrain.rawValue) failed before speaking (\(error.localizedDescription.prefix(120))), \(routing[nextAttempt].rawValue) answers instead")
                         }
-                        attempt += 1
+                        attempt = nextAttempt
                         controlBar.model.waitingStage = "asking \(routing[attempt].displayName) instead"
                     }
                 }
                 guard let (fullResponseText, duration) = answer else { return }
+
+                // An answer from the provider whose key was reported means the
+                // key works again: the banner goes, unprompted.
+                if let problem = keyProblem, attempt < routing.count {
+                    let answeredWith: APIKeyStore.Service = routing[attempt] == .argon ? .gemini : .anthropic
+                    if answeredWith == problem.service {
+                        keyProblem = nil
+                        controlBar.model.keyProblemMessage = nil
+                    }
+                }
 
                 guard !Task.isCancelled else { return }
 
@@ -1663,6 +1698,7 @@ final class CompanionManager: ObservableObject {
     /// to 1.1s in all, and the capture about 0.7s, so most answers arrive
     /// inside this and a slow one costs at most this much.
     private static let classifierGraceSeconds: Double = 0.35
+    private static let memoryChooserFloorSeconds: Double = 1.0
 
     /// How much Haiku's kind is trusted against the on-device probabilities:
     /// its accuracy on the blind spoken set, 90 of 100.
@@ -1838,7 +1874,17 @@ final class CompanionManager: ObservableObject {
     #if DEBUG
     private lazy var qaHooks = QAHooks(companionManager: self)
 
-    func qaAsk(_ text: String) { sendTranscriptToTutorWithScreenshot(transcript: text) }
+    /// As if spoken: the connections are warmed the way holding the keys
+    /// warms them, then the question goes in after a speaking-length pause,
+    /// so timings match real use instead of a cold start.
+    func qaAsk(_ text: String) {
+        if APIKeyStore.hasKey(for: .anthropic) { claudeBrain.prewarmConnection() }
+        narrationVoice.prewarmConnection()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            sendTranscriptToTutorWithScreenshot(transcript: text)
+        }
+    }
     func qaPressEscape() { handleEscape() }
     func qaSetNotchOpen(_ open: Bool) { controlBar.model.isExpanded = open }
     func qaLogState() {
@@ -2820,6 +2866,14 @@ final class CompanionManager: ObservableObject {
     /// and actionable fix, so it gets its own message.
     private func speakLocalErrorFallback(for error: Error) async {
         InterfaceSounds.shared.play(.error)
+        // Skipped in setup: say so plainly and reopen the permission steps,
+        // rather than a generic failure the student cannot act on.
+        if !hasScreenRecordingPermission || error.localizedDescription.contains("declined TCC") {
+            TutorDebugLog.write("🔑 no Screen Recording permission, opening setup on it")
+            setupWindow.show(startingAt: .permissions)
+            await speakFailure("i can't see your screen yet. allow screen recording for buddy, then ask again. i've opened the steps.")
+            return
+        }
         if let problem = keyProblem(in: error) {
             reportKeyProblem(problem, answerFailed: true)
             await speakFailure("your \(problem.service.humanReadableName.lowercased()) key isn't working. i've opened setup so you can fix it.")

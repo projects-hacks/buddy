@@ -27,11 +27,15 @@ enum APIKeyStore {
     enum Service: String, CaseIterable {
         /// Only used for the AI Studio endpoint. Vertex authenticates with a
         /// gcloud access token instead, so the hosted brain needs no key here.
-        case gemini = "com.maverickrajeev.clicky-local.gemini"
+        case gemini
         /// Speech to text and text to speech.
-        case deepgram = "com.maverickrajeev.clicky-local.deepgram"
+        case deepgram
         /// Claude, first-party API.
-        case anthropic = "com.maverickrajeev.clicky-local.anthropic"
+        case anthropic
+
+        /// The Keychain item's service name, under the app's own identifier:
+        /// com.maverickrajeev.clicky-local.anthropic for Buddy itself.
+        var keychainService: String { AppIdentity.keychainService(rawValue) }
 
         var humanReadableName: String {
             switch self {
@@ -140,7 +144,7 @@ enum APIKeyStore {
     @discardableResult
     static func deleteKey(for service: Service) -> Bool {
         cache.store(nil, for: service)
-        _ = runSecurityTool(["delete-generic-password", "-a", "api-key", "-s", service.rawValue], input: nil)
+        _ = runSecurityTool(["delete-generic-password", "-a", "api-key", "-s", service.keychainService], input: nil)
         let status = SecItemDelete(baseQuery(for: service) as CFDictionary)
         cache.recordMissing(service)
         return status == errSecSuccess || status == errSecItemNotFound
@@ -149,7 +153,7 @@ enum APIKeyStore {
     /// `security add-generic-password -w` asks for the secret twice on its
     /// input when no value follows the flag.
     private static func saveThroughSecurityTool(_ key: String, for service: Service) -> Bool {
-        runSecurityTool(["add-generic-password", "-a", "api-key", "-s", service.rawValue, "-U", "-w"],
+        runSecurityTool(["add-generic-password", "-a", "api-key", "-s", service.keychainService, "-U", "-w"],
                         input: "\(key)\n\(key)\n") == 0
     }
 
@@ -184,7 +188,7 @@ enum APIKeyStore {
     private static func keyReadThroughSecurityTool(for service: Service) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-a", "api-key", "-s", service.rawValue, "-w"]
+        process.arguments = ["find-generic-password", "-a", "api-key", "-s", service.keychainService, "-w"]
         let output = Pipe()
         process.standardOutput = output
         process.standardError = Pipe()
@@ -199,7 +203,7 @@ enum APIKeyStore {
     private static func baseQuery(for service: Service) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service.rawValue,
+            kSecAttrService as String: service.keychainService,
             kSecAttrAccount as String: "api-key"
         ]
     }

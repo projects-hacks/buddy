@@ -57,32 +57,48 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         companionManager.stop()
     }
 
-    /// Registers the app as a login item so it launches automatically on
-    /// startup. Uses SMAppService which shows the app in System Settings >
-    /// General > Login Items, letting the user toggle it off if they want.
+    /// Keeps the login item matching the student's choice. Nothing is
+    /// registered until they have chosen in setup, or in Settings: an app
+    /// that adds itself to login items on first launch, unasked, is the kind
+    /// of surprise people uninstall over.
     private func registerAsLoginItemIfNeeded() {
-        let loginItemService = SMAppService.mainApp
-        // Registered once from a build folder, the login item would go on
-        // starting that copy. When this is a different copy, the one in
-        // Applications, the registration is renewed so login starts it.
-        let registeredPathKey = "loginItemRegisteredBundlePath"
-        let registeredPath = UserDefaults.standard.string(forKey: registeredPathKey)
-        if loginItemService.status == .enabled, registeredPath != Bundle.main.bundlePath {
-            try? loginItemService.unregister()
-        }
-        defer {
-            if loginItemService.status == .enabled {
-                UserDefaults.standard.set(Bundle.main.bundlePath, forKey: registeredPathKey)
-            }
-        }
-        if loginItemService.status != .enabled {
-            do {
-                try loginItemService.register()
-                print("🎯 Clicky: Registered as login item")
-            } catch {
-                print("⚠️ Clicky: Failed to register as login item: \(error)")
-            }
-        }
+        LoginItem.applyChoice()
+    }
+}
+
+/// Opening Buddy at login, as the student chose it.
+enum LoginItem {
+    static let choiceDefaultsKey = "openAtLogin"
+
+    /// The choice, or for an install from before the choice existed, whether
+    /// it was already registered (those installs keep what they had).
+    static var isChosen: Bool {
+        if let chosen = UserDefaults.standard.object(forKey: choiceDefaultsKey) as? Bool { return chosen }
+        return SMAppService.mainApp.status == .enabled
     }
 
+    static func setChosen(_ chosen: Bool) {
+        UserDefaults.standard.set(chosen, forKey: choiceDefaultsKey)
+        applyChoice()
+    }
+
+    static func applyChoice() {
+        let service = SMAppService.mainApp
+        let hasChosen = UserDefaults.standard.object(forKey: choiceDefaultsKey) != nil
+        // Registered once from a build folder, the login item would go on
+        // starting that copy; a different copy renews it.
+        let registeredPathKey = "loginItemRegisteredBundlePath"
+        let registeredPath = UserDefaults.standard.string(forKey: registeredPathKey)
+        if service.status == .enabled, registeredPath != Bundle.main.bundlePath || (hasChosen && !isChosen) {
+            try? service.unregister()
+        }
+        defer { TutorDebugLog.write("🔌 open at login: \(hasChosen ? (isChosen ? "chosen" : "declined") : "not chosen yet"), registered=\(service.status == .enabled)") }
+        guard hasChosen, isChosen, service.status != .enabled else { return }
+        do {
+            try service.register()
+            UserDefaults.standard.set(Bundle.main.bundlePath, forKey: registeredPathKey)
+        } catch {
+            TutorDebugLog.write("⚠️ could not add Buddy to login items: \(error.localizedDescription)")
+        }
+    }
 }

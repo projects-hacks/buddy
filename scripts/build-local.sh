@@ -77,7 +77,8 @@ echo "signed by: $(codesign -dvvv "$APP_PATH" 2>&1 | grep '^Authority=' | head -
 INSTALLED_APP="/Applications/Buddy.app"
 
 # Matches this app's binary only, never HeyClicky's.
-pkill -f "Contents/MacOS/Clicky$" 2>/dev/null || true
+# Builds before the rename ran as Clicky; either may be running.
+pkill -f "Buddy.app/Contents/MacOS/(Buddy|Clicky)$" 2>/dev/null || true
 sleep 1
 
 rm -rf "$INSTALLED_APP"
@@ -93,10 +94,10 @@ fi
 open "$INSTALLED_APP"
 sleep 4
 
-if pgrep -f "Contents/MacOS/Clicky$" >/dev/null; then
+if pgrep -f "Buddy.app/Contents/MacOS/Buddy$" >/dev/null; then
   echo "running. logs: ~/Library/Logs/ClickyLocal.log"
 else
   echo "failed to launch. run the binary directly to see why:"
-  echo "  \"$INSTALLED_APP/Contents/MacOS/Clicky\""
+  echo "  \"$INSTALLED_APP/Contents/MacOS/Buddy\""
   exit 1
 fi

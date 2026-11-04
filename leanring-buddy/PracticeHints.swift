@@ -170,7 +170,7 @@ final class PracticeHintLadder {
 
     private var entries: [String: Entry] = [:]
     private let file = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/ClickyLocal/Memory/practice.json")
+        .appendingPathComponent("Library/Application Support/\(AppIdentity.dataName)/Memory/practice.json")
 
     /// A problem left this long is a fresh attempt when they come back.
     private static let freshAttemptAfter: TimeInterval = 48 * 60 * 60

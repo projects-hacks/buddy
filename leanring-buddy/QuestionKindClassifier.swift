@@ -68,7 +68,9 @@ extension ClaudeVisionProvider {
             ]
             return kindsByName.first { word.contains($0.0) }?.1
         } catch {
-            if !(error is CancellationError) {
+            // Cancelled at the deadline is the design working, not a failure.
+            let wasCancelled = error is CancellationError || (error as? URLError)?.code == .cancelled
+            if !wasCancelled {
                 TutorDebugLog.write("⚠️ question classifier failed: \(error.localizedDescription)")
             }
             return nil

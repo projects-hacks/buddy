@@ -23,7 +23,7 @@ enum TutorDebugLog {
         let logsDirectory = FileManager.default
             .homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs", isDirectory: true)
-        return logsDirectory.appendingPathComponent("ClickyLocal.log")
+        return logsDirectory.appendingPathComponent("\(AppIdentity.dataName).log")
     }()
 
     /// Serialises writes, since the pipeline logs from several tasks.

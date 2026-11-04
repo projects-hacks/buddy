@@ -12,7 +12,7 @@
 //
 //  Choosing (MemoryRecallPrompt.txt) runs while the screen is captured and
 //  picks, from an on-device shortlist, the ideas a question is about. On the
-//  held-out half of 80 blind questions it found 32 of 33 with 91% precision,
+//  held-out half of 80 blind questions it found 32 of 33 with 88 to 91% precision over repeated runs,
 //  in a median 0.74s, about $0.0006 a question. When it is late or fails,
 //  the names-only match on the device stands in.
 //
@@ -70,11 +70,10 @@ extension ClaudeVisionProvider {
         LESSON TITLE: \(lesson.lessonTitle ?? "(none)")
         THE EXPLANATION: \(lesson.spokenAnswer.prefix(1_800))
         """
-        guard let reply = await quickHaikuReply(system: systemPrompt, message: message, maximumTokens: 700, timeout: 20),
-              let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"),
-              let data = String(reply[start...end]).data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let concepts = json["concepts"] as? [[String: Any]] else {
+        // Three ideas with a dozen cues each run to about 900 tokens; 700 cut
+        // replies off mid-object in real use.
+        guard let reply = await quickHaikuReply(system: systemPrompt, message: message, maximumTokens: 1_600, timeout: 25),
+              let concepts = Self.conceptObjects(in: reply) else {
             TutorDebugLog.write("⚠️ memory: could not file the lesson")
             return nil
         }
@@ -90,6 +89,31 @@ extension ClaudeVisionProvider {
                 angle: entry["angle"] as? String
             )
         }
+    }
+
+    /// The concept objects in a reply, keeping every complete one even when
+    /// the reply was cut off part-way through a later one.
+    static func conceptObjects(in reply: String) -> [[String: Any]]? {
+        guard let start = reply.firstIndex(of: "{") else { return nil }
+        var candidate = String(reply[start...])
+        if let end = candidate.lastIndex(of: "}") {
+            let whole = String(candidate[...end])
+            if let json = try? JSONSerialization.jsonObject(with: Data(whole.utf8)) as? [String: Any],
+               let concepts = json["concepts"] as? [[String: Any]] {
+                return concepts
+            }
+        }
+        // Cut off: close the array after the last complete object.
+        while let lastBoundary = candidate.range(of: "},", options: .backwards) {
+            candidate = String(candidate[..<lastBoundary.lowerBound]) + "}]}"
+            if let json = try? JSONSerialization.jsonObject(with: Data(candidate.utf8)) as? [String: Any],
+               let concepts = json["concepts"] as? [[String: Any]], !concepts.isEmpty {
+                TutorDebugLog.write("🧠 memory: lesson reply was cut off, kept \(concepts.count) complete ideas")
+                return concepts
+            }
+            candidate = String(candidate.dropLast(3))
+        }
+        return nil
     }
 
     /// One short Haiku reply, or nil. No key, a timeout or an error all mean

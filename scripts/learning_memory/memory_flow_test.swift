@@ -172,7 +172,23 @@ let result: Int = await Task { @MainActor in
     let restored = reloaded.index.concepts.first { $0.name.contains("bloom") }
     check(restored?.timesExplained == 2, "coming up again restores it from the archive with its history (explained \(restored?.timesExplained ?? 0) times)")
 
-    print("\n7. forgetting everything")
+    print("\n7. ideas filed before the sentence model existed, given vectors later")
+    var index = ConceptIndex()
+    let first = RememberedConcept(id: UUID(), name: "trie", aliases: [], cues: nil, summary: "a tree of characters",
+                                  lastAngle: nil, firstExplainedAt: Date(), lastExplainedAt: Date(), timesExplained: 1,
+                                  timesLost: 0, lastLostAt: nil, stabilityDays: 2, lessonTitles: [])
+    var second = first
+    second.id = UUID(); second.name = "heap"; second.summary = "smallest on top"
+    index.upsert(first, vector: nil)
+    index.upsert(second, vector: embed("heap: smallest on top"))
+    index.setVector(embed("trie: a tree of characters")!, for: first.id)
+    let shortlisted = index.candidates(questionText: "what's a trie", contextText: "", questionVector: embed("what's a trie"))
+    check(index.vector(at: 0) != nil && index.vector(at: 1) != nil && shortlisted.first?.name == "trie",
+          "vectors arriving late line up with their ideas, no crash")
+    index.upsert(second, vector: [Float](repeating: 0.1, count: 3))
+    check(index.vector(at: 1) != nil, "a vector of the wrong length is ignored, the old one kept")
+
+    print("\n8. forgetting everything")
     reloaded.forgetEverything()
     await reloaded.flushWrites()
     check(reloaded.conceptCount == 0 && !FileManager.default.fileExists(atPath: storeFolder.path), "store and files gone")
