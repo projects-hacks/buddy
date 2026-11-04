@@ -614,6 +614,15 @@ final class TutorControlBarController {
     /// The send button, for scripted tests.
     func qaSendDraft() { sendTyped(model.chatDraft) }
     func qaFinishTyping() { finishTyping() }
+    /// A real key event into the panel, the path a keypress takes.
+    func qaPressReturn(withShift: Bool) {
+        guard let panel, let event = NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: withShift ? [.shift] : [],
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: panel.windowNumber,
+            context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36
+        ) else { return }
+        panel.sendEvent(event)
+    }
     #endif
 
     /// Esc in the chat box, or after sending: closes the notch and gives the
@@ -1593,7 +1602,8 @@ private struct NotchChatBox: View {
                 .focused($isFocused)
                 .onKeyPress(.return, phases: .down) { press in
                     if press.modifiers.contains(.shift) || press.modifiers.contains(.option) {
-                        return .ignored
+                        insertLineBreakAtCursor()
+                        return .handled
                     }
                     send()
                     return .handled
@@ -1659,6 +1669,17 @@ private struct NotchChatBox: View {
 
     /// Asked again a few times while the notch finishes opening: SwiftUI
     /// refuses focus for a field that is still being inserted.
+    /// Shift + Return is bound to the same command as Return by macOS, so
+    /// left alone it would send. The field's editor puts the line break where
+    /// the cursor is, which a change to the text from here could not.
+    private func insertLineBreakAtCursor() {
+        guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else {
+            model.chatDraft += "\n"
+            return
+        }
+        editor.insertNewlineIgnoringFieldEditor(nil)
+    }
+
     private func takeFocus(attempt: Int = 0) {
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.08)) {
             guard model.wantsChatFocus else { return }

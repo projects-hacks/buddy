@@ -92,6 +92,8 @@ final class QAHooks {
             companionManager.qaOpenChat()
         case "chatDraft":
             companionManager.qaSetChatDraft(info["text"] ?? "")
+        case "chatReturn":
+            companionManager.qaPressChatReturn(withShift: info["value"] == "shift")
         case "closeChat":
             companionManager.qaCloseChat()
         case "sendChat":

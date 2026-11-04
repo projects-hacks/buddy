@@ -2044,6 +2044,7 @@ final class CompanionManager: ObservableObject {
     func qaSetChatDraft(_ text: String) { controlBar.model.chatDraft = text }
     func qaSendChat() { controlBar.qaSendDraft() }
     func qaCloseChat() { controlBar.qaFinishTyping() }
+    func qaPressChatReturn(withShift: Bool) { controlBar.qaPressReturn(withShift: withShift) }
     /// Held open while the snapshot is taken: the pointer is not over it.
     func qaSetNotchOpen(_ open: Bool) {
         controlBar.model.isPinnedOpen = open
