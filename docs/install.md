@@ -87,8 +87,8 @@ People already set up with the Google Cloud CLI can choose **Google Cloud** inst
 | Permission | Why |
 |---|---|
 | Microphone | Hears your question while you hold Control + Option |
-| Accessibility | Notices Control + Option from any app |
-| Screen Recording | Sees what you are asking about, only while you hold the keys. macOS asks you to reopen Buddy after this one. |
+| Accessibility | Notices Control + Option and Control + Option + T from any app, and finds the exact button to point at |
+| Screen Recording | Sees what you are asking about, only when you ask (by voice or typing) or while Buddy guides you through a task. macOS asks you to reopen Buddy after this one. |
 | Screen Content | Reads the text on screen so marks land exactly; offered by macOS once Screen Recording is on |
 
 **Done.** A short how-to, then Buddy waits in the notch.
@@ -128,6 +128,8 @@ Hover the notch, open the gear tab, and choose **Name and API keys**. If a key s
 | "looks like a Google key" | It was pasted into the wrong field. |
 | "Couldn't reach" | Check the internet connection and press Test and save again, or Save anyway. |
 | Holding Control + Option does nothing | Accessibility is not allowed yet. In the notch's gear tab, click Allow next to it. If Buddy is missing from the list, use "Show it in Finder" and drag Buddy in. |
+| Control + Option + T does nothing | Also Accessibility. Allow it as above. |
+| Buddy does not notice a step was done | It looks after a click, key or scroll, once the screen has changed. If it still waits, ask "what next?" yourself. |
 | Buddy answers about the wrong thing on screen | Screen Recording or Screen Content is not allowed. Allow both, then reopen Buddy. |
 | The voice sounds robotic | No Deepgram key, so macOS's own voice is reading. Add one in setup. |
 | No notch on this Mac | Buddy hangs from the middle of the menu bar instead; everything else is the same. |

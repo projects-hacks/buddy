@@ -95,8 +95,10 @@ struct CompanionPanelView: View {
                     .foregroundColor(DS.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 VStack(alignment: .leading, spacing: 4) {
+                    hintRow(symbol: "keyboard", text: "Control + Option + T to type instead.")
+                    hintRow(symbol: "hand.point.up.left", text: "Ask how to do something in an app to be walked through it.")
                     hintRow(symbol: "rectangle.topthird.inset.filled", text: "Hover the notch to read the conversation.")
-                    hintRow(symbol: "escape", text: "Esc clears the drawing.")
+                    hintRow(symbol: "escape", text: "Esc clears the drawing or stops a walkthrough.")
                     hintRow(symbol: "arrow.uturn.backward", text: "Say \"I didn't get it\" for a new angle.")
                 }
             }
@@ -106,7 +108,7 @@ struct CompanionPanelView: View {
                 Text("Let Buddy hear and see")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundColor(DS.Colors.textPrimary)
-                Text("Nothing is captured until you hold Control + Option, and nothing is kept but your own transcript.")
+                Text("The screen is only captured when you ask, and what Buddy keeps, your conversation and what you have learned, stays on this Mac.")
                     .font(.system(size: 11.5))
                     .foregroundColor(DS.Colors.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -231,7 +233,7 @@ struct CompanionPanelView: View {
                     }
                 }),
             PermissionStep(
-                symbol: "keyboard.fill", title: "Accessibility", reason: "Notices Control + Option from any app.",
+                symbol: "keyboard.fill", title: "Accessibility", reason: "Notices Buddy's shortcuts from any app, and finds the button to point at.",
                 isGranted: companionManager.hasAccessibilityPermission,
                 allow: { WindowPositionManager.requestAccessibilityPermission() },
                 helpTitle: "Buddy not in the list?",
@@ -243,7 +245,7 @@ struct CompanionPanelView: View {
                 }),
             PermissionStep(
                 symbol: "rectangle.dashed.badge.record", title: "Screen Recording",
-                reason: "Sees what you are asking about, only while you hold the keys.",
+                reason: "Sees what you are asking about, only when you ask or while it guides you.",
                 isGranted: companionManager.hasScreenRecordingPermission,
                 allow: { WindowPositionManager.requestScreenRecordingPermission() },
                 note: "macOS asks you to reopen Buddy after this one.")

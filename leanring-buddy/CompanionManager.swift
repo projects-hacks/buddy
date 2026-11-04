@@ -201,6 +201,8 @@ final class CompanionManager: ObservableObject {
     /// The first-run setup, also opened from Settings and when a key fails.
     lazy var setupWindow = SetupWindowController(companionManager: self)
 
+    func closeNotchForSetup() { controlBar.putAway() }
+
     var needsSetup: Bool {
         let hasFinishedSetup = UserDefaults.standard.bool(forKey: "hasFinishedSetup")
         let hasSomethingToThinkWith = canUseClaude || canUseArgon || brainKind == .local
@@ -2036,6 +2038,9 @@ final class CompanionManager: ObservableObject {
     }
     func qaPressEscape() { handleEscape() }
     func qaOpenChat() { openChatForTyping() }
+    func qaSetNotchTab(_ name: String) {
+        controlBar.model.selectedTab = name == "settings" ? .settings : (name == "transcript" ? .transcript : .lesson)
+    }
     func qaSetChatDraft(_ text: String) { controlBar.model.chatDraft = text }
     func qaSendChat() { controlBar.qaSendDraft() }
     func qaCloseChat() { controlBar.qaFinishTyping() }

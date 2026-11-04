@@ -1,6 +1,8 @@
 # Buddy
 
-A study helper for macOS that sees your screen, explains out loud, and draws on what you are looking at while it talks. Hold Control + Option, ask about the LeetCode problem, the system design diagram or the code in front of you, and Buddy answers the way a friend at a whiteboard would: one sentence, the stroke that goes with it, the next sentence.
+A study helper for macOS that sees your screen, explains out loud, and draws on what you are looking at while it talks. Hold Control + Option and ask, or press Control + Option + T and type, about the LeetCode problem, the system design diagram or the code in front of you, and Buddy answers the way a friend at a whiteboard would: one sentence, the stroke that goes with it, the next sentence.
+
+New to an app? Ask how to do something in it, and Buddy walks you through: it points at the button for the first step, waits for you to do it, and says the next one by itself.
 
 Buddy is a study helper, not a tutor. It never quizzes and never grades. It remembers what you have learned together, holds back the answer on practice problems until you ask for it, and talks through your own diagrams as a peer would.
 
@@ -28,8 +30,10 @@ Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/se
 
 | | |
 |---|---|
+| **Talk or type** | Hold Control + Option and speak, or press Control + Option + T and type in the notch's chat box. Either way the answer is spoken and drawn, and the chat keeps the whole day's conversation. |
+| **Guides you through any app** | Ask "how do I export this?" and Buddy gives one step, points at the exact button or menu, and watches for you to do it before saying the next. Watching happens on your Mac and costs nothing; each step is one short answer. Esc stops it. |
 | **Explains while drawing** | Answers are small drawing programs. Each spoken sentence arrives with its marks: rings, underlines and arrows on your real screen, and hand-drawn cards on calm space for pictures the screen does not have. The pen is paced to the voice. |
-| **Lives in the notch** | Status, the sentence being said, and your own words live as you speak. Hover for the last lesson as a paper card, or the whole day's conversation. Idle, it disappears into the camera housing. |
+| **Lives in the notch** | Status, the sentence being said, and your own words live as you speak. Hover for the last lesson as a paper card, or the chat with the whole day's conversation. Idle, it disappears into the camera housing. |
 | **Remembers what you learned** | Ideas explained in earlier sessions are recalled when a new question touches them, so an answer can build on Tuesday's lesson instead of starting over. Ideas you did not follow get a different example next time. Kept on your Mac only. |
 | **Hints before answers** | On LeetCode, HackerRank and similar sites, help comes in steps: a nudge, the approach, a walk through by hand, then the code. You choose how far to go, and the code is always one sentence away. |
 | **Reviews your own diagrams** | Drawing a design in Excalidraw, draw.io, Miro or Freeform, Buddy marks your own boxes and draws what it would add beside them, dashed and purple, so a suggestion reads as a suggestion. No score. |
@@ -50,9 +54,11 @@ Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/se
 ```mermaid
 flowchart TD
     keys([Hold Control + Option]):::input --> speech[Apple Speech, on device<br/>live words in the notch]:::device
-    speech --> sort[Question sorter<br/>on device, Haiku when unsure]:::device
-    speech --> recall[Learning memory<br/>shortlist on device, Haiku chooses]:::device
-    speech --> capture[Screen capture and index<br/>Vision text and accessibility tree]:::device
+    typed([Or type: Control + Option + T]):::input --> question[The question]:::logic
+    speech --> question
+    question --> sort[Question sorter<br/>on device, Haiku when unsure]:::device
+    question --> recall[Learning memory<br/>shortlist on device, Haiku chooses]:::device
+    question --> capture[Screen capture and index<br/>Vision text and accessibility tree]:::device
 
     subgraph prepare [While the screen is captured, about 0.7 s]
         sort
@@ -71,6 +77,8 @@ flowchart TD
     voice --> you([You hear and see it together]):::input
     pen --> you
     brain -. after the answer .-> file[Filed into memory<br/>off your clock]:::device
+    brain -. a step in an app .-> watch[Guide watches on device<br/>for the step to be done]:::device
+    watch -. screen changed .-> question
 
     classDef input fill:#fde68a,stroke:#b45309,color:#111
     classDef device fill:#bbf7d0,stroke:#15803d,color:#111
@@ -79,7 +87,7 @@ flowchart TD
     style prepare fill:#f0fdf4,stroke:#15803d
 ```
 
-Green runs on the Mac, purple is a hosted model, blue is Buddy's own logic. The three steps in the box run at the same time, so sorting the question and recalling memory add nothing to the wait.
+Green runs on the Mac, purple is a hosted model, blue is Buddy's own logic. The three steps in the box run at the same time, so sorting the question and recalling memory add nothing to the wait. When the answer is a step in an app, Buddy compares a tiny thumbnail of the screen after each click or key and asks again only once the screen has changed.
 
 ## Measured, not assumed
 
@@ -129,24 +137,24 @@ The script builds, signs with that certificate, installs `/Applications/Buddy.ap
 ## Using it
 
 - **Ask:** hold Control + Option, speak, let go. Your words appear under the notch as you talk.
-- **Or type:** press Control + Option + T, or click the chat box in the open notch, and press Return. The answer is the same, spoken and drawn.
-- **Learn an app:** ask how to do something in any app ("how do I export this?"). Buddy points at the button for the first step, waits for you to do it, and says the next one by itself. Esc stops it.
+- **Or type:** press Control + Option + T, or click the chat box in the open notch, and press Return. Shift + Return starts a new line. The answer is the same, spoken and drawn.
+- **Learn an app:** ask how to do something in any app ("how do I export this?"). Buddy points at the button for the first step, waits for you to do it, and says the next one by itself. The step it is waiting for shows under the notch.
 - **Look back:** hover the notch for the last lesson, or the chat tab for the whole day's conversation.
 - **Follow-ups:** tap the buttons under an answer to ask the next question it suggests, or copy the code it offers.
-- **Clear:** Esc or Clear removes the drawing. Stop silences the voice.
+- **Clear:** Esc clears the drawing and stops a walkthrough. Stop silences the voice.
 - **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, Learning memory, and Name and API keys.
 
 More in [docs/using-buddy.md](docs/using-buddy.md); the inside story in [docs/how-it-works.md](docs/how-it-works.md).
 
 ## Privacy
 
-The screen is captured only while you hold the keys. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/ClickyLocal`. Analytics are disabled.
+The screen is captured only when you ask, by holding the keys or sending a typed question, and while Buddy walks you through a task: then it takes a small capture after each click, key or scroll to see whether the step is done, compares it on the Mac and discards it, and sends a screenshot only when the screen has changed and the next step is needed. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/ClickyLocal`. Analytics are disabled.
 
 ## Project layout
 
 | Path | What it holds |
 |---|---|
-| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift` and `DiagramReview.swift` are the features above. |
+| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift`, `DiagramReview.swift` and `GuideMode.swift` are the features above. |
 | `leanring-buddy/DrawingEngine/` | The drawing engine the answers run in. |
 | `scripts/route_race/` | The model race, the blind judging and the routing table. |
 | `scripts/question_sorting/` | The question sorter's calibration and its blind test. |

@@ -73,6 +73,9 @@ final class SetupWindowController {
         // The drawing lives in a window above every app, setup included; an
         // old lesson's cards would sit on top of the key fields.
         companionManager.clearAnnotations()
+        // The open notch sits above every window too, and setup is usually
+        // opened from it: left open, it would cover the window it opened.
+        companionManager.closeNotchForSetup()
         model.reload(from: companionManager)
         model.step = step
         if let problem = companionManager.keyProblem {
@@ -179,7 +182,7 @@ struct SetupView: View {
                     Text("Hi, this is Buddy.")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("A study helper that sees your screen and explains it out loud.")
+                    Text("A study helper that sees your screen, explains it out loud, and walks you through any app.")
                         .font(.system(size: 13.5))
                         .foregroundStyle(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -188,13 +191,13 @@ struct SetupView: View {
 
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                 FeatureTile(symbol: "waveform", tint: Color(red: 0.45, green: 0.7, blue: 1.0),
-                            title: "Explains out loud", detail: "Hold Control + Option, ask, and hear the answer.")
+                            title: "Talk or type", detail: "Hold Control + Option and ask, or press Control + Option + T to type.")
                 FeatureTile(symbol: "pencil.tip.crop.circle", tint: Color(red: 0.55, green: 0.85, blue: 0.6),
                             title: "Draws as it talks", detail: "Circles, arrows and sketches on what you're looking at.")
                 FeatureTile(symbol: "brain.head.profile", tint: Color(red: 0.78, green: 0.62, blue: 1.0),
                             title: "Remembers what you learn", detail: "New answers build on earlier lessons.")
-                FeatureTile(symbol: "lightbulb", tint: Color(red: 1.0, green: 0.78, blue: 0.4),
-                            title: "Hints before answers", detail: "On practice problems, you choose how much to see.")
+                FeatureTile(symbol: "hand.point.up.left", tint: Color(red: 1.0, green: 0.78, blue: 0.4),
+                            title: "Guides you through apps", detail: "Points at each step, then waits for you to do it.")
             }
             .padding(.top, 26)
 
@@ -286,7 +289,7 @@ struct SetupView: View {
             Text("Three permissions")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            Text("The microphone hears your question, Screen Recording lets Buddy see what you are asking about, and Accessibility catches Control + Option from any app. The screen is only captured while you hold the keys.")
+            Text("The microphone hears your question, Screen Recording lets Buddy see what you are asking about, and Accessibility catches its shortcuts from any app and finds the exact button to point at. The screen is only captured when you ask, by voice or typing, and at each step while Buddy guides you through a task.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.white.opacity(0.62))
                 .fixedSize(horizontal: false, vertical: true)
@@ -315,11 +318,13 @@ struct SetupView: View {
                 .foregroundStyle(.white)
             VStack(alignment: .leading, spacing: 14) {
                 HowToRow(symbol: "keyboard", title: "Hold Control + Option and ask",
-                         detail: "About anything on your screen. Let go when you're done; your words show under the notch as you speak.")
+                         detail: "About anything on your screen. Let go when you're done; your words show under the notch as you speak. Rather type? Press Control + Option + T.")
                 HowToRow(symbol: "pencil.and.scribble", title: "Watch it explain",
                          detail: "Buddy talks and draws at the same time. Esc clears the drawing.")
+                HowToRow(symbol: "hand.point.up.left", title: "New to an app? Ask how",
+                         detail: "\"How do I export this?\" Buddy points at each step and says the next one once you've done it. Esc stops it.")
                 HowToRow(symbol: "rectangle.topthird.inset.filled", title: "Hover the notch",
-                         detail: "For the last lesson, the day's transcript, and Settings, where your keys and name can be changed.")
+                         detail: "For the last lesson, the chat with the whole day's conversation, and Settings, where your keys and name can be changed.")
                 HowToRow(symbol: "lightbulb", title: "On LeetCode, it hints first",
                          detail: "Say \"show me the code\" whenever you want the full answer.")
             }

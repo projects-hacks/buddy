@@ -562,6 +562,15 @@ final class TutorControlBarController {
 
     private var isHeldClosedUntilPointerLeaves = false
 
+    /// Closed for a window that needs the space, such as setup. It stays
+    /// closed until the pointer leaves and comes back.
+    func putAway() {
+        model.isChatFocused = false
+        model.wantsChatFocus = false
+        isHeldClosedUntilPointerLeaves = true
+        setExpanded(false)
+    }
+
     // MARK: Typing
 
     /// The app the student was in before the chat box took the keyboard,

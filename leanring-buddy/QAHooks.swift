@@ -86,6 +86,8 @@ final class QAHooks {
             companionManager.qaSetNotchOpen(info["value"] == "open")
         case "escape":
             companionManager.qaPressEscape()
+        case "notchTab":
+            companionManager.qaSetNotchTab(info["value"] ?? "lesson")
         case "openChat":
             companionManager.qaOpenChat()
         case "chatDraft":

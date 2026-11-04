@@ -1,6 +1,6 @@
 # How Buddy works
 
-What happens between letting go of Control + Option and hearing the first sentence, and how each feature stays out of that wait.
+What happens between asking and hearing the first sentence, and how each feature stays out of that wait.
 
 ## One question, start to finish
 
@@ -31,6 +31,8 @@ sequenceDiagram
 ```
 
 Everything that is not the answer itself either runs during the screen capture, which has to happen anyway, or after the answer is spoken. The only wait is the model's first sentence.
+
+A typed question (Control + Option + T, or the chat box) joins at step 4: it skips speech, and everything after is the same. The chat box lives in the notch, which is a non-activating panel, so typing in it never takes the front away from the app being studied; the screen read and the app named in the turn note are still that app's.
 
 ## The answer is a program
 
@@ -105,6 +107,32 @@ Both are notes added to the turn, never to the cached system prompt, so the prom
 - **Diagrams** are recognised by the drawing tool in front, or by the student saying it is their own design. The tutor marks their boxes by id and proposes additions with `suggest(...)`, drawn dashed and purple beside them.
 
 Both were checked on Sonnet and Argon with drawn screens: 32 of 32 checks passed (`scripts/study_modes/`).
+
+## Guide mode
+
+When the question is a task in an app ("how do I export this"), the answer gives only the first step and ends with `waitForStep("click Export as PDF", "a save dialog")`. There is no switch: the model decides from the question, and a question that is not a task never starts one.
+
+```mermaid
+sequenceDiagram
+    participant You
+    participant Mac as On the Mac
+    participant Brain as Sonnet
+
+    Brain-->>You: one step, spoken, pointer on the button
+    Note over Mac: holds a 96 x 60 grey thumbnail<br/>of the screen the step was given on
+    You->>Mac: click, key or scroll
+    Mac->>Mac: 0.7 s later, a small capture,<br/>Buddy's windows and the pointer left out
+    alt fewer than 9 cells changed
+        Mac->>Mac: keep waiting, nothing sent
+    else the screen changed
+        Mac->>Brain: new screenshot, the step, where it changed
+        Brain-->>You: the next step, a correction, silence, or done
+    end
+```
+
+The watching costs no tokens: nothing is captured without input from the student, and the comparison is a few thousand subtractions on the Mac. The model is asked again only when the screen visibly changed, which is one ordinary answer, about a cent with Sonnet. The note tells it where the change was, so a menu that just opened is read as the step done. Switching to an app the step does not name is not counted, the menu bar clock is ignored, and a guide ends on Esc, Stop, a new question, 15 steps or 5 minutes without progress. Guide steps are not filed into learning memory; "click Export" is not an idea.
+
+Menu bar titles and an open menu's items are kept in the screen index, which otherwise drops everything outside the front window as chrome, so a step can point at File and then at Export as PDF by id.
 
 ## Where things live
 
