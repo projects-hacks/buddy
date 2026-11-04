@@ -25,31 +25,31 @@ enum CalibrationSnapshot {
     /// read together.
     static let outputURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/ClickyLocal-calibration.png")
+        .appendingPathComponent("Library/Logs/\(AppIdentity.dataName)-calibration.png")
 
     /// Presence of this file asks the running app to calibrate. A file rather
     /// than a menu item so it can be triggered from a terminal without the
     /// user having to speak or click anything.
     static let triggerURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/ClickyLocal.calibrate")
+        .appendingPathComponent("Library/Logs/\(AppIdentity.dataName).calibrate")
 
     /// A question written here is asked as if it had been spoken.
     static let askURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/ClickyLocal.ask")
+        .appendingPathComponent("Library/Logs/\(AppIdentity.dataName).ask")
 
     /// Opens the notch on the tab named in this file (lesson, transcript or
     /// settings) for a few seconds, so its open state can be snapshotted
     /// without anyone hovering over it.
     static let openNotchURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/ClickyLocal.notch")
+        .appendingPathComponent("Library/Logs/\(AppIdentity.dataName).notch")
 
     /// Presence of this file takes a snapshot of the screen with the drawing.
     static let snapshotTriggerURL: URL = FileManager.default
         .homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Logs/ClickyLocal.snapshot")
+        .appendingPathComponent("Library/Logs/\(AppIdentity.dataName).snapshot")
 
     /// Captures the display under the cursor, this app's overlay included.
     static func captureIncludingOverlay() async throws {

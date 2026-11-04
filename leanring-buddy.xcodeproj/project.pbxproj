@@ -18,19 +18,11 @@
 			remoteGlobalIDString = 28F22CBE2F56440300A0FC59;
 			remoteInfo = "leanring-buddy";
 		};
-		28F22CD72F56440300A0FC59 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 28F22CB72F56440300A0FC59 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 28F22CBE2F56440300A0FC59;
-			remoteInfo = "leanring-buddy";
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		28F22CBF2F56440300A0FC59 /* Clicky.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Clicky.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		28F22CCC2F56440300A0FC59 /* leanring-buddyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "leanring-buddyTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		28F22CD62F56440300A0FC59 /* leanring-buddyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "leanring-buddyUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -42,11 +34,6 @@
 		28F22CCF2F56440300A0FC59 /* leanring-buddyTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "leanring-buddyTests";
-			sourceTree = "<group>";
-		};
-		28F22CD92F56440300A0FC59 /* leanring-buddyUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "leanring-buddyUITests";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -67,13 +54,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CD32F56440300A0FC59 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -82,7 +62,6 @@
 			children = (
 				28F22CC12F56440300A0FC59 /* leanring-buddy */,
 				28F22CCF2F56440300A0FC59 /* leanring-buddyTests */,
-				28F22CD92F56440300A0FC59 /* leanring-buddyUITests */,
 				28F22CC02F56440300A0FC59 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -92,7 +71,6 @@
 			children = (
 				28F22CBF2F56440300A0FC59 /* Clicky.app */,
 				28F22CCC2F56440300A0FC59 /* leanring-buddyTests.xctest */,
-				28F22CD62F56440300A0FC59 /* leanring-buddyUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -146,29 +124,6 @@
 			productReference = 28F22CCC2F56440300A0FC59 /* leanring-buddyTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		28F22CD52F56440300A0FC59 /* leanring-buddyUITests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 28F22CE62F56440300A0FC59 /* Build configuration list for PBXNativeTarget "leanring-buddyUITests" */;
-			buildPhases = (
-				28F22CD22F56440300A0FC59 /* Sources */,
-				28F22CD32F56440300A0FC59 /* Frameworks */,
-				28F22CD42F56440300A0FC59 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				28F22CD82F56440300A0FC59 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				28F22CD92F56440300A0FC59 /* leanring-buddyUITests */,
-			);
-			name = "leanring-buddyUITests";
-			packageProductDependencies = (
-			);
-			productName = "leanring-buddyUITests";
-			productReference = 28F22CD62F56440300A0FC59 /* leanring-buddyUITests.xctest */;
-			productType = "com.apple.product-type.bundle.ui-testing";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -183,10 +138,6 @@
 						CreatedOnToolsVersion = 26.2;
 					};
 					28F22CCB2F56440300A0FC59 = {
-						CreatedOnToolsVersion = 26.2;
-						TestTargetID = 28F22CBE2F56440300A0FC59;
-					};
-					28F22CD52F56440300A0FC59 = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 28F22CBE2F56440300A0FC59;
 					};
@@ -211,7 +162,6 @@
 			targets = (
 				28F22CBE2F56440300A0FC59 /* leanring-buddy */,
 				28F22CCB2F56440300A0FC59 /* leanring-buddyTests */,
-				28F22CD52F56440300A0FC59 /* leanring-buddyUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -225,13 +175,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		28F22CCA2F56440300A0FC59 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		28F22CD42F56440300A0FC59 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -255,13 +198,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		28F22CD22F56440300A0FC59 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -269,11 +205,6 @@
 			isa = PBXTargetDependency;
 			target = 28F22CBE2F56440300A0FC59 /* leanring-buddy */;
 			targetProxy = 28F22CCD2F56440300A0FC59 /* PBXContainerItemProxy */;
-		};
-		28F22CD82F56440300A0FC59 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 28F22CBE2F56440300A0FC59 /* leanring-buddy */;
-			targetProxy = 28F22CD72F56440300A0FC59 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -516,44 +447,6 @@
 			};
 			name = Release;
 		};
-		28F22CE72F56440300A0FC59 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.leanring-buddyUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "leanring-buddy";
-			};
-			name = Debug;
-		};
-		28F22CE82F56440300A0FC59 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.3;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.leanring-buddyUITests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				STRING_CATALOG_GENERATE_SYMBOLS = NO;
-				SWIFT_APPROACHABLE_CONCURRENCY = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = "leanring-buddy";
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -580,15 +473,6 @@
 			buildConfigurations = (
 				28F22CE42F56440300A0FC59 /* Debug */,
 				28F22CE52F56440300A0FC59 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		28F22CE62F56440300A0FC59 /* Build configuration list for PBXNativeTarget "leanring-buddyUITests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				28F22CE72F56440300A0FC59 /* Debug */,
-				28F22CE82F56440300A0FC59 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

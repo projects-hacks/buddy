@@ -496,57 +496,6 @@ struct CompanionPanelView: View {
         }
     }
 
-    // MARK: - Show Clicky Cursor Toggle
-
-    private var showClickyCursorToggleRow: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "cursorarrow")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-
-                Text("Show Clicky")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: Binding(
-                get: { companionManager.isClickyCursorEnabled },
-                set: { companionManager.setClickyCursorEnabled($0) }
-            ))
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .tint(DS.Colors.accent)
-            .scaleEffect(0.8)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var speechToTextProviderRow: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "mic.badge.waveform")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-
-                Text("Speech to Text")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Text(companionManager.buddyDictationManager.transcriptionProviderDisplayName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(DS.Colors.textTertiary)
-        }
-        .padding(.vertical, 4)
-    }
-
     // MARK: - Brain Picker
 
     private var modelPickerRow: some View {

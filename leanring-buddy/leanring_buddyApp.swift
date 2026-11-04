@@ -31,8 +31,8 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private let companionManager = CompanionManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        print("🎯 Clicky: Starting...")
-        print("🎯 Clicky: Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
+        print("🎯 Buddy: Starting...")
+        print("🎯 Buddy: Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
 
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
 

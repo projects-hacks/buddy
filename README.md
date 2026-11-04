@@ -115,14 +115,14 @@ Memory that grows forever and is searched while the student waits has three prob
 - **Small.** A new explanation updates the idea it is about rather than adding a second copy, so the store grows with the number of ideas, not questions. Ideas met once and unseen for four months move to an archive and come back, history intact, if they come up again.
 - **Current.** Each idea keeps only its latest explanation, so the tutor builds on what was last heard. How well it is probably still remembered follows the FSRS forgetting curve: fresh ideas are built on, fading ones get a one-sentence reminder, forgotten ones are taught again. If a macOS update changes the sentence model, stored vectors are re-embedded in the background.
 
-Everything lives in `~/Library/Application Support/ClickyLocal/Memory` and can be switched off or forgotten in one click from Settings.
+Everything lives in `~/Library/Application Support/Buddy/Memory` and can be switched off or forgotten in one click from Settings.
 
 ## Building from source
 
 For working on Buddy itself; to use it, the download above is enough.
 
 - macOS 14.2 or later on Apple silicon, and Xcode 16 or later
-- Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**.
+- Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**. The name is from before the project was Buddy; the build scripts look for it, and the bundle identifier `com.maverickrajeev.clicky-local` keeps its old name too, because macOS ties permissions to it and every installed copy only accepts an update with the same one.
 
 ```bash
 git clone https://github.com/projects-hacks/study-buddy.git
@@ -130,7 +130,7 @@ cd study-buddy
 zsh scripts/build-local.sh
 ```
 
-The script builds, signs with that certificate, installs `/Applications/Buddy.app` and launches it; on first launch the setup window takes the keys. To bill Gemini Argon to a Google Cloud project through Vertex instead of a key, choose **Google Cloud** in the Gemini card and give the project ID, with the `gcloud` CLI signed in (`gcloud auth application-default login`). Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/ClickyLocal.log`.
+The script builds, signs with that certificate, installs `/Applications/Buddy.app` and launches it; on first launch the setup window takes the keys. To bill Gemini Argon to a Google Cloud project through Vertex instead of a key, choose **Google Cloud** in the Gemini card and give the project ID, with the `gcloud` CLI signed in (`gcloud auth application-default login`). Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/Buddy.log`.
 
 `zsh scripts/make-release.sh <version>` builds the downloadable disk image; [docs/releasing.md](docs/releasing.md) covers publishing it.
 
@@ -148,7 +148,7 @@ More in [docs/using-buddy.md](docs/using-buddy.md); the inside story in [docs/ho
 
 ## Privacy
 
-The screen is captured only when you ask, by holding the keys or sending a typed question, and while Buddy walks you through a task: then it takes a small capture after each click, key or scroll to see whether the step is done, compares it on the Mac and discards it, and sends a screenshot only when the screen has changed and the next step is needed. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/ClickyLocal`. Analytics are disabled.
+The screen is captured only when you ask, by holding the keys or sending a typed question, and while Buddy walks you through a task: then it takes a small capture after each click, key or scroll to see whether the step is done, compares it on the Mac and discards it, and sends a screenshot only when the screen has changed and the next step is needed. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/Buddy`. Analytics are disabled.
 
 ## Project layout
 

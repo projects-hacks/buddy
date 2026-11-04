@@ -134,14 +134,14 @@ Hover the notch, open the gear tab, and choose **Name and API keys**. If a key s
 | The voice sounds robotic | No Deepgram key, so macOS's own voice is reading. Add one in setup. |
 | No notch on this Mac | Buddy hangs from the middle of the menu bar instead; everything else is the same. |
 
-The log at `~/Library/Logs/ClickyLocal.log` records every step of every question, which helps when asking for help.
+The log at `~/Library/Logs/Buddy.log` records every step of every question, which helps when asking for help.
 
 ## Removing Buddy
 
 Quit it from the notch's gear tab, delete it from Applications, and if wanted remove its data and keys:
 
 ```bash
-rm -rf ~/Library/Application\ Support/ClickyLocal
+rm -rf ~/Library/Application\ Support/Buddy
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.gemini
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.deepgram

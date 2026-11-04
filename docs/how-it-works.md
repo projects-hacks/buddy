@@ -139,6 +139,6 @@ Menu bar titles and an open menu's items are kept in the screen index, which oth
 | What | Where |
 |---|---|
 | Keys | macOS Keychain, saved and read through `/usr/bin/security` so updates never prompt |
-| Transcripts | `~/Library/Application Support/ClickyLocal/Transcripts`, one Markdown file a day |
-| Memory and hint steps | `~/Library/Application Support/ClickyLocal/Memory` |
-| Log | `~/Library/Logs/ClickyLocal.log` |
+| Transcripts | `~/Library/Application Support/Buddy/Transcripts`, one Markdown file a day |
+| Memory and hint steps | `~/Library/Application Support/Buddy/Memory` |
+| Log | `~/Library/Logs/Buddy.log` |

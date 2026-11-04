@@ -88,14 +88,14 @@ echo "installed: $INSTALLED_APP"
 
 # Keep the previous session's log: it is the record of the last test, and
 # deleting it on rebuild has already destroyed evidence once.
-if [ -f ~/Library/Logs/ClickyLocal.log ]; then
-  mv ~/Library/Logs/ClickyLocal.log ~/Library/Logs/ClickyLocal.previous.log
+if [ -f ~/Library/Logs/Buddy.log ]; then
+  mv ~/Library/Logs/Buddy.log ~/Library/Logs/Buddy.previous.log
 fi
 open "$INSTALLED_APP"
 sleep 4
 
 if pgrep -f "Buddy.app/Contents/MacOS/Buddy$" >/dev/null; then
-  echo "running. logs: ~/Library/Logs/ClickyLocal.log"
+  echo "running. logs: ~/Library/Logs/Buddy.log"
 else
   echo "failed to launch. run the binary directly to see why:"
   echo "  \"$INSTALLED_APP/Contents/MacOS/Buddy\""

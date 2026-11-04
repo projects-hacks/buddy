@@ -38,7 +38,7 @@
 //    stored with the vectors, and a mismatch re-embeds everything quietly in
 //    the background, with words-only recall working meanwhile.
 //
-//  Files, in ~/Library/Application Support/ClickyLocal/Memory, never leaving
+//  Files, in ~/Library/Application Support/Buddy/Memory, never leaving
 //  the Mac: concepts.json (what is known), vectors.bin (their vectors),
 //  archive.json (set aside), lessons.jsonl (an append-only log of every
 //  lesson, the record everything else could be rebuilt from).

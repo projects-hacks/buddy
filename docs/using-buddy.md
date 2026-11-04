@@ -76,7 +76,7 @@ If you go the wrong way, the next step says how to get back. If you are mid-step
 - **While guiding**, it shows the step it is waiting for, with "esc to stop".
 - **Hover it** for the last lesson as a paper card (title, your question, the answer, follow-ups), the chat with the whole day's conversation and the box to type in, and Settings.
 
-Every conversation is also saved as a Markdown file per day in `~/Library/Application Support/ClickyLocal/Transcripts`, opened from the notch with **Open full transcript**.
+Every conversation is also saved as a Markdown file per day in `~/Library/Application Support/Buddy/Transcripts`, opened from the notch with **Open full transcript**.
 
 ## Follow-ups
 

@@ -14,7 +14,7 @@
 //  Why a transcript. A spoken explanation is gone once said. A student who
 //  missed a sentence, or wants the third step again, can read it here, and
 //  each day's conversation is also saved as a plain text file to come back
-//  to (~/Library/Application Support/ClickyLocal/Transcripts).
+//  to (~/Library/Application Support/Buddy/Transcripts).
 //
 //  Its own small window because the overlays that hold the drawing are
 //  click-through, and have to be: they cover the whole screen.
@@ -167,7 +167,7 @@ final class TutorControlBarModel: ObservableObject {
 /// same conversation for a person to read: questions as headings, answers as
 /// paragraphs, lesson names in italics.
 ///
-/// Both live in ~/Library/Application Support/ClickyLocal/Transcripts and
+/// Both live in ~/Library/Application Support/Buddy/Transcripts and
 /// never leave the Mac.
 private final class TranscriptStore {
     enum EventKind: String, Codable {

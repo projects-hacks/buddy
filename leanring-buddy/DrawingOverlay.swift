@@ -87,7 +87,7 @@ final class DrawingOverlay: NSObject {
         guard let webView else { return RunResult() }
         do {
             let value = try await webView.callAsyncJavaScript(
-                "return JSON.stringify(ClickyEngine.run(code));",
+                "return JSON.stringify(BuddyEngine.run(code));",
                 arguments: ["code": programPiece],
                 contentWorld: .page
             )
@@ -221,7 +221,7 @@ final class DrawingOverlay: NSObject {
     private func callEngine(_ function: String, argumentsJSON: String) {
         let call: () -> Void = { [weak self] in
             guard let webView = self?.webView else { return }
-            webView.evaluateJavaScript("ClickyEngine.\(function)(\(argumentsJSON));") { _, error in
+            webView.evaluateJavaScript("BuddyEngine.\(function)(\(argumentsJSON));") { _, error in
                 if let error {
                     TutorDebugLog.write("⚠️ engine \(function) failed: \(error.localizedDescription)")
                 }

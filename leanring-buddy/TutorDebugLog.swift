@@ -17,7 +17,7 @@
 import Foundation
 
 enum TutorDebugLog {
-    /// `~/Library/Logs/ClickyLocal.log`, the conventional place for an app's
+    /// `~/Library/Logs/Buddy.log`, the conventional place for an app's
     /// own log and readable without elevated permissions.
     static let fileURL: URL = {
         let logsDirectory = FileManager.default
@@ -27,12 +27,12 @@ enum TutorDebugLog {
     }()
 
     /// Serialises writes, since the pipeline logs from several tasks.
-    private static let writeQueue = DispatchQueue(label: "com.clickylocal.debuglog")
+    private static let writeQueue = DispatchQueue(label: "buddy.debug-log")
 
     /// Starts a fresh file, so a session's log is only that session.
     static func beginSession() {
         writeQueue.async {
-            let header = "=== Clicky local session \(timestamp()) ===\n"
+            let header = "=== Buddy session \(timestamp()) ===\n"
             try? header.write(to: fileURL, atomically: true, encoding: .utf8)
         }
     }

@@ -54,7 +54,7 @@ a self-signed certificate keeps the designated requirement stable so Screen
 Recording and Accessibility grants survive rebuilds, `ENABLE_DEBUG_DYLIB=NO`
 avoids a Team ID mismatch with Xcode's preview dylib, and the
 disable-library-validation entitlement lets the hardened runtime load
-PostHog's code without a Team ID. Diagnostics go to `~/Library/Logs/ClickyLocal.log`, including the
+PostHog's code without a Team ID. Diagnostics go to `~/Library/Logs/Buddy.log`, including the
 raw model response.
 
 ### Key Architecture Decisions
@@ -65,7 +65,7 @@ raw model response.
 
 **Global Push-To-Talk Shortcut**: Background push-to-talk uses a listen-only `CGEvent` tap instead of an AppKit global monitor so modifier-based shortcuts like `ctrl + option` are detected more reliably while the app is running in the background.
 
-**Transient Cursor Mode**: When "Show Clicky" is off, pressing the hotkey fades in the cursor overlay for the duration of the interaction (recording → response → TTS → optional pointing), then fades it out automatically after 1 second of inactivity.
+**Transient Cursor Mode**: When the cursor overlay is off, pressing the hotkey fades in the cursor overlay for the duration of the interaction (recording → response → TTS → optional pointing), then fades it out automatically after 1 second of inactivity.
 
 ## Key Files
 
@@ -90,12 +90,12 @@ raw model response.
 | `NarrationVoice.swift` | ~280 | Deepgram per sentence: streams the first, downloads each next one while the current plays, reports exact sentence lengths for pen pacing. Falls back to the system voice. |
 | `LessonProgramPlayer.swift` | ~150 | Ties stream, voice, engine and notch together for one answer. |
 | `TutorProgramPrompt.swift` | ~210 | The cached system prompt (teaching rules and the drawing API) and the per-turn note (time, front app, canvas size, screen text with boxes, length per question kind, and the study notes from memory, practice hints or diagram review). |
-| `TutorControlBar.swift` | ~1600 | The notch panel in a fixed clear window that passes the mouse through outside the shape, opened by hover after a short dwell and closed after a grace period: status, the sentence being said, and on hover the last lesson as a paper card or the chat (the day's conversation), with the chat box, follow-ups, Stop and Clear. The panel takes the keyboard only for the chat box and, being non-activating, leaves the studied app frontmost; sending closes the notch and hands the keyboard back. Saves each day's transcript to `~/Library/Application Support/ClickyLocal/Transcripts`. |
+| `TutorControlBar.swift` | ~1600 | The notch panel in a fixed clear window that passes the mouse through outside the shape, opened by hover after a short dwell and closed after a grace period: status, the sentence being said, and on hover the last lesson as a paper card or the chat (the day's conversation), with the chat box, follow-ups, Stop and Clear. The panel takes the keyboard only for the chat box and, being non-activating, leaves the studied app frontmost; sending closes the notch and hands the keyboard back. Saves each day's transcript to `~/Library/Application Support/Buddy/Transcripts`. |
 | `InterfaceSounds.swift` | ~110 | Short interface sounds made by `scripts/sounds/make_sounds.py` into `Sounds/`: listening and sent on push-to-talk, a water drop when the student opens the notch, a tick on copy, a wipe on Clear or Esc, a low tone on failure. Decorative ones never play over the voice; all respect the Sounds switch and macOS's interface sound setting. |
 | `QuestionSorter.swift` | ~190 | First stage of sorting a spoken question into its kind (quick, normal, teach, re-explain, trade-off): macOS's built-in sentence model and the nearest examples in `QuestionKindExamples.json`, returning calibrated probabilities. Decides alone only above 0.95 confidence. Keyword lists in `CompanionManager` are the last fallback. Graded by `scripts/question_sorting/calibrate.py`. |
 | `QuestionKindClassifier.swift` | ~80 | Second stage: Claude Haiku with `QuestionSorterPrompt.txt`, asked while the screen is captured and dropped if it is more than 0.35s late. Graded by `scripts/question_sorting/cascade_test.py` on a blind spoken set. |
 | `ModelRouter.swift` | ~190 | Under Brain: Auto, picks Sonnet, Opus or Argon per question from `RouteTable.json` (judged quality, time to first word and cost per kind, built by `scripts/route_race/`), weighing every kind by its probability. Ties within the judges' noise go to the cheaper brain. A brain that fails before speaking is benched for five minutes and the next one answers. `scripts/route_race/route_report.py` reads the log for how routing does on real questions. |
-| `LearningMemory.swift` | ~580 | What the student has learned across sessions, in `~/Library/Application Support/ClickyLocal/Memory`. Filed after each answer (Haiku names the ideas, matches known ones, writes plain-words cues), recalled during capture as a cascade (on-device shortlist, Haiku chooses, names-only fallback). Latest explanation replaces the old, FSRS forgetting curve decides build on / remind / re-teach, stale ideas archived, vectors re-embedded if the sentence model changes. Graded by `scripts/learning_memory/`. |
+| `LearningMemory.swift` | ~580 | What the student has learned across sessions, in `~/Library/Application Support/Buddy/Memory`. Filed after each answer (Haiku names the ideas, matches known ones, writes plain-words cues), recalled during capture as a cascade (on-device shortlist, Haiku chooses, names-only fallback). Latest explanation replaces the old, FSRS forgetting curve decides build on / remind / re-teach, stale ideas archived, vectors re-embedded if the sentence model changes. Graded by `scripts/learning_memory/`. |
 | `ConceptIndex.swift` | ~450 | Memory's in-memory index: whole-name and alias matching, how much of the question a concept's words cover, one matrix-vector product for meaning. The shortlist and the names-only fallback both come from here. |
 | `LearningMemoryCalls.swift` | ~120 | The two Haiku calls memory makes, with `LessonConceptPrompt.txt` (filing) and `MemoryRecallPrompt.txt` (choosing). |
 | `PracticeHints.swift` | ~210 | On LeetCode, HackerRank and similar, help in steps: nudge, approach, walk through, code. Reads the step asked for from what was said, keeps each problem's step on disk, and reads `hintLevel(n)` back from the program. Checked by `scripts/study_modes/`. |

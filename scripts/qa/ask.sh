@@ -7,7 +7,7 @@
 QA="${0:a:h}/qa.sh"
 OUT="${QA_OUT:-${TMPDIR%/}/buddy-qa}"
 mkdir -p "$OUT"
-LOG=~/Library/Logs/ClickyLocal.log
+LOG=~/Library/Logs/Buddy.log
 START=$(( $(wc -l < $LOG | tr -d " ") + 1 ))
 "$QA" ask "" "$2"
 sleep 3;   "$QA" snapshot "$OUT/$1-wait.png"

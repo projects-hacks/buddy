@@ -20,8 +20,8 @@ import sys
 from collections import Counter
 
 LOGS = [pathlib.Path(argument) for argument in sys.argv[1:]] or [
-    pathlib.Path.home() / "Library/Logs/ClickyLocal.previous.log",
-    pathlib.Path.home() / "Library/Logs/ClickyLocal.log",
+    pathlib.Path.home() / "Library/Logs/Buddy.previous.log",
+    pathlib.Path.home() / "Library/Logs/Buddy.log",
 ]
 
 sorted_by = Counter()

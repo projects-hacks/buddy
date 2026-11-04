@@ -1,4 +1,4 @@
-// Clicky Local drawing engine.
+// Buddy drawing engine.
 //
 // The tutor answers with a small program: beats of `say("...")` sentences,
 // each followed by the marks drawn while that sentence is spoken. This file
@@ -1013,7 +1013,7 @@
   // The program sees the API as plain globals.
   Object.assign(window, api, { PI: Math.PI, min: Math.min, max: Math.max, abs: Math.abs, round: Math.round, floor: Math.floor, sqrt: Math.sqrt, sin: Math.sin, cos: Math.cos });
 
-  window.ClickyEngine = {
+  window.BuddyEngine = {
     setup, run, playLine, updateLineDuration, finishLine, finishAll,
     clearAll, clearScreenMarks, scrollScreenMarks, resetTurn,
     lineCount: () => state.lines.length

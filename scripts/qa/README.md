@@ -24,4 +24,4 @@ open "$TMPDIR/buddy-qa-derived/Build/Products/Debug/Buddy.app"
 QA_TARGET=com.maverickrajeev.clicky-local.qa zsh scripts/qa/qa.sh state
 ```
 
-Afterwards, remove everything the copy made: `defaults delete com.maverickrajeev.clicky-local.qa`, its Keychain items (`security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.qa.anthropic`), `~/Library/Application Support/ClickyLocal-qa` and `~/Library/Logs/ClickyLocal-qa.log`.
+Afterwards, remove everything the copy made: `defaults delete com.maverickrajeev.clicky-local.qa`, its Keychain items (`security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.qa.anthropic`), `~/Library/Application Support/Buddy-qa` and `~/Library/Logs/Buddy-qa.log`.

@@ -466,7 +466,7 @@ enum GeminiError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingKey:
-            return "No Gemini API key saved. Add one in the Clicky panel."
+            return "No Gemini API key saved. Add one in Name and API keys, in the notch's settings."
         case .httpStatus(let code, let body):
             return "Gemini HTTP \(code): \(body)"
         case .malformedResponse:
