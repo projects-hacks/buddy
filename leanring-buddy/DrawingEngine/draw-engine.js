@@ -933,6 +933,8 @@
     clear() { clearAll(); },
     // Read by the app from the program text, for the practice hint ladder.
     hintLevel() {},
+    // Read by the app from the program text: guide mode's step to watch for.
+    waitForStep() {},
     seen() {}, plan() {}, task() {}, waitForUser() {},
 
     // Constants and small helpers a drawing program reaches for.

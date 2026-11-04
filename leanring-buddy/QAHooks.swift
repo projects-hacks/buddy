@@ -86,6 +86,14 @@ final class QAHooks {
             companionManager.qaSetNotchOpen(info["value"] == "open")
         case "escape":
             companionManager.qaPressEscape()
+        case "openChat":
+            companionManager.qaOpenChat()
+        case "chatDraft":
+            companionManager.qaSetChatDraft(info["text"] ?? "")
+        case "closeChat":
+            companionManager.qaCloseChat()
+        case "sendChat":
+            companionManager.qaSendChat()
         case "setup":
             companionManager.setupWindow.show(startingAt: SetupStep(rawValue: Int(info["value"] ?? "0") ?? 0) ?? .welcome)
         case "closeSetup":

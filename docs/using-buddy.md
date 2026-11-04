@@ -6,11 +6,20 @@ Buddy is a study helper, not a tutor: it explains, draws and remembers, and it n
 
 Hold **Control + Option**, ask out loud, and let go. Your words appear under the notch as you speak, so a misheard question can be caught before it is sent. The answer starts within a few seconds: each sentence is spoken with the marks that go with it.
 
+**Learning an app.** Ask how to get something done in the app in front of you, "how do I add a transition here" or "where do I turn on dark mode", and Buddy guides instead of lecturing: it says one step and points at the exact button or menu. Do the step and Buddy notices and says the next one, without being asked, until the task is done. The step it is waiting for shows under the notch; Esc, Stop or a new question ends the guide.
+
+Watching costs nothing. Buddy only looks after you click, type or scroll, and compares a tiny thumbnail of the screen on your Mac; the model is asked again only when the screen has changed, which is one ordinary answer, the same as asking "what next?". A guide stops by itself after 15 steps or 5 minutes without progress.
+
+**Typing instead.** Press **Control + Option + T** from any app, or open the notch and click the chat box, then press Return. Shift + Return starts a new line, and Esc puts the box away with what you typed kept for later. A typed question is answered exactly like a spoken one, out loud and drawn on the screen, and both land in the chat tab, which holds the whole day's conversation. The notch closes when you send so the drawing has the whole screen, and the keyboard goes back to the app you were in. Questions can be up to 2,000 characters, enough for a pasted function or error message.
+
 ```mermaid
 stateDiagram-v2
     direction TB
     [*] --> Idle
     Idle --> Listening: hold Control + Option
+    Idle --> Typing: Control + Option + T
+    Typing --> Thinking: Return
+    Typing --> Idle: Esc
     Listening --> Thinking: let go
     Thinking --> Explaining: first sentence
     Explaining --> Idle: last sentence
@@ -22,7 +31,7 @@ stateDiagram-v2
     classDef live fill:#fecaca,stroke:#b91c1c,color:#111
     classDef busy fill:#fde68a,stroke:#b45309,color:#111
     classDef talk fill:#bfdbfe,stroke:#1d4ed8,color:#111
-    class Idle,Open idle
+    class Idle,Open,Typing idle
     class Listening live
     class Thinking busy
     class Explaining talk
@@ -100,6 +109,8 @@ Hover the notch and open the gear tab.
 
 | Keys | Does |
 |---|---|
-| Hold Control + Option | Ask |
+| Hold Control + Option | Ask out loud |
+| Control + Option + T | Type a question |
+| Return / Shift + Return, in the chat box | Send / new line |
 | Esc | Clear the drawing |
 | Stop, in the notch | Silence the voice |

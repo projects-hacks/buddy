@@ -70,6 +70,10 @@ final class TutorControlBarModel: ObservableObject {
     @Published var heardWords: String = ""
     /// Ideas from earlier sessions the current answer builds on.
     @Published var buildsOn: [String] = []
+    /// The step Buddy is waiting for the student to do, while it guides them
+    /// through a task in an app. Shown under the notch so it is clear Buddy
+    /// is watching for it, and how to stop that (Esc).
+    @Published var guideInstruction: String?
     /// What the wait is spent on, said beside the amber dot: "reading your
     /// screen", then "thinking". A few seconds of silence read as broken;
     /// the same seconds with a stage name read as work.
@@ -93,6 +97,19 @@ final class TutorControlBarModel: ObservableObject {
     /// Held open regardless of the mouse, while setup still needs the
     /// student (a missing permission).
     @Published var isPinnedOpen = false
+    /// What is typed in the chat box. Kept when the notch closes, so a
+    /// question half written is still there when it opens again.
+    @Published var chatDraft = ""
+    /// The chat box has the keyboard. The notch stays open while it does,
+    /// whatever the mouse does, so moving the pointer away mid-sentence does
+    /// not throw the question away.
+    @Published var isChatFocused = false
+    /// Set to put the keyboard in the chat box as soon as it is on screen;
+    /// it may not exist yet when asked, since it appears with the open notch.
+    @Published var wantsChatFocus = false
+    /// Long enough for a pasted function or error message, short enough that
+    /// a whole pasted file does not crowd out the screen in the prompt.
+    static let chatCharacterLimit = 2000
 
     private let transcriptStore = TranscriptStore()
 
@@ -287,6 +304,14 @@ private final class TranscriptStore {
     }
 }
 
+/// A borderless panel can never take the keyboard by default. This one can,
+/// only for the chat box: `becomesKeyOnlyIfNeeded` keeps clicks on buttons
+/// from taking it, and being non-activating keeps the app being studied in
+/// front, so its name and window are what the answer is about.
+private final class NotchPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 @MainActor
 final class TutorControlBarController {
     let model = TutorControlBarModel()
@@ -294,6 +319,7 @@ final class TutorControlBarController {
     private var hostingView: NSHostingView<TutorNotchView>?
 
     private let onAsk: (String) -> Void
+    private let onAskTyped: (String) -> Void
     private let onStop: () -> Void
     private let onClear: () -> Void
     private let settingsView: () -> AnyView
@@ -319,11 +345,13 @@ final class TutorControlBarController {
 
     init(
         onAsk: @escaping (String) -> Void,
+        onAskTyped: @escaping (String) -> Void,
         onStop: @escaping () -> Void,
         onClear: @escaping () -> Void,
         settingsView: @escaping () -> AnyView
     ) {
         self.onAsk = onAsk
+        self.onAskTyped = onAskTyped
         self.onStop = onStop
         self.onClear = onClear
         self.settingsView = settingsView
@@ -368,7 +396,7 @@ final class TutorControlBarController {
     private func makePanel() -> NSPanel {
         let screen = Self.notchScreen
         let windowSize = screen.map(TutorNotchView.windowSize(for:)) ?? CGSize(width: 720, height: 700)
-        let panel = NSPanel(
+        let panel = NotchPanel(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -388,6 +416,14 @@ final class TutorControlBarController {
         // Non-activating so a click here does not pull focus from the app the
         // student is studying in.
         panel.becomesKeyOnlyIfNeeded = true
+        // Clicking into another app takes the keyboard back. The chat box
+        // lets go of the notch then, so it closes like any other hover.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResignKeyNotification, object: panel, queue: .main
+        ) { [weak self] _ in
+            TutorDebugLog.write("⌨️ notch gave up the keyboard")
+            Task { @MainActor in self?.model.isChatFocused = false }
+        }
 
         let notchWidth = Self.notchWidth(of: screen)
         let notchHeight = max(screen?.safeAreaInsets.top ?? 0, NSStatusBar.system.thickness)
@@ -405,6 +441,9 @@ final class TutorControlBarController {
             onCopyTranscript: { [weak self] in self?.copyTranscript() },
             onStop: { [weak self] in self?.onStop() },
             onClear: { [weak self] in self?.onClear() },
+            onSendTyped: { [weak self] question in self?.sendTyped(question) },
+            onFinishTyping: { [weak self] in self?.finishTyping() },
+            onChatFocused: { [weak self] in self?.rememberAppBeingStudied() },
             onShapeSizeChange: { [weak self] size in
                 // Hover depends on this arriving, so its first arrival is logged.
                 if self?.notchShapeSize == .zero {
@@ -482,7 +521,8 @@ final class TutorControlBarController {
             if pointerLeftNotchAt == nil { pointerLeftNotchAt = now }
             // Not while a button is held: a text selection or a scroll-bar
             // drag can wander outside and should not lose the notch.
-            if model.isExpanded, !model.isPinnedOpen, !isButtonDown, let left = pointerLeftNotchAt,
+            if model.isExpanded, !model.isPinnedOpen, !model.isChatFocused, !model.wantsChatFocus,
+               !isButtonDown, let left = pointerLeftNotchAt,
                now.timeIntervalSince(left) >= Self.closeAfterSeconds {
                 setExpanded(false)
             }
@@ -521,6 +561,68 @@ final class TutorControlBarController {
     }
 
     private var isHeldClosedUntilPointerLeaves = false
+
+    // MARK: Typing
+
+    /// The app the student was in before the chat box took the keyboard,
+    /// given the keyboard back when they send or put the box away.
+    private var appBeingStudied: NSRunningApplication?
+
+    private func rememberAppBeingStudied() {
+        if let front = NSWorkspace.shared.frontmostApplication,
+           front.bundleIdentifier != Bundle.main.bundleIdentifier {
+            appBeingStudied = front
+        }
+    }
+
+    /// Opens the notch on the conversation with the keyboard in the chat box.
+    func openChat() {
+        rememberAppBeingStudied()
+        model.selectedTab = .transcript
+        isHeldClosedUntilPointerLeaves = false
+        if !model.isExpanded {
+            InterfaceSounds.shared.play(.drop)
+            setExpanded(true)
+        }
+        panel?.makeKey()
+        model.wantsChatFocus = true
+        TutorDebugLog.write("⌨️ chat open: panel key=\(panel?.isKeyWindow == true) app active=\(NSApp.isActive)")
+    }
+
+    /// Sent from the chat box. The notch closes so the whole screen is free
+    /// for the drawing, the way it is after a spoken question, and the
+    /// answer appears in the conversation as it is said.
+    private func sendTyped(_ question: String) {
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        model.chatDraft = ""
+        InterfaceSounds.shared.play(.sent)
+        finishTyping()
+        onAskTyped(trimmed)
+    }
+
+    #if DEBUG
+    /// The send button, for scripted tests.
+    func qaSendDraft() { sendTyped(model.chatDraft) }
+    func qaFinishTyping() { finishTyping() }
+    #endif
+
+    /// Esc in the chat box, or after sending: closes the notch and gives the
+    /// keyboard back to the app the student was in.
+    private func finishTyping() {
+        model.isChatFocused = false
+        model.wantsChatFocus = false
+        panel?.makeFirstResponder(nil)
+        isHeldClosedUntilPointerLeaves = true
+        setExpanded(false)
+        // The studied app never stopped being frontmost, so activating it is
+        // a no-op; Buddy has to step back for the keyboard to return to it.
+        if NSApp.isActive { NSApp.deactivate() }
+        appBeingStudied?.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            TutorDebugLog.write("⌨️ chat put away: panel key=\(self?.panel?.isKeyWindow == true), app active=\(NSApp.isActive)")
+        }
+    }
 
     private func setExpanded(_ expanded: Bool) {
         guard model.isExpanded != expanded else { return }
@@ -605,6 +707,9 @@ struct TutorNotchView: View {
     let onCopyTranscript: () -> Void
     let onStop: () -> Void
     let onClear: () -> Void
+    let onSendTyped: (String) -> Void
+    let onFinishTyping: () -> Void
+    let onChatFocused: () -> Void
     /// The shape's laid-out size, so the controller knows where the mouse
     /// should be caught and where it should pass through.
     let onShapeSizeChange: (CGSize) -> Void
@@ -619,7 +724,7 @@ struct TutorNotchView: View {
     /// moment there is something to show, the way a live activity does.
     private var isIdle: Bool {
         !model.isExpanded && model.activity == .ready && model.caption.isEmpty
-            && (model.followUps.isEmpty || model.isSpeaking)
+            && (model.followUps.isEmpty || model.isSpeaking) && model.guideInstruction == nil
     }
     /// Wide enough for a status either side of the camera.
     /// Wide enough for the longest stage ("reading your screen") on one
@@ -681,6 +786,7 @@ struct TutorNotchView: View {
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.open, value: isIdle)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.caption)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.followUps)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.guideInstruction)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: isShowingHeardWords)
         // New words arrive several times a second; a quick ease keeps the
         // height change from lagging behind the speaker.
@@ -755,11 +861,35 @@ struct TutorNotchView: View {
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
                 .transition(.notchContent(reduceMotion: reduceMotion))
+        } else if let guideInstruction = model.guideInstruction, model.activity == .ready {
+            guideRow(guideInstruction)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 10)
+                .frame(width: collapsedWidth)
+                .transition(.notchContent(reduceMotion: reduceMotion))
         } else if !model.followUps.isEmpty && !model.isSpeaking {
             followUpRow
                 .padding(.bottom, 10)
                 .frame(width: collapsedWidth)
                 .transition(.notchContent(reduceMotion: reduceMotion))
+        }
+    }
+
+    /// The step being waited for, and the way out.
+    private func guideRow(_ instruction: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: "hand.point.up.left.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(red: 0.45, green: 0.85, blue: 0.7))
+            Text(instruction)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("esc to stop")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
         }
     }
 
@@ -801,7 +931,7 @@ struct TutorNotchView: View {
         VStack(spacing: 14) {
             HStack(spacing: 2) {
                 tabButton(.lesson, systemImage: "book.closed", help: "Last lesson")
-                tabButton(.transcript, systemImage: "text.bubble", help: "Today's conversation")
+                tabButton(.transcript, systemImage: "text.bubble", help: "Chat: today's conversation")
                 Spacer()
                 tabButton(.settings, systemImage: "gearshape", help: "Settings")
             }
@@ -880,7 +1010,7 @@ struct TutorNotchView: View {
                     Text(greeting)
                         .font(.system(size: 22, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("Hold Control + Option and ask about anything on your screen.")
+                    Text("Hold Control + Option and ask about anything on your screen, or type below.")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.6))
                 }
@@ -894,6 +1024,17 @@ struct TutorNotchView: View {
             }
             .id(model.selectedTab)
             .transition(.opacity)
+            .padding(.horizontal, 18)
+
+            NotchChatBox(
+                model: model,
+                onSend: { question in
+                    model.selectedTab = .transcript
+                    onSendTyped(question)
+                },
+                onDismiss: onFinishTyping,
+                onFocused: onChatFocused
+            )
             .padding(.horizontal, 18)
 
             HStack(spacing: 8) {
@@ -975,7 +1116,7 @@ struct TutorNotchView: View {
 
     private var activityWord: String {
         switch model.activity {
-        case .ready: return "ready"
+        case .ready: return model.guideInstruction == nil ? "ready" : "your turn"
         case .listening: return "listening"
         case .thinking: return model.waitingStage ?? "thinking"
         case .speaking: return "explaining"
@@ -984,7 +1125,7 @@ struct TutorNotchView: View {
 
     private var activityColour: Color {
         switch model.activity {
-        case .ready: return Color.white.opacity(0.45)
+        case .ready: return model.guideInstruction == nil ? Color.white.opacity(0.45) : Color(red: 0.45, green: 0.85, blue: 0.7)
         case .listening: return Color(red: 0.98, green: 0.36, blue: 0.36)
         case .thinking: return Color(red: 1.0, green: 0.78, blue: 0.3)
         case .speaking: return Color(red: 0.2, green: 0.5, blue: 1.0)
@@ -1411,6 +1552,122 @@ private struct FollowUpChip: View {
         .pointerCursor()
         .onHover { hovering in isHovering = hovering }
         .help(button.question ?? "Copy to clipboard")
+    }
+}
+
+/// Typing instead of talking. The answer is the same as for a spoken
+/// question, out loud and drawn, and both sides land in the conversation
+/// above. Return sends; Shift or Option with Return starts a new line.
+private struct NotchChatBox: View {
+    @ObservedObject var model: TutorControlBarModel
+    let onSend: (String) -> Void
+    let onDismiss: () -> Void
+    let onFocused: () -> Void
+    @FocusState private var isFocused: Bool
+    @State private var isHoveringSend = false
+
+    private var limit: Int { TutorControlBarModel.chatCharacterLimit }
+    private var canSend: Bool {
+        !model.chatDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    /// The count only appears near the limit, where it is worth knowing.
+    private var showsCharacterCount: Bool { model.chatDraft.count > limit * 4 / 5 }
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            TextField("Type a question about your screen", text: $model.chatDraft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(.white)
+                .tint(.white)
+                .lineLimit(1...5)
+                .focused($isFocused)
+                .onKeyPress(.return, phases: .down) { press in
+                    if press.modifiers.contains(.shift) || press.modifiers.contains(.option) {
+                        return .ignored
+                    }
+                    send()
+                    return .handled
+                }
+                .onKeyPress(.escape) {
+                    onDismiss()
+                    return .handled
+                }
+                .padding(.vertical, 9)
+
+            if showsCharacterCount {
+                Text("\(model.chatDraft.count) / \(limit)")
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(model.chatDraft.count >= limit ? Color.orange : .white.opacity(0.45))
+                    .padding(.bottom, 10)
+            }
+
+            Button(action: send) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white.opacity(canSend ? (isHoveringSend ? 1 : 0.88) : 0.22))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSend)
+            .pointerCursor()
+            .onHover { hovering in isHoveringSend = hovering }
+            .help("Send  return")
+            .padding(.bottom, 5)
+        }
+        .padding(.leading, 13)
+        .padding(.trailing, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(Color.white.opacity(isFocused ? 0.13 : 0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(Color.white.opacity(isFocused ? 0.28 : 0.1), lineWidth: 1)
+        )
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .contentShape(Rectangle())
+        .onTapGesture { isFocused = true }
+        // Pasting a whole file is cut at the limit rather than refused, so
+        // what fits is kept and the count says why the rest is missing.
+        .onChange(of: model.chatDraft) { _, newDraft in
+            if newDraft.count > limit { model.chatDraft = String(newDraft.prefix(limit)) }
+        }
+        .onChange(of: isFocused) { _, focused in
+            TutorDebugLog.write("⌨️ chat box focused=\(focused)")
+            if focused { onFocused() }
+            model.isChatFocused = focused
+        }
+        .onChange(of: model.isChatFocused) { _, focused in
+            if !focused { isFocused = false }
+        }
+        .onChange(of: model.wantsChatFocus) { _, wanted in
+            if wanted { takeFocus() }
+        }
+        .onAppear {
+            if model.wantsChatFocus { takeFocus() }
+        }
+    }
+
+    /// Asked again a few times while the notch finishes opening: SwiftUI
+    /// refuses focus for a field that is still being inserted.
+    private func takeFocus(attempt: Int = 0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.08)) {
+            guard model.wantsChatFocus else { return }
+            isFocused = true
+            DispatchQueue.main.async {
+                if isFocused || attempt >= 8 {
+                    TutorDebugLog.write("⌨️ chat box focus attempt \(attempt): \(isFocused)")
+                    model.wantsChatFocus = false
+                } else {
+                    takeFocus(attempt: attempt + 1)
+                }
+            }
+        }
+    }
+
+    private func send() {
+        guard canSend else { return }
+        onSend(model.chatDraft)
     }
 }
 

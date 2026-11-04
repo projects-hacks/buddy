@@ -150,8 +150,12 @@ final class ScreenIndex {
         var droppedOutsideContent = 0
 
         if let contentRegion, contentRegion.width > 100, contentRegion.height > 100 {
+            // The menu bar and an open menu are kept too: they are chrome for
+            // a question about a page, but they are exactly where a step goes
+            // when the student is being guided through an app.
+            let keptRegions = [contentRegion] + menuRegionsInDisplayPoints(displayBoundsInPoints: displayBoundsInPoints)
             let insideContent = collectedTargets.filter { target in
-                contentRegion.intersects(target.boundsInDisplayPoints)
+                keptRegions.contains { region in region.intersects(target.boundsInDisplayPoints) }
             }
             if insideContent.count >= 5 {
                 droppedOutsideContent = collectedTargets.count - insideContent.count
@@ -290,6 +294,39 @@ final class ScreenIndex {
             windowFrame,
             displayBoundsInPoints: displayBoundsInPoints
         )
+    }
+
+    /// The menu bar strip, and the frame of any menu the front app has open.
+    private func menuRegionsInDisplayPoints(displayBoundsInPoints: CGSize) -> [CGRect] {
+        let menuBarHeight = max(NSStatusBar.system.thickness, NSScreen.main?.safeAreaInsets.top ?? 0) + 2
+        // Display-local points start at the bottom left, as Vision's do.
+        var regions = [CGRect(x: 0, y: displayBoundsInPoints.height - menuBarHeight,
+                              width: displayBoundsInPoints.width, height: menuBarHeight)]
+        guard AXIsProcessTrusted(), let frontmostApplication = NSWorkspace.shared.frontmostApplication else {
+            return regions
+        }
+        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
+        var menuBarValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(applicationElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
+              let menuBarValue, CFGetTypeID(menuBarValue) == AXUIElementGetTypeID() else { return regions }
+        let menuBar = menuBarValue as! AXUIElement
+        var titlesValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &titlesValue) == .success,
+              let titles = titlesValue as? [AXUIElement] else { return regions }
+        for title in titles {
+            var selectedValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(title, kAXSelectedAttribute as CFString, &selectedValue) == .success,
+                  (selectedValue as? Bool) == true else { continue }
+            var menusValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(title, kAXChildrenAttribute as CFString, &menusValue) == .success,
+                  let menus = menusValue as? [AXUIElement] else { continue }
+            for menu in menus {
+                if let frame = accessibilityFrame(for: menu) {
+                    regions.append(convertGlobalFrameToDisplayLocalPoints(frame, displayBoundsInPoints: displayBoundsInPoints))
+                }
+            }
+        }
+        return regions
     }
 
     /// Searches for the first `AXWebArea` beneath an element.

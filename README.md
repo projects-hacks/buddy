@@ -129,7 +129,9 @@ The script builds, signs with that certificate, installs `/Applications/Buddy.ap
 ## Using it
 
 - **Ask:** hold Control + Option, speak, let go. Your words appear under the notch as you talk.
-- **Look back:** hover the notch for the last lesson, or the transcript tab for the whole day.
+- **Or type:** press Control + Option + T, or click the chat box in the open notch, and press Return. The answer is the same, spoken and drawn.
+- **Learn an app:** ask how to do something in any app ("how do I export this?"). Buddy points at the button for the first step, waits for you to do it, and says the next one by itself. Esc stops it.
+- **Look back:** hover the notch for the last lesson, or the chat tab for the whole day's conversation.
 - **Follow-ups:** tap the buttons under an answer to ask the next question it suggests, or copy the code it offers.
 - **Clear:** Esc or Clear removes the drawing. Stop silences the voice.
 - **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, Learning memory, and Name and API keys.

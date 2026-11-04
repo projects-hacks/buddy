@@ -10,6 +10,7 @@
 #   state                      notch, routing, memory and key state, to the log
 #   fakeKey Anthropic          a rejected key, in memory only; clearFakeKeys undoes it
 #   notch open|closed, escape, setup <0-3>, closeSetup, forgetMemory
+#   openChat, chatDraft "" "<text>", sendChat, closeChat   the chat box, as Control + Option + T would
 # Results are written to Buddy's log. QA_TARGET=<bundle id> addresses another copy.
 osascript -l JavaScript - "$1" "${2:-}" "${3:-}" "${QA_TARGET:-com.maverickrajeev.clicky-local}" <<'JS'
 function run(argv) {

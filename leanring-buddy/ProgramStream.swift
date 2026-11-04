@@ -33,10 +33,22 @@ struct ProgramStream {
 
     /// Whether streamed text is a drawing program rather than plain prose.
     /// Decided from its first characters, so it is known almost immediately.
+    ///
+    /// Now and then the model thinks out loud for a line before the program
+    /// starts. Read as prose, that answer spoke its own code and lost every
+    /// mark, so a program starting on a later line still counts, and only
+    /// a long stretch with no program in it is prose.
     static func looksLikeProgram(_ streamedText: String) -> Bool? {
         let start = streamedText.drop { $0.isWhitespace }
         guard start.count >= 5 else { return nil }
-        return start.hasPrefix("```") || start.hasPrefix("step(") || start.hasPrefix("say(")
+        if start.hasPrefix("```") || start.hasPrefix("step(") || start.hasPrefix("say(") { return true }
+        if programStartOffset(in: String(start)) != nil { return true }
+        return start.count > 600 ? false : nil
+    }
+
+    /// Where the first line that begins a program starts, if one has.
+    private static func programStartOffset(in text: String) -> String.Index? {
+        text.range(of: #"(?m)^[ \t]*(```|step\(|say\()"#, options: .regularExpression)?.lowerBound
     }
 
     /// Takes the whole text streamed so far and returns what is newly ready.
@@ -79,7 +91,11 @@ struct ProgramStream {
     /// the model wrote none. Fence lines themselves are dropped, and an open
     /// fence still streaming counts as code.
     static func code(in text: String) -> String {
-        guard text.contains("```") else { return text }
+        guard text.contains("```") else {
+            // Unfenced: whatever came before the first program line was talk.
+            guard let programStart = programStartOffset(in: text) else { return text }
+            return String(text[programStart...])
+        }
         var codeLines: [Substring] = []
         var insideFence = false
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {

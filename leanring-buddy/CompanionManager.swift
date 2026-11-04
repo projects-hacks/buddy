@@ -386,6 +386,7 @@ final class CompanionManager: ObservableObject {
     private var currentResponseTask: Task<Void, Never>?
 
     private var shortcutTransitionCancellable: AnyCancellable?
+    private var typeQuestionCancellable: AnyCancellable?
     private var voiceStateCancellable: AnyCancellable?
     private var audioPowerCancellable: AnyCancellable?
     private var accessibilityCheckTimer: Timer?
@@ -674,6 +675,7 @@ final class CompanionManager: ObservableObject {
         currentResponseTask?.cancel()
         currentResponseTask = nil
         shortcutTransitionCancellable?.cancel()
+        typeQuestionCancellable?.cancel()
         voiceStateCancellable?.cancel()
         audioPowerCancellable?.cancel()
         accessibilityCheckTimer?.invalidate()
@@ -911,12 +913,47 @@ final class CompanionManager: ObservableObject {
             .sink { [weak self] transition in
                 self?.handleShortcutTransition(transition)
             }
+        typeQuestionCancellable = globalPushToTalkShortcutMonitor
+            .typeQuestionRequestPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in
+                self?.openChatForTyping()
+            }
+    }
+
+    /// Control + Option + T. The talk keys went down first, so listening has
+    /// already begun; it is dropped without sending anything, and the chat
+    /// box opens with the keyboard in it.
+    private func openChatForTyping() {
+        TutorDebugLog.write("⌨️ chat opened from the keyboard")
+        pendingKeyboardShortcutStartTask?.cancel()
+        pendingKeyboardShortcutStartTask = nil
+        buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
+        controlBar.model.heardWords = ""
+        controlBar.openChat()
+    }
+
+    /// A question typed in the notch's chat box. It is answered exactly as a
+    /// spoken one is, out loud and drawn, and lands in the same conversation.
+    private func askTypedQuestion(_ question: String) {
+        TutorDebugLog.write("⌨️ typed: \(question.count) characters")
+        if APIKeyStore.hasKey(for: .anthropic) { claudeBrain.prewarmConnection() }
+        narrationVoice.prewarmConnection()
+        if !isOverlayVisible {
+            overlayWindowManager.hasShownOverlayBefore = true
+            overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+            isOverlayVisible = true
+        }
+        transientHideTask?.cancel()
+        transientHideTask = nil
+        sendTranscriptToTutorWithScreenshot(transcript: question)
     }
 
     private func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
         switch transition {
         case .pressed:
             guard !buddyDictationManager.isDictationInProgress else { return }
+            stopGuide(reason: "the student is talking")
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
             // First, so it lands the instant the keys go down: the student
@@ -1140,6 +1177,7 @@ final class CompanionManager: ObservableObject {
     /// sentence being said, the follow-ups it offered, Stop and Clear.
     private lazy var controlBar = TutorControlBarController(
         onAsk: { [weak self] question in self?.askFollowUp(question) },
+        onAskTyped: { [weak self] question in self?.askTypedQuestion(question) },
         onStop: { [weak self] in self?.stopAnswering() },
         onClear: { [weak self] in
             if self?.clearAnnotations() == true { InterfaceSounds.shared.play(.wipe) }
@@ -1237,18 +1275,30 @@ final class CompanionManager: ObservableObject {
     /// roughly two and a half times faster than speech plays back, so once the
     /// first sentence is out the voice never catches up to the generator, and
     /// the only latency the user perceives is time-to-first-sentence.
-    private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String) {
-        let transcript = Self.questionWithoutGreeting(spokenTranscript)
+    /// `guideStep` is set when guide mode looks again after the student did
+    /// a step: nobody spoke, so nothing goes in the transcript as theirs.
+    private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil) {
+        let isGuideContinuation = guideStep != nil
+        let transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
-        TutorDebugLog.write("🎙️ asked: \(transcript)")
-        controlBar.model.recordStudent(transcript)
-        controlBar.model.heardWords = transcript
+        if isGuideContinuation {
+            guideWatcher.stop()
+            TutorDebugLog.write("🧭 guide: \(transcript)")
+        } else {
+            stopGuide(reason: "a new question")
+            TutorDebugLog.write("🎙️ asked: \(transcript)")
+            controlBar.model.recordStudent(transcript)
+            controlBar.model.heardWords = transcript
+        }
         answerStartedAt = Date()
         logStage("question in")
         let hasPreviousAnswer = !conversationHistory.isEmpty
-        let localProbabilities = questionSorter.probabilities(of: transcript, hasPreviousAnswer: hasPreviousAnswer)
+        // A guide step is always short: one or two sentences and a pointer.
+        let localProbabilities = isGuideContinuation
+            ? [QuestionKind.quick: 1.0]
+            : questionSorter.probabilities(of: transcript, hasPreviousAnswer: hasPreviousAnswer)
         let localConfidence = localProbabilities?.values.max() ?? 0
 
         // Haiku is asked only when the on-device sorter is unsure, and asked
@@ -1376,6 +1426,13 @@ final class CompanionManager: ObservableObject {
                 guard !Task.isCancelled else { return }
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
+                if let guideStep {
+                    studyNotes.append(GuideMode.continuationNote(
+                        after: guideStep, stepNumber: guideStepsGiven,
+                        changedRegion: guideChangedRegion, canvasSize: canvasSize))
+                }
+                let captureForGuide = (imageData: primaryCapture.imageData, displayFrame: primaryCapture.displayFrame)
+                let applicationInFront = NSWorkspace.shared.frontmostApplication
 
                 // A practice problem gets hints in steps; a drawing of their
                 // own gets a peer's review. A practice problem wins when both
@@ -1524,9 +1581,26 @@ final class CompanionManager: ObservableObject {
                        let levelGiven = PracticeHints.levelGiven(inProgram: fullResponseText) {
                         practiceHintLadder.record(level: levelGiven, for: problem)
                     }
-                    fileLessonInMemory(question: transcript, lessonTitle: lessonPlayer.lessonTitle,
-                                       spokenAnswer: Self.spokenSentences(inProgram: fullResponseText),
-                                       questionKind: questionKind)
+                    let nextGuideStep = GuideMode.step(inProgram: fullResponseText)
+                    if let nextGuideStep, guideStepsGiven < GuideMode.maximumSteps {
+                        currentGuideStep = nextGuideStep
+                        guideStepsGiven += 1
+                        guideBaseline = captureForGuide
+                        if guidedApplication == nil, applicationInFront?.bundleIdentifier != Bundle.main.bundleIdentifier {
+                            guidedApplication = applicationInFront
+                        }
+                        controlBar.model.guideInstruction = nextGuideStep.instruction
+                        TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) is \(nextGuideStep.instruction)")
+                    } else if isGuideContinuation || nextGuideStep != nil {
+                        stopGuide(reason: nextGuideStep == nil ? "task finished" : "too many steps")
+                    }
+                    // "Click Export" is not something learned. Memory is for
+                    // ideas, so guide steps are not filed.
+                    if nextGuideStep == nil && !isGuideContinuation {
+                        fileLessonInMemory(question: transcript, lessonTitle: lessonPlayer.lessonTitle,
+                                           spokenAnswer: Self.spokenSentences(inProgram: fullResponseText),
+                                           questionKind: questionKind)
+                    }
                     // The whole program, not only what was said: the next
                     // answer has to know what it drew to build on it or to
                     // explain it differently.
@@ -1543,6 +1617,9 @@ final class CompanionManager: ObservableObject {
                 // Flush whatever trailed the final sentence terminator, which
                 // the streaming path deliberately held back.
                 enqueueRemainder(ofStreamedText: fullResponseText)
+                if currentGuideStep != nil {
+                    stopGuide(reason: "the answer came back as plain prose")
+                }
 
                 let spokenOnlyText = TeacherResponseParser.parse(rawResponse: fullResponseText).spokenText
                 totalCharactersInAnswer = max(totalCharactersInAnswer, spokenOnlyText.count)
@@ -1610,6 +1687,11 @@ final class CompanionManager: ObservableObject {
                     // looking at once the talking stops.
                     await lessonPlayer.waitUntilSpoken()
                     controlBar.model.caption = ""
+                    if let currentGuideStep, let guideBaseline, !Task.isCancelled {
+                        guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
+                                           displayFrame: guideBaseline.displayFrame,
+                                           guidedApplication: guidedApplication)
+                    }
                 } else {
                     scheduleMarkDismissal()
                 }
@@ -1663,6 +1745,7 @@ final class CompanionManager: ObservableObject {
     /// Stop on the bar: stops talking and the answer being written, and
     /// leaves what is drawn.
     private func stopAnswering() {
+        stopGuide(reason: "Stop")
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
         voiceState = .idle
@@ -1854,6 +1937,42 @@ final class CompanionManager: ObservableObject {
     }
 
     private var currentPracticeProblem: PracticeProblem?
+
+    // Guide mode (GuideMode.swift): a task in an app, one step at a time.
+    private var currentGuideStep: GuideStep?
+    private var guideStepsGiven = 0
+    /// The screen the current step was given against, for the watcher.
+    private var guideBaseline: (imageData: Data, displayFrame: CGRect)?
+    /// The app the guide started in, kept for the whole task.
+    private var guidedApplication: NSRunningApplication?
+    /// Where the screen changed when the last step looked done.
+    private var guideChangedRegion: CGRect?
+    private lazy var guideWatcher: GuideWatcher = {
+        let watcher = GuideWatcher()
+        watcher.onStepLooksDone = { [weak self] changedRegion in self?.continueGuide(changedRegion: changedRegion) }
+        return watcher
+    }()
+
+    private func stopGuide(reason: String) {
+        guard currentGuideStep != nil || guideWatcher.isWatching else { return }
+        TutorDebugLog.write("🧭 guide stopped: \(reason)")
+        guideWatcher.stop()
+        currentGuideStep = nil
+        guideStepsGiven = 0
+        guideBaseline = nil
+        guidedApplication = nil
+        guideChangedRegion = nil
+        controlBar.model.guideInstruction = nil
+    }
+
+    /// The student did something and the screen changed: look again, as if
+    /// they had asked what next.
+    private func continueGuide(changedRegion: CGRect) {
+        guard let step = currentGuideStep else { return }
+        guideChangedRegion = changedRegion
+        TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) looks done, looking again")
+        sendTranscriptToTutorWithScreenshot(transcript: GuideMode.continuationQuestion(after: step), guideStep: step)
+    }
     /// Which try at the current answer is live. A brain given up on at its
     /// deadline may still deliver words while it unwinds; they are dropped.
     private var currentAnswerAttempt = 0
@@ -1892,6 +2011,7 @@ final class CompanionManager: ObservableObject {
 
     /// Esc puts away what was opened last: the notch first, then the drawing.
     private func handleEscape() {
+        stopGuide(reason: "Esc")
         if controlBar.closeFromKeyboard() {
             TutorDebugLog.write("⎋ Esc: closing the notch")
             return
@@ -1915,13 +2035,24 @@ final class CompanionManager: ObservableObject {
         }
     }
     func qaPressEscape() { handleEscape() }
-    func qaSetNotchOpen(_ open: Bool) { controlBar.model.isExpanded = open }
+    func qaOpenChat() { openChatForTyping() }
+    func qaSetChatDraft(_ text: String) { controlBar.model.chatDraft = text }
+    func qaSendChat() { controlBar.qaSendDraft() }
+    func qaCloseChat() { controlBar.qaFinishTyping() }
+    /// Held open while the snapshot is taken: the pointer is not over it.
+    func qaSetNotchOpen(_ open: Bool) {
+        controlBar.model.isPinnedOpen = open
+        controlBar.model.isExpanded = open
+    }
     func qaLogState() {
         let model = controlBar.model
         TutorDebugLog.write("🧪 state: activity=\(model.activity) stage=\(model.waitingStage ?? "-") expanded=\(model.isExpanded) "
             + "answeredBy=\(model.answeredBy) buildsOn=\(model.buildsOn) keyProblem=\(model.keyProblemMessage ?? "-") "
             + "followUps=\(model.followUps.map(\.title)) memory=\(learningMemory.conceptCount) brain=\(brainKind.rawValue) "
-            + "claude=\(canUseClaude) argon=\(canUseArgon) vertex=\(usesVertexForArgon) setupNeeded=\(needsSetup)")
+            + "claude=\(canUseClaude) argon=\(canUseArgon) vertex=\(usesVertexForArgon) setupNeeded=\(needsSetup) "
+            + "tab=\(model.selectedTab) chatFocused=\(model.isChatFocused) chatDraft=\(model.chatDraft.count) "
+            + "front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") appActive=\(NSApp.isActive) "
+            + "transcript=\(model.transcript.count)")
     }
     #endif
 
