@@ -432,7 +432,7 @@ final class TutorControlBarController {
         // the pointer to the top of the screen lands on it.
         let hoverRect = model.isExpanded
             ? shapeRect.insetBy(dx: -Self.openShapeMargin, dy: -Self.openShapeMargin)
-            : NSRect(x: shapeRect.minX, y: shapeRect.minY, width: shapeRect.width, height: shapeRect.height + 4)
+            : NSRect(x: shapeRect.minX - 12, y: shapeRect.minY, width: shapeRect.width + 24, height: shapeRect.height + 4)
         let isInside = hoverRect.contains(pointer)
         let now = Date()
 
@@ -557,9 +557,17 @@ struct TutorNotchView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var tabIndicator
 
+    /// Nothing to say: the shape shrinks to the camera housing and disappears
+    /// into it, leaving the menu bar either side free. It spreads out the
+    /// moment there is something to show, the way a live activity does.
+    private var isIdle: Bool {
+        !model.isExpanded && model.activity == .ready && model.caption.isEmpty
+            && (model.followUps.isEmpty || model.isSpeaking)
+    }
     /// Wide enough for a status either side of the camera.
-    private var collapsedWidth: CGFloat { notchWidth + 230 }
-    private var expandedWidth: CGFloat { max(collapsedWidth, 600) }
+    private var activeWidth: CGFloat { notchWidth + 230 }
+    private var collapsedWidth: CGFloat { isIdle ? notchWidth : activeWidth }
+    private var expandedWidth: CGFloat { max(activeWidth, 600) }
 
     /// The concave curves where the shape meets the top edge, as the real
     /// notch has, so the panel reads as part of the hardware.
@@ -604,6 +612,7 @@ struct TutorNotchView: View {
         }
         .animation(reduceMotion ? NotchMotion.reduced : (model.isExpanded ? NotchMotion.open : NotchMotion.close),
                    value: model.isExpanded)
+        .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.open, value: isIdle)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.caption)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.followUps)
         .animation(reduceMotion ? NotchMotion.reduced : NotchMotion.change, value: model.selectedTab)
@@ -630,6 +639,7 @@ struct TutorNotchView: View {
             .animation(NotchMotion.change, value: model.activity)
             .animation(NotchMotion.change, value: model.answeredBy)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(isIdle ? 0 : 1)
 
             Spacer().frame(width: notchWidth)
 
@@ -640,8 +650,9 @@ struct TutorNotchView: View {
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .opacity(isIdle ? 0 : 1)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, isIdle ? 0 : 14)
         .frame(height: notchHeight)
         .contentShape(Rectangle())
         // A click opens it at once, for anyone who clicks rather than waits.
