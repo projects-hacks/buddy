@@ -15,8 +15,19 @@ struct CompanionPanelView: View {
     /// Shown inside the notch's settings tab rather than as its own panel:
     /// no header, no window background, the notch's width.
     var isEmbedded = false
+    /// Just the permission steps, for the setup window, which has its own
+    /// heading and buttons around them.
+    var showsOnlyPermissions = false
 
     var body: some View {
+        if showsOnlyPermissions {
+            settingsSection
+        } else {
+            fullPanel
+        }
+    }
+
+    private var fullPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !isEmbedded {
                 panelHeader
@@ -39,6 +50,9 @@ struct CompanionPanelView: View {
                     .padding(.horizontal, 16)
 
                 learningMemoryRow
+                    .padding(.horizontal, 16)
+
+                keysAndNameRow
                     .padding(.horizontal, 16)
 
                 Spacer().frame(height: 10)
@@ -82,11 +96,11 @@ struct CompanionPanelView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("A few permissions first")
-                    .font(.system(size: 12.5, weight: .semibold))
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Let Buddy hear and see")
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                     .foregroundColor(DS.Colors.textPrimary)
-                Text("Buddy reads your screen only when you hold the keys, and draws on it while it explains.")
+                Text("Nothing is captured until you hold Control + Option, and nothing is kept but your own transcript.")
                     .font(.system(size: 11.5))
                     .foregroundColor(DS.Colors.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -194,253 +208,81 @@ struct CompanionPanelView: View {
 
     // MARK: - Permissions
 
-    private var settingsSection: some View {
-        VStack(spacing: 2) {
-            Text("PERMISSIONS")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundColor(DS.Colors.textTertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.bottom, 6)
-
-            microphonePermissionRow
-
-            accessibilityPermissionRow
-
-            screenRecordingPermissionRow
-
-            if companionManager.hasScreenRecordingPermission {
-                screenContentPermissionRow
-            }
-
-        }
-    }
-
-    private var accessibilityPermissionRow: some View {
-        let isGranted = companionManager.hasAccessibilityPermission
-        return HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "hand.raised")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isGranted ? DS.Colors.textTertiary : DS.Colors.warning)
-                    .frame(width: 16)
-
-                Text("Accessibility")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            if isGranted {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(DS.Colors.success)
-                        .frame(width: 6, height: 6)
-                    Text("Granted")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DS.Colors.success)
-                }
-            } else {
-                HStack(spacing: 6) {
-                    Button(action: {
-                        // Triggers the system accessibility prompt (AXIsProcessTrustedWithOptions)
-                        // on first attempt, then opens System Settings on subsequent attempts.
-                        WindowPositionManager.requestAccessibilityPermission()
-                    }) {
-                        Text("Grant")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(DS.Colors.textOnAccent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(DS.Colors.accent)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
-
-                    Button(action: {
-                        // Reveals the app in Finder so the user can drag it into
-                        // the Accessibility list if it doesn't appear automatically
-                        // (common with unsigned dev builds).
-                        WindowPositionManager.revealAppInFinder()
-                        WindowPositionManager.openAccessibilitySettings()
-                    }) {
-                        Text("Find App")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(DS.Colors.textSecondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .stroke(DS.Colors.borderSubtle, lineWidth: 0.8)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
-                }
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var screenRecordingPermissionRow: some View {
-        let isGranted = companionManager.hasScreenRecordingPermission
-        return HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.dashed.badge.record")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isGranted ? DS.Colors.textTertiary : DS.Colors.warning)
-                    .frame(width: 16)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Screen Recording")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(DS.Colors.textSecondary)
-
-                    Text(isGranted
-                         ? "Only takes a screenshot when you use the hotkey"
-                         : "Quit and reopen after granting")
-                        .font(.system(size: 10))
-                        .foregroundColor(DS.Colors.textTertiary)
-                }
-            }
-
-            Spacer()
-
-            if isGranted {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(DS.Colors.success)
-                        .frame(width: 6, height: 6)
-                    Text("Granted")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DS.Colors.success)
-                }
-            } else {
-                Button(action: {
-                    // Triggers the native macOS screen recording prompt on first
-                    // attempt (auto-adds app to the list), then opens System Settings
-                    // on subsequent attempts.
-                    WindowPositionManager.requestScreenRecordingPermission()
-                }) {
-                    Text("Grant")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textOnAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(DS.Colors.accent)
-                        )
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var screenContentPermissionRow: some View {
-        let isGranted = companionManager.hasScreenContentPermission
-        return HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "eye")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isGranted ? DS.Colors.textTertiary : DS.Colors.warning)
-                    .frame(width: 16)
-
-                Text("Screen Content")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            if isGranted {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(DS.Colors.success)
-                        .frame(width: 6, height: 6)
-                    Text("Granted")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DS.Colors.success)
-                }
-            } else {
-                Button(action: {
-                    companionManager.requestScreenContentPermission()
-                }) {
-                    Text("Grant")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textOnAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(DS.Colors.accent)
-                        )
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    private var microphonePermissionRow: some View {
-        let isGranted = companionManager.hasMicrophonePermission
-        return HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "mic")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isGranted ? DS.Colors.textTertiary : DS.Colors.warning)
-                    .frame(width: 16)
-
-                Text("Microphone")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            if isGranted {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(DS.Colors.success)
-                        .frame(width: 6, height: 6)
-                    Text("Granted")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DS.Colors.success)
-                }
-            } else {
-                Button(action: {
-                    // Triggers the native macOS microphone permission dialog on
-                    // first attempt. If already denied, opens System Settings.
-                    let status = AVCaptureDevice.authorizationStatus(for: .audio)
-                    if status == .notDetermined {
+    /// The permissions still to grant, in the order macOS makes sensible:
+    /// the microphone first (one click), Screen Recording last (it asks for a
+    /// reopen). Screen Content appears only once Screen Recording is on,
+    /// because macOS offers it only then.
+    private var permissionSteps: [PermissionStep] {
+        var steps: [PermissionStep] = [
+            PermissionStep(
+                symbol: "mic.fill", title: "Microphone", reason: "Hears your question while you hold Control + Option.",
+                isGranted: companionManager.hasMicrophonePermission,
+                allow: {
+                    if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
                         AVCaptureDevice.requestAccess(for: .audio) { _ in }
-                    } else {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-                            NSWorkspace.shared.open(url)
-                        }
+                    } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                        NSWorkspace.shared.open(url)
                     }
-                }) {
-                    Text("Grant")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textOnAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(DS.Colors.accent)
-                        )
+                }),
+            PermissionStep(
+                symbol: "keyboard.fill", title: "Accessibility", reason: "Notices Control + Option from any app.",
+                isGranted: companionManager.hasAccessibilityPermission,
+                allow: { WindowPositionManager.requestAccessibilityPermission() },
+                helpTitle: "Buddy not in the list?",
+                help: {
+                    // Locally signed apps are sometimes missing from the list
+                    // until dragged in; Finder shows the app to drag.
+                    WindowPositionManager.revealAppInFinder()
+                    WindowPositionManager.openAccessibilitySettings()
+                }),
+            PermissionStep(
+                symbol: "rectangle.dashed.badge.record", title: "Screen Recording",
+                reason: "Sees what you are asking about, only while you hold the keys.",
+                isGranted: companionManager.hasScreenRecordingPermission,
+                allow: { WindowPositionManager.requestScreenRecordingPermission() },
+                note: "macOS asks you to reopen Buddy after this one.")
+        ]
+        if companionManager.hasScreenRecordingPermission {
+            steps.append(PermissionStep(
+                symbol: "eye.fill", title: "Screen Content", reason: "Lets Buddy read the text on screen to point at it exactly.",
+                isGranted: companionManager.hasScreenContentPermission,
+                allow: { companionManager.requestScreenContentPermission() }))
+        }
+        return steps
+    }
+
+    private var settingsSection: some View {
+        let steps = permissionSteps
+        let grantedCount = steps.filter(\.isGranted).count
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                // How far through: a thin bar fills as each one is allowed.
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.08))
+                        Capsule()
+                            .fill(DS.Colors.success)
+                            .frame(width: proxy.size.width * CGFloat(grantedCount) / CGFloat(max(1, steps.count)))
+                    }
                 }
-                .buttonStyle(.plain)
-                .pointerCursor()
+                .frame(height: 4)
+                Text("\(grantedCount) of \(steps.count)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .monospacedDigit()
+            }
+            .padding(.bottom, 4)
+            .animation(.smooth(duration: 0.3), value: grantedCount)
+
+            ForEach(Array(steps.enumerated()), id: \.element.title) { position, step in
+                PermissionStepRow(
+                    step: step,
+                    // Only the first one still to grant is highlighted, so
+                    // there is always exactly one obvious next click.
+                    isNext: !step.isGranted && steps.prefix(position).allSatisfy(\.isGranted)
+                )
             }
         }
-        .padding(.vertical, 6)
     }
 
     private func permissionRow(
@@ -524,6 +366,30 @@ struct CompanionPanelView: View {
                 .pointerCursor()
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Keys and Name
+
+    private var keysAndNameRow: some View {
+        Button(action: { companionManager.setupWindow.show(startingAt: .keys) }) {
+            HStack(spacing: 8) {
+                Image(systemName: "key")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .frame(width: 16)
+                Text("Name and API keys")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(DS.Colors.textSecondary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(DS.Colors.textTertiary)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
     }
 
     // MARK: - Learning Memory
@@ -786,4 +652,93 @@ struct CompanionPanelView: View {
         }
     }
 
+}
+
+
+/// One permission to grant: what it is for, and how to grant it.
+private struct PermissionStep {
+    let symbol: String
+    let title: String
+    let reason: String
+    let isGranted: Bool
+    let allow: () -> Void
+    var helpTitle: String? = nil
+    var help: (() -> Void)? = nil
+    var note: String? = nil
+}
+
+private struct PermissionStepRow: View {
+    let step: PermissionStep
+    let isNext: Bool
+    @State private var isHoveringAllow = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(step.isGranted ? DS.Colors.success.opacity(0.16) : (isNext ? DS.Colors.accent.opacity(0.2) : Color.white.opacity(0.06)))
+                Image(systemName: step.isGranted ? "checkmark" : step.symbol)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(step.isGranted ? DS.Colors.success : (isNext ? DS.Colors.accentText : DS.Colors.textTertiary))
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .frame(width: 34, height: 34)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(step.isGranted ? DS.Colors.textTertiary : DS.Colors.textPrimary)
+                Text(step.isGranted ? "Allowed" : step.reason)
+                    .font(.system(size: 11))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !step.isGranted, isNext, let note = step.note {
+                    Text(note)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(DS.Colors.warning)
+                }
+                if !step.isGranted, let helpTitle = step.helpTitle, let help = step.help {
+                    Button(action: help) {
+                        Text(helpTitle + " Show it in Finder")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .underline()
+                            .foregroundColor(DS.Colors.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if !step.isGranted {
+                Button(action: step.allow) {
+                    Text("Allow")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isNext ? DS.Colors.textOnAccent : DS.Colors.textSecondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(isNext
+                                ? DS.Colors.accent.opacity(isHoveringAllow ? 1 : 0.88)
+                                : Color.white.opacity(isHoveringAllow ? 0.16 : 0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .onHover { isHoveringAllow = $0 }
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isNext ? Color.white.opacity(0.06) : Color.white.opacity(0.025))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isNext ? DS.Colors.accent.opacity(0.45) : Color.clear, lineWidth: 1)
+        )
+        .animation(.smooth(duration: 0.25), value: step.isGranted)
+        .animation(.smooth(duration: 0.25), value: isNext)
+    }
 }

@@ -120,6 +120,9 @@ enum TutorProgramPrompt {
 
         var lines: [String] = []
         var where_ = "[This turn] \(dateFormatter.string(from: Date()))."
+        if let name = UserDefaults.standard.string(forKey: "studentName"), !name.isEmpty {
+            where_ += " The student is called \(name)."
+        }
         if let frontAppName { where_ += " Front app: \(frontAppName)." }
         if let frontWindowTitle, !frontWindowTitle.isEmpty { where_ += " Window: \"\(frontWindowTitle)\"." }
         lines.append(where_)

@@ -78,19 +78,116 @@ final class CompanionManager: ObservableObject {
     ) ?? .auto
 
     private lazy var localBrain = OllamaVisionProvider(model: selectedModel)
-    /// Google Cloud project the hosted brain bills against.
-    ///
-    /// Overridable through defaults so the project can change without a
-    /// rebuild. Vertex rather than AI Studio because only Vertex draws on this
-    /// project's credits.
-    private static var hostedProjectIdentifier: String {
-        UserDefaults.standard.string(forKey: "vertexProjectIdentifier") ?? "medi-agent-490106"
+    /// A Google Cloud project to bill Argon against through Vertex, for
+    /// anyone set up with gcloud (`defaults write com.maverickrajeev.clicky-local
+    /// vertexProjectIdentifier <project>`). Vertex rather than AI Studio when
+    /// both exist, because only Vertex draws on a project's credits. Nobody
+    /// else's project is ever assumed: without one, Argon uses a Gemini key.
+    private static var hostedProjectIdentifier: String? {
+        UserDefaults.standard.string(forKey: "vertexProjectIdentifier").flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    private lazy var hostedBrain = GeminiVisionProvider(
-        model: "gemini-4-argon",
-        endpoint: .vertex(projectIdentifier: Self.hostedProjectIdentifier, location: "global")
-    )
+    /// How Argon is reached: a Gemini API key from AI Studio, or a Google
+    /// Cloud project through gcloud. Chosen in setup; before any choice,
+    /// Google Cloud when a project is set, the key otherwise.
+    enum ArgonSource: String { case apiKey, googleCloud }
+
+    static var argonSource: ArgonSource {
+        if let saved = UserDefaults.standard.string(forKey: "argonSource").flatMap(ArgonSource.init(rawValue:)) {
+            return saved
+        }
+        return hostedProjectIdentifier != nil ? .googleCloud : .apiKey
+    }
+
+    var argonSource: ArgonSource { Self.argonSource }
+    var vertexProjectIdentifier: String { Self.hostedProjectIdentifier ?? "" }
+
+    func setArgonSource(_ source: ArgonSource, projectIdentifier: String? = nil) {
+        UserDefaults.standard.set(source.rawValue, forKey: "argonSource")
+        if let projectIdentifier {
+            let trimmed = projectIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.set(trimmed, forKey: "vertexProjectIdentifier")
+        }
+        objectWillChange.send()
+        keysDidChange()
+    }
+
+    /// Whether Argon can be reached through a Google Cloud project: gcloud is
+    /// installed and signed in, so an access token can be minted for it.
+    func checkGoogleCloud(projectIdentifier: String) async -> KeyCheckResult {
+        let trimmed = projectIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return .rejected("Type the project ID, as shown in the Google Cloud console.") }
+        let provider = GeminiVisionProvider(model: "gemini-4-argon", endpoint: .vertex(projectIdentifier: trimmed, location: "global"))
+        let (isReachable, _) = await provider.probeServer()
+        return isReachable
+            ? .worksWithNote("Signed in with gcloud. Argon will bill this project, with Vertex enabled on it.")
+            : .rejected("gcloud isn't installed or isn't signed in. Install the Google Cloud CLI, then run: gcloud auth application-default login")
+    }
+
+    private static func makeHostedBrain() -> GeminiVisionProvider {
+        if argonSource == .googleCloud, let project = hostedProjectIdentifier {
+            return GeminiVisionProvider(model: "gemini-4-argon", endpoint: .vertex(projectIdentifier: project, location: "global"))
+        }
+        return GeminiVisionProvider(model: "gemini-4-argon", endpoint: .aiStudio)
+    }
+
+    private var hostedBrain = CompanionManager.makeHostedBrain()
+
+    /// Claude can answer: an Anthropic key is saved.
+    var canUseClaude: Bool { APIKeyStore.hasKey(for: .anthropic) }
+    /// Argon can answer: a Gemini key, or a Vertex project.
+    var canUseArgon: Bool {
+        argonSource == .googleCloud ? Self.hostedProjectIdentifier != nil : APIKeyStore.hasKey(for: .gemini)
+    }
+    var usesVertexForArgon: Bool { argonSource == .googleCloud && Self.hostedProjectIdentifier != nil }
+
+    /// What the student is called, asked once in setup.
+    @Published private(set) var studentName: String = UserDefaults.standard.string(forKey: "studentName") ?? ""
+
+    func setStudentName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        studentName = trimmed
+        UserDefaults.standard.set(trimmed, forKey: "studentName")
+    }
+
+    /// A key that stopped working mid-use, shown in the notch until fixed.
+    @Published var keyProblem: (service: APIKeyStore.Service, message: String)?
+
+    /// Called after setup saves or removes a key, so the next question uses it.
+    func keysDidChange() {
+        hostedBrain = Self.makeHostedBrain()
+        keyProblem = nil
+        controlBar.model.keyProblemMessage = nil
+        isLocalModelReachable = true
+        Task {
+            let (isReachable, _) = await tutorBrain.probeServer()
+            isLocalModelReachable = isReachable
+        }
+    }
+
+    /// The first-run setup, also opened from Settings and when a key fails.
+    lazy var setupWindow = SetupWindowController(companionManager: self)
+
+    var needsSetup: Bool {
+        let hasFinishedSetup = UserDefaults.standard.bool(forKey: "hasFinishedSetup")
+        let hasSomethingToThinkWith = canUseClaude || canUseArgon || brainKind == .local
+        return !hasFinishedSetup || !hasSomethingToThinkWith
+    }
+
+    func finishSetup() {
+        UserDefaults.standard.set(true, forKey: "hasFinishedSetup")
+        keysDidChange()
+    }
+
+    /// Records a key that failed during use: opens setup on it when the
+    /// question could not be answered at all, and otherwise just says so in
+    /// the notch, since another brain covered for it.
+    private func reportKeyProblem(_ problem: (service: APIKeyStore.Service, message: String), answerFailed: Bool) {
+        TutorDebugLog.write("🔑 \(problem.service.humanReadableName) key problem: \(problem.message)")
+        keyProblem = problem
+        controlBar.model.keyProblemMessage = "\(problem.service.humanReadableName) key: \(problem.message)"
+        if answerFailed { setupWindow.show(startingAt: .keys) }
+    }
 
     private lazy var claudeBrain = ClaudeVisionProvider(model: "claude-sonnet-5-5")
 
@@ -186,8 +283,10 @@ final class CompanionManager: ObservableObject {
     }
 
     /// Draws the board on a fast model while the slow one explains.
+    /// Only the older prose path uses it, and only on Vertex; with no
+    /// project it simply draws nothing.
     private lazy var diagramComposer = DiagramComposer(
-        projectIdentifier: Self.hostedProjectIdentifier
+        projectIdentifier: Self.hostedProjectIdentifier ?? ""
     )
 
     /// The in-flight drawing pass, cancelled when a new question arrives.
@@ -345,6 +444,12 @@ final class CompanionManager: ObservableObject {
         bindMarkLifetime()
         InterfaceSounds.shared.prepare()
         configureLearningMemory()
+        controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        if needsSetup {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                self?.setupWindow.show(startingAt: .welcome)
+            }
+        }
         Task {
             await questionSorter.prepare()
             // After the sorter, whose sentence model memory shares.
@@ -1287,6 +1392,9 @@ final class CompanionManager: ObservableObject {
                         if error is FirstWordsDeadlineMissed {
                             TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[attempt + 1].rawValue) answers instead")
                         } else {
+                            if let problem = APIKeyChecker.problem(in: error) {
+                                reportKeyProblem(problem, answerFailed: false)
+                            }
                             modelRouter.bench(failedBrain)
                             TutorDebugLog.write("↪️ \(failedBrain.rawValue) failed before speaking (\(error.localizedDescription)), \(routing[attempt + 1].rawValue) answers instead")
                         }
@@ -1591,7 +1699,12 @@ final class CompanionManager: ObservableObject {
         let allowed: Set<RoutedBrain>
         switch brainKind {
         case .auto:
-            allowed = APIKeyStore.hasKey(for: .anthropic) ? [.sonnet, .opus, .argon] : [.argon]
+            // Only brains that are set up: an Anthropic key for Sonnet and
+            // Opus, a Gemini key or a Vertex project for Argon.
+            var available: Set<RoutedBrain> = []
+            if canUseClaude { available.formUnion([.sonnet, .opus]) }
+            if canUseArgon { available.insert(.argon) }
+            allowed = available.isEmpty ? [.argon] : available
         case .claude:
             allowed = [.sonnet, .opus]
         case .hosted, .local:
@@ -2603,6 +2716,11 @@ final class CompanionManager: ObservableObject {
     /// and actionable fix, so it gets its own message.
     private func speakLocalErrorFallback(for error: Error) async {
         InterfaceSounds.shared.play(.error)
+        if let problem = APIKeyChecker.problem(in: error) {
+            reportKeyProblem(problem, answerFailed: true)
+            await speakFailure("your \(problem.service.humanReadableName.lowercased()) key isn't working. i've opened setup so you can fix it.")
+            return
+        }
         let (isReachable, _) = await tutorBrain.probeServer()
         isLocalModelReachable = isReachable
 
@@ -2610,20 +2728,26 @@ final class CompanionManager: ObservableObject {
         // user to start Ollama sends them after a server they are not using.
         let spokenExplanation: String
         switch (brainKind, isReachable) {
-        case (.hosted, false):
+        case (.hosted, false) where usesVertexForArgon:
             spokenExplanation = "i can't reach the cloud model. your google cloud sign in has probably expired. run gcloud auth application default login in a terminal."
+        case (.hosted, false):
+            spokenExplanation = "i can't reach gemini. check your internet, or the gemini key in setup."
         case (.claude, false):
-            spokenExplanation = "i can't reach claude. there's no anthropic key in the keychain."
+            spokenExplanation = "i can't reach claude. check your internet, or the anthropic key in setup."
         case (.auto, false):
-            spokenExplanation = "i can't reach any of the models right now. the details are in the clicky log."
+            spokenExplanation = "i can't reach any of the models right now. check your internet, or your keys in setup."
         case (.local, false):
             spokenExplanation = "i can't reach the local model. start it by running brew services start ollama in a terminal."
         default:
             spokenExplanation = "something went wrong answering that. the details are in the clicky log."
         }
 
+        await speakFailure(spokenExplanation)
+    }
+
+    private func speakFailure(_ explanation: String) async {
         voiceState = .responding
-        try? await speechClient.speakText(spokenExplanation)
+        try? await speechClient.speakText(explanation)
     }
 
     // MARK: - Onboarding Video

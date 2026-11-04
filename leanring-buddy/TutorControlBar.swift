@@ -70,6 +70,10 @@ final class TutorControlBarModel: ObservableObject {
     @Published var heardWords: String = ""
     /// Ideas from earlier sessions the current answer builds on.
     @Published var buildsOn: [String] = []
+    /// A key that stopped working, shown open in the notch until fixed.
+    @Published var keyProblemMessage: String?
+    /// Opens setup on the keys, for the key problem banner.
+    var onFixKeys: () -> Void = {}
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -779,6 +783,23 @@ struct TutorNotchView: View {
 
     private var talkingContent: some View {
         VStack(spacing: 14) {
+            if let keyProblemMessage = model.keyProblemMessage {
+                HStack(spacing: 10) {
+                    Image(systemName: "key.slash")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.72, blue: 0.4))
+                    Text(keyProblemMessage)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    NotchButton(systemImage: "wrench.and.screwdriver", title: "Fix", action: model.onFixKeys)
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.orange.opacity(0.18)))
+                .padding(.horizontal, 18)
+            }
             // The welcome is for an empty notch. Once something has been
             // asked, the space goes to the lesson.
             if model.transcript.isEmpty {
@@ -852,11 +873,15 @@ struct TutorNotchView: View {
         }
     }
 
-    /// "Afternoon, Rajeev." from the time and the Mac's account name.
+    /// "Afternoon, Sam." from the name given in setup, or the Mac account's
+    /// first name before setup.
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
         let partOfDay = hour < 12 ? "Morning" : (hour < 18 ? "Afternoon" : "Evening")
-        let firstName = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
+        let givenName = UserDefaults.standard.string(forKey: "studentName") ?? ""
+        let firstName = givenName.isEmpty
+            ? (NSFullUserName().split(separator: " ").first.map(String.init) ?? "")
+            : givenName
         return firstName.isEmpty ? "\(partOfDay)." : "\(partOfDay), \(firstName)."
     }
 
