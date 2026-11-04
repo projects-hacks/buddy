@@ -9,6 +9,11 @@
   html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100%; height: 100%; }
   svg#board { position: fixed; inset: 0; width: 100vw; height: 100vh; }
   text { user-select: none; }
+  /* Only cards take the mouse; marks on the screen never do. */
+  #screen-layer { pointer-events: none; }
+  .card-handle { cursor: grab; }
+  .card-handle:active { cursor: grabbing; }
+  .card-close { cursor: pointer; }
 </style>
 </head>
 <body>

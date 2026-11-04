@@ -35,6 +35,14 @@ final class DrawingOverlay: NSObject {
 
     private var panel: NSPanel?
     private var webView: WKWebView?
+
+    /// Where the cards are on screen, in AppKit points. The overlay takes the
+    /// mouse only while the pointer is over one of these; everywhere else it
+    /// stays click-through so the student can keep working underneath.
+    private var cardRectsOnScreen: [CGRect] = []
+    private var canvasSizeForCurrentAnswer: CGSize = .zero
+    private var globalMouseMonitor: Any?
+    private var localMouseMonitor: Any?
     private var pageIsReady = false
     private var callsWaitingForPage: [() -> Void] = []
     private(set) var screenFrame: CGRect = .zero
@@ -60,6 +68,7 @@ final class DrawingOverlay: NSObject {
     /// `canvasSize` pixels. `targets` maps listing ids to boxes in the same
     /// pixels, so the program can mark a line by id.
     func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], screenInkHex: String) {
+        canvasSizeForCurrentAnswer = canvasSize
         let unitsPerPoint = screenFrame.width > 0 ? canvasSize.width / screenFrame.width : 1
         let options: [String: Any] = [
             "canvasWidth": canvasSize.width,
@@ -162,7 +171,7 @@ final class DrawingOverlay: NSObject {
         configuration.preferences.javaScriptCanOpenWindowsAutomatically = false
         configuration.userContentController.add(WeakMessageHandler(owner: self), name: "clicky")
 
-        let webView = WKWebView(frame: panel.contentView?.bounds ?? .zero, configuration: configuration)
+        let webView = FirstClickWebView(frame: panel.contentView?.bounds ?? .zero, configuration: configuration)
         webView.autoresizingMask = [.width, .height]
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = self
@@ -170,6 +179,7 @@ final class DrawingOverlay: NSObject {
 
         self.panel = panel
         self.webView = webView
+        watchMouseOverCards()
 
         WKContentRuleListStore.default().compileContentRuleList(
             forIdentifier: "clicky-drawing-no-network",
@@ -226,6 +236,49 @@ final class DrawingOverlay: NSObject {
         return text
     }
 
+    /// The page reports where its cards are whenever one appears, grows,
+    /// moves or closes.
+    fileprivate func cardsDidChange(canvasRects: [[Double]]) {
+        guard canvasSizeForCurrentAnswer.width > 0, screenFrame.width > 0 else { return }
+        let pointsPerCanvasPixel = screenFrame.width / canvasSizeForCurrentAnswer.width
+        cardRectsOnScreen = canvasRects.compactMap { rect in
+            guard rect.count == 4 else { return nil }
+            // Canvas is top-left origin; AppKit screen points are bottom-left.
+            return CGRect(
+                x: screenFrame.minX + rect[0] * pointsPerCanvasPixel,
+                y: screenFrame.maxY - (rect[1] + rect[3]) * pointsPerCanvasPixel,
+                width: rect[2] * pointsPerCanvasPixel,
+                height: rect[3] * pointsPerCanvasPixel
+            )
+        }
+        updateMousePassThrough()
+    }
+
+    private func watchMouseOverCards() {
+        // Global for when the pointer is over other apps, local for when the
+        // overlay itself has the mouse.
+        globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] _ in
+            Task { @MainActor in self?.updateMousePassThrough() }
+        }
+        localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDragged]) { [weak self] event in
+            self?.updateMousePassThrough()
+            return event
+        }
+    }
+
+    private func updateMousePassThrough() {
+        guard let panel else { return }
+        let pointer = NSEvent.mouseLocation
+        let isOverCard = cardRectsOnScreen.contains { $0.contains(pointer) }
+        // While a card is being dragged the pointer can outrun it; keep the
+        // mouse until the button is let go.
+        let isDragging = NSEvent.pressedMouseButtons & 1 != 0 && !panel.ignoresMouseEvents
+        let shouldPassThrough = !(isOverCard || isDragging)
+        if panel.ignoresMouseEvents != shouldPassThrough {
+            panel.ignoresMouseEvents = shouldPassThrough
+        }
+    }
+
     fileprivate func pageDidFinishLoading() {
         pageIsReady = true
         let waiting = callsWaitingForPage
@@ -252,12 +305,22 @@ extension DrawingOverlay: WKNavigationDelegate {
     }
 }
 
-/// The page can post messages; nothing it posts is acted on yet beyond
-/// logging, because everything the app needs comes back from `run`.
+/// The page reports where its cards are, so the overlay knows where to take
+/// the mouse. Nothing else it posts is acted on.
 private final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
     weak var owner: DrawingOverlay?
     init(owner: DrawingOverlay) { self.owner = owner }
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        TutorDebugLog.write("🖌️ page: \(String(describing: message.body).prefix(200))")
+        guard let body = message.body as? [String: Any],
+              body["type"] as? String == "cards",
+              let rects = body["rects"] as? [[Double]] else { return }
+        MainActor.assumeIsolated { owner?.cardsDidChange(canvasRects: rects) }
     }
+}
+
+/// Takes the first click even though the overlay never becomes the key
+/// window, so a card's close button or title bar responds to one click
+/// instead of the first click only focusing the window.
+private final class FirstClickWebView: WKWebView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

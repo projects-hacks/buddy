@@ -108,6 +108,7 @@
 
   function clearAll() {
     state.cards = [];
+    reportCards();
     for (const layer of [state.screenLayer, state.cardLayer]) {
       while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
     }
@@ -246,7 +247,7 @@
   // length, words write left to right, washes and cards fade in.
   function makeMark(group, naturalSeconds, reveal) {
     group.style.visibility = 'hidden';
-    if (group.parentNode === state.cardLayer) growCardToFit(group);
+    if (state.cards.some(card => card.content === group.parentNode)) growCardToFit(group);
     const mark = { group, naturalSeconds, reveal, state: 'waiting', animations: [] };
     attachMark(mark);
     return mark;
@@ -336,21 +337,78 @@
 
   // A card that something was drawn past is made taller to hold it, up to
   // the bottom limit. Programs underestimate how much room a heading takes.
+  // Past the limit the content is clipped, and scrolls inside the card.
   function growCardToFit(group) {
+    const card = state.cards.find(candidate => candidate.content === group.parentNode);
+    if (!card) return;
     let box;
     try { box = group.getBBox(); } catch (_) { return; }
     if (!box || !box.height) return;
-    for (const card of state.cards) {
-      if (card.sheets.some(sheet => group.contains(sheet))) return;   // the card itself
-      const inside = box.x >= card.x - 4 && box.x <= card.x + card.w && box.y >= card.y && box.y <= card.y + card.h + 200;
-      if (!inside) continue;
-      const needed = box.y + box.height + 18 - card.y;
-      if (needed > card.h) {
-        card.h = Math.min(needed, bottomLimit() - card.y);
-        for (const sheet of card.sheets) sheet.setAttribute('height', card.h);
-      }
-      return;
+    const bottom = box.y + box.height + 18;
+    card.contentBottom = Math.max(card.contentBottom, bottom);
+    const needed = bottom - card.y;
+    if (needed > card.h) {
+      card.h = Math.min(needed, bottomLimit() - card.y);
+      for (const sheet of card.sheets) sheet.setAttribute('height', card.h);
+      card.clip.setAttribute('height', card.h - card.headerHeight);
+      reportCards();
     }
+  }
+
+  // ------------------------------------------------------- touching a card
+  //
+  // The overlay is click-through everywhere except over a card, where the
+  // app lets the mouse in (it is told where the cards are below). A card can
+  // then be closed with its x, dragged by its title bar, and scrolled when
+  // its drawing is taller than the screen allows.
+
+  /// Where the cards are, in canvas pixels, for the app to let the mouse in.
+  function reportCards() {
+    const rects = state.cards.map(card => [card.x + card.dx, card.y + card.dy, card.w, card.h]);
+    try { window.webkit.messageHandlers.clicky.postMessage({ type: 'cards', rects }); } catch (_) {}
+  }
+
+  function closeCard(card) {
+    card.container.remove();
+    state.cards = state.cards.filter(candidate => candidate !== card);
+    reportCards();
+  }
+
+  function scrollCard(card, delta) {
+    const room = Math.max(0, card.contentBottom - (card.y + card.h) + 12);
+    card.scroll = Math.max(0, Math.min(room, card.scroll + delta));
+    card.content.setAttribute('transform', `translate(0 ${-card.scroll})`);
+  }
+
+  /// Screen pixels to canvas pixels, since the canvas is stretched to fit.
+  function canvasDelta(dxPixels, dyPixels) {
+    const matrix = state.svg.getScreenCTM();
+    return matrix ? [dxPixels / matrix.a, dyPixels / matrix.d] : [dxPixels, dyPixels];
+  }
+
+  function makeCardInteractive(card, titleStrip, closeButton) {
+    closeButton.addEventListener('mousedown', event => { event.stopPropagation(); event.preventDefault(); closeCard(card); });
+    titleStrip.addEventListener('mousedown', event => {
+      event.preventDefault();
+      const startX = event.clientX, startY = event.clientY, startDx = card.dx, startDy = card.dy;
+      const move = moveEvent => {
+        const [dx, dy] = canvasDelta(moveEvent.clientX - startX, moveEvent.clientY - startY);
+        card.dx = startDx + dx;
+        card.dy = startDy + dy;
+        card.container.setAttribute('transform', `translate(${card.dx} ${card.dy})`);
+      };
+      const up = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', up);
+        reportCards();
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+    });
+    card.container.addEventListener('wheel', event => {
+      event.preventDefault();
+      scrollCard(card, canvasDelta(0, event.deltaY)[1]);
+    }, { passive: false });
   }
 
   const clampX = (x, width) => Math.max(EDGE, Math.min(x, state.canvasWidth - EDGE - width));
@@ -605,7 +663,7 @@
           (1 - t) * (1 - t) * start.y + 2 * (1 - t) * t * control.y + t * t * end.y
         ]);
       }
-      const layer = options.onCard ? state.cardLayer : state.screenLayer;
+      const layer = options.onCard ? cardLayerFor(start.x, start.y) : state.screenLayer;
       const mark = inkStroke(layer, points, { size: 3.2, tone: options.tone });
       arrowHead(layer, points, options.tone);
       if (options.label) api.label(control.x + 6, control.y - 10, options.label);
@@ -673,42 +731,71 @@
       h = Math.min(h, bottomLimit() - topLimit() - EDGE);
       x = clampX(x, w);
       y = Math.max(topLimit(), Math.min(y, bottomLimit() - h));
-      const group = svgElement('g');
+      const container = svgElement('g', { class: 'card' });
+      const frame = svgElement('g');
       const radius = 14;
+      const headerHeight = 30;
       const shadow = svgElement('rect', {
         x: x + 3, y: y + 8, width: w, height: h, rx: radius, fill: 'rgba(0,0,0,0.28)', filter: 'url(#card-shadow)'
       });
       const sheet = svgElement('rect', { x, y, width: w, height: h, rx: radius, fill: TONES.paper });
-      group.appendChild(shadow);
-      group.appendChild(sheet);
+      frame.appendChild(shadow);
+      frame.appendChild(sheet);
       // Faint grid, like squared paper.
       const gridId = `grid-${++uniqueId}`;
       const pattern = svgElement('pattern', { id: gridId, width: 24, height: 24, patternUnits: 'userSpaceOnUse', x, y });
       pattern.appendChild(svgElement('path', { d: 'M 24 0 L 0 0 0 24', fill: 'none', stroke: 'rgba(60,80,120,0.08)', 'stroke-width': 1 }));
       state.defs.appendChild(pattern);
       const grid = svgElement('rect', { x, y, width: w, height: h, rx: radius, fill: `url(#${gridId})` });
-      group.appendChild(grid);
-      state.cards.push({ x, y, w, h, sheets: [shadow, sheet, grid] });
-      let top = y + 18;
+      frame.appendChild(grid);
+
+      // Title bar: the handle to drag the card by, and its close button.
+      const strip = svgElement('rect', { x, y, width: w, height: headerHeight, rx: radius, fill: 'rgba(0,0,0,0.045)', class: 'card-handle' });
+      frame.appendChild(strip);
       if (options.title) {
-        const strip = svgElement('rect', { x, y, width: w, height: 30, rx: radius, fill: 'rgba(0,0,0,0.045)' });
-        group.appendChild(strip);
         const title = svgElement('text', {
           x: x + w / 2, y: y + 20, 'text-anchor': 'middle', 'font-size': 13,
-          'font-family': '-apple-system, sans-serif', 'font-weight': 600, fill: TONES.grey
+          'font-family': '-apple-system, sans-serif', 'font-weight': 600, fill: TONES.grey, 'pointer-events': 'none'
         });
         title.textContent = String(options.title);
-        group.appendChild(title);
-        top = y + 42;
+        frame.appendChild(title);
       }
-      state.cardLayer.appendChild(group);
-      makeMark(group, 0.35, fadeReveal(group));
+      const closeButton = svgElement('g', { class: 'card-close' });
+      closeButton.appendChild(svgElement('circle', { cx: x + w - 18, cy: y + 15, r: 9, fill: 'rgba(0,0,0,0.08)' }));
+      closeButton.appendChild(svgElement('path', {
+        d: `M ${x + w - 21.5} ${y + 11.5} L ${x + w - 14.5} ${y + 18.5} M ${x + w - 14.5} ${y + 11.5} L ${x + w - 21.5} ${y + 18.5}`,
+        stroke: TONES.grey, 'stroke-width': 1.8, 'stroke-linecap': 'round', fill: 'none'
+      }));
+      frame.appendChild(closeButton);
+      container.appendChild(frame);
+
+      // The drawing area, clipped so a long drawing scrolls instead of
+      // spilling off the card.
+      const clipId = `card-clip-${++uniqueId}`;
+      const clipPath = svgElement('clipPath', { id: clipId });
+      const clip = svgElement('rect', { x, y: y + headerHeight, width: w, height: h - headerHeight });
+      clipPath.appendChild(clip);
+      state.defs.appendChild(clipPath);
+      const viewport = svgElement('g', { 'clip-path': `url(#${clipId})` });
+      const content = svgElement('g');
+      viewport.appendChild(content);
+      container.appendChild(viewport);
+      state.cardLayer.appendChild(container);
+
+      const card = { x, y, w, h, dx: 0, dy: 0, scroll: 0, headerHeight, contentBottom: y + h,
+                     container, content, clip, sheets: [shadow, sheet, grid] };
+      state.cards.push(card);
+      makeCardInteractive(card, strip, closeButton);
+      makeMark(container, 0.35, fadeReveal(frame));
+      reportCards();
+
+      let top = y + 42;
       if (options.heading) {
-        writeText(state.cardLayer, x + 22, top + 24, options.heading, { size: 26, bold: true });
+        writeText(content, x + 22, top + 24, options.heading, { size: 26, bold: true });
         top += 46;
       }
       if (options.subtitle) {
-        writeText(state.cardLayer, x + 22, top + 14, options.subtitle, { size: 16, tone: 'grey' });
+        writeText(content, x + 22, top + 14, options.subtitle, { size: 16, tone: 'grey' });
         top += 30;
       }
       return { x: x + 22, y: top + 10, w: w - 44, h: Math.max(40, y + h - top - 28) };
@@ -716,15 +803,17 @@
 
     rect(x, y, w, h, options = {}) {
       const node = state.roughSvg.rectangle(x, y, w, h, roughOptions(options));
-      const mark = roughShape(state.cardLayer, node, 0.55);
-      if (options.label) writeText(state.cardLayer, x + w / 2, y + h / 2 + (options.size || 17) * 0.35, options.label, { size: options.labelSize || 17, anchor: 'middle' });
+      const layer = cardLayerFor(x, y);
+      const mark = roughShape(layer, node, 0.55);
+      if (options.label) writeText(layer, x + w / 2, y + h / 2 + (options.size || 17) * 0.35, options.label, { size: options.labelSize || 17, anchor: 'middle' });
       return { x, y, w, h, mark };
     },
 
     circle(cx, cy, r, options = {}) {
       const node = state.roughSvg.circle(cx, cy, r * 2, roughOptions(options));
-      roughShape(state.cardLayer, node, 0.5);
-      if (options.label) writeText(state.cardLayer, cx, cy + 6, options.label, { size: 16, anchor: 'middle' });
+      const layer = cardLayerFor(cx, cy);
+      roughShape(layer, node, 0.5);
+      if (options.label) writeText(layer, cx, cy + 6, options.label, { size: 16, anchor: 'middle' });
       return { x: cx - r, y: cy - r, w: r * 2, h: r * 2 };
     },
 
@@ -753,7 +842,10 @@
 
     path(d, options = {}) {
       const node = state.roughSvg.path(String(d), roughOptions(options));
-      return roughShape(state.cardLayer, node, 0.8);
+      // A path is placed by its first point, the M in its data.
+      const start = /M\s*(-?[\d.]+)[\s,]+(-?[\d.]+)/i.exec(String(d));
+      const layer = start ? cardLayerFor(+start[1], +start[2]) : state.cardLayer;
+      return roughShape(layer, node, 0.8);
     },
 
     text(x, y, words, options = {}) {
@@ -772,7 +864,7 @@
         node.textContent = text;
         group.appendChild(node);
       });
-      state.cardLayer.appendChild(group);
+      cardLayerFor(x, y).appendChild(group);
       return makeMark(group, 0.4, fadeReveal(group));
     },
 
@@ -801,15 +893,28 @@
     }
   };
 
-  // Marks a program places inside a card belong on the card layer, so they
-  // stay put when the screen scrolls. Anything else marks the screen.
-  function currentLayerFor(x, y) {
-    for (const card of state.cardLayer.querySelectorAll(':scope > g > rect:nth-child(2)')) {
-      const left = +card.getAttribute('x'), top = +card.getAttribute('y');
-      const width = +card.getAttribute('width'), height = +card.getAttribute('height');
-      if (x >= left && x <= left + width && y >= top && y <= top + height) return state.cardLayer;
+  // Marks a program places inside a card belong to that card, so they stay
+  // put when the screen scrolls, and move, scroll and close with the card.
+  // Coordinates are the program's own, from before any drag.
+  function cardAt(x, y) {
+    for (let index = state.cards.length - 1; index >= 0; index--) {
+      const card = state.cards[index];
+      if (x >= card.x && x <= card.x + card.w && y >= card.y && y <= card.y + card.h + 400) return card;
     }
-    return state.screenLayer;
+    return null;
+  }
+
+  // Pen marks: on a card if they are on one, otherwise on the screen.
+  function currentLayerFor(x, y) {
+    const card = cardAt(x, y);
+    return card ? card.content : state.screenLayer;
+  }
+
+  // Shapes that only make sense on paper: on the card under them, or loose
+  // on the card layer when a program draws one on calm space without a card.
+  function cardLayerFor(x, y) {
+    const card = cardAt(x, y);
+    return card ? card.content : state.cardLayer;
   }
 
   function popReveal(group, x, y) {

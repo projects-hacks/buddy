@@ -518,7 +518,7 @@ struct TutorNotchView: View {
                     NotchButton(systemImage: "stop.fill", title: "Stop", action: onStop)
                 }
                 if model.hasDrawing {
-                    NotchButton(systemImage: "xmark", title: "Clear  esc", action: onClear)
+                    NotchButton(systemImage: "xmark", title: "Clear drawing  esc", action: onClear)
                 }
             }
             .padding(.horizontal, 18)
