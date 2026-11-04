@@ -23,7 +23,7 @@ Yellow is you, grey is macOS, blue is Buddy's own setup.
 
 ## 1. Download and install
 
-1. **[Download Buddy for Mac](https://github.com/projects-hacks/study-buddy/releases/latest/download/Buddy.dmg)**. This link always gets the newest version.
+1. **[Download Buddy for Mac](https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg)**. This link always gets the newest version.
 2. Open it and drag **Buddy** onto **Applications**.
 3. Eject the disk image.
 

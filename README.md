@@ -13,7 +13,7 @@ Every design choice below was measured rather than assumed, and the scripts that
 ## Download
 
 <p align="center">
-  <a href="https://github.com/projects-hacks/study-buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_Buddy_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="56"></a>
+  <a href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_Buddy_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="56"></a>
 </p>
 
 <p align="center">One click downloads the newest Buddy. Any Mac on macOS 14.2 or later.</p>
@@ -125,8 +125,8 @@ For working on Buddy itself; to use it, the download above is enough.
 - Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**. The name is from before the project was Buddy; the build scripts look for it, and the bundle identifier `com.maverickrajeev.clicky-local` keeps its old name too, because macOS ties permissions to it and every installed copy only accepts an update with the same one.
 
 ```bash
-git clone https://github.com/projects-hacks/study-buddy.git
-cd study-buddy
+git clone https://github.com/projects-hacks/buddy.git
+cd buddy
 zsh scripts/build-local.sh
 ```
 
@@ -168,7 +168,7 @@ The screen is captured only when you ask, by holding the keys or sending a typed
 
 ## Contributing
 
-Ideas, bugs and questions are welcome as [issues](https://github.com/projects-hacks/study-buddy/issues). Changes come in as pull requests against `main`; see [AGENTS.md](AGENTS.md) for how the code is laid out and [scripts/](scripts/README.md) for the tests each area has.
+Ideas, bugs and questions are welcome as [issues](https://github.com/projects-hacks/buddy/issues). Changes come in as pull requests against `main`; see [AGENTS.md](AGENTS.md) for how the code is laid out and [scripts/](scripts/README.md) for the tests each area has.
 
 ## Credits
 

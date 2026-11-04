@@ -1,4 +1,4 @@
-## [Download Buddy for Mac](https://github.com/projects-hacks/study-buddy/releases/latest/download/Buddy.dmg)
+## [Download Buddy for Mac](https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg)
 
 **Install in three steps**
 
@@ -28,6 +28,6 @@ Watching for your step happens entirely on your Mac and costs nothing. Buddy onl
 - Opening **Name and API keys** from the notch no longer leaves the setup window hidden behind it.
 - An answer that started with a stray sentence before its drawing no longer loses the drawing.
 
-Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/study-buddy/blob/main/docs/install.md).
+Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/buddy/blob/main/docs/install.md).
 
 <sub>For the careful: each update is checked against `Buddy.dmg.sha256` and against the app's signature before it is installed. To check a download by hand, `shasum -a 256 -c Buddy.dmg.sha256` in the folder holding both.</sub>

@@ -50,7 +50,7 @@ final class AppUpdater: ObservableObject {
         let checksumURL: URL
     }
 
-    static let repository = "projects-hacks/study-buddy"
+    static let repository = "projects-hacks/buddy"
     static let automaticChecksDefaultsKey = "automaticUpdateChecks"
     private static let lastCheckDefaultsKey = "lastUpdateCheck"
     /// Once a day is plenty for an app released every few weeks, and well
