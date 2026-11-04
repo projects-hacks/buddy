@@ -1,11 +1,18 @@
-Buddy 1.2, for Macs on macOS 14.2 or later, on Apple silicon and Intel.
+## [Download Buddy for Mac](https://github.com/projects-hacks/study-buddy/releases/latest/download/Buddy.dmg)
 
-**Buddy now updates itself.** Once a day it checks for a newer release. When there is one, the open notch says so, with **What's new** and **Update**. Update downloads it, checks it against the published checksum and that it is signed like the copy you have, swaps it in and relaunches, keeping your keys, memory and permissions. Settings has **Check now** and a switch to turn the daily check off.
+**Install in three steps**
 
-**Coming from 1.0 or 1.1:** those have no updater, so install this one by hand: download `Buddy-1.2.dmg`, drag Buddy into Applications and replace the old one. Your keys, memory and permissions carry over. Every update after this one arrives in the notch.
+1. Open the downloaded **Buddy.dmg** and drag **Buddy** onto **Applications**.
+2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
+3. Follow the setup window: your name, your keys, three permissions.
 
-**New install:** drag Buddy into Applications and open it. macOS asks once before opening an app that is not notarized: open System Settings > Privacy & Security and click Open Anyway. Full steps in [docs/install.md](https://github.com/projects-hacks/study-buddy/blob/main/docs/install.md).
+Already have Buddy 1.0 or 1.1? Do the same once: download, drag onto Applications, and choose **Replace**. Your keys, memory and permissions stay. From this version on, updates arrive by themselves.
 
-**Also fixed:** a copy of Buddy opened from somewhere else could take away its open-at-login setting.
+**What's new in 1.2**
 
-Verify the download with the `.sha256` file attached: `shasum -a 256 -c Buddy-1.2.dmg.sha256`.
+- **Buddy updates itself.** Once a day it checks for a newer version; the notch says when one is ready, and **Update** installs it in a click, keeping everything you had. Settings has **Check now** and a switch to turn it off.
+- A copy of Buddy opened from somewhere else no longer takes away its open-at-login setting.
+
+Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/study-buddy/blob/main/docs/install.md).
+
+<sub>For the careful: each update is checked against `Buddy.dmg.sha256` and against the app's signature before it is installed. To check a download by hand, `shasum -a 256 -c Buddy.dmg.sha256` in the folder holding both.</sub>

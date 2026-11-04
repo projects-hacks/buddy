@@ -88,10 +88,13 @@ if grep -rIl "${PERSONAL_VALUES[@]}" "$STAGING/Buddy.app" >/dev/null 2>&1 \
 fi
 echo "architectures: $(lipo -archs "$STAGING/Buddy.app/Contents/MacOS/"*)"
 
-DMG="$OUT/Buddy-$VERSION.dmg"
+# Always the same name, so one link downloads the newest release from any
+# page: github.com/<repo>/releases/latest/download/Buddy.dmg. The version
+# is in the release's title and the app itself.
+DMG="$OUT/Buddy.dmg"
 hdiutil create -volname "Buddy $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null
 CHECKSUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
-echo "$CHECKSUM  Buddy-$VERSION.dmg" > "$DMG.sha256"
+echo "$CHECKSUM  Buddy.dmg" > "$DMG.sha256"
 # Unregistered before deleting: a registered copy that no longer exists is
 # where System Settings can go on finding an old name for the app.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STAGING/Buddy.app" "$BUILT_APP" 2>/dev/null || true

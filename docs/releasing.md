@@ -6,7 +6,7 @@ For the repository's owner. A release is a disk image on GitHub Releases that an
 flowchart TD
     commit([Everything committed]):::you --> build[zsh scripts/make-release.sh 1.1]:::script
     build --> checks{Signed, no personal<br/>project in the binary}:::script
-    checks --> dmg[build/release/Buddy-1.1.dmg<br/>and its .sha256]:::script
+    checks --> dmg[build/release/Buddy.dmg<br/>and its .sha256]:::script
     dmg --> notes[Edit docs/release-notes.md]:::you
     notes --> publish[gh release create, printed by the script]:::you
     publish --> link([README Download link<br/>points at the latest release]):::web
@@ -19,7 +19,7 @@ flowchart TD
 1. Commit everything. The script refuses to package uncommitted app code.
 2. Run `zsh scripts/make-release.sh 1.1` with the new version. It builds the Release configuration into its own folder, so the copy in daily use is untouched, signs it with the same `Clicky Local Dev` certificate as every earlier release, stops if a personal Google Cloud project is still in the binary, and writes the disk image and its checksum.
 3. Update `docs/release-notes.md`.
-4. Run the `gh release create` command the script prints. Every copy from 1.2 on finds it within a day and offers it in the notch; the updater relies on the `.dmg` and its `.dmg.sha256` both being attached, which the printed command does.
+4. Run the `gh release create` command the script prints. Every copy from 1.2 on finds it within a day and offers it in the notch; the updater relies on `Buddy.dmg` and `Buddy.dmg.sha256` both being attached, which the printed command does. The file name never changes, so the README's Download button, which points at the latest release's `Buddy.dmg`, always gets the newest one.
 
 **Why the same certificate every time.** macOS ties Microphone, Screen Recording and Accessibility to the app's signature. A release signed with the same certificate keeps everyone's permissions; a new certificate would make everyone grant them again. Keep the certificate backed up: Keychain Access, right-click it, Export.
 

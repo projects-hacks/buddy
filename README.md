@@ -8,10 +8,14 @@ Every design choice below was measured rather than assumed, and the scripts that
 
 ## Download
 
-**[Download Buddy for Mac](https://github.com/projects-hacks/study-buddy/releases/latest)** (Apple silicon, macOS 14.2 or later)
+<p align="center">
+  <a href="https://github.com/projects-hacks/study-buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_Buddy_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="56"></a>
+</p>
 
-1. Open the disk image and drag **Buddy** into **Applications**.
-2. Open Buddy. The first time, macOS asks before opening an app that is not notarized: open **System Settings > Privacy & Security** and click **Open Anyway**.
+<p align="center">One click downloads the newest Buddy. Any Mac on macOS 14.2 or later.</p>
+
+1. Open the downloaded **Buddy.dmg** and drag **Buddy** onto **Applications**.
+2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
 3. The setup window asks your name and your API keys, tests each key as you paste it, and walks through the three permissions.
 
 After that Buddy updates itself: the notch says when a new version is ready, and one click installs it.
