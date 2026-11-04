@@ -1201,6 +1201,7 @@ final class CompanionManager: ObservableObject {
 
         currentResponseTask = Task {
             voiceState = .processing
+            controlBar.model.waitingStage = "reading your screen"
             clearAnnotations()
             charactersSpokenInAnswer = 0
             totalCharactersInAnswer = 0
@@ -1227,6 +1228,7 @@ final class CompanionManager: ObservableObject {
                 )
                 guard !Task.isCancelled else { return }
                 logStage("screen captured and read")
+                controlBar.model.waitingStage = "thinking"
                 let screenReadAt = Date()
 
                 let (questionKind, kindProbabilities) = await settleQuestionKind(
@@ -1399,6 +1401,7 @@ final class CompanionManager: ObservableObject {
                             TutorDebugLog.write("↪️ \(failedBrain.rawValue) failed before speaking (\(error.localizedDescription)), \(routing[attempt + 1].rawValue) answers instead")
                         }
                         attempt += 1
+                        controlBar.model.waitingStage = "asking \(routing[attempt].displayName) instead"
                     }
                 }
                 guard let (fullResponseText, duration) = answer else { return }
@@ -2562,6 +2565,7 @@ final class CompanionManager: ObservableObject {
                 case .responding: self.controlBar.model.activity = .speaking
                 }
                 InterfaceSounds.shared.isTutorSpeaking = state == .responding
+                if state != .processing { self.controlBar.model.waitingStage = nil }
             }
 
         notchHeardWordsCancellable = buddyDictationManager.$liveTranscriptText
@@ -2592,8 +2596,14 @@ final class CompanionManager: ObservableObject {
         escapeKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard event.keyCode == 53 else { return }
             Task { @MainActor in
+                guard let self else { return }
+                // Open notch first: Esc puts away what was opened last.
+                if self.controlBar.closeFromKeyboard() {
+                    TutorDebugLog.write("⎋ Esc: closing the notch")
+                    return
+                }
                 TutorDebugLog.write("⎋ Esc: clearing the drawing")
-                if self?.clearAnnotations() == true { InterfaceSounds.shared.play(.wipe) }
+                if self.clearAnnotations() { InterfaceSounds.shared.play(.wipe) }
             }
         }
 

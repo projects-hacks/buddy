@@ -70,6 +70,10 @@ final class TutorControlBarModel: ObservableObject {
     @Published var heardWords: String = ""
     /// Ideas from earlier sessions the current answer builds on.
     @Published var buildsOn: [String] = []
+    /// What the wait is spent on, said beside the amber dot: "reading your
+    /// screen", then "thinking". A few seconds of silence read as broken;
+    /// the same seconds with a stage name read as work.
+    @Published var waitingStage: String?
     /// A key that stopped working, shown open in the notch until fixed.
     @Published var keyProblemMessage: String?
     /// Opens setup on the keys, for the key problem banner.
@@ -451,12 +455,13 @@ final class TutorControlBarController {
         if isInside {
             pointerLeftNotchAt = nil
             if pointerEnteredNotchAt == nil { pointerEnteredNotchAt = now }
-            if !model.isExpanded, let entered = pointerEnteredNotchAt,
+            if !model.isExpanded, !isHeldClosedUntilPointerLeaves, let entered = pointerEnteredNotchAt,
                now.timeIntervalSince(entered) >= Self.openAfterSeconds {
                 openByStudent()
             }
         } else {
             pointerEnteredNotchAt = nil
+            isHeldClosedUntilPointerLeaves = false
             if pointerLeftNotchAt == nil { pointerLeftNotchAt = now }
             // Not while a button is held: a text selection or a scroll-bar
             // drag can wander outside and should not lose the notch.
@@ -486,6 +491,19 @@ final class TutorControlBarController {
         InterfaceSounds.shared.play(.drop)
         setExpanded(true)
     }
+
+    /// Closes the notch from the keyboard. It stays closed while the pointer
+    /// is still over it, until the pointer leaves, so hover does not reopen
+    /// it a moment later. Returns whether there was anything to close.
+    @discardableResult
+    func closeFromKeyboard() -> Bool {
+        guard model.isExpanded, !model.isPinnedOpen else { return false }
+        isHeldClosedUntilPointerLeaves = true
+        setExpanded(false)
+        return true
+    }
+
+    private var isHeldClosedUntilPointerLeaves = false
 
     private func setExpanded(_ expanded: Bool) {
         guard model.isExpanded != expanded else { return }
@@ -664,6 +682,7 @@ struct TutorNotchView: View {
             }
             .animation(NotchMotion.change, value: model.activity)
             .animation(NotchMotion.change, value: model.answeredBy)
+            .animation(NotchMotion.change, value: model.waitingStage)
             .frame(maxWidth: .infinity, alignment: .leading)
             .opacity(isIdle ? 0 : 1)
 
@@ -904,7 +923,7 @@ struct TutorNotchView: View {
         switch model.activity {
         case .ready: return "ready"
         case .listening: return "listening"
-        case .thinking: return "thinking"
+        case .thinking: return model.waitingStage ?? "thinking"
         case .speaking: return "explaining"
         }
     }
