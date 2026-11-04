@@ -50,7 +50,15 @@ xcodebuild -project leanring-buddy.xcodeproj \
   DEVELOPMENT_TEAM="" \
   PROVISIONING_PROFILE_SPECIFIER="" \
   ENABLE_DEBUG_DYLIB=NO \
-  build 2>&1 | grep -E "BUILD SUCCEEDED|BUILD FAILED|error:" | head -5
+  build > /tmp/buddy-build.log 2>&1 || BUILD_FAILED=1
+grep -E "BUILD SUCCEEDED|BUILD FAILED|error:" /tmp/buddy-build.log | head -8
+
+# Stop here on a failed build: carrying on would install the previous
+# build's app and look like success.
+if [ -n "${BUILD_FAILED:-}" ]; then
+  echo "build failed, nothing installed (full log: /tmp/buddy-build.log)"
+  exit 1
+fi
 
 APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData/leanring-buddy-*/Build/Products/Debug \
   -maxdepth 1 -name "*.app" 2>/dev/null | head -1)
