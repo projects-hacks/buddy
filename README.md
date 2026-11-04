@@ -8,7 +8,7 @@ Every design choice below was measured rather than assumed, and the scripts that
 
 ## Download
 
-**[Download Buddy for Mac](https://github.com/projects-hacks/clicky-studdy/releases/latest)** (Apple silicon, macOS 14.2 or later)
+**[Download Buddy for Mac](https://github.com/projects-hacks/study-buddy/releases/latest)** (Apple silicon, macOS 14.2 or later)
 
 1. Open the disk image and drag **Buddy** into **Applications**.
 2. Open Buddy. The first time, macOS asks before opening an app that is not notarized: open **System Settings > Privacy & Security** and click **Open Anyway**.
@@ -101,8 +101,8 @@ For working on Buddy itself; to use it, the download above is enough.
 - Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**.
 
 ```bash
-git clone https://github.com/projects-hacks/clicky-studdy.git
-cd clicky-studdy
+git clone https://github.com/projects-hacks/study-buddy.git
+cd study-buddy
 zsh scripts/build-local.sh
 ```
 

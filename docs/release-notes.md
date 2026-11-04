@@ -1,6 +1,6 @@
 The first downloadable Buddy, for Macs with Apple silicon on macOS 14.2 or later.
 
-**Install:** download `Buddy-1.0.dmg`, drag Buddy into Applications, and open it. macOS asks once before opening an app that is not notarized: open System Settings > Privacy & Security and click Open Anyway. Full steps in [docs/install.md](https://github.com/projects-hacks/clicky-studdy/blob/main/docs/install.md).
+**Install:** download `Buddy-1.0.dmg`, drag Buddy into Applications, and open it. macOS asks once before opening an app that is not notarized: open System Settings > Privacy & Security and click Open Anyway. Full steps in [docs/install.md](https://github.com/projects-hacks/study-buddy/blob/main/docs/install.md).
 
 **Bring your own keys:** an Anthropic key (recommended), and optionally a Gemini key and a Deepgram key. Setup tests each one as you paste it.
 

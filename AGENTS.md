@@ -46,7 +46,7 @@ Argon ignores `temperature`, `topP` and `topK`, and returns HTTP 400 for
 set through `thinkingConfig.thinkingLevel` instead, and is set to `LOW` because
 the answer is spoken while the student waits.
 
-The `worker/` directory is left in the tree but is unused and can be deleted.
+Upstream's Cloudflare Worker and Sparkle updater are removed: keys are each person's own, entered in setup, and releases are disk images on GitHub (docs/releasing.md).
 
 ### Build
 
@@ -54,8 +54,8 @@ Always build with `scripts/build-local.sh`. Every flag in it is load-bearing:
 a self-signed certificate keeps the designated requirement stable so Screen
 Recording and Accessibility grants survive rebuilds, `ENABLE_DEBUG_DYLIB=NO`
 avoids a Team ID mismatch with Xcode's preview dylib, and the
-disable-library-validation entitlement lets the hardened runtime load Sparkle
-and PostHog. Diagnostics go to `~/Library/Logs/ClickyLocal.log`, including the
+disable-library-validation entitlement lets the hardened runtime load
+PostHog's code without a Team ID. Diagnostics go to `~/Library/Logs/ClickyLocal.log`, including the
 raw model response.
 
 ### Key Architecture Decisions
@@ -120,7 +120,6 @@ raw model response.
 | `ClickyAnalytics.swift` | ~55 | Inert. Same static surface, every method a no-op, so nothing is transmitted. |
 | `WindowPositionManager.swift` | ~262 | Window placement logic, Screen Recording permission flow, and accessibility permission helpers. |
 | `AppBundleConfiguration.swift` | ~28 | Runtime configuration reader for keys stored in the app bundle Info.plist. |
-| `worker/src/index.ts` | ~142 | Cloudflare Worker proxy. Three routes: `/chat` (Claude), `/tts` (ElevenLabs), `/transcribe-token` (AssemblyAI temp token). |
 
 ## Build & Run
 
@@ -142,24 +141,6 @@ open leanring-buddy.xcodeproj
 ```
 
 **Do NOT run `xcodebuild` from the terminal** — it invalidates TCC (Transparency, Consent, and Control) permissions and the app will need to re-request screen recording, accessibility, etc.
-
-## Cloudflare Worker
-
-```bash
-cd worker
-npm install
-
-# Add secrets
-npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put ASSEMBLYAI_API_KEY
-npx wrangler secret put ELEVENLABS_API_KEY
-
-# Deploy
-npx wrangler deploy
-
-# Local dev (create worker/.dev.vars with your keys)
-npx wrangler dev
-```
 
 ## Code Style & Conventions
 

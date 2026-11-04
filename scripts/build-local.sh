@@ -19,8 +19,7 @@
 #
 #   The disable-library-validation entitlement, set in the entitlements file,
 #   exists for the same reason one level out: the hardened runtime requires
-#   embedded frameworks to share the process Team ID, and Sparkle and PostHog
-#   have none here.
+#   linked code to share the process Team ID, and PostHog has none here.
 #
 # Create the certificate once in Keychain Access: Certificate Assistant >
 # Create a Certificate, named "Clicky Local Dev", Self Signed Root, Code Signing.
