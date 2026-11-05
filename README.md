@@ -1,12 +1,6 @@
 # Buddy
 
-A study helper for macOS that sees your screen, explains out loud, and draws on what you are looking at while it talks. Hold Control + Option and ask, or press Control + Option + T and type, about the LeetCode problem, the system design diagram or the code in front of you, and Buddy answers the way a friend at a whiteboard would: one sentence, the stroke that goes with it, the next sentence.
-
-New to an app? Ask how to do something in it, and Buddy walks you through: it points at the button for the first step, waits for you to do it, and says the next one by itself.
-
-Buddy is a study helper, not a tutor. It never quizzes and never grades. It remembers what you have learned together, holds back the answer on practice problems until you ask for it, and talks through your own diagrams as a peer would.
-
-Every design choice below was measured rather than assumed, and the scripts that measured it are in `scripts/`.
+A study helper for macOS that lives in the notch. Ask about what is on your screen, out loud or typed, and Buddy explains it out loud while drawing on it: rings and arrows on your code or diagram, and hand-drawn cards for anything the screen does not show. It also walks you through apps you are new to, one step at a time.
 
 <p align="center"><img src="docs/images/diagram-review.png" alt="Buddy reviewing a system design drawn in Excalidraw: rings around the app servers marked bottleneck, and a Redis cache and a read replica proposed beside the diagram in dashed purple" width="820"></p>
 
@@ -16,115 +10,80 @@ Every design choice below was measured rather than assumed, and the scripts that
   <a href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_Buddy_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="56"></a>
 </p>
 
-<p align="center">One click downloads the newest Buddy. Any Mac on macOS 14.2 or later.</p>
+macOS 14.2 or later, Apple silicon or Intel. The download window shows the three install steps; macOS asks once for **Open Anyway** because Buddy is not notarized. Setup then asks for your name and keys and walks through three permissions. After that Buddy updates itself.
 
-1. Open the downloaded **Buddy.dmg** and drag **Buddy** onto **Applications**.
-2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
-3. The setup window asks your name and your API keys, tests each key as you paste it, and walks through the three permissions.
-
-After that Buddy updates itself: the notch says when a new version is ready, and one click installs it.
-
-Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/settings/keys) key is recommended, and [Gemini](https://aistudio.google.com/apikey) and [Deepgram](https://console.deepgram.com/) keys are optional. A question costs about one to six cents. Step by step, with troubleshooting: [docs/install.md](docs/install.md). How to get the most out of it: [docs/using-buddy.md](docs/using-buddy.md).
+Buddy uses your own keys: [Anthropic](https://console.anthropic.com/settings/keys) (recommended), and optionally [Gemini](https://aistudio.google.com/apikey) and [Deepgram](https://console.deepgram.com/) for a better voice. A question costs one to six cents. Help with install: [docs/install.md](docs/install.md).
 
 ## What it does
 
+- **Explains and draws at once.** Each spoken sentence arrives with its marks, paced to the voice.
+- **Talk or type.** Hold Control + Option to speak, or press Control + Option + T to type in the notch.
+- **Walks you through apps.** Ask "how do I export this?" and it points at each button, waits for you to click, and gives the next step.
+- **Replays tasks it has shown you.** The same request again, in other words, is walked through from memory without a model call.
+- **Remembers what you learned.** New answers build on earlier lessons. Stored on your Mac.
+- **Hints before answers.** On LeetCode and similar sites: a nudge, then the approach, then the code only if you ask.
+- **Reviews your diagrams.** In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them. No score.
+- **Picks a model per question.** Sonnet, Opus or Gemini Argon, from measured quality, wait and cost.
+- **Shows what it spends.** Today's and this month's spend on your keys, in Settings.
+
+<p align="center">
+  <img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint in the notch, without the solution" width="410">
+  <img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, which builds on hash map lookup, beside a hand-drawn walk through" width="410">
+</p>
+
+## Using it
+
 | | |
 |---|---|
-| **Talk or type** | Hold Control + Option and speak, or press Control + Option + T and type in the notch's chat box. Either way the answer is spoken and drawn, and the chat keeps the whole day's conversation. |
-| **Guides you through any app** | Ask "how do I export this?" and Buddy gives one step, points at the exact button or menu, and watches for you to do it before saying the next. Watching happens on your Mac and costs nothing; each step is one short answer. Esc stops it. |
-| **Answers repeat tasks from memory** | A finished walkthrough is kept. Ask for the same task again in your own words and Buddy replays it, pointing at the same buttons, with no AI model asked; only the voice costs anything. A near miss ("PNG" instead of "PDF") gets a fresh answer. Measured in `scripts/howto/`. |
-| **Shows what it spends** | Settings shows today's and this month's spend on your keys, from each reply's own token counts at published prices. |
-| **Explains while drawing** | Answers are small drawing programs. Each spoken sentence arrives with its marks: rings, underlines and arrows on your real screen, and hand-drawn cards on calm space for pictures the screen does not have. The pen is paced to the voice. |
-| **Lives in the notch** | Status, the sentence being said, and your own words live as you speak. Hover for the last lesson as a paper card, or the chat with the whole day's conversation. Idle, it disappears into the camera housing. |
-| **Remembers what you learned** | Ideas explained in earlier sessions are recalled when a new question touches them, so an answer can build on Tuesday's lesson instead of starting over. Ideas you did not follow get a different example next time. Kept on your Mac only. |
-| **Hints before answers** | On LeetCode, HackerRank and similar sites, help comes in steps: a nudge, the approach, a walk through by hand, then the code. You choose how far to go, and the code is always one sentence away. |
-| **Reviews your own diagrams** | Drawing a design in Excalidraw, draw.io, Miro or Freeform, Buddy marks your own boxes and draws what it would add beside them, dashed and purple, so a suggestion reads as a suggestion. No score. |
-| **Picks the right model per question** | Under Brain: Auto, quick questions go to Claude Sonnet, explanations to Gemini Argon, trade-offs to Claude Opus, each choice taken from a measured table of quality, wait and cost. |
-| **Writes it all down** | Every question and answer is saved as a plain Markdown file per day, readable in any editor. |
-| **Updates itself** | Once a day it checks for a new release; one click downloads it, verifies its checksum and signature, swaps it in and relaunches, with keys, memory and permissions kept. |
-| **Quiet sounds** | A soft tone when the mic opens and when a question is sent, a water drop when the notch opens. Never over the voice; one switch turns them off. |
+| Hold Control + Option | Ask out loud |
+| Control + Option + T | Type a question (Return sends, Shift + Return adds a line) |
+| Hover the notch | Last lesson, the day's chat, Settings |
+| Esc | Clear the drawing, or stop a walkthrough |
 
-## What it looks like
-
-| | |
-|---|---|
-| <img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and says the first hint in the notch, without giving the solution" width="420"> | <img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, Builds on hash map lookup, beside a hand-drawn walk through of the example" width="420"> |
-| **Hints before answers.** On a practice problem the first help is a nudge: the line that matters, ringed, and one sentence. | **Remembers what you learned.** The lesson card shows what this answer builds on, beside the walk through it drew. |
+More in [docs/using-buddy.md](docs/using-buddy.md).
 
 ## How it works
 
 ```mermaid
 flowchart TD
-    keys([Hold Control + Option]):::input --> speech[Apple Speech, on device<br/>live words in the notch]:::device
-    typed([Or type: Control + Option + T]):::input --> question[The question]:::logic
-    speech --> question
-    question --> sort[Question sorter<br/>on device, Haiku when unsure]:::device
-    question --> recall[Learning memory<br/>shortlist on device, Haiku chooses]:::device
-    question --> capture[Screen capture and index<br/>Vision text and accessibility tree]:::device
-
-    subgraph prepare [While the screen is captured, about 0.7 s]
-        sort
-        recall
-        capture
+    ask([Spoken or typed question]):::input --> prep
+    subgraph prep [On the Mac, in about 0.7 s]
+        capture[Screen capture and text index]:::device
+        sort[Question sorter]:::device
+        recall[Learning memory]:::device
     end
-
-    sort --> route[Router<br/>measured quality, wait and cost]:::logic
-    recall --> note[Turn note<br/>memory, hint step, diagram review]:::logic
-    capture --> note
-    route --> brain{{Sonnet, Opus or Argon}}:::cloud
-    note --> brain
-    brain -->|streamed drawing program| stream[Program stream<br/>cut at each sentence]:::logic
-    stream --> voice[Deepgram voice<br/>first sentence in about 0.2 s]:::cloud
-    stream --> pen[Drawing engine<br/>rough.js and perfect-freehand]:::device
-    voice --> you([You hear and see it together]):::input
-    pen --> you
-    brain -. after the answer .-> file[Filed into memory<br/>off your clock]:::device
-    brain -. a step in an app .-> watch[Guide watches on device<br/>for the step to be done]:::device
-    watch -. screen changed .-> question
+    prep --> route[Router]:::logic --> model{{Sonnet, Opus or Argon}}:::cloud
+    model -->|drawing program, streamed| play[Voice and pen, sentence by sentence]:::device
+    play --> you([You hear and see it]):::input
 
     classDef input fill:#fde68a,stroke:#b45309,color:#111
     classDef device fill:#bbf7d0,stroke:#15803d,color:#111
     classDef logic fill:#bfdbfe,stroke:#1d4ed8,color:#111
     classDef cloud fill:#e9d5ff,stroke:#7e22ce,color:#111
-    style prepare fill:#f0fdf4,stroke:#15803d
+    style prep fill:#f0fdf4,stroke:#15803d
 ```
 
-Green runs on the Mac, purple is a hosted model, blue is Buddy's own logic. The three steps in the box run at the same time, so sorting the question and recalling memory add nothing to the wait. When the answer is a step in an app, Buddy compares a tiny thumbnail of the screen after each click or key and asks again only once the screen has changed.
+The model answers with a short drawing program; the first sentence is spoken while the rest is still being written. Details in [docs/how-it-works.md](docs/how-it-works.md).
 
-## Measured, not assumed
+## Results
 
-**Which model answers.** The three models raced on every kind of question, judged blind by two judges from different model families over two shuffled passes. Each kind goes to the model with the best quality once a second of silence before the first word is counted against it, and ties within the judges' noise go to the cheaper one. The routes held for any reasonable weighting of waiting and under either judge alone. Details in [docs/model-choice.md](docs/model-choice.md).
-
-| Kind of question | Answered by | First word |
+| What | Result | Test |
 |---|---|---|
-| Quick ("what's base 62?") | Sonnet | about 1.5 s |
-| How or why something works | Argon | about 4 s |
-| Teach me properly | Argon | about 4 s |
-| "I didn't get that" | Argon | about 3 s |
-| Should I use X or Y | Opus | about 6 s |
+| Model per kind of question | Chosen by a blind-judged race of all three models | [docs/model-choice.md](docs/model-choice.md) |
+| Question sorting | 46 of 50 held-out spoken questions sorted correctly | `scripts/question_sorting/` |
+| Learning memory | 32 of 33 relevant ideas found on 80 blind questions | `scripts/learning_memory/` |
+| Hints and diagram review | 32 of 32 checks passed on Sonnet and Argon | `scripts/study_modes/` |
+| How-to replay | 30 of 40 new phrasings found; 0 of 49 near misses replayed | `scripts/howto/` |
 
-**Sorting the question.** On 100 spoken questions written by someone who never saw the examples, the on-device sorter alone was right on 33 of the 50 held out; with Claude Haiku deciding the uncertain ones it was right on 46, and never mistook a new question for "I didn't follow".
+## Privacy
 
-**Learning memory.** On 80 blind questions against 50 remembered ideas, scored on the held-out half: the full cascade found 32 of 33 relevant ideas at 88 to 91% precision across repeated runs and left 9 of 10 unrelated questions alone; names alone, used when Haiku is late or there is no key, found 16 at 94% precision. Shortlisting 5,000 ideas takes about 5 ms on the Mac. The choosing call takes 0.74 s at the median, inside the screen capture, for about $0.0006 a question. Filing a lesson costs about $0.002 and happens after the answer.
-
-**Hints and diagram review.** Checked on a LeetCode problem and an Excalidraw design with both Sonnet and Argon: the first hint named no data structure and wrote no code, asking for the code gave it, a concept question on the problem page did not leak the solution, and the diagram review marked the student's own boxes, proposed a cache beside them and gave no score. 32 of 32 checks passed.
-
-## How learning memory stays fast, small and current
-
-Memory that grows forever and is searched while the student waits has three problems: it gets slow, it fills with duplicates, and it goes stale. Each is handled the way production agent memory handles it, on the Mac.
-
-- **Fast.** Writing happens after the answer is spoken: Claude Haiku names the ideas the lesson taught, matches them to ones already known, and writes the plain-words phrases a student might use for each instead of its name ("charged twice" for an idempotency key), plus likely mishearings of the name. Reading is a single in-memory scan that reuses the vector already computed for sorting the question, so the expensive understanding is paid once at filing time, never while waiting.
-- **Small.** A new explanation updates the idea it is about rather than adding a second copy, so the store grows with the number of ideas, not questions. Ideas met once and unseen for four months move to an archive and come back, history intact, if they come up again.
-- **Current.** Each idea keeps only its latest explanation, so the tutor builds on what was last heard. How well it is probably still remembered follows the FSRS forgetting curve: fresh ideas are built on, fading ones get a one-sentence reminder, forgotten ones are taught again. If a macOS update changes the sentence model, stored vectors are re-embedded in the background.
-
-Everything lives in `~/Library/Application Support/Buddy/Memory` and can be switched off or forgotten in one click from Settings.
+- The screen is captured only when you ask, or after each click while a walkthrough waits for you. Those checks are compared on the Mac and discarded.
+- Speech is transcribed on the Mac. The screenshot and question go to the model that answers.
+- Transcripts, memory and how-tos stay in `~/Library/Application Support/Buddy`. Keys stay in the Keychain. No analytics.
 
 ## Building from source
 
-For working on Buddy itself; to use it, the download above is enough.
-
-- macOS 14.2 or later on Apple silicon, and Xcode 16 or later
-- Once, a local signing certificate, so macOS keeps the Screen Recording and Accessibility permissions across rebuilds: in Keychain Access choose **Keychain Access > Certificate Assistant > Create a Certificate**, name it `Clicky Local Dev`, set Identity Type to **Self Signed Root** and Certificate Type to **Code Signing**. The name is from before the project was Buddy; the build scripts look for it, and the bundle identifier `com.maverickrajeev.clicky-local` keeps its old name too, because macOS ties permissions to it and every installed copy only accepts an update with the same one.
+Needs Xcode 16 and a self-signed code signing certificate named `Clicky Local Dev` (Keychain Access > Certificate Assistant > Create a Certificate, Self Signed Root, Code Signing). The name predates Buddy and has to stay: installed copies only accept updates signed with it.
 
 ```bash
 git clone https://github.com/projects-hacks/buddy.git
@@ -132,49 +91,11 @@ cd buddy
 zsh scripts/build-local.sh
 ```
 
-The script builds, signs with that certificate, installs `/Applications/Buddy.app` and launches it; on first launch the setup window takes the keys. To bill Gemini Argon to a Google Cloud project through Vertex instead of a key, choose **Google Cloud** in the Gemini card and give the project ID, with the `gcloud` CLI signed in (`gcloud auth application-default login`). Diagnostics, including each raw model response and the timing of every stage, go to `~/Library/Logs/Buddy.log`.
-
-`zsh scripts/make-release.sh <version>` builds the downloadable disk image; [docs/releasing.md](docs/releasing.md) covers publishing it.
-
-## Using it
-
-- **Ask:** hold Control + Option, speak, let go. Your words appear under the notch as you talk.
-- **Or type:** press Control + Option + T, or click the chat box in the open notch, and press Return. Shift + Return starts a new line. The answer is the same, spoken and drawn.
-- **Learn an app:** ask how to do something in any app ("how do I export this?"). Buddy points at the button for the first step, waits for you to do it, and says the next one by itself. The step it is waiting for shows under the notch.
-- **Look back:** hover the notch for the last lesson, or the chat tab for the whole day's conversation.
-- **Follow-ups:** tap the buttons under an answer to ask the next question it suggests, or copy the code it offers.
-- **Clear:** Esc clears the drawing and stops a walkthrough. Stop silences the voice.
-- **Settings**, in the notch's gear tab: Brain (Auto, Claude, Gemini, Local), Sounds, Learning memory, and Name and API keys.
-
-More in [docs/using-buddy.md](docs/using-buddy.md); the inside story in [docs/how-it-works.md](docs/how-it-works.md).
-
-## Privacy
-
-The screen is captured only when you ask, by holding the keys or sending a typed question, and while Buddy walks you through a task: then it takes a small capture after each click, key or scroll to see whether the step is done, compares it on the Mac and discards it, and sends a screenshot only when the screen has changed and the next step is needed. Speech is transcribed on the Mac. The screenshot and the question go to the model that answers, and the question and short idea summaries to Claude Haiku for sorting and memory. Transcripts, memory and the hint ladder stay in `~/Library/Application Support/Buddy`. Analytics are disabled.
-
-## Project layout
-
-| Path | What it holds |
-|---|---|
-| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift`, `DiagramReview.swift`, `GuideMode.swift`, `HowToMemory.swift` and `SpendingMeter.swift` are the features above. |
-| `leanring-buddy/DrawingEngine/` | The drawing engine the answers run in. |
-| `scripts/route_race/` | The model race, the blind judging and the routing table. |
-| `scripts/question_sorting/` | The question sorter's calibration and its blind test. |
-| `scripts/learning_memory/` | Memory's blind recall test, timing, and an end-to-end test of the real store. |
-| `scripts/study_modes/` | The hint ladder and diagram review checks. |
-| `scripts/qa/` | End-to-end runs of the real app, and the fresh-install test. |
-| `scripts/experiments/` | One-off measurements quoted in docs/model-choice.md. |
-| `docs/` | Install, usage and how-it-works guides, every model decision with its numbers, and how releases are made. |
-
-`AGENTS.md` is the detailed map of every source file.
-
-## Contributing
-
-Ideas, bugs and questions are welcome as [issues](https://github.com/projects-hacks/buddy/issues). Changes come in as pull requests against `main`; see [AGENTS.md](AGENTS.md) for how the code is laid out and [scripts/](scripts/README.md) for the tests each area has.
+Logs go to `~/Library/Logs/Buddy.log`. Releases: [docs/releasing.md](docs/releasing.md). Source map: [AGENTS.md](AGENTS.md). Tests: [scripts/](scripts/README.md).
 
 ## Credits
 
-Buddy began as a fork of [Clicky](https://github.com/farzaa/clicky) by Farza, released under the MIT license, and has since been rebuilt around the notch, drawing programs, measured routing and learning memory. The hand-drawn look comes from [rough.js](https://roughjs.com/) and [perfect-freehand](https://github.com/steveruizok/perfect-freehand), both MIT.
+Started as a fork of [Clicky](https://github.com/farzaa/clicky) by Farza (MIT). Drawing uses [rough.js](https://roughjs.com/) and [perfect-freehand](https://github.com/steveruizok/perfect-freehand) (MIT).
 
 ## License
 

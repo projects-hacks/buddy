@@ -12,7 +12,7 @@ Already have Buddy 1.2 or 1.3? It offers this update in the notch by itself: cli
 
 **Repeat tasks, answered from memory**
 
-When Buddy walks you through something in an app and you reach the end, it now keeps the steps. Ask for the same thing again, in whatever words, "how do I get a PDF of this" after "how do I save this as a PDF", and Buddy walks you through from memory: the same steps, pointing at the same buttons, without asking an AI model at all, so it is quicker and costs only the voice. It replays only when the request is plainly the same task; something that just sounds like it, "save as PNG" after "save as PDF", gets a fresh answer. If the app has changed since, Buddy notices the missing button and works out that step afresh. The notch says **from memory** while it replays.
+When Buddy walks you through something in an app and you reach the end, it now keeps the steps. Ask for the same thing again, in whatever words, "how do I get a PDF of this" after "how do I save this as a PDF", and Buddy walks you through from memory: the same steps, pointing at the same buttons, without asking a model at all, so it is quicker and costs only the voice. It replays only when the request is plainly the same task; something that just sounds like it, "save as PNG" after "save as PDF", gets a fresh answer. If the app has changed since, Buddy notices the missing button and works out that step afresh. The notch says **from memory** while it replays.
 
 **See what you've spent**
 
