@@ -1627,7 +1627,7 @@ final class CompanionManager: ObservableObject {
             } catch {
                 guard !Task.isCancelled, !(error is CancellationError), !progress.hasReceivedText,
                       attempt + 1 < routing.count else { throw error }
-                modelRouter.bench(routing[attempt])
+                modelRouter.bench(routing[attempt], because: "it failed on a board turn before speaking")
                 attempt += 1
             }
         }
