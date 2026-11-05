@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Sends one command to a running debug build of Buddy through its QA channel
-# (leanring-buddy/QAHooks.swift). The channel is off until switched on:
+# (leanring-buddy/Debug/QAHooks.swift). The channel is off until switched on:
 #   defaults write com.maverickrajeev.clicky-local qaHooksEnabled -bool true
 # and relaunch. Switch it off again with `defaults delete ... qaHooksEnabled`.
 #

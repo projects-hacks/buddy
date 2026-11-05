@@ -6,7 +6,7 @@ Tests whether the notch offers "explain this error?" for a real error and, more 
 
 ```bash
 swiftc -O -parse-as-library -o "$TMPDIR/error_offer_test" scripts/error_offer/error_offer_test.swift \
-  leanring-buddy/ErrorRecognizer.swift leanring-buddy/ErrorWindowReading.swift
+  leanring-buddy/ErrorOffer/ErrorRecognizer.swift leanring-buddy/ErrorOffer/ErrorWindowReading.swift
 "$TMPDIR/error_offer_test" grade     # the set the patterns were written against
 "$TMPDIR/error_offer_test" fresh     # a set written afterwards
 "$TMPDIR/error_offer_test" vision    # the same fixtures drawn as window images and read back

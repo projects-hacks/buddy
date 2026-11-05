@@ -7,8 +7,8 @@
 //
 // build and run (from the repository root), key on stdin, never printed:
 //   cp scripts/learning_memory/memory_flow_test.swift /tmp/flow/main.swift
-//   xcrun swiftc -O -o /tmp/flow/test leanring-buddy/ConceptIndex.swift leanring-buddy/LearningMemory.swift \
-//     leanring-buddy/KnowledgeMapRelations.swift /tmp/flow/main.swift
+//   xcrun swiftc -O -o /tmp/flow/test leanring-buddy/Memory/ConceptIndex.swift leanring-buddy/Memory/LearningMemory.swift \
+//     leanring-buddy/Memory/Map/KnowledgeMapRelations.swift /tmp/flow/main.swift
 //   security find-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -w | /tmp/flow/test /tmp/flow/store
 
 import Foundation
@@ -21,7 +21,7 @@ enum AppIdentity { static let dataName = "Buddy-flow-test" }
 let apiKey = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 let storeFolder = URL(fileURLWithPath: CommandLine.arguments[1])
 try? FileManager.default.removeItem(at: storeFolder)
-let promptFolder = URL(fileURLWithPath: "leanring-buddy")
+let promptFolder = URL(fileURLWithPath: "leanring-buddy/Memory")
 let lessonPrompt = try! String(contentsOf: promptFolder.appendingPathComponent("LessonConceptPrompt.txt"), encoding: .utf8)
 let recallPrompt = try! String(contentsOf: promptFolder.appendingPathComponent("MemoryRecallPrompt.txt"), encoding: .utf8)
 

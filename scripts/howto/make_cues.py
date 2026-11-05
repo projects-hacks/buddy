@@ -1,6 +1,6 @@
 """Writes each test how-to's title and ways of asking, the way the app does.
 
-Calls Claude Haiku with leanring-buddy/HowToCuesPrompt.txt, exactly the
+Calls Claude Haiku with leanring-buddy/Guide/HowToCuesPrompt.txt, exactly the
 prompt that ships, with the same message the app sends when it saves a
 how-to (HowToMemory and LearningMemoryCalls.howToCues). Haiku never sees the
 test questions. Writes tasks_with_cues.json for howto_eval.swift.
@@ -17,7 +17,7 @@ import sys
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-PROMPT = (HERE.parents[1] / "leanring-buddy/HowToCuesPrompt.txt").read_text()
+PROMPT = (HERE.parents[1] / "leanring-buddy/Guide/HowToCuesPrompt.txt").read_text()
 KEY = sys.stdin.read().strip()
 tasks = json.loads((HERE / "tasks.json").read_text())["tasks"]
 

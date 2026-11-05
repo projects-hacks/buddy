@@ -1,4 +1,4 @@
-"""Turns the race and the blind judging into leanring-buddy/RouteTable.json.
+"""Turns the race and the blind judging into leanring-buddy/Answering/RouteTable.json.
 
 For every kind of question and every brain: the judged quality (both judges,
 both passes, every question of that kind), the median seconds to the first
@@ -108,7 +108,7 @@ for kind in KINDS:
     if len(table[kind]) == len(BRAINS):
         print(f"{kind:10} " + " ".join(f"{route(kind, rate):>7}" for rate in rates))
 
-(HERE.parents[1] / "leanring-buddy/RouteTable.json").write_text(json.dumps({
+(HERE.parents[1] / "leanring-buddy/Answering/RouteTable.json").write_text(json.dumps({
     "_why": "What ModelRouter.swift decides from. Built by scripts/route_race/build_table.py from the race "
             "(route_race.py, lesson_race.py) and the blind judging (judge.py): quality is the mean overall "
             "score from two judges of different families over two shuffled passes, first_say the median "

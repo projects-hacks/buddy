@@ -29,7 +29,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
 OLD_REVISION, OUT = sys.argv[1], pathlib.Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
-PROMPT_FILE = "leanring-buddy/TutorProgramPrompt.swift"
+PROMPT_FILE = "leanring-buddy/Answering/TutorProgramPrompt.swift"
 MODEL = "claude-sonnet-5-5"
 CANVAS = (1440, 900)
 

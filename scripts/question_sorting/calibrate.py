@@ -26,7 +26,7 @@ import numpy
 
 HERE = pathlib.Path(__file__).resolve().parent
 KINDS = ["quick", "normal", "teach", "reexplain", "tradeoff"]
-example_file = json.loads((HERE.parents[1] / "leanring-buddy/QuestionKindExamples.json").read_text())
+example_file = json.loads((HERE.parents[1] / "leanring-buddy/Answering/QuestionKindExamples.json").read_text())
 base_examples = example_file["examples"]
 candidates = example_file["spoken_examples"]
 old_test = [(q, k, True) for q, k in json.loads((HERE / "phrasings.json").read_text())["test"]]

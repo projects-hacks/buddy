@@ -56,8 +56,6 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         // every element Buddy reads, including children read off a tree
         // whose own timeout was never set.
         AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.5)
-        ClickyAnalytics.configure()
-        ClickyAnalytics.trackAppOpened()
 
         // No menu bar icon: everything lives in the notch, settings included,
         // so there is one place to look instead of two.

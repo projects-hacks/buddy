@@ -1,5 +1,5 @@
 // Grades how-to retrieval with the code that ships (HowToMatching in
-// leanring-buddy/HowToMemory.swift) and the same on-device sentence model and
+// leanring-buddy/Guide/HowToMemory.swift) and the same on-device sentence model and
 // pooling as QuestionSorter. Each task's ways of asking come from
 // make_cues.py; the questions were written without seeing them.
 //
@@ -7,8 +7,8 @@
 // reported on the second half, so the reported numbers are held out.
 //
 // usage (from the repository root):
-//   swiftc -O -o "$TMPDIR/howto_eval" scripts/howto/eval/*.swift leanring-buddy/HowToMemory.swift \
-//     leanring-buddy/GuideMode.swift leanring-buddy/AppIdentity.swift
+//   swiftc -O -o "$TMPDIR/howto_eval" scripts/howto/eval/*.swift leanring-buddy/Guide/HowToMemory.swift \
+//     leanring-buddy/Guide/GuideMode.swift leanring-buddy/App/AppIdentity.swift
 //   "$TMPDIR/howto_eval"
 
 import Foundation

@@ -5,5 +5,5 @@ set -e
 here=${0:A:h}
 out=$(mktemp -d)
 cp "$here/hearing_test.swift" "$out/main.swift"
-swiftc -o "$out/hearing_test" "$here/../../leanring-buddy/TalkOverHearing.swift" "$out/main.swift"
+swiftc -o "$out/hearing_test" "$here/../../leanring-buddy/VoiceIn/TalkOverHearing.swift" "$out/main.swift"
 "$out/hearing_test"

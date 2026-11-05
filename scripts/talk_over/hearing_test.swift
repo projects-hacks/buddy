@@ -1,5 +1,5 @@
 // Checks how Buddy reads what it hears while an answer plays
-// (leanring-buddy/TalkOverHearing.swift): single utterances, and whole
+// (leanring-buddy/VoiceIn/TalkOverHearing.swift): single utterances, and whole
 // overlaps where Buddy's own voice comes back through the speakers into the
 // same transcript as the student's. Each overlap is the recognizer's text as
 // it arrived, timed, beside the sentences Buddy was saying, played through

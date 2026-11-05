@@ -6,9 +6,9 @@ Four fixture lessons (three drawn, one answered in prose, one long enough to run
 
 ```bash
 swiftc -O -o build/notebook-sample-runner scripts/notebook/main.swift \
-  leanring-buddy/NotebookStore.swift leanring-buddy/NotebookDocumentHTML.swift \
-  leanring-buddy/NotebookCapture.swift leanring-buddy/NotebookPDFExporter.swift \
-  leanring-buddy/AppIdentity.swift
+  leanring-buddy/Notebook/NotebookStore.swift leanring-buddy/Notebook/NotebookDocumentHTML.swift \
+  leanring-buddy/Notebook/NotebookCapture.swift leanring-buddy/Notebook/NotebookPDFExporter.swift \
+  leanring-buddy/App/AppIdentity.swift
 build/notebook-sample-runner "$(pwd)" "$(pwd)/build/notebook-sample"
 open build/notebook-sample/png
 ```

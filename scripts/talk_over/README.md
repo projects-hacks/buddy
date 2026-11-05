@@ -1,6 +1,6 @@
 # Talking over an answer
 
-How Buddy reads what it hears while an answer plays (`leanring-buddy/TalkOverHearing.swift`), checked without a microphone.
+How Buddy reads what it hears while an answer plays (`leanring-buddy/VoiceIn/TalkOverHearing.swift`), checked without a microphone.
 
 ```bash
 zsh scripts/talk_over/run.sh

@@ -11,7 +11,7 @@
 // show retrieval costs nothing the student would notice.
 //
 // build and run (from the repository root):
-//   xcrun swiftc -O -o /tmp/recall_eval leanring-buddy/ConceptIndex.swift scripts/learning_memory/recall_eval.swift
+//   xcrun swiftc -O -o /tmp/recall_eval leanring-buddy/Memory/ConceptIndex.swift scripts/learning_memory/recall_eval.swift
 //   /tmp/recall_eval scripts/learning_memory /tmp/shortlists.json
 //   then: python3 -I scripts/learning_memory/rerank_eval.py /tmp/shortlists.json  (key on stdin, see there)
 

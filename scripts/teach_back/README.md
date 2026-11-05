@@ -6,7 +6,7 @@ Tests for "let me explain X back to you": the student explains a topic out loud,
 
 ```bash
 swiftc -O -parse-as-library -o /tmp/teach_back_intent scripts/teach_back/intent_test.swift \
-    leanring-buddy/TeachBackIntent.swift leanring-buddy/BoardIntent.swift
+    leanring-buddy/TeachBack/TeachBackIntent.swift leanring-buddy/Drawing/Board/BoardIntent.swift
 /tmp/teach_back_intent scripts/teach_back/intent_phrasings.json scripts/teach_back/blind_phrasings.json \
     scripts/teach_back/blind_phrasings_2.json scripts/teach_back/blind_phrasings_3.json \
     scripts/teach_back/listening_phrases.json scripts/board/intent_phrasings.json \
@@ -35,8 +35,8 @@ While teach-back is open, asking for another go ("let me try that part again", "
 
 ```bash
 swiftc -O -parse-as-library -o /tmp/teach_back_faithfulness scripts/teach_back/faithfulness.swift \
-    leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
-    leanring-buddy/BoardProgramTranslator.swift leanring-buddy/ProgramStream.swift leanring-buddy/TeachBackPrompt.swift
+    leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
+    leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/ProgramStream.swift leanring-buddy/TeachBack/TeachBackPrompt.swift
 /tmp/teach_back_faithfulness build/teach-back-runs/final            # Sonnet 5.5, both calls per fixture
 /tmp/teach_back_faithfulness build/teach-back-runs/final replay     # the saved answers again, no calls
 python3 -I scripts/board/overlap_check.py build/teach-back-runs/final  # words on words, arrows through words

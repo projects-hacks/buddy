@@ -1,10 +1,10 @@
 """Grades the relations Claude Haiku names for the map, on relation_fixture.json.
 
 Two calls are graded, each with the prompt that ships:
-- filing (leanring-buddy/LessonConceptPrompt.txt), the call made after every
+- filing (leanring-buddy/Memory/LessonConceptPrompt.txt), the call made after every
   answer: for each lesson, is its new idea linked to the known idea it
   belongs with, with a sensible kind, and nothing else?
-- the one-time pass for older stores (leanring-buddy/ConceptRelationsPrompt.txt):
+- the one-time pass for older stores (leanring-buddy/Memory/Map/ConceptRelationsPrompt.txt):
   given only names and summaries, does it find the links between them?
 
 Both are also checked for ids Haiku made up and kinds off the list. The app
@@ -25,8 +25,8 @@ import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
 SOURCES = HERE.parents[1] / "leanring-buddy"
-FILING_PROMPT = (SOURCES / "LessonConceptPrompt.txt").read_text()
-PASS_PROMPT = (SOURCES / "ConceptRelationsPrompt.txt").read_text()
+FILING_PROMPT = (SOURCES / "Memory/LessonConceptPrompt.txt").read_text()
+PASS_PROMPT = (SOURCES / "Memory/Map/ConceptRelationsPrompt.txt").read_text()
 KINDS = {"uses", "part of", "alternative to", "prerequisite of", "contrasts with"}
 RUNS = 3
 KEY = sys.stdin.read().strip()
