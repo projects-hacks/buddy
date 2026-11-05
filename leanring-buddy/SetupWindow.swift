@@ -202,7 +202,7 @@ struct SetupView: View {
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .accessibilityAddTraits(.isHeader)
-                    Text("Ask about anything on your screen. Buddy explains it out loud and draws on it as it talks.")
+                    Text("Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.")
                         .font(.system(size: 13.5))
                         .foregroundStyle(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)

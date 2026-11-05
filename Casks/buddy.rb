@@ -4,7 +4,7 @@ cask "buddy" do
 
   url "https://github.com/projects-hacks/buddy/releases/download/v#{version}/Buddy.dmg"
   name "Buddy"
-  desc "Study helper in the notch that explains your screen out loud while drawing on it"
+  desc "Notch helper that explains your screen out loud while drawing on it"
   homepage "https://projects-hacks.github.io/buddy/"
 
   livecheck do

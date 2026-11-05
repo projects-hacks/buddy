@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Buddy: a study helper for your Mac's notch</title>
-<meta name="description" content="Buddy is a free, open-source Mac study helper that lives in the notch. Ask about what is on your screen, out loud or typed, and it explains out loud while drawing on it. Hints for LeetCode, reviews of your system design diagrams, and step-by-step help in any app.">
+<title>Buddy: your screen, explained</title>
+<meta name="description" content="Buddy is a free, open-source Mac app in your notch that explains whatever is on your screen. Ask out loud or type, and it explains while drawing on the screen: code, an app you are learning, the error you just hit, your own designs, a lecture, a practice problem.">
 <link rel="canonical" href="https://projects-hacks.github.io/buddy/">
 <link rel="icon" type="image/png" href="images/buddy-icon.png">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Buddy: a study helper for your Mac's notch">
-<meta property="og:description" content="Ask about what is on your screen. Buddy explains it out loud and draws on it while it talks.">
+<meta property="og:title" content="Buddy: your screen, explained">
+<meta property="og:description" content="Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.">
 <meta property="og:image" content="https://projects-hacks.github.io/buddy/images/social-preview.png">
 <meta property="og:url" content="https://projects-hacks.github.io/buddy/">
 <meta name="twitter:card" content="summary_large_image">
@@ -76,7 +76,9 @@
   .meta { color: var(--faint); font-size: 14px; margin-top: 16px; }
   .demo { margin: 44px auto 10px; display: block; width: 100%; max-width: 1000px; border-radius: 16px;
           box-shadow: var(--shadow); border: 1px solid var(--line); }
-  .caption { text-align: center; color: var(--faint); font-size: 14px; margin: 0 0 80px; }
+  .caption { text-align: center; color: var(--faint); font-size: 14px; margin: 0 0 22px; }
+  .uses { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 auto 84px; max-width: 900px; }
+  .uses span { border: 1px solid var(--line); background: var(--bg-soft); color: var(--soft); border-radius: 999px; padding: 7px 15px; font-size: 14.5px; font-weight: 500; }
 
   section { padding: 0 0 84px; }
   h2 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; margin: 0 0 10px; text-align: center; }
@@ -94,10 +96,11 @@
         border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px; color: var(--text); }
 
   /* Features */
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
   .card svg { width: 30px; height: 30px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 12px; }
   .card b { display: block; font-size: 18px; margin-bottom: 6px; }
+  .card .area { display: block; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
   .card p { margin: 0; color: var(--soft); font-size: 15.5px; }
 
   .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 16px; }
@@ -167,8 +170,8 @@
   <header class="hero">
     <div class="pill"><i></i> explaining</div><br>
     <img class="icon" src="images/buddy-icon.png" alt="Buddy">
-    <h1>Ask about your screen.<br><span>Buddy explains and draws.</span></h1>
-    <p class="lede">A study helper that lives in your Mac's notch. It talks you through the code, diagram or problem in front of you while it marks it up, like a friend at a whiteboard.</p>
+    <h1>Your screen,<br><span>explained.</span></h1>
+    <p class="lede">Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks, like a friend leaning over your shoulder. It lives in your Mac's notch.</p>
     <div class="actions">
       <a class="button" href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.7zM14.1 5.6c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1.1.1 2.1-.5 2.7-1.3z"/></svg>
@@ -181,10 +184,13 @@
 
   <img class="demo" src="images/demo.gif" alt="Asked why a binary search crashes, Buddy rings each line in turn while it talks, and draws a trace of the list 3, 7, 9 on a card beside the code, pass by pass">
   <p class="caption">A real answer, sped up. The words under the notch are what Buddy is saying.</p>
+  <div class="uses" aria-label="People use Buddy for">
+    <span>Learning to code</span><span>Interview prep</span><span>Courses and lectures</span><span>A new app at work</span><span>Debugging</span><span>System design</span>
+  </div>
 
   <section id="how">
     <h2>How it works</h2>
-    <p class="sub">No chat window, no copying screenshots. Ask where you are.</p>
+    <p class="sub">No chat window, no copying screenshots. Ask right where you are, in any app.</p>
     <div class="steps">
       <div class="step"><b>Ask</b><p>Hold <kbd>⌃</kbd> <kbd>⌥</kbd> and speak, or press <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd> and type. Your words show under the notch.</p></div>
       <div class="step"><b>Buddy looks</b><p>It reads what is on your screen at that moment: the code, the problem, the diagram, the app.</p></div>
@@ -194,32 +200,40 @@
   </section>
 
   <section id="features">
-    <h2>Made for studying</h2>
-    <p class="sub">LeetCode, system design, a new app, or anything else on your screen.</p>
+    <h2>One helper for everything on your screen</h2>
+    <p class="sub">Learn something new, get through an app, fix an error, or check your own work. Buddy sees what you see.</p>
     <div class="grid">
       <div class="card">
-        <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>
-        <b>Hints before answers</b><p>On LeetCode and similar sites: a nudge first, then the approach, then a walk-through. The code only when you ask.</p>
-      </div>
-      <div class="card">
-        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 0 1 3 3v4"/><rect x="14" y="4" width="7" height="6" rx="1.5" stroke-dasharray="2 2"/></svg>
-        <b>Reviews your diagrams</b><p>Draw a design in Excalidraw, draw.io, Miro or Freeform and ask what is missing. It marks your boxes and sketches additions beside them.</p>
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6"/><path d="M7 11h6M7 14h9"/></svg>
+        <span class="area">Learn</span><b>Explains anything on screen</b><p>Code, a paper, a dashboard, a config file. Ask in your own words and it rings what it is talking about, one sentence at a time.</p>
       </div>
       <div class="card">
         <svg viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg>
-        <b>Walks you through any app</b><p>"How do I export this?" One step at a time, pointing at each button and waiting for your click. Ask again later and it replays from memory.</p>
+        <span class="area">Get it done</span><b>Walks you through any app</b><p>&ldquo;How do I export this?&rdquo; One step at a time, pointing at each button and waiting for your click. Ask again later and it replays from memory.</p>
+      </div>
+      <div class="card">
+        <svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19zM12 10v4M12 17.5v.5"/></svg>
+        <span class="area">Fix</span><b>Explains the error you just hit</b><p>When an error appears in a terminal or editor, the notch glows. One tap and it rings the line that caused it. Nothing is sent until you ask.</p>
+      </div>
+      <div class="card">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 0 1 3 3v4"/><rect x="14" y="4" width="7" height="6" rx="1.5" stroke-dasharray="2 2"/></svg>
+        <span class="area">Review</span><b>Reviews your own work</b><p>Draw a design in Excalidraw, draw.io, Miro or Freeform and ask what is missing. It marks your boxes and sketches additions beside them.</p>
+      </div>
+      <div class="card">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21l4-4 4 4M7 9h6M7 12h9"/></svg>
+        <span class="area">Learn</span><b>Teaches from scratch</b><p>Say &ldquo;teach me TCP from scratch&rdquo; and the screen becomes a whiteboard it teaches on, part by part. Then teach it back to check yourself.</p>
+      </div>
+      <div class="card">
+        <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>
+        <span class="area">Learn</span><b>Hints before answers</b><p>On LeetCode and similar sites: a nudge first, then the approach, then a walk-through. The code only when you ask.</p>
+      </div>
+      <div class="card">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M10 9l5 2-5 2zM8 21h8"/></svg>
+        <span class="area">Learn</span><b>Knows what the lecture said</b><p>Watching a video lecture? Ask about it and Buddy knows the last minute of what was said. Nothing to switch on.</p>
       </div>
       <div class="card">
         <svg viewBox="0 0 24 24"><path d="M12 5a3 3 0 0 0-5.8 1A3 3 0 0 0 4 11a3 3 0 0 0 2 5 3 3 0 0 0 6 1V5zM12 5a3 3 0 0 1 5.8 1A3 3 0 0 1 20 11a3 3 0 0 1-2 5 3 3 0 0 1-6 1"/></svg>
-        <b>Remembers what you learn</b><p>New answers build on earlier lessons, so it never starts from zero. Kept only on your Mac.</p>
-      </div>
-      <div class="card">
-        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M8 19v2M16 19v2M7 10h4M7 14h7"/></svg>
-        <b>Lives in the notch</b><p>Out of the way until you need it. Hover for the last lesson and the whole day's conversation.</p>
-      </div>
-      <div class="card">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5c0-1.2 1.1-2 2.5-2s2.5.8 2.5 2-1 1.7-2.5 2-2.5.8-2.5 2 1.1 2 2.5 2 2.5-.8 2.5-2"/></svg>
-        <b>You see what it costs</b><p>Runs on your own API keys, about one to six cents a question, with today's total in Settings.</p>
+        <span class="area">Remember</span><b>Remembers what you learn</b><p>Answers build on earlier lessons, every lesson becomes a notebook page, and a map shows what is fading. All kept on your Mac.</p>
       </div>
     </div>
   </section>
@@ -264,13 +278,13 @@ brew install --cask projects-hacks/buddy/buddy</code><button type="button" data-
       <details><summary>Does it know what the lecturer just said?</summary><p>Yes, when a video lecture is in front. Buddy reads the playback time and takes the minute before it from the page's transcript (YouTube's Show transcript, Coursera's transcript) or from YouTube's captions, which sends YouTube only the video's id. Where no transcript can be read, and only after you allow System Audio Recording when macOS asks, Buddy keeps the last 90 seconds of the front app's own sound in memory while it plays (for a browser, all its tabs), empties it when you switch apps, writes nothing to disk, and transcribes its newest 65 seconds only when you ask about the video (a player's time is on screen, or you ask what was said): by Deepgram if you added a key, on your Mac if not. It never uses your microphone for this, and never hears calls or meetings (Zoom, Teams, Meet, FaceTime, Discord, Slack, Webex, Skype, WhatsApp, or any app using a microphone) or music apps.</p></details>
       <details><summary>Does it keep pictures of my screen?</summary><p>Only inside the notebook. Each finished lesson is kept as a page, and when the lesson marked something on your screen, the page holds a small JPEG of just that marked part, cut from the screenshot taken for the question, never the whole screen. A page is about 40 to 80 KB and stays on your Mac in Application Support/Buddy/Notebook. A question you cancel keeps nothing. In the Notebook window you can see each page's size, delete a page, a day or all notes, and turn off keeping new lessons. Exporting to PDF writes only where you choose to save it.</p></details>
       <details><summary>Why does macOS ask me to confirm the first time?</summary><p>Buddy is signed but not notarized by Apple, which needs a paid developer account. macOS asks once; after Open Anyway it opens like any other app, including after updates.</p></details>
-      <details><summary>Does it quiz or grade me?</summary><p>No. It explains, hints and reviews, and leaves the solving to you. On practice problems it holds back the code until you ask for it.</p></details>
+      <details><summary>Is it only for studying?</summary><p>No. It explains whatever is on your screen: code at work, an app you have never used, an error, a design you are drawing, a lecture or a practice problem. It explains, hints and reviews, and never quizzes or grades. On practice problems it holds back the code until you ask for it.</p></details>
       <details><summary>Where do I report a bug or suggest an idea?</summary><p>On <a href="https://github.com/projects-hacks/buddy/issues">GitHub issues</a>. Feedback is very welcome.</p></details>
     </div>
   </section>
 
   <div class="cta">
-    <h2>Study with a buddy that can see your screen.</h2>
+    <h2>Stuck on something on your screen? Ask Buddy.</h2>
     <p>Free, open source, and set up in a minute.</p>
     <a class="button" href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg">Download for Mac</a>
   </div>

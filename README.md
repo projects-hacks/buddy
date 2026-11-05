@@ -5,8 +5,9 @@
 <h1 align="center">Buddy</h1>
 
 <p align="center">
-  <b>A study helper in your Mac's notch.</b><br>
-  Ask about what is on your screen. Buddy explains it out loud and draws on it while it talks.
+  <b>Your screen, explained.</b><br>
+  Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.<br>
+  Learn something new, get through an app, fix an error, or check your own work, from your Mac's notch.
 </p>
 
 <p align="center">
@@ -32,31 +33,47 @@
 
 <table>
   <tr>
-    <td width="33%" valign="top">
-      <b>Explains and draws</b><br>
-      <sub>Each sentence arrives with its marks: rings on your code, and hand-drawn cards for anything the screen does not show.</sub>
+    <td width="25%" valign="top">
+      <sub><b>LEARN</b></sub><br>
+      <b>Explains anything on screen</b><br>
+      <sub>Code, a paper, a dashboard, a config file. It rings what it is talking about, one sentence at a time.</sub>
     </td>
-    <td width="33%" valign="top">
-      <b>Talk or type</b><br>
-      <sub>Hold <kbd>⌃</kbd> <kbd>⌥</kbd> and speak, or press <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd> and type in the notch.</sub>
-    </td>
-    <td width="33%" valign="top">
-      <b>Walks you through apps</b><br>
+    <td width="25%" valign="top">
+      <sub><b>GET IT DONE</b></sub><br>
+      <b>Walks you through any app</b><br>
       <sub>"How do I export this?" One step at a time, pointing at each button. Ask again later and it replays from memory.</sub>
+    </td>
+    <td width="25%" valign="top">
+      <sub><b>FIX</b></sub><br>
+      <b>Explains the error you just hit</b><br>
+      <sub>An error in a terminal or editor makes the notch glow. One tap and it rings the line that caused it.</sub>
+    </td>
+    <td width="25%" valign="top">
+      <sub><b>REVIEW</b></sub><br>
+      <b>Reviews your own work</b><br>
+      <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <b>Remembers what you learn</b><br>
-      <sub>New answers build on earlier lessons. Stored on your Mac.</sub>
+      <sub><b>LEARN</b></sub><br>
+      <b>Teaches from scratch</b><br>
+      <sub>"Teach me TCP from scratch" turns the screen into a whiteboard. Then teach it back to check yourself.</sub>
     </td>
     <td valign="top">
+      <sub><b>LEARN</b></sub><br>
       <b>Hints before answers</b><br>
       <sub>On LeetCode and similar sites: a nudge, then the approach, then the code only when you ask.</sub>
     </td>
     <td valign="top">
-      <b>Reviews your diagrams</b><br>
-      <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
+      <sub><b>LEARN</b></sub><br>
+      <b>Knows what the lecture said</b><br>
+      <sub>Ask about a video lecture and it knows the last minute of what was said.</sub>
+    </td>
+    <td valign="top">
+      <sub><b>REMEMBER</b></sub><br>
+      <b>Remembers what you learn</b><br>
+      <sub>Answers build on earlier lessons; every lesson is a notebook page, and a map shows what is fading. On your Mac.</sub>
     </td>
   </tr>
 </table>

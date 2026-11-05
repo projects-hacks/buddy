@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to use Buddy</title>
-<meta name="description" content="How to use Buddy, the Mac study helper in your notch: asking out loud or typed, reading the notch, talking over an answer, hints on practice problems, diagram reviews, walkthroughs of any app, lectures, errors, the teaching board, teach it back, the notebook and the map of what you know.">
+<meta name="description" content="How to use Buddy, the Mac app in your notch that explains whatever is on your screen: asking out loud or typed, reading the notch, talking over an answer, hints on practice problems, diagram reviews, walkthroughs of any app, lectures, errors, the teaching board, teach it back, the notebook and the map of what you know.">
 <link rel="canonical" href="https://projects-hacks.github.io/buddy/guide/">
 <link rel="icon" type="image/png" href="../images/buddy-icon.png">
 <meta property="og:type" content="article">
@@ -254,7 +254,7 @@
   <header class="hero">
     <span class="eyebrow">Guide</span>
     <h1>How to use Buddy</h1>
-    <p class="lede">Buddy lives in your Mac's notch. Ask about whatever is on your screen and it explains out loud, drawing on the screen as it talks. It explains, hints and remembers. It never quizzes or grades.</p>
+    <p class="lede">Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks. Use it to learn something new, get through an app, fix an error or check your own work.</p>
     <div class="two-ways">
       <div class="way">
         <div class="keys"><kbd>⌃<small>control</small></kbd><span>+</span><kbd>⌥<small>option</small></kbd></div>
@@ -277,15 +277,18 @@
       <a href="#questions">Good questions</a>
       <a href="#talk-over">Talking over it</a>
       <a href="#open-notch">The open notch</a>
-      <h4>Studying</h4>
-      <a href="#practice">Practice problems</a>
-      <a href="#diagrams">Your own diagrams</a>
-      <a href="#apps">Learning an app</a>
-      <a href="#lectures">Lectures</a>
-      <a href="#errors">Errors on screen</a>
+      <h4>Learn</h4>
       <a href="#board">The board</a>
       <a href="#teach-back">Teach it back</a>
-      <h4>Your progress</h4>
+      <a href="#practice">Practice problems</a>
+      <a href="#lectures">Lectures</a>
+      <h4>Get it done</h4>
+      <a href="#apps">Any app, step by step</a>
+      <h4>Fix</h4>
+      <a href="#errors">Errors on screen</a>
+      <h4>Review</h4>
+      <a href="#diagrams">Your own work</a>
+      <h4>Remember</h4>
       <a href="#notebook">The notebook</a>
       <a href="#memory">Memory and the map</a>
       <h4>Reference</h4>
@@ -362,67 +365,8 @@
         <figure><img src="../images/lesson-card.png" alt="The open notch showing a lesson that builds on an earlier one, beside a hand-drawn walk-through" loading="lazy"><figcaption>A lesson that builds on an earlier one</figcaption></figure>
       </section>
 
-      <section id="practice">
-        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Studying</div>
-        <h2>Practice problems: hints before answers</h2>
-        <p class="intro">On LeetCode, HackerRank, NeetCode and similar sites, Buddy helps in steps, so you still get to solve it. Say <span class="say">I'm stuck</span> and it starts at the bottom.</p>
-        <div class="ladder">
-          <div class="rung"><b>A nudge</b><span>The observation that leads to the idea.</span></div>
-          <div class="rung"><b>The approach</b><span>Idea, data structure and cost. No code.</span></div>
-          <div class="rung"><b>By hand</b><span>The first example, step by step.</span></div>
-          <div class="rung code"><b>The code</b><span>Explained, with a copy button.</span></div>
-        </div>
-        <p class="soft" style="margin-top:16px">Ask for <span class="say">another hint</span> to go up a step, or <span class="say">show me the code</span> to go straight to the top. A question about a concept on the page, like <span class="say">what's a heap</span>, is answered normally without giving the problem away. Your step on each problem is remembered for two days.</p>
-        <figure><img src="../images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint, without the solution" loading="lazy"><figcaption>A first hint, no solution</figcaption></figure>
-      </section>
-
-      <section id="diagrams">
-        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 0 1 3 3v4"/></svg>Studying</div>
-        <h2>Your own diagrams</h2>
-        <p class="intro">Drawing a design in Excalidraw, draw.io, Miro, Freeform or any whiteboard app? Ask <span class="say">what am I missing?</span> Buddy talks it through like a peer at the whiteboard: it marks your own boxes and sketches anything it would add as a dashed purple box beside where it belongs. It never scores the design.</p>
-        <figure><img src="../images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw, proposing a cache and a read replica in dashed purple" loading="lazy"><figcaption>A review of your own design</figcaption></figure>
-      </section>
-
-      <section id="apps">
-        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg>Studying</div>
-        <h2>Learning an app, step by step</h2>
-        <p class="intro">Ask how to do something in the app in front of you, like <span class="say">where do I turn on dark mode</span>. Buddy says one step and points at the exact button. Do it, and it notices and says the next one, until the task is done.</p>
-        <div class="loop">
-          <span class="node you">How do I export this?</span><span class="arrow">→</span>
-          <span class="node buddy">One step, pointing at the button</span><span class="arrow">→</span>
-          <span class="node mac">You click. Buddy waits on your Mac</span><span class="arrow">→</span>
-          <span class="node buddy">The screen changed: the next step</span><span class="arrow">→</span>
-          <span class="node you">Done</span>
-        </div>
-        <div class="grid two">
-          <div class="card soft-bg"><b>Watching costs nothing</b><p>Between steps Buddy compares a tiny thumbnail of the screen on your Mac, and only asks again once the screen has changed. Going the wrong way? The next step says how to get back. <kbd>Esc</kbd> stops it.</p></div>
-          <div class="card soft-bg"><b>Asked before? From memory.</b><p>A finished walkthrough is kept. Ask for the same task again in that app, in any words, and it replays with no model at all, only the voice. The notch shows <b>from memory</b>.</p></div>
-        </div>
-      </section>
-
-      <section id="lectures">
-        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M10 9l5 2-5 2zM8 21h8"/></svg>Studying</div>
-        <h2>Lectures</h2>
-        <p class="intro">Watching a video lecture? Just ask, <span class="say">what did she mean by idempotent?</span> There is nothing to switch on. Buddy knows what was said in the minute before.</p>
-        <div class="grid">
-          <div class="card"><b>The transcript first</b><p>From the page's own transcript or YouTube's captions, matched to the playback time.</p></div>
-          <div class="card"><b>The sound if needed</b><p>Where there is no transcript, and only after you allow System Audio Recording, the last 90 seconds of that app's sound, kept in memory only.</p></div>
-          <div class="card"><b>Never your calls</b><p>Not the microphone, not meetings or calls, not music apps. The notch shows a small screen glyph whenever sound is being kept.</p></div>
-        </div>
-      </section>
-
-      <section id="errors">
-        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19zM12 10v4M12 17.5v.5"/></svg>Studying</div>
-        <h2>Errors on screen</h2>
-        <p class="intro">When an error appears in a terminal, an editor or a judge's page, a soft red glow shows under the notch. Hover it and pick <b>Explain this error</b>, or tap <kbd>⌃</kbd> <kbd>⌥</kbd>. Buddy rings the line it points to.</p>
-        <div class="stage">
-          <span class="notch glowing"><span class="left"><i class="dot red"></i>An error on screen.</span><span class="right">Terminal</span></span>
-          <p class="spoken">Nothing is sent anywhere until you ask. <b>Not now</b> lets it go, and the same error is never offered twice.</p>
-        </div>
-      </section>
-
       <section id="board">
-        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21l4-4 4 4M7 9h6M7 12h9"/></svg>Studying</div>
+        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21l4-4 4 4M7 9h6M7 12h9"/></svg>Learn</div>
         <h2>The board: learn something from scratch</h2>
         <p class="intro">Say <span class="say">teach me TCP from scratch</span> or <span class="say">explain Raft on a whiteboard</span> and the screen turns into paper. Buddy teaches the topic on it part by part, over as many questions as you like.</p>
         <div class="paper" aria-label="The teaching board: a title, two parts drawn and linked, and the Today's board card">
@@ -453,7 +397,7 @@
       </section>
 
       <section id="teach-back">
-        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3"/></svg>Studying</div>
+        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3"/></svg>Learn</div>
         <h2>Teach it back</h2>
         <p class="intro">Explaining something is how you find out whether you understand it. Say <span class="say">let me explain consistent hashing back to you</span>, <span class="say">check my understanding of binary search</span>, or just <span class="say">teach it back</span> after a lesson.</p>
         <div class="paper">
@@ -485,8 +429,67 @@
         <div class="note green"><svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6"/></svg><p>What you got right counts as remembered and what you missed fades sooner on the map. The board is kept in the Notebook as one page.</p></div>
       </section>
 
+      <section id="practice">
+        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/></svg>Learn</div>
+        <h2>Practice problems: hints before answers</h2>
+        <p class="intro">On LeetCode, HackerRank, NeetCode and similar sites, Buddy helps in steps, so you still get to solve it. Say <span class="say">I'm stuck</span> and it starts at the bottom.</p>
+        <div class="ladder">
+          <div class="rung"><b>A nudge</b><span>The observation that leads to the idea.</span></div>
+          <div class="rung"><b>The approach</b><span>Idea, data structure and cost. No code.</span></div>
+          <div class="rung"><b>By hand</b><span>The first example, step by step.</span></div>
+          <div class="rung code"><b>The code</b><span>Explained, with a copy button.</span></div>
+        </div>
+        <p class="soft" style="margin-top:16px">Ask for <span class="say">another hint</span> to go up a step, or <span class="say">show me the code</span> to go straight to the top. A question about a concept on the page, like <span class="say">what's a heap</span>, is answered normally without giving the problem away. Your step on each problem is remembered for two days.</p>
+        <figure><img src="../images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint, without the solution" loading="lazy"><figcaption>A first hint, no solution</figcaption></figure>
+      </section>
+
+      <section id="lectures">
+        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M10 9l5 2-5 2zM8 21h8"/></svg>Learn</div>
+        <h2>Lectures</h2>
+        <p class="intro">Watching a video lecture? Just ask, <span class="say">what did she mean by idempotent?</span> There is nothing to switch on. Buddy knows what was said in the minute before.</p>
+        <div class="grid">
+          <div class="card"><b>The transcript first</b><p>From the page's own transcript or YouTube's captions, matched to the playback time.</p></div>
+          <div class="card"><b>The sound if needed</b><p>Where there is no transcript, and only after you allow System Audio Recording, the last 90 seconds of that app's sound, kept in memory only.</p></div>
+          <div class="card"><b>Never your calls</b><p>Not the microphone, not meetings or calls, not music apps. The notch shows a small screen glyph whenever sound is being kept.</p></div>
+        </div>
+      </section>
+
+      <section id="apps">
+        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M4 4l7 17 2.5-7.5L21 11z"/></svg>Get it done</div>
+        <h2>Getting through any app, step by step</h2>
+        <p class="intro">Ask how to do something in the app in front of you, like <span class="say">where do I turn on dark mode</span>. Buddy says one step and points at the exact button. Do it, and it notices and says the next one, until the task is done.</p>
+        <div class="loop">
+          <span class="node you">How do I export this?</span><span class="arrow">→</span>
+          <span class="node buddy">One step, pointing at the button</span><span class="arrow">→</span>
+          <span class="node mac">You click. Buddy waits on your Mac</span><span class="arrow">→</span>
+          <span class="node buddy">The screen changed: the next step</span><span class="arrow">→</span>
+          <span class="node you">Done</span>
+        </div>
+        <div class="grid two">
+          <div class="card soft-bg"><b>Watching costs nothing</b><p>Between steps Buddy compares a tiny thumbnail of the screen on your Mac, and only asks again once the screen has changed. Going the wrong way? The next step says how to get back. <kbd>Esc</kbd> stops it.</p></div>
+          <div class="card soft-bg"><b>Asked before? From memory.</b><p>A finished walkthrough is kept. Ask for the same task again in that app, in any words, and it replays with no model at all, only the voice. The notch shows <b>from memory</b>.</p></div>
+        </div>
+      </section>
+
+      <section id="errors">
+        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M12 3l9.5 17h-19zM12 10v4M12 17.5v.5"/></svg>Fix</div>
+        <h2>Errors on screen</h2>
+        <p class="intro">When an error appears in a terminal, an editor or a judge's page, a soft red glow shows under the notch. Hover it and pick <b>Explain this error</b>, or tap <kbd>⌃</kbd> <kbd>⌥</kbd>. Buddy rings the line it points to.</p>
+        <div class="stage">
+          <span class="notch glowing"><span class="left"><i class="dot red"></i>An error on screen.</span><span class="right">Terminal</span></span>
+          <p class="spoken">Nothing is sent anywhere until you ask. <b>Not now</b> lets it go, and the same error is never offered twice.</p>
+        </div>
+      </section>
+
+      <section id="diagrams">
+        <div class="kicker"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M10 7h4a3 3 0 0 1 3 3v4"/></svg>Review</div>
+        <h2>Reviewing your own work</h2>
+        <p class="intro">Drawing a design in Excalidraw, draw.io, Miro, Freeform or any whiteboard app? Ask <span class="say">what am I missing?</span> Buddy talks it through like a peer at the whiteboard: it marks your own boxes and sketches anything it would add as a dashed purple box beside where it belongs. It never scores the design.</p>
+        <figure><img src="../images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw, proposing a cache and a read replica in dashed purple" loading="lazy"><figcaption>A review of your own design</figcaption></figure>
+      </section>
+
       <section id="notebook">
-        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11M9 8h6"/></svg>Your progress</div>
+        <div class="kicker"><svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11M9 8h6"/></svg>Remember</div>
         <h2>The notebook</h2>
         <p class="intro">Every finished lesson becomes a page: its drawing, what was said, and links to teach it back or ask a follow-up. Open <b>Notebook</b> from the open notch.</p>
         <div class="grid">
@@ -497,7 +500,7 @@
       </section>
 
       <section id="memory">
-        <div class="kicker"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="17" r="2.5"/><path d="M8.3 8.3l2.4 6.4M15.9 7.6l-2.6 7.2M8.5 6.8l7-.6"/></svg>Your progress</div>
+        <div class="kicker"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="17" r="2.5"/><path d="M8.3 8.3l2.4 6.4M15.9 7.6l-2.6 7.2M8.5 6.8l7-.6"/></svg>Remember</div>
         <h2>Memory and the map</h2>
         <p class="intro">Buddy remembers the ideas it explains, across days. When a new question touches one, the answer builds on it, like <span class="say">the same trade-off as the consistent hashing from Tuesday</span>, and the lesson shows <b>Builds on</b> with its name. If an explanation did not land, the next one uses a different example.</p>
         <h3>The map of what you know</h3>
