@@ -544,6 +544,7 @@ final class CompanionManager: ObservableObject {
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
         bindUpdater()
+        errorOffer.start() // Hook for ErrorOffer.swift.
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
                 self?.setupWindow.show(startingAt: .welcome)
@@ -977,6 +978,7 @@ final class CompanionManager: ObservableObject {
         pendingKeyboardShortcutStartTask = nil
         buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
         controlBar.model.heardWords = ""
+        errorOffer.studentStartedTyping() // Hook for ErrorOffer.swift.
         controlBar.openChat()
     }
 
@@ -1004,6 +1006,7 @@ final class CompanionManager: ObservableObject {
             guard !buddyDictationManager.isDictationInProgress else { return }
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
+            errorOffer.talkKeysPressed() // Hook for ErrorOffer.swift.
             // Control + Option + T starts with the same two keys. Waiting a
             // fifth of a second before listening lets the T arrive first, so
             // typing never turns the mic on, plays the listening sound or
@@ -1022,9 +1025,13 @@ final class CompanionManager: ObservableObject {
             if let pendingTalkStart {
                 pendingTalkStart.cancel()
                 self.pendingTalkStart = nil
+                // Hook for ErrorOffer.swift: a tap accepts an offered error.
+                errorOffer.talkKeysReleased(listeningBegan: false)
                 return
             }
             finishTalking()
+            // Hook for ErrorOffer.swift: let go without a word accepts it too.
+            errorOffer.talkKeysReleased(listeningBegan: true)
         case .none:
             break
         }
@@ -1456,6 +1463,8 @@ final class CompanionManager: ObservableObject {
     private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
                                                      howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil) {
         let isGuideContinuation = guideStep != nil
+        // Hook for ErrorOffer.swift: the offered error, when this question accepts it.
+        let errorAskedAbout = errorOffer.errorAskedAbout(question: spokenTranscript)
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
@@ -1644,6 +1653,12 @@ final class CompanionManager: ObservableObject {
                     studyNotes.append(GuideMode.continuationNote(
                         after: guideStep, stepNumber: guideStepsGiven,
                         changedRegion: guideChangedRegion, canvasSize: canvasSize))
+                }
+                // Hook for ErrorOffer.swift: the error's lines and the ids to ring.
+                if let errorAskedAbout {
+                    studyNotes.append(ErrorOfferController.turnNote(
+                        for: errorAskedAbout, listedLabels: screenIndex.lastListedLabels,
+                        canvasSize: canvasSize, displayFrame: primaryCapture.displayFrame))
                 }
                 let captureForGuide = (imageData: primaryCapture.imageData, displayFrame: primaryCapture.displayFrame)
                 let applicationInFront = NSWorkspace.shared.frontmostApplication
@@ -2189,6 +2204,24 @@ final class CompanionManager: ObservableObject {
         return memory
     }()
     var howToCount: Int { howToMemory.count }
+
+    // Hook for ErrorOffer.swift ("explain this error?"): offers to explain an
+    // error that just appeared, with no model call until the student accepts.
+    // Accepting sends an ordinary question, so the normal pipeline answers.
+    private lazy var errorOffer: ErrorOfferController = {
+        let offer = ErrorOfferController()
+        offer.isBuddyBusy = { [weak self] in
+            guard let self else { return true }
+            return self.voiceState != .idle || self.controlBar.model.activity != .ready
+                || self.buddyDictationManager.isDictationInProgress || self.isAnyVoicePlaying
+                || self.currentGuideStep != nil || self.guideWatcher.isWatching || self.currentReplay != nil
+        }
+        offer.isDictationInProgress = { [weak self] in self?.buddyDictationManager.isDictationInProgress ?? false }
+        offer.notchShapeSize = { [weak self] in self?.controlBar.model.laidOutShapeSize ?? .zero }
+        offer.onExplainRequested = { [weak self] question in self?.askTypedQuestion(question) }
+        return offer
+    }()
+
     /// A saved how-to being replayed: which step comes next, and the
     /// question that started it.
     private var currentReplay: (howTo: HowTo, nextStepIndex: Int, question: String)?

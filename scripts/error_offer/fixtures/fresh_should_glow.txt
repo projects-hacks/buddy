@@ -1,0 +1,188 @@
+### python_value_error_int [terminal] cause=ages.py:5
+% python3 ages.py
+Enter ages separated by commas: 12, 15, x
+Traceback (most recent call last):
+  File "/Users/rin/ages.py", line 5, in <module>
+    ages = [int(part) for part in raw.split(",")]
+            ^^^^^^^^^
+ValueError: invalid literal for int() with base 10: ' x'
+%
+### python_none_attribute_ohmyzsh [terminal] cause=scraper.py:18
+➜  scraper git:(main) ✗ python3 scraper.py
+Fetching https://example.com
+Traceback (most recent call last):
+  File "/Users/dee/scraper/scraper.py", line 22, in <module>
+    print(title_of(page))
+  File "/Users/dee/scraper/scraper.py", line 18, in title_of
+    return soup.find("h1").text
+           ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'text'
+➜  scraper git:(main) ✗
+### python_recursion_error [terminal] cause=fact.py:3
+$ python3 fact.py
+Traceback (most recent call last):
+  File "/home/rin/fact.py", line 5, in <module>
+    print(fact(5))
+  File "/home/rin/fact.py", line 3, in fact
+    return n * fact(n - 1)
+  File "/home/rin/fact.py", line 3, in fact
+    return n * fact(n - 1)
+  [Previous line repeated 996 more times]
+RecursionError: maximum recursion depth exceeded
+$
+### node_esm_syntax_error [terminal] cause=app.mjs:3
+% node app.mjs
+file:///Users/sol/web/app.mjs:3
+  const total = ;
+                ^
+
+SyntaxError: Unexpected token ';'
+    at compileSourceTextModule (node:internal/modules/esm/utils:337:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:146:18)
+
+Node.js v22.9.0
+%
+### firefox_console_type_error [browserDeveloperTools] cause=main.js:23
+Inspector   Console   Debugger   Network
+Uncaught TypeError: el is null
+    updateScore http://localhost:5173/src/main.js:23
+    onclick http://localhost:5173/src/main.js:31
+### java_stack_overflow [terminal] cause=Fib.java:4
+$ java Fib
+Exception in thread "main" java.lang.StackOverflowError
+	at Fib.fib(Fib.java:4)
+	at Fib.fib(Fib.java:4)
+	at Fib.fib(Fib.java:4)
+	at Fib.fib(Fib.java:4)
+$
+### kotlin_compiler_old_style [terminal] cause=Main.kt:3
+$ kotlinc Main.kt -include-runtime -d main.jar
+e: /Users/zoe/kt/Main.kt: (3, 5): Unresolved reference: prinln
+$
+### xcodebuild_swift_error [terminal] cause=ContentView.swift:14
+$ xcodebuild -scheme Notes build
+CompileSwift normal arm64 /Users/ola/Notes/Notes/ContentView.swift (in target 'Notes' from project 'Notes')
+/Users/ola/Notes/Notes/ContentView.swift:14:9: error: cannot find 'noteTitel' in scope
+        noteTitel = "Untitled"
+        ^~~~~~~~~
+** BUILD FAILED **
+$
+### rust_cannot_find_value [terminal] cause=src/main.rs:6
+% cargo run
+   Compiling shapes v0.1.0 (/Users/ian/shapes)
+error[E0425]: cannot find value `radius` in this scope
+ --> src/main.rs:6:20
+  |
+6 |     let area = PI * radius * radius;
+  |                    ^^^^^^ not found in this scope
+
+error: could not compile `shapes` (bin "shapes") due to 1 previous error
+%
+### rust_panic_old_format [terminal] cause=src/main.rs:7
+$ cargo run
+     Running `target/debug/cfg`
+thread 'main' panicked at 'called `Option::unwrap()` on a `None` value', src/main.rs:7:30
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+$
+### go_nil_pointer [terminal] cause=/Users/tom/api/handler.go:27
+% go run .
+panic: runtime error: invalid memory address or nil pointer dereference
+[signal SIGSEGV: segmentation violation code=0x2 addr=0x0 pc=0x100b9c3a0]
+
+goroutine 1 [running]:
+main.(*Handler).Serve(0x0)
+	/Users/tom/api/handler.go:27 +0x20
+main.main()
+	/Users/tom/api/main.go:11 +0x34
+exit status 2
+%
+### clangpp_template_error [terminal] cause=stack.cpp:9
+% clang++ -std=c++20 stack.cpp
+stack.cpp:9:15: error: no member named 'push' in 'std::vector<int>'
+    9 |     values.push(4);
+      |     ~~~~~~ ^
+1 error generated.
+%
+### pytest_stop_after_first [terminal] cause=tests/test_parse.py:14
+$ pytest -x
+collected 6 items
+
+tests/test_parse.py ..F
+
+=================================== FAILURES ===================================
+_________________________________ test_dates __________________________________
+
+    def test_dates():
+>       assert parse("2026-02-30") is None
+E       ValueError: day is out of range for month
+
+tests/test_parse.py:14: ValueError
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+========================= 1 failed, 2 passed in 0.10s ==========================
+$
+### jest_typescript_failure [terminal] cause=src/cart.test.ts:9
+$ npm test
+
+> cart@1.0.0 test
+> jest
+
+ FAIL  src/cart.test.ts
+  Cart
+    ✕ totals the items (4 ms)
+
+  ● Cart › totals the items
+
+    expect(received).toEqual(expected) // deep equality
+
+    Expected: 30
+    Received: 25
+
+       7 |     cart.add({ price: 10, qty: 2 });
+       8 |     cart.add({ price: 10, qty: 1 });
+    >  9 |     expect(cart.total()).toEqual(30);
+         |                          ^
+
+      at Object.<anonymous> (src/cart.test.ts:9:26)
+
+Tests:       1 failed, 3 passed, 4 total
+$
+### leetcode_compile_error [judgeSite] cause=line 5
+Compile Error
+Line 5: Char 9: error: expected ';' after expression
+    5 |         return ans
+      |                   ^
+      |                   ;
+1 error generated.
+### hackerrank_wrong_answer [judgeSite]
+Wrong Answer
+Input (stdin)
+3
+1 2 3
+Your Output (stdout)
+5
+Expected Output
+6
+### codeforces_runtime_error [judgeSite]
+Submission #284599001
+1922B - Forming Triangles
+Python 3
+Runtime error on test 1
+15 ms 0 KB
+### intellij_junit_assertion [editor] cause=CalcTest.java:12
+CalcTest.testAdd
+org.opentest4j.AssertionFailedError:
+Expected :5
+Actual   :4
+<Click to see difference>
+
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+	at CalcTest.testAdd(CalcTest.java:12)
+### xcode_console_fatal [xcode]
+Fatal error: Index out of range
+2026-03-02 10:11:12.345678-0800 Notes[4821:120394] Fatal error: Index out of range
+### go_build_package [terminal] cause=store/store.go:31
+$ go build ./...
+# example.com/notes/store
+store/store.go:31:9: cannot use id (variable of type string) as int value in return statement
+$

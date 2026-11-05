@@ -105,6 +105,7 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 | Hold <kbd>Control</kbd> + <kbd>Option</kbd> | Ask out loud; your words show under the notch |
 | <kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>T</kbd> | Type a question; <kbd>Return</kbd> sends, <kbd>Shift</kbd> + <kbd>Return</kbd> adds a line |
 | Hover the notch | The last lesson, the day's chat, Settings |
+| Tap <kbd>Control</kbd> + <kbd>Option</kbd>, or click the glow | When the notch glows with "explain this error?", explain the error that just appeared |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
 More in [docs/using-buddy.md](docs/using-buddy.md).
@@ -136,7 +137,8 @@ The model answers with a short drawing program, and the first sentence is spoken
 
 | What | Where it goes |
 |---|---|
-| **Screen** | Captured only when you ask, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Screen** | Captured whole only when you ask, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Errors** | While a terminal, editor, Xcode or a coding judge's page is in front, after Return, a run shortcut or a click, the front window alone is read on the Mac (its accessibility text, or text recognition on the part that changed) to spot an error. Nothing is stored; fingerprints of errors already seen stay in memory until Buddy quits, and nothing is sent until you accept the offer |
 | **Voice** | Heard by Deepgram while the keys are held, when a Deepgram key is set; otherwise transcribed on the Mac |
 | **Sent** | The screenshot and question, to the model that answers |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |

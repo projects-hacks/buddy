@@ -1,0 +1,643 @@
+### python_zero_division [terminal] cause=average.py:4
+maya@MacBook-Air stats % python3 average.py
+Traceback (most recent call last):
+  File "/Users/maya/stats/average.py", line 8, in <module>
+    print(average([]))
+          ^^^^^^^^^^^
+  File "/Users/maya/stats/average.py", line 4, in average
+    return sum(values) / len(values)
+           ~~~~~~~~~~~~^~~~~~~~~~~~~
+ZeroDivisionError: division by zero
+maya@MacBook-Air stats %
+### python_key_error_dict [terminal] cause=inventory.py:12
+(venv) dev@mbp shop % python inventory.py
+Loading 3 items
+Traceback (most recent call last):
+  File "/Users/dev/shop/inventory.py", line 20, in <module>
+    main()
+  File "/Users/dev/shop/inventory.py", line 17, in main
+    report(stock)
+  File "/Users/dev/shop/inventory.py", line 12, in report
+    print(stock["apples"])
+KeyError: 'apples'
+(venv) dev@mbp shop %
+### python_syntax_error [terminal] cause=game.py:3
+$ python3 game.py
+  File "/home/sam/game.py", line 3
+    print("score:", score
+         ^
+SyntaxError: '(' was never closed
+$
+### python_module_not_found [terminal] cause=app.py:1
+student@air flaskapp % python3 app.py
+Traceback (most recent call last):
+  File "/Users/student/flaskapp/app.py", line 1, in <module>
+    from flask import Flask
+ModuleNotFoundError: No module named 'flask'
+student@air flaskapp %
+### python_library_frames_last [terminal] cause=fetch.py:9
+% python fetch.py
+Traceback (most recent call last):
+  File "/Users/ana/proj/fetch.py", line 14, in <module>
+    data = load("https://api.example.com/v1/items")
+  File "/Users/ana/proj/fetch.py", line 9, in load
+    response = requests.get(url, timeout=0.001)
+  File "/Users/ana/proj/.venv/lib/python3.12/site-packages/requests/api.py", line 73, in get
+    return request("get", url, params=params, **kwargs)
+  File "/Users/ana/proj/.venv/lib/python3.12/site-packages/requests/adapters.py", line 713, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.example.com', port=443): Read timed out. (read timeout=0.001)
+%
+### python_chained [terminal] cause=config.py:6
+❯ python3 config.py
+Traceback (most recent call last):
+  File "/Users/li/cfg/config.py", line 4, in read_port
+    return int(os.environ["PORT"])
+               ~~~~~~~~~~^^^^^^^^
+  File "<frozen os>", line 714, in __getitem__
+KeyError: 'PORT'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/li/cfg/config.py", line 9, in <module>
+    port = read_port()
+  File "/Users/li/cfg/config.py", line 6, in read_port
+    raise RuntimeError("PORT is not set")
+RuntimeError: PORT is not set
+❯
+### python_notebook_cell [editor] cause=notebook cell:3
+[3]   ✕  0.1s
+---------------------------------------------------------------------------
+IndexError                                Traceback (most recent call last)
+Cell In[3], line 3
+      1 scores = [90, 85, 77]
+      2 for i in range(4):
+----> 3     print(scores[i])
+IndexError: list index out of range
+### python_type_error_attribute [terminal] cause=bank.py:11
+jo@laptop bank % python3 bank.py
+Balance: 100
+Traceback (most recent call last):
+  File "/Users/jo/bank/bank.py", line 15, in <module>
+    account.deposit("50")
+  File "/Users/jo/bank/bank.py", line 11, in deposit
+    self.balance += amount
+TypeError: unsupported operand type(s) for +=: 'int' and 'str'
+jo@laptop bank %
+### node_type_error [terminal] cause=index.js:7
+kai@MacBook todo % node index.js
+/Users/kai/todo/index.js:7
+  const titles = todos.map(t => t.title);
+                       ^
+
+TypeError: Cannot read properties of undefined (reading 'map')
+    at listTitles (/Users/kai/todo/index.js:7:24)
+    at Object.<anonymous> (/Users/kai/todo/index.js:12:1)
+    at Module._compile (node:internal/modules/cjs/loader:1469:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1548:10)
+    at Module.load (node:internal/modules/cjs/loader:1288:32)
+    at node:internal/main/run_main_module:28:49
+
+Node.js v20.17.0
+kai@MacBook todo %
+### node_reference_error [terminal] cause=server.js:15
+$ node server.js
+Listening on 3000
+/home/kai/api/server.js:15
+    res.send(usr.name)
+             ^
+
+ReferenceError: usr is not defined
+    at /home/kai/api/server.js:15:14
+    at Layer.handle [as handle_request] (/home/kai/api/node_modules/express/lib/router/layer.js:95:5)
+    at next (/home/kai/api/node_modules/express/lib/router/route.js:149:13)
+
+Node.js v20.11.1
+$
+### node_cannot_find_module [terminal] cause=app.js:1
+% node app.js
+node:internal/modules/cjs/loader:1228
+  throw err;
+  ^
+
+Error: Cannot find module 'express'
+Require stack:
+- /Users/ria/web/app.js
+    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)
+    at Module._load (node:internal/modules/cjs/loader:1051:27)
+    at Module.require (node:internal/modules/cjs/loader:1311:19)
+    at Object.<anonymous> (/Users/ria/web/app.js:1:17)
+    at node:internal/main/run_main_module:28:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [ '/Users/ria/web/app.js' ]
+}
+
+Node.js v20.17.0
+%
+### devtools_uncaught_type_error [browserDeveloperTools] cause=app.js:23
+Console   Elements   Sources   Network
+Default levels   No Issues
+Uncaught TypeError: Cannot set properties of null (setting 'textContent')
+    at updateScore (app.js:23:41)
+    at HTMLButtonElement.<anonymous> (app.js:31:5)
+### typescript_tsc [terminal] cause=src/user.ts:14
+dev@mbp ts-app % npx tsc --noEmit
+src/user.ts:14:7 - error TS2322: Type 'string' is not assignable to type 'number'.
+
+14   let age: number = "twenty";
+         ~~~
+
+src/api.ts:3:10 - error TS2305: Module '"./types"' has no exported member 'Order'.
+
+3 import { Order } from "./types";
+           ~~~~~
+
+Found 2 errors in 2 files.
+
+dev@mbp ts-app %
+### node_assertion_error [terminal] cause=test.js:5
+$ node test.js
+node:assert:126
+  throw new AssertionError(obj);
+  ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+3 !== 4
+
+    at Object.<anonymous> (/Users/al/calc/test.js:5:8)
+    at Module._compile (node:internal/modules/cjs/loader:1469:14)
+$
+### java_npe [terminal] cause=Main.java:9
+mark@mac hello % java Main.java
+Exception in thread "main" java.lang.NullPointerException: Cannot invoke "String.length()" because "name" is null
+	at Main.greet(Main.java:9)
+	at Main.main(Main.java:4)
+mark@mac hello %
+### java_index_out_of_bounds_ide [editor] cause=Grades.java:17
+/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java -javaagent:/Applications/IntelliJ IDEA CE.app/Contents/lib/idea_rt.jar Grades
+Average of 3 students
+Exception in thread "main" java.lang.ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3
+	at Grades.average(Grades.java:17)
+	at Grades.main(Grades.java:6)
+
+Process finished with exit code 1
+### java_caused_by_chain [terminal] cause=OrderService.java:42
+$ java -jar target/shop.jar
+Exception in thread "main" java.lang.IllegalStateException: Failed to load orders
+	at com.example.shop.OrderService.loadAll(OrderService.java:45)
+	at com.example.shop.App.main(App.java:12)
+Caused by: java.lang.NumberFormatException: For input string: "12a"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67)
+	at java.base/java.lang.Integer.parseInt(Integer.java:662)
+	at com.example.shop.OrderService.loadAll(OrderService.java:42)
+	... 1 more
+$
+### kotlin_exception_ide [editor] cause=Main.kt:7
+Exception in thread "main" java.lang.NumberFormatException: For input string: "abc"
+	at java.base/java.lang.NumberFormatException.forInputString(NumberFormatException.java:67)
+	at java.base/java.lang.Integer.parseInt(Integer.java:661)
+	at java.base/java.lang.Integer.parseInt(Integer.java:777)
+	at MainKt.main(Main.kt:7)
+	at MainKt.main(Main.kt)
+
+Process finished with exit code 1
+### javac_error [terminal] cause=Hello.java:5
+% javac Hello.java
+Hello.java:5: error: ';' expected
+        System.out.println("Hi")
+                                ^
+1 error
+%
+### kotlin_compiler_gradle [terminal] cause=src/main/kotlin/Main.kt:4
+$ ./gradlew build
+> Task :compileKotlin FAILED
+e: file:///Users/zoe/kt/src/main/kotlin/Main.kt:4:13 Unresolved reference 'printn'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':compileKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+
+BUILD FAILED in 4s
+$
+### gradle_junit_failure [terminal] cause=CalculatorTest.java:14
+$ ./gradlew test
+
+> Task :test FAILED
+
+CalculatorTest > addsTwoNumbers() FAILED
+    org.opentest4j.AssertionFailedError: expected: <4> but was: <5>
+        at app//org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:151)
+        at app//org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:150)
+        at app//CalculatorTest.addsTwoNumbers(CalculatorTest.java:14)
+
+2 tests completed, 1 failed
+
+FAILURE: Build failed with an exception.
+
+BUILD FAILED in 2s
+$
+### maven_surefire_failure [terminal] cause=StackTest.java:21
+[INFO] Running com.example.StackTest
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.031 s <<< FAILURE! -- in com.example.StackTest
+[ERROR] com.example.StackTest.popReturnsLastPushed -- Time elapsed: 0.005 s <<< FAILURE!
+[INFO]
+[INFO] Results:
+[INFO]
+[ERROR] Failures:
+[ERROR]   StackTest.popReturnsLastPushed:21 expected: <3> but was: <1>
+[INFO]
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0
+[INFO]
+[INFO] BUILD FAILURE
+[INFO] Total time:  2.114 s
+$
+### swiftc_error [terminal] cause=Sources/Tip/main.swift:6
+olu@mac Tip % swift build
+Building for debugging...
+/Users/olu/Tip/Sources/Tip/main.swift:6:24: error: cannot convert value of type 'String' to specified type 'Double'
+4 | let bill = 42.5
+5 | let percent = 0.18
+6 | let tip: Double = "\(bill * percent)"
+  |                   `- error: cannot convert value of type 'String' to specified type 'Double'
+error: fatalError
+olu@mac Tip %
+### swift_fatal_runtime [terminal]
+% swift run
+Building for debugging...
+Build complete! (0.42s)
+Swift/ContiguousArrayBuffer.swift:600: Fatal error: Index out of range
+zsh: trace trap  swift run
+%
+### xcode_thread_fatal [xcode]
+ContentView.swift
+    let user = users.first!
+Thread 1: Fatal error: Unexpectedly found nil while unwrapping an Optional value
+### xcode_build_failed [xcode]
+Weather | Build Failed | Today at 10:42
+ForecastView.swift
+Cannot find 'forecst' in scope
+### xctest_failure [terminal] cause=Tests/CartTests/CartTests.swift:12
+% swift test
+Test Suite 'All tests' started at 2026-03-02 10:11:12.345.
+Test Case '-[CartTests.CartTests testTotal]' started.
+/Users/emi/Cart/Tests/CartTests/CartTests.swift:12: error: -[CartTests.CartTests testTotal] : XCTAssertEqual failed: ("19.0") is not equal to ("20.0")
+Test Case '-[CartTests.CartTests testTotal]' failed (0.002 seconds).
+Test Suite 'CartTests' failed at 2026-03-02 10:11:12.348.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.003 (0.004) seconds
+%
+### swift_testing_failure [terminal]
+% swift test
+􀟈  Test run started.
+􀟈  Test "Parses dates" started.
+✘ Test "Parses dates" recorded an issue at DateParserTests.swift:18:5: Expectation failed: (parsed → nil) != nil
+✘ Test "Parses dates" failed after 0.003 seconds with 1 issue.
+✘ Test run with 4 tests failed after 0.004 seconds with 1 issue.
+%
+### rust_mismatched_types [terminal] cause=src/main.rs:3
+ian@mbp guess % cargo run
+   Compiling guess v0.1.0 (/Users/ian/guess)
+error[E0308]: mismatched types
+ --> src/main.rs:3:22
+  |
+3 |     let guess: u32 = "42";
+  |                ---   ^^^^ expected `u32`, found `&str`
+  |                |
+  |                expected due to this
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `guess` (bin "guess") due to 1 previous error
+ian@mbp guess %
+### rust_borrow_checker [terminal] cause=src/main.rs:5
+$ cargo build
+   Compiling vecs v0.1.0 (/home/ian/vecs)
+error[E0502]: cannot borrow `v` as mutable because it is also borrowed as immutable
+ --> src/main.rs:5:5
+  |
+4 |     let first = &v[0];
+  |                  - immutable borrow occurs here
+5 |     v.push(6);
+  |     ^^^^^^^^^ mutable borrow occurs here
+6 |     println!("{first}");
+  |               ------- immutable borrow later used here
+
+error: could not compile `vecs` (bin "vecs") due to 1 previous error
+$
+### rust_panic [terminal] cause=src/main.rs:4
+% cargo run
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.21s
+     Running `target/debug/idx`
+thread 'main' panicked at src/main.rs:4:20:
+index out of bounds: the len is 3 but the index is 10
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+%
+### cargo_test_failure [terminal] cause=src/lib.rs:12
+$ cargo test
+running 2 tests
+test tests::adds ... ok
+test tests::subtracts ... FAILED
+
+failures:
+
+---- tests::subtracts stdout ----
+thread 'tests::subtracts' panicked at src/lib.rs:12:9:
+assertion `left == right` failed
+  left: 1
+ right: -1
+
+failures:
+    tests::subtracts
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--lib`
+$
+### go_index_panic [terminal] cause=/Users/tom/scores/main.go:9
+tom@mac scores % go run main.go
+panic: runtime error: index out of range [5] with length 3
+
+goroutine 1 [running]:
+main.best(...)
+	/Users/tom/scores/main.go:9
+main.main()
+	/Users/tom/scores/main.go:14 +0x1d
+exit status 2
+tom@mac scores %
+### go_nil_map [terminal] cause=/home/tom/cache/cache.go:21
+$ go run .
+panic: assignment to entry in nil map
+
+goroutine 1 [running]:
+main.(*Cache).Put(...)
+	/home/tom/cache/cache.go:21
+main.main()
+	/home/tom/cache/main.go:8 +0x2c
+exit status 2
+$
+### go_build_error [terminal] cause=./main.go:8
+% go build
+# example.com/hello
+./main.go:8:2: undefined: fmt.Printn
+./main.go:11:6: declared and not used: total
+%
+### go_test_failure [terminal] cause=sum_test.go:10
+$ go test ./...
+--- FAIL: TestSum (0.00s)
+    sum_test.go:10: Sum([1 2 3]) = 5, want 6
+FAIL
+FAIL	example.com/mathx	0.214s
+FAIL
+$
+### go_deadlock [terminal] cause=/Users/tom/ch/main.go:7
+% go run main.go
+fatal error: all goroutines are asleep - deadlock!
+
+goroutine 1 [chan send]:
+main.main()
+	/Users/tom/ch/main.go:7 +0x2d
+exit status 2
+%
+### clang_c_error [terminal] cause=hello.c:5
+nora@mac c % clang hello.c -o hello
+hello.c:5:5: error: use of undeclared identifier 'prinft'; did you mean 'printf'?
+    prinft("hi\n");
+    ^~~~~~
+    printf
+1 error generated.
+nora@mac c %
+### gpp_cpp_error [terminal] cause=matrix.cpp:12
+$ g++ -std=c++17 matrix.cpp -o matrix
+matrix.cpp: In function 'int main()':
+matrix.cpp:12:18: error: no match for 'operator<<' (operand types are 'std::ostream' and 'Matrix')
+   12 |     std::cout << m << std::endl;
+      |     ~~~~~~~~~ ^~ ~
+      |          |       |
+      |          |       Matrix
+$
+### linker_undefined_symbols [terminal]
+% clang main.c -o main
+Undefined symbols for architecture arm64:
+  "_compute_total", referenced from:
+      _main in main-3f2a1b.o
+ld: symbol(s) not found for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+%
+### segfault_zsh [terminal]
+ada@mac c % ./list
+Building list of 10 nodes
+zsh: segmentation fault  ./list
+ada@mac c %
+### make_with_gcc_error [terminal] cause=src/queue.c:31
+$ make
+gcc -Wall -c src/queue.c -o build/queue.o
+src/queue.c:31:12: error: 'struct node' has no member named 'nxt'
+   31 |     q->head->nxt = NULL;
+      |            ^~
+make: *** [Makefile:12: build/queue.o] Error 1
+$
+### pytest_assertion_failure [terminal] cause=tests/test_calc.py:8
+(venv) kim@mac calc % pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.12.4, pytest-8.3.2, pluggy-1.5.0
+rootdir: /Users/kim/calc
+collected 3 items
+
+tests/test_calc.py .F.                                                   [100%]
+
+=================================== FAILURES ===================================
+___________________________________ test_add ___________________________________
+
+    def test_add():
+>       assert add(2, 2) == 5
+E       assert 4 == 5
+E        +  where 4 = add(2, 2)
+
+tests/test_calc.py:8: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_calc.py::test_add - assert 4 == 5
+========================= 1 failed, 2 passed in 0.03s ==========================
+(venv) kim@mac calc %
+### pytest_collection_error [terminal]
+$ pytest -q
+==================================== ERRORS ====================================
+_____________________ ERROR collecting tests/test_api.py _____________________
+ImportError while importing test module '/home/kim/api/tests/test_api.py'.
+E   ModuleNotFoundError: No module named 'httpx'
+=========================== short test summary info ============================
+ERROR tests/test_api.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.12s
+$
+### unittest_failure [terminal]
+% python -m unittest
+.F
+======================================================================
+FAIL: test_upper (test_strings.TestStrings.test_upper)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/kim/strs/test_strings.py", line 6, in test_upper
+    self.assertEqual("foo".upper(), "FOo")
+AssertionError: 'FOO' != 'FOo'
+- FOO
++ FOo
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.001s
+
+FAILED (failures=1)
+%
+### jest_failure [terminal] cause=src/sum.test.js:4
+lee@mac app % npx jest
+ FAIL  src/sum.test.js
+  ✕ adds 1 + 2 to equal 3 (3 ms)
+
+  ● adds 1 + 2 to equal 3
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 3
+    Received: 4
+
+      2 |
+      3 | test('adds 1 + 2 to equal 3', () => {
+    > 4 |   expect(sum(1, 2)).toBe(3);
+        |                     ^
+      5 | });
+
+      at Object.toBe (src/sum.test.js:4:21)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        0.412 s
+Ran all test suites.
+lee@mac app %
+### vitest_failure [terminal]
+$ npx vitest run
+
+ RUN  v2.1.1 /Users/lee/web
+
+ ❯ src/format.test.ts (2 tests | 1 failed) 4ms
+   × formats cents as dollars 3ms
+     → expected '$1.5' to be '$1.50' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+   Start at  10:20:11
+   Duration  312ms
+$
+### mocha_failure [terminal] cause=test/array.test.js:7
+$ npx mocha
+  Array
+    #indexOf()
+      1) should return -1 when the value is not present
+
+  0 passing (5ms)
+  1 failing
+
+  1) Array
+       #indexOf()
+         should return -1 when the value is not present:
+     AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+0 !== -1
+      at Context.<anonymous> (test/array.test.js:7:14)
+      at process.processImmediate (node:internal/timers:483:21)
+$
+### leetcode_wrong_answer [judgeSite]
+Description   Editorial   Solutions   Submissions
+Wrong Answer
+52 / 63 testcases passed
+Editorial
+Input
+nums =
+[3,2,4]
+target =
+6
+Output
+[0,0]
+Expected
+[1,2]
+### leetcode_runtime_error [judgeSite] cause=line 7
+Runtime Error
+IndexError: list index out of range
+    ~~~~^^^
+    if nums[i + 1] > nums[i]:
+Line 7 in maxProfit (Solution.py)
+Last Executed Input
+prices =
+[7,1,5,3,6,4]
+### leetcode_time_limit [judgeSite]
+Submissions   Code   Testcase   Test Result
+Time Limit Exceeded
+38 / 41 testcases passed
+Last Executed Input
+nums =
+[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+k =
+99999
+### hackerrank_compilation_error [judgeSite] cause=line 12
+Compilation error
+Check the compiler output, fix the error and try again.
+Compile Message
+Solution.java:12: error: cannot find symbol
+        int n = scanner.nextint();
+                       ^
+  symbol:   method nextint()
+Exit Status
+1
+### codeforces_wrong_answer_on_test [judgeSite]
+Submission #284511723
+1915A - Odd One Out
+GNU C++20 (64)
+Wrong answer on test 3
+46 ms 0 KB
+### codesignal_wrong_answer [judgeSite]
+Tests  1/10 passed
+Test 2
+Wrong Answer
+Input:
+a: [1, 2, 3]
+Output:
+6
+Expected Output:
+5
+Console Output:
+Empty
+### neetcode_wrong_answer [judgeSite]
+NeetCode
+Valid Anagram
+Wrong Answer
+Your Output
+true
+Expected output
+false
+Input
+s = "rat", t = "car"
+### vscode_terminal_python [editor] cause=main.py:5
+EXPLORER   main.py   utils.py
+1  import utils
+2
+3  def main():
+4      nums = utils.load("data.txt")
+5      print(nums[10])
+PROBLEMS   OUTPUT   DEBUG CONSOLE   TERMINAL   PORTS
+(.venv) pat@mac proj % python main.py
+Traceback (most recent call last):
+  File "/Users/pat/proj/main.py", line 8, in <module>
+    main()
+  File "/Users/pat/proj/main.py", line 5, in main
+    print(nums[10])
+          ~~~~^^^^
+IndexError: list index out of range
+(.venv) pat@mac proj %
+Ln 5, Col 20   Spaces: 4   UTF-8   LF   Python 3.12.4
+### asan_heap_overflow [terminal]
+$ ./a.out
+=================================================================
+==48213==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000014 at pc 0x000100003f2c bp 0x00016fdff1d0 sp 0x00016fdff1c8
+WRITE of size 4 at 0x602000000014 thread T0
+    #0 0x100003f28 in main buf.c:6
+$
