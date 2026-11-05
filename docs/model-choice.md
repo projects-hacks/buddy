@@ -1,6 +1,6 @@
 # Model choice: the measurements
 
-Every model decision in Buddy, in the order it was made, with the numbers behind it. Earlier sections cover the local model that was measured and set aside; later ones cover Claude against Argon, sorting questions, and Auto routing, which is what ships. [how-it-works.md](how-it-works.md) is the shorter tour.
+Every model decision in Buddy, in the order it was made, with the numbers behind it. Earlier sections cover the local model that was measured and set aside; later ones cover Claude against Argon, sorting questions, and Auto routing, which is what ships, then what 2.0 changed around it: board turns, benching a silent brain, and the map's relations. [how-it-works.md](how-it-works.md) is the shorter tour.
 
 Measured on the target machine, not inferred from benchmarks published elsewhere.
 
@@ -155,7 +155,7 @@ asking it to decide *where* is expensive, whatever the model.
 ## Claude against Argon, same screen and prompt
 
 `scripts/experiments/brain_race.py` sends every contender the app's real system prompt
-(read out of `CompanionManager.swift`), the same screenshot and index, and the
+(read out of `CompanionManager`'s sources), the same screenshot and index, and the
 app's own length budgets, twice per question. "First sentence" is when the
 voice can start, since speech goes sentence by sentence.
 
@@ -343,8 +343,9 @@ the routing holds anywhere from 3 to 8 seconds per point. At 4: quick goes to
 Sonnet, trade-offs to Opus, and everything else to Argon.
 
 Around that: a brain that has not started talking by twice its usual time
-for the kind (at least 8s) loses the question to the next one, a brain that
-errors before speaking is benched for five minutes, and without an Anthropic
+for the kind (at least 8s, at most 30s) loses the question to the next one,
+a brain that errors before speaking or misses that deadline is benched for
+five minutes (see Benching a silent brain below), and without an Anthropic
 key Auto uses Argon alone. `scripts/route_race/route_report.py` reads the log
 for how real questions were sorted and routed, the fallbacks, and which
 brain's answers were followed by "I didn't follow", the cue to rerun the race.
@@ -353,3 +354,74 @@ What this does not show: twelve raced questions on one screen and one judging
 rubric. The ties between Argon and Opus on teaching are inside what a few
 more questions could move. The race scripts take any screenshot, and rerunning
 them on a different study screen is the cheapest way to strengthen it.
+
+## Board turns go to Sonnet first
+
+The teaching board answers with its own cached system prompt (2,324 tokens)
+and a turn note listing the board (574 tokens for 20 elements and 7 arrows).
+Under Auto a board turn would route as a teach question, which goes to Argon.
+`scripts/board/board_harness.swift` ran three scripted five-turn sessions
+(consistent hashing, binary search, the TCP handshake) on both brains with the
+real prompt, turn notes and board, in November 2026:
+
+| Brain | Output tokens a turn, mean | A 5-turn session | Seconds a turn, whole answer |
+|---|---|---|---|
+| Sonnet 5.5, thinking off | 614 | $0.051 | 3.6 to 8.8, median 4.8 |
+| Argon, thinking LOW, Vertex | 521 | $0.051 | 6.9 to 59.1, median 12.6 |
+
+Neither had a board call fail to parse or apply, and both edited what was
+drawn rather than redrawing it. Argon was slow and uneven: a first turn of 14
+to 48 seconds, later turns up to 59, and one earlier run stopped at its fifth
+turn on HTTP 429. Its boards were looser too; in binary search it drew no
+arrows and scattered the parts, where Sonnet walked a concrete search through
+the drawing.
+
+So under Auto a board turn goes to Sonnet first whenever there is an Anthropic
+key, with Argon as the fallback (`answerTeachingBoardTurn` in
+`CompanionManager+Pipeline.swift`). Under the Gemini or Claude settings the
+student's choice holds. A brain that fails a board turn before its first word
+is benched as in the normal flow. Teach it back runs its two calls through the
+same routing; its faithfulness was measured on Sonnet 5.5 only
+(`scripts/teach_back/`).
+
+## Benching a silent brain
+
+The route race caught Argon silent for 20, 27 and once 138 seconds on three of
+its 30 raced answers, on questions it usually starts in about four. The
+deadline above already hands such a question to the next brain. Before 2.0 the
+silent brain stayed in the running, so the next question routed to it waited
+the same seconds again before anyone spoke. Missing the deadline now benches
+it for five minutes, as an error before speaking always did
+(`CompanionManager+Pipeline.swift`, `ModelRouter.swift`). On the day 2.0 was
+tested Argon missed it again and again, each time right after its bench ended,
+so every few minutes a question paid for Argon's attempt and then Sonnet's and
+waited eight seconds first. A brain that fails again as soon as it is back now
+has its bench doubled each time, up to an hour, and one answer from it clears
+the count. The unit tests check both with a clock moved forward. The deadline itself is unchanged:
+twice the brain's usual time to the first word for the question's kind, at
+least 8 s and at most 30 s, and only when there is another brain to hand over
+to.
+
+## Haiku names the map's relations
+
+The map of what is known needs links between ideas. Haiku already files every
+lesson, so the filing prompt (`LessonConceptPrompt.txt`) now also asks how
+each idea relates to the known ideas it was shown, in one of five kinds. Stores
+from before that get their links once, from one Haiku call per 20 ideas with
+names and one-sentence summaries only (`ConceptRelationsPrompt.txt`).
+`scripts/knowledge_map/relation_check.py` grades both on a fixture of 14
+ideas and 6 lessons whose links were written before the prompts were run,
+three runs each:
+
+| Call | Expected links found | Sensible kind | Links to unrelated ideas | Ids not shown |
+|---|---|---|---|---|
+| Filing, after each answer | 12/12 | 12/12 | 0 in 18 filings | 0 |
+| One-time pass | 18/18 | 18/18 | 0 in 3 runs | 0 |
+
+Asking for relations did not cost recall: on the 80 blind memory questions,
+Haiku's stage still found 32 to 33 of 33 on the test half, at 82 and 88%
+precision against 85 to 90% before, a gap inside the 6 points that repeating
+the stage moved it. Filing went from $0.0018 to $0.0020 a lesson. An earlier
+version of the check gave the ideas sequential ids, and Haiku then mixed them
+up (8 and 11 of 12 links found, 3 ids never shown); real ids are random, and
+the app keeps only links whose ids were in what Haiku was shown.

@@ -343,12 +343,12 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Buddy;
 				INFOPLIST_KEY_CFBundleName = Clicky;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy needs screen recording access to see your screen and help you.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy looks at your screen so it can explain what is there and draw on it.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.maverickrajeev.clicky-local";
 				PRODUCT_NAME = Buddy;
 				REGISTER_APP_GROUPS = YES;
@@ -381,12 +381,12 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Buddy;
 				INFOPLIST_KEY_CFBundleName = Clicky;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy needs screen recording access to see your screen and help you.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy looks at your screen so it can explain what is there and draw on it.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.maverickrajeev.clicky-local";
 				PRODUCT_NAME = Buddy;
 				REGISTER_APP_GROUPS = YES;
@@ -408,15 +408,16 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.leanring-buddyTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buddy";
 			};
 			name = Debug;
 		};
@@ -429,15 +430,16 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.2;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.yourcompany.leanring-buddyTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/leanring-buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/leanring-buddy";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Buddy.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Buddy";
 			};
 			name = Release;
 		};

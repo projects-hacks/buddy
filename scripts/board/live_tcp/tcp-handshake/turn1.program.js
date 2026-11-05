@@ -1,0 +1,36 @@
+```js
+step(1);
+say("tcp makes sure data sent across the internet arrives complete and in order.");
+board.title("how tcp works");
+step(2);
+say("picture two computers: a client that sends, and a server that receives.");
+board.box("client", "client", {tone: "sky"});
+board.box("server", "server", {tone: "mint", near: "client", side: "right"});
+step(3);
+say("the network between them is unreliable: packets can get lost, duplicated, or arrive out of order.");
+board.note("loss", "network can lose or shuffle packets", {tone: "coral", near: "client", side: "below"});
+board.highlight("loss");
+step(4);
+say("so before sending anything, tcp sets up a connection with three short messages.");
+board.group("hs", "the three way handshake", {near: "loss", side: "below"});
+step(5);
+say("first, the client sends a syn message, saying: i want to talk, my numbers start at one hundred.");
+board.box("syn", "1. SYN, seq 100", {in: "hs", tone: "sky"});
+say("second, the server replies syn ack: okay, and my numbers start at three hundred.");
+board.box("synack", "2. SYN-ACK, seq 300, ack 101", {in: "hs", tone: "mint"});
+say("third, the client sends ack, confirming it heard the server. now the connection is open.");
+board.box("ack", "3. ACK, ack 301", {in: "hs", tone: "sky"});
+step(6);
+say("now data flows in segments, and every segment carries a sequence number saying where it fits.");
+board.table("segs", "data segments", [["seq", "bytes"], ["101", "100 bytes"], ["201", "100 bytes"], ["301", "100 bytes"]], {near: "hs", side: "right"});
+step(7);
+say("the receiver replies with an ack naming the next byte it expects, so ack 201 means everything before 201 arrived.");
+board.highlight("segs");
+board.label("ackrule", "ack = next byte I expect", {near: "segs", side: "below", tone: "mint"});
+step(8);
+say("if the sender gets no ack after a timeout, it assumes the segment was lost and sends it again.");
+board.label("retry", "no ack in time? resend", {near: "ackrule", side: "below", tone: "butter"});
+say("that is how tcp turns an unreliable network into a reliable, ordered stream.");
+button("why three messages", {ask: "why does the handshake need three messages and not two"});
+lessonTitle("handshake and reliable delivery");
+```

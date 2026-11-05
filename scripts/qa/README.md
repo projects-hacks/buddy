@@ -10,7 +10,7 @@ zsh scripts/qa/qa.sh clearFakeKeys
 defaults delete com.maverickrajeev.clicky-local qaHooksEnabled             # then relaunch Buddy
 ```
 
-Questions are answered aloud and drawn on the screen in front, so put the screen to test in front first: a practice problem, a diagram, code. The channel exists only in debug builds (`leanring-buddy/QAHooks.swift`), is off unless switched on, and never touches the Keychain: `fakeKey` replaces a key in memory only.
+Questions are answered aloud and drawn on the screen in front, so put the screen to test in front first: a practice problem, a diagram, code. The channel exists only in debug builds (`leanring-buddy/Debug/QAHooks.swift`), is off unless switched on, and never touches the Keychain: `fakeKey` replaces a key in memory only.
 
 **A fresh install** is tested with a copy built under another identity, which gets its own Keychain items, data folder and log (`AppIdentity.swift`), so it starts as empty as a friend's first launch:
 

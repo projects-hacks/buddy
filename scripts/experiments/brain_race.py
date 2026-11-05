@@ -86,12 +86,14 @@ def swift_multiline_after(source: str, marker: str) -> str:
     return "\n".join(l[indent:] for l in lines)
 
 
-manager_source = (REPOSITORY / "leanring-buddy/CompanionManager.swift").read_text()
+# The prompt and the budgets live in different app files; read every one as one text.
+manager_source = "\n".join(
+    path.read_text() for path in sorted((REPOSITORY / "leanring-buddy").rglob("*.swift")))
 SYSTEM_PROMPT = swift_multiline_after(
-    manager_source, "private static func tutorSystemPrompt"
+    manager_source, "static func tutorSystemPrompt"
 ).replace("\\(screenIndexListing)", SCREEN_INDEX)
 
-budget_source = manager_source[manager_source.index("private static func answerBudget"):]
+budget_source = manager_source[manager_source.index("static func answerBudget"):]
 budget_shapes = re.findall(r'shapeInstruction: """\n\s*(.*?)\n\s*"""', budget_source, re.S)
 budget_tokens = [int(n) for n in re.findall(r"maximumTokens: (\d+)", budget_source)][:3]
 LONG, SHORT, MEDIUM = list(zip(budget_tokens, budget_shapes))

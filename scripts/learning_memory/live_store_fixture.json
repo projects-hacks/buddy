@@ -1,0 +1,694 @@
+{
+ "_why": "A real store from a live test of 2.0, study content only. 'after' is the store as found, with 'division by zero' carrying an off-by-one explanation. 'before' is the two ideas just before the lesson that overwrote it: the old division summary is kept nowhere, so it is rewritten from that idea's remaining cues; the rest is as stored. 'bad_extraction' is the idea the filing call returned for that lesson, read back from what it left on the division record (its new aliases, the first twelve cues, the summary and the angle) with same_as pointing at division by zero. The spoken answer is rewritten from that summary and angle, since the log of that day is gone.",
+ "embeddingModel": "5C45D94E-BAB4-4927-94B6-8B5745C46289#1",
+ "after": [
+  {
+   "aliases": [
+    "zerodivisionerror",
+    "divide by zero",
+    "zero division",
+    "off by one",
+    "fencepost error",
+    "index out of bounds"
+   ],
+   "cues": [
+    "off by one in binary search",
+    "high starts too far",
+    "array index past the end",
+    "loop reads a slot that doesn't exist",
+    "crashes on the last index",
+    "list index out of range",
+    "fix the high bound",
+    "index is one too big",
+    "why does it crash at the end",
+    "wrong starting index",
+    "the loop runs one extra time",
+    "low and high are equal too long",
+    "crashes on empty list",
+    "divide by zero error",
+    "average of nothing crashes",
+    "program breaks when list empty",
+    "why does it error out",
+    "dividing by the length",
+    "length is zero problem",
+    "sum over length fails",
+    "empty input breaks math",
+    "guard before dividing",
+    "check empty before divide",
+    "d vision by zero"
+   ],
+   "firstExplainedAt": "2026-11-04T22:28:26Z",
+   "id": "5E23D446-159B-4321-B413-94272C5E3759",
+   "lastAngle": "three-item list with the values three, seven, nine walked through index by index",
+   "lastExplainedAt": "2026-11-05T00:37:39Z",
+   "lessonTitles": [
+    "average of an empty list",
+    "fixing binary search's high bound"
+   ],
+   "name": "division by zero",
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "A11D48AA-01D0-4237-A763-F99C440F429E"
+    },
+    {
+     "kind": "part of",
+     "targetID": "BA57A837-9BE7-42B7-A552-2F19F5A01686"
+    },
+    {
+     "kind": "part of",
+     "targetID": "9EEBD71C-1464-4A95-95C6-FC13354380B0"
+    }
+   ],
+   "stabilityDays": 2.622972828479139,
+   "summary": "The explanation showed that high started at len(nums) instead of len(nums) minus one, so the loop reached index three, which does not exist in a three-item list, and crashed; starting high at the last real index stops the loop safely.",
+   "timesExplained": 2,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "off-by-one",
+    "index out of range",
+    "index error",
+    "fence post error",
+    "fencepost error",
+    "off by one"
+   ],
+   "cues": [
+    "loop goes one step too far",
+    "reads one past the end",
+    "index is one too high",
+    "why does the loop overshoot",
+    "one extra iteration",
+    "boundary is wrong by one",
+    "array ends one early",
+    "loop runs one time too many",
+    "fencepost mistake",
+    "why is the last element missed",
+    "high is one too big",
+    "off by one bug",
+    "one too many iterations",
+    "starts one past the end",
+    "mixed up length and last index",
+    "counted from the wrong number",
+    "pointer one position too high",
+    "one too many",
+    "one past the end",
+    "start counting at the wrong number",
+    "bound is one too high",
+    "looks correct but is one over",
+    "wrong upper limit",
+    "boundary mistake"
+   ],
+   "firstExplainedAt": "2026-11-05T00:37:01Z",
+   "id": "BA57A837-9BE7-42B7-A552-2F19F5A01686",
+   "lastAngle": "tracing binary search with low and high values until it crashes on index three",
+   "lastExplainedAt": "2026-11-05T21:00:13Z",
+   "lastLostAt": "2026-11-05T20:36:57Z",
+   "lessonTitles": [
+    "why binary search overshoots the end",
+    "Off-by-one upper bound in binary search",
+    "why high is length minus one",
+    "why high must be length minus one",
+    "binary search high bound"
+   ],
+   "name": "off by one error",
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "A11D48AA-01D0-4237-A763-F99C440F429E"
+    },
+    {
+     "kind": "part of",
+     "targetID": "9EEBD71C-1464-4A95-95C6-FC13354380B0"
+    }
+   ],
+   "stabilityDays": 1.2359485446872172,
+   "summary": "The explanation showed that starting high at the array length instead of length minus one lets the loop read an index that does not exist, using a binary search trace that ends by reading index three of a length-three array.",
+   "timesExplained": 4,
+   "timesLost": 2
+  },
+  {
+   "aliases": [
+    "binary search indices",
+    "search range bounds",
+    "low and high pointers",
+    "binary search range",
+    "search boundaries",
+    "binary search boundaries"
+   ],
+   "cues": [
+    "how low and high work",
+    "which index to start high",
+    "search keeps moving right",
+    "loop never stops searching",
+    "middle index goes out of range",
+    "setting the search range",
+    "how does binary search narrow",
+    "range keeps shrinking",
+    "sorted list search halves",
+    "why does it stop",
+    "low and high pointers",
+    "guess the middle each time",
+    "search fast in sorted list",
+    "how the loop ends",
+    "narrowing the search range",
+    "step through the halving",
+    "bynary search",
+    "binery search",
+    "by nary search",
+    "search crashes on certain values",
+    "index goes past the array",
+    "middle lands on nothing",
+    "why high starts at length minus one",
+    "search loop never finds it"
+   ],
+   "firstExplainedAt": "2026-11-05T00:41:29Z",
+   "id": "9EEBD71C-1464-4A95-95C6-FC13354380B0",
+   "lastAngle": "low moving right past the nine until middle lands on a missing slot",
+   "lastExplainedAt": "2026-11-05T20:36:45Z",
+   "lastLostAt": "2026-11-05T20:36:57Z",
+   "lessonTitles": [
+    "Off-by-one upper bound in binary search",
+    "why high starts at length minus one",
+    "how binary search narrows the range",
+    "why high must be length minus one"
+   ],
+   "name": "binary search bounds",
+   "relations": [],
+   "stabilityDays": 1,
+   "summary": "The explanation sets the initial high bound correctly, showing how low and high define the search range that must stay within real indexes.",
+   "timesExplained": 3,
+   "timesLost": 2
+  },
+  {
+   "aliases": [
+    "index out of range",
+    "out of bounds access",
+    "indexerror",
+    "array bounds error",
+    "out of bounds error",
+    "arrayindexoutofboundsexception"
+   ],
+   "cues": [
+    "crashes at the end of the list",
+    "index past the last item",
+    "loop reads beyond the array",
+    "index equals the length",
+    "list index out of range",
+    "program crashes in the loop",
+    "crashes when searching",
+    "index past the end",
+    "reads a slot that doesn't exist",
+    "list index error",
+    "crash on the last element",
+    "loop reads too far",
+    "searching for a value crashes",
+    "the array runs out",
+    "index is too big",
+    "accessing past the end",
+    "went past the last item",
+    "crash in the search loop",
+    "program crashes on search",
+    "crashes with a 10",
+    "reading beyond the array",
+    "loop goes one too far",
+    "value not found crashes",
+    "array access crash"
+   ],
+   "firstExplainedAt": "2026-11-05T00:47:48Z",
+   "id": "A11D48AA-01D0-4237-A763-F99C440F429E",
+   "lastAngle": "list of length three with last index two",
+   "lastExplainedAt": "2026-11-05T20:40:48Z",
+   "lessonTitles": [
+    "Off-by-one upper bound in binary search"
+   ],
+   "name": "array index out of bounds",
+   "relations": [],
+   "stabilityDays": 3.6168127570288844,
+   "summary": "The explanation showed that a list of length three has last index two, so starting high at the length makes the loop read index three, past the end, and crash.",
+   "timesExplained": 3,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "idempotency key",
+    "idempotent requests",
+    "event dedupe",
+    "deduplication by event id",
+    "exactly once effects"
+   ],
+   "cues": [
+    "kafka delivers the same message twice",
+    "duplicate events cause double counting",
+    "consumer processes message twice",
+    "how to ignore repeated events",
+    "make repeated delivery safe",
+    "dedupe on the event id",
+    "exactly once processing",
+    "at least once delivery problems",
+    "duplicate charges from retries",
+    "double click charged twice",
+    "retry causes duplicate charge",
+    "same request twice",
+    "safe to retry payment",
+    "prevent duplicate orders",
+    "request sent again",
+    "double charge protection",
+    "make retries safe",
+    "avoid charging twice",
+    "same payment submitted twice",
+    "network retry duplicates",
+    "stop double billing"
+   ],
+   "firstExplainedAt": "2026-11-05T06:44:31Z",
+   "id": "CE7D1A0F-743B-4128-AF1F-1D65BBAE84F3",
+   "lastAngle": "consumers ignoring a redelivered cheer event by its event id",
+   "lastExplainedAt": "2026-11-05T07:02:52Z",
+   "lessonTitles": [
+    "Twitch Payments System Design",
+    "transactional outbox for wallet debits"
+   ],
+   "name": "idempotency keys",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "Every consumer dedupes on the event id carried by the outbox row, so redelivered messages from Kafka have no extra effect on the balance, giving exactly once effects on top of at least once delivery.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "outbox pattern",
+    "outbox table",
+    "outbox event",
+    "transactional outbox pattern",
+    "dual write problem",
+    "outbox relay"
+   ],
+   "cues": [
+    "relay crashes mid-send",
+    "does postgres keep the row",
+    "row stuck pending",
+    "how do we not lose events",
+    "write to db and kafka together",
+    "event lost if service dies",
+    "dual write problem",
+    "keep the row until acked",
+    "outbox rows wait for acks",
+    "relay restarts and resends",
+    "db and message broker consistency",
+    "keep database and kafka in sync",
+    "no shared transaction between them",
+    "business row and event together",
+    "event lost if db rolls back",
+    "kafka hears a lie",
+    "how to publish events reliably",
+    "write to db and queue together",
+    "relay worker reads pending rows",
+    "sync postgres with a message bus",
+    "avoid publishing before commit",
+    "atomic write and publish",
+    "outbox row marked sent",
+    "lose the message if it crashes"
+   ],
+   "firstExplainedAt": "2026-11-05T06:44:31Z",
+   "id": "1A9931DB-ADD0-4E86-B796-CDECA343AA05",
+   "lastAngle": "relay crash, row forty two stays pending",
+   "lastExplainedAt": "2026-11-05T07:02:52Z",
+   "lessonTitles": [
+    "Twitch Payments System Design",
+    "transactional outbox for wallet debits"
+   ],
+   "name": "transactional outbox",
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "CE7D1A0F-743B-4128-AF1F-1D65BBAE84F3"
+    }
+   ],
+   "stabilityDays": 2.612534632674321,
+   "summary": "The event is written as a row in Postgres, and the relay marks it sent only after Kafka acknowledges it, so a crash before that point leaves the row pending and it gets resent on restart; the example was the relay crashing and resending row",
+   "timesExplained": 2,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "double entry bookkeeping",
+    "append-only ledger",
+    "ledger entries"
+   ],
+   "cues": [
+    "why not just update balance",
+    "store balance history",
+    "audit trail of money",
+    "never overwrite balance",
+    "track every money movement",
+    "accounting for payments",
+    "debit and credit entries",
+    "how to trace balance",
+    "immutable transaction log",
+    "explain balance change",
+    "money records never edited",
+    "two sided money entries"
+   ],
+   "firstExplainedAt": "2026-11-05T06:44:31Z",
+   "id": "32D02B03-3A6D-4D9C-AE7E-F628C8CF329B",
+   "lastExplainedAt": "2026-11-05T06:44:31Z",
+   "lessonTitles": [
+    "Twitch Payments System Design"
+   ],
+   "name": "double-entry ledger",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "Instead of overwriting a balance, every money movement is recorded as an append-only pair of debit and credit entries, which keeps a full audit trail.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "binary heap",
+    "priority queue heap",
+    "max heap",
+    "min heap"
+   ],
+   "cues": [
+    "what is a heap",
+    "heap data structure",
+    "tree stored in array",
+    "parent bigger than children",
+    "biggest item on top",
+    "smallest item always first",
+    "get max quickly",
+    "priority queue how it works",
+    "keep items in order",
+    "heap sort idea",
+    "top of the tree is biggest",
+    "heep",
+    "hep"
+   ],
+   "firstExplainedAt": "2026-11-05T07:39:39Z",
+   "id": "32D1FD08-DF48-4D8F-8D36-C96892DCAD7D",
+   "lastAngle": "a tree stored in an array",
+   "lastExplainedAt": "2026-11-05T07:39:39Z",
+   "lessonTitles": [],
+   "name": "heap",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "A heap is a tree stored in an array where each parent is ordered against its children, so the largest or smallest item is always at the top.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "return keyword",
+    "return value",
+    "returning from a function"
+   ],
+   "cues": [
+    "what does return do",
+    "function stops early",
+    "hands value back",
+    "why does my function give nothing",
+    "how to get a result out",
+    "return vs print",
+    "value comes back to caller",
+    "function ends right away",
+    "what return actually does",
+    "get value out of function",
+    "return undefined",
+    "return nothing"
+   ],
+   "firstExplainedAt": "2026-11-05T10:29:30Z",
+   "id": "0FB36931-0C9A-4984-AAE4-793F9388E0C4",
+   "lastExplainedAt": "2026-11-05T10:29:30Z",
+   "lessonTitles": [
+    "what return does"
+   ],
+   "name": "return statement",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "Return immediately ends the function and sends the given value back to whoever called it.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "while statement",
+    "while"
+   ],
+   "cues": [
+    "repeat code until done",
+    "keep going while true",
+    "loop until condition fails",
+    "run block again and again",
+    "how do i repeat something",
+    "code runs over and over",
+    "loop stops when false",
+    "repeat lines while",
+    "wile loop",
+    "while loops",
+    "hwile loop"
+   ],
+   "firstExplainedAt": "2026-11-05T10:30:11Z",
+   "id": "D1D61A27-EA96-4B0D-B22B-3C3563C70446",
+   "lastExplainedAt": "2026-11-05T10:30:11Z",
+   "lessonTitles": [
+    "what while does"
+   ],
+   "name": "while loop",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "A while loop repeats the indented block beneath it for as long as its condition remains true.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "binary search loop exit",
+    "low greater than high",
+    "not found case in binary search"
+   ],
+   "cues": [
+    "when does the search stop",
+    "returns not found cleanly",
+    "loop exits before reading",
+    "no crash on missing value",
+    "low passes high",
+    "why it does not go out of range",
+    "searching for a missing value",
+    "what if value is not there",
+    "search ends with nothing found",
+    "loop condition in binary search",
+    "how binary search knows to quit",
+    "safe end of binary search"
+   ],
+   "firstExplainedAt": "2026-11-05T20:37:24Z",
+   "id": "5A14311E-35AB-4CE6-8E5D-31A9CB0EE4AB",
+   "lastAngle": "searching for ten in an array with high at index two",
+   "lastExplainedAt": "2026-11-05T20:37:24Z",
+   "lessonTitles": [
+    "how binary search reports not found"
+   ],
+   "name": "binary search termination",
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9EEBD71C-1464-4A95-95C6-FC13354380B0"
+    }
+   ],
+   "stabilityDays": 2,
+   "summary": "The loop stops once low moves past high, so a missing value returns not found without reading an index outside the array, shown by searching for ten in a three-element array where low jumps to three.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "three-way handshake",
+    "syn ack",
+    "tcp three way handshake"
+   ],
+   "cues": [
+    "how do computers start talking",
+    "before sending anything",
+    "setting up the connection",
+    "syn message",
+    "client and server greeting",
+    "how connection opens",
+    "what happens first",
+    "agreeing on starting numbers",
+    "open the connection",
+    "handshake first messages",
+    "tcp connection setup",
+    "tcp open"
+   ],
+   "firstExplainedAt": "2026-11-05T20:43:51Z",
+   "id": "E53A435D-B830-4294-9C41-685902C9C8A5",
+   "lastAngle": "two computers greeting and agreeing on starting numbers",
+   "lastExplainedAt": "2026-11-05T20:43:51Z",
+   "lessonTitles": [
+    "handshake and reliable delivery"
+   ],
+   "name": "tcp handshake",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "TCP opens a connection with three messages (SYN, SYN-ACK, ACK) in which both sides announce their starting sequence numbers and confirm they heard each other, using a client and server as the example.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "tcp reliability",
+    "acknowledgement and retransmission",
+    "ack and retransmit"
+   ],
+   "cues": [
+    "data arrives complete",
+    "packets get lost",
+    "what if a message disappears",
+    "resending lost data",
+    "data arrives in order",
+    "out of order packets",
+    "making the network reliable",
+    "ack not received",
+    "timeout and resend",
+    "checking data arrived",
+    "unreliable network",
+    "ensure nothing is missing"
+   ],
+   "firstExplainedAt": "2026-11-05T20:43:51Z",
+   "id": "1B768831-3D94-4B4B-A29A-D2C63082FDF0",
+   "lastAngle": "sequence numbers and ack 201 meaning everything before 201 arrived",
+   "lastExplainedAt": "2026-11-05T20:43:51Z",
+   "lessonTitles": [
+    "handshake and reliable delivery"
+   ],
+   "name": "reliable delivery",
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "CE7D1A0F-743B-4128-AF1F-1D65BBAE84F3"
+    }
+   ],
+   "stabilityDays": 2,
+   "summary": "TCP numbers each segment with a sequence number, the receiver acknowledges the next expected byte, and the sender resends any segment that goes unacknowledged after a timeout, turning an unreliable network into an ordered stream.",
+   "timesExplained": 1,
+   "timesLost": 0
+  }
+ ],
+ "before": [
+  {
+   "aliases": [
+    "zerodivisionerror",
+    "divide by zero",
+    "zero division"
+   ],
+   "cues": [
+    "crashes on empty list",
+    "divide by zero error",
+    "average of nothing crashes",
+    "program breaks when list empty",
+    "why does it error out",
+    "dividing by the length",
+    "length is zero problem",
+    "sum over length fails",
+    "empty input breaks math",
+    "guard before dividing",
+    "check empty before divide",
+    "d vision by zero"
+   ],
+   "firstExplainedAt": "2026-11-04T22:28:26Z",
+   "id": "5E23D446-159B-4321-B413-94272C5E3759",
+   "lastExplainedAt": "2026-11-04T22:28:26Z",
+   "lessonTitles": [
+    "average of an empty list"
+   ],
+   "name": "division by zero",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "Dividing the sum by len(nums) crashes with a zero division error when the list is empty, so the fix checks for an empty list before dividing.",
+   "timesExplained": 1,
+   "timesLost": 0
+  },
+  {
+   "aliases": [
+    "off-by-one",
+    "index out of range",
+    "index error",
+    "fence post error",
+    "fencepost error",
+    "off by one"
+   ],
+   "cues": [
+    "loop goes one step too far",
+    "reads one past the end",
+    "index is one too high",
+    "why does the loop overshoot",
+    "one extra iteration",
+    "boundary is wrong by one",
+    "array ends one early",
+    "loop runs one time too many",
+    "fencepost mistake",
+    "why is the last element missed",
+    "high is one too big",
+    "off by one bug",
+    "one too many iterations",
+    "starts one past the end",
+    "mixed up length and last index",
+    "counted from the wrong number",
+    "pointer one position too high",
+    "one too many",
+    "one past the end",
+    "start counting at the wrong number",
+    "bound is one too high",
+    "looks correct but is one over",
+    "wrong upper limit",
+    "boundary mistake"
+   ],
+   "firstExplainedAt": "2026-11-05T00:37:01Z",
+   "id": "BA57A837-9BE7-42B7-A552-2F19F5A01686",
+   "lastExplainedAt": "2026-11-05T00:37:01Z",
+   "lessonTitles": [
+    "binary search off by one"
+   ],
+   "name": "off by one error",
+   "relations": [],
+   "stabilityDays": 2,
+   "summary": "The explanation showed that starting high at the array length instead of length minus one lets the loop read an index that does not exist, using a binary search trace that ends by reading index three of a length-three array.",
+   "timesExplained": 1,
+   "timesLost": 0
+  }
+ ],
+ "bad_lesson": {
+  "date": "2026-11-05T00:37:39Z",
+  "question": "how do i fix the off by one in binary search? show it with the three, seven, nine example",
+  "lessonTitle": "fixing binary search's high bound",
+  "spokenAnswer": "take the list three, seven, nine. its length is three, but its last real index is two. high starts at len(nums), which is three, so when low climbs to three the loop still runs and reads nums[3], a slot that does not exist, and it crashes. the fix is to start high at len(nums) minus one, the last real index. now when low passes high the loop simply stops and returns not found.",
+  "questionKind": "reexplain",
+  "answeredBy": "Opus"
+ },
+ "bad_extraction": {
+  "name": "off by one error",
+  "same_as": "5E23D446-159B-4321-B413-94272C5E3759",
+  "aliases": [
+   "off by one",
+   "fencepost error",
+   "index out of bounds"
+  ],
+  "cues": [
+   "off by one in binary search",
+   "high starts too far",
+   "array index past the end",
+   "loop reads a slot that doesn't exist",
+   "crashes on the last index",
+   "list index out of range",
+   "fix the high bound",
+   "index is one too big",
+   "why does it crash at the end",
+   "wrong starting index",
+   "the loop runs one extra time",
+   "low and high are equal too long"
+  ],
+  "summary": "The explanation showed that high started at len(nums) instead of len(nums) minus one, so the loop reached index three, which does not exist in a three-item list, and crashed; starting high at the last real index stops the loop safely.",
+  "angle": "three-item list with the values three, seven, nine walked through index by index"
+ }
+}

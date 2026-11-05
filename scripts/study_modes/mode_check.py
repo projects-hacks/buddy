@@ -27,7 +27,7 @@ NOTES = json.loads(pathlib.Path(sys.argv[1]).read_text())
 OUT = pathlib.Path(sys.argv[2])
 OUT.mkdir(parents=True, exist_ok=True)
 
-source = (REPOSITORY / "leanring-buddy/TutorProgramPrompt.swift").read_text()
+source = (REPOSITORY / "leanring-buddy/Answering/TutorProgramPrompt.swift").read_text()
 block = source[source.index('static let system = """') + len('static let system = """'):]
 block = block[:block.index('    """')]
 SYSTEM = "\n".join(line[4:] if line.startswith("    ") else line for line in block.strip("\n").split("\n"))

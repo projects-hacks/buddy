@@ -1,4 +1,4 @@
-"""Synthesises Buddy's interface sounds into leanring-buddy/Sounds.
+"""Synthesises Buddy's interface sounds into leanring-buddy/VoiceOut/Sounds.
 
 Made here rather than taken from anywhere, so they are ours to ship, and so
 each can be tuned by changing a number. Every sound is short (under a fifth
@@ -16,7 +16,7 @@ import struct
 import wave
 
 RATE = 44100
-OUT = pathlib.Path(__file__).resolve().parents[2] / "leanring-buddy/Sounds"
+OUT = pathlib.Path(__file__).resolve().parents[2] / "leanring-buddy/VoiceOut/Sounds"
 
 
 def envelope(index, total, attack, release):

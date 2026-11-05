@@ -1,0 +1,423 @@
+### python_source_raise_and_except [editor]
+1   import json
+2
+3   class ConfigError(Exception):
+4       """Raised when the config file is invalid."""
+5
+6   def load(path):
+7       try:
+8           with open(path) as handle:
+9               return json.load(handle)
+10      except FileNotFoundError:
+11          raise ConfigError(f"error: no config at {path}")
+12      except json.JSONDecodeError as error:
+13          print("Error:", error)
+14          raise ValueError("bad config") from error
+### python_source_unindented_by_ocr [editor]
+def parse_age(text):
+if not text.isdigit():
+raise ValueError("age must be a number")
+return int(text)
+except ValueError as e:
+logger.error("could not parse age: %s", e)
+### javascript_source_catch [editor]
+export async function fetchUser(id) {
+  try {
+    const response = await fetch(`/api/users/${id}`);
+    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    return await response.json();
+  } catch (error) {
+    console.error("Error: could not load user", error);
+    throw new TypeError("user id must be a number");
+  }
+}
+### typescript_source_error_types [editor]
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+function assertNever(value: never): never {
+  throw new Error("Unexpected value: " + value);
+}
+// TypeError: thrown when the value is not a string
+const message = error instanceof TypeError ? "type error" : "error";
+### java_source_try_catch [editor]
+public int parse(String raw) {
+    try {
+        return Integer.parseInt(raw);
+    } catch (NumberFormatException e) {
+        log.error("Exception in thread main while parsing", e);
+        throw new IllegalArgumentException("not a number: " + raw, e);
+    }
+}
+### go_source_err_handling [editor]
+func readConfig(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error: reading %s: %w", path, err)
+	}
+	if len(data) == 0 {
+		panic("config is empty")
+	}
+	return parse(data)
+}
+### rust_source_result [editor]
+fn parse_port(s: &str) -> Result<u16, ParseIntError> {
+    // error[E0308] used to happen here before the turbofish
+    let port = s.parse::<u16>()?;
+    if port == 0 {
+        eprintln!("error: port must not be zero");
+    }
+    Ok(port)
+}
+### swift_source_do_catch [editor]
+func loadImage(named name: String) throws -> NSImage {
+    guard let image = NSImage(named: name) else {
+        fatalError("Fatal error: missing asset \(name)")
+    }
+    do {
+        try validate(image)
+    } catch {
+        print("error: \(error)")
+    }
+    return image
+}
+### c_source_error_paths [editor]
+int open_log(const char *path) {
+    FILE *f = fopen(path, "r");
+    if (f == NULL) {
+        perror("error: fopen");
+        fprintf(stderr, "error: could not open %s\n", path);
+        return -1;
+    }
+    return 0;
+}
+### python_test_file_with_failed_string [editor]
+def test_summary_line():
+    output = run(["pytest", "-q"])
+    assert "FAILED tests/test_calc.py::test_add" in output
+    assert "1 failed" in output
+    assert "Traceback (most recent call last):" not in output
+### python_source_prints_traceback_text [editor]
+def explain():
+    print("Traceback (most recent call last):")
+    print('  File "example.py", line 1, in <module>')
+    print("ZeroDivisionError: division by zero")
+### pytest_all_passing [terminal]
+(venv) kim@mac calc % pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.12.4, pytest-8.3.2, pluggy-1.5.0
+collected 12 items
+
+tests/test_calc.py ............                                          [100%]
+
+============================== 12 passed in 0.05s ==============================
+(venv) kim@mac calc %
+### pytest_passing_with_xfail [terminal]
+$ pytest -q
+..x.
+3 passed, 1 xfailed in 0.08s
+$
+### jest_all_passing [terminal]
+lee@mac app % npx jest
+ PASS  src/sum.test.js
+  ✓ adds 1 + 2 to equal 3 (2 ms)
+  ✓ handles errors from the parser (1 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        0.389 s
+lee@mac app %
+### vitest_passing [terminal]
+$ npx vitest run
+ ✓ src/format.test.ts (2 tests) 3ms
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+$
+### go_test_ok [terminal]
+$ go test ./...
+ok  	example.com/mathx	0.188s
+ok  	example.com/mathx/errors	0.201s
+$
+### go_test_verbose_pass [terminal]
+$ go test -v
+=== RUN   TestSum
+    sum_test.go:14: checked 3 cases
+--- PASS: TestSum (0.00s)
+PASS
+ok  	example.com/mathx	0.190s
+$
+### cargo_test_ok [terminal]
+$ cargo test
+running 3 tests
+test tests::adds ... ok
+test tests::handles_error_case ... ok
+test tests::subtracts ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+$
+### maven_tests_pass [terminal]
+[INFO] Running com.example.StackTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s -- in com.example.StackTest
+[INFO]
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO]
+[INFO] BUILD SUCCESS
+$
+### gradle_build_successful [terminal]
+$ ./gradlew test
+> Task :compileJava UP-TO-DATE
+> Task :test
+
+BUILD SUCCESSFUL in 3s
+4 actionable tasks: 1 executed, 3 up-to-date
+$
+### xctest_passing [terminal]
+% swift test
+Test Suite 'All tests' started at 2026-03-02 10:11:12.345.
+Test Case '-[CartTests.CartTests testTotal]' passed (0.001 seconds).
+Test Suite 'All tests' passed at 2026-03-02 10:11:12.348.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.003 (0.004) seconds
+%
+### unittest_ok [terminal]
+% python -m unittest
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
+%
+### rust_warnings_only [terminal]
+$ cargo build
+   Compiling guess v0.1.0 (/Users/ian/guess)
+warning: unused variable: `attempts`
+ --> src/main.rs:4:9
+  |
+4 |     let attempts = 0;
+  |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_attempts`
+  |
+  = note: `#[warn(unused_variables)]` on by default
+
+warning: `guess` (bin "guess") generated 1 warning
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.48s
+$
+### clang_warnings_only [terminal]
+% clang -Wall hello.c -o hello
+hello.c:4:9: warning: unused variable 'count' [-Wunused-variable]
+    int count = 0;
+        ^
+1 warning generated.
+%
+### swift_warnings_only [terminal]
+% swift build
+/Users/olu/Tip/Sources/Tip/main.swift:3:5: warning: variable 'total' was never mutated; consider changing to 'let' constant
+Build complete! (1.12s)
+%
+### tsc_clean_watch [terminal]
+[10:41:02 AM] File change detected. Starting incremental compilation...
+
+[10:41:03 AM] Found 0 errors. Watching for file changes.
+### python_deprecation_warning [terminal]
+% python3 old.py
+/Users/li/old.py:3: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version.
+  now = datetime.utcnow()
+2026-03-02 10:00:00
+%
+### npm_warn_deprecated [terminal]
+$ npm install
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory.
+npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+
+added 214 packages, and audited 215 packages in 6s
+found 0 vulnerabilities
+$
+### eslint_warnings [terminal]
+$ npx eslint src
+/Users/lee/app/src/App.jsx
+  3:10  warning  'useEffect' is defined but never used  no-unused-vars
+  9:7   warning  Unexpected console statement           no-console
+
+✖ 2 problems (0 errors, 2 warnings)
+$
+### app_logs_info_warn [terminal]
+2026-03-02 10:00:01 INFO  server - listening on :8080
+2026-03-02 10:00:05 WARN  db - retrying after error: connection reset by peer
+2026-03-02 10:00:06 INFO  db - reconnected
+2026-03-02 10:00:09 WARN  cache - error rate 2% above threshold
+### java_warn_logged_trace [terminal]
+2026-03-02 10:00:05.311 WARN 4721 --- [main] c.e.shop.RetryingClient : retrying request
+java.net.ConnectException: Connection refused
+	at java.base/sun.nio.ch.Net.connect0(Native Method)
+	at java.base/sun.nio.ch.Net.connect(Net.java:579)
+	at com.example.shop.RetryingClient.send(RetryingClient.java:31)
+2026-03-02 10:00:06.002 INFO 4721 --- [main] c.e.shop.RetryingClient : request succeeded on retry
+### python_warning_logged_trace [terminal]
+WARNING:fetcher:transient failure, retrying
+Traceback (most recent call last):
+  File "/Users/ana/proj/fetcher.py", line 22, in fetch
+    return session.get(url, timeout=2)
+requests.exceptions.ConnectTimeout: timed out
+INFO:fetcher:fetched 12 items
+### readme_prose_about_errors [editor]
+## Error handling
+
+If an error occurs while syncing, the app shows an error banner and retries.
+Errors are logged with their stack trace so you can see which line failed.
+A TypeError usually means a value was undefined when the code expected an object.
+See docs/errors.md for the full list of error codes.
+### mdn_style_prose_in_editor [editor]
+TypeError
+The TypeError object represents an error when an operation could not be performed,
+typically (but not exclusively) when a value is not of the expected type.
+A TypeError may be thrown when an operand or argument passed to a function is incompatible.
+Constructor
+TypeError()
+### python_docs_tutorial_page [browser]
+8. Errors and Exceptions
+8.2. Exceptions
+Even if a statement or expression is syntactically correct, it may cause an error when an attempt is made to execute it.
+>>> 10 * (1/0)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+    10 * (1/0)
+          ~^~
+ZeroDivisionError: division by zero
+### rust_book_page [browser]
+Recoverable Errors with Result
+$ cargo run
+   Compiling error-handling v0.1.0 (file:///projects/error-handling)
+error[E0277]: the `?` operator can only be used in a function that returns `Result` or `Option`
+ --> src/main.rs:4:48
+### git_error_message [terminal]
+% git checkout feature/login
+error: pathspec 'feature/login' did not match any file(s) known to git
+%
+### shell_command_not_found [terminal]
+% pyhton3 app.py
+zsh: command not found: pyhton3
+%
+### git_log_mentions_errors [terminal]
+$ git log --oneline -4
+a1b2c3d Fix error when the cart is empty
+9f8e7d6 Handle TypeError in the date parser
+4c5d6e7 Show an error banner on failed sync
+0a1b2c3 Add tests for error handling
+$
+### old_traceback_scrolled_up [terminal]
+% python3 average.py
+Traceback (most recent call last):
+  File "/Users/maya/stats/average.py", line 4, in average
+    return sum(values) / len(values)
+ZeroDivisionError: division by zero
+% vim average.py
+% python3 average.py
+2.5
+% ls
+average.py     data.csv       notes.md       README.md
+plots          requirements.txt              tests
+% git status
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+	modified:   average.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+% git add average.py
+% git commit -m "Guard against empty input"
+[main 1a2b3c4] Guard against empty input
+ 1 file changed, 2 insertions(+)
+%
+### keyboard_interrupt [terminal]
+% python3 server.py
+Serving on port 8000
+^CTraceback (most recent call last):
+  File "/Users/li/server.py", line 12, in <module>
+    httpd.serve_forever()
+KeyboardInterrupt
+%
+### xcode_breakpoint_stop [xcode]
+ContentView.swift
+    let total = items.reduce(0, +)
+Thread 1: breakpoint 1.1 (1)
+### xcode_build_succeeded [xcode]
+Weather | Build Succeeded | Today at 10:42
+ForecastView.swift
+### leetcode_problem_description [judgeSite]
+1. Two Sum
+Easy
+Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
+You may assume that each input would have exactly one solution, and you may not use the same element twice.
+Example 1:
+Input: nums = [2,7,11,15], target = 9
+Output: [0,1]
+Constraints:
+2 <= nums.length <= 10^4
+### leetcode_submission_history [judgeSite]
+Status   Language   Runtime   Memory   Notes
+Accepted
+Python3   52 ms   17.1 MB
+Wrong Answer
+Python3   N/A   N/A
+Accepted
+Python3   61 ms   17.2 MB
+Time Limit Exceeded
+Python3   N/A   N/A
+Runtime Error
+Python3   N/A   N/A
+### leetcode_accepted [judgeSite]
+Accepted
+63 / 63 testcases passed
+Runtime 52 ms Beats 91.30%
+Memory 17.1 MB Beats 48.20%
+### codeforces_status_table [judgeSite]
+#   When   Who   Problem   Lang   Verdict   Time   Memory
+284511723   Mar/02/2026 10:12   tourist   A - Odd One Out   GNU C++20   Accepted   46 ms   0 KB
+284511711   Mar/02/2026 10:12   jiangly   B - Not Quite Latin   GNU C++20   Wrong answer on test 2   31 ms   0 KB
+284511702   Mar/02/2026 10:12   Benq   C - Square Sums   Java 21   Time limit exceeded on test 5   2000 ms   0 KB
+284511688   Mar/02/2026 10:12   ecnerwala   A - Odd One Out   PyPy 3   Wrong answer on test 1   62 ms   0 KB
+### hackerrank_passed [judgeSite]
+Congratulations
+You solved this challenge. Would you like to challenge your friends?
+Test case 0
+Test case 1
+Compiler Message
+Success
+Input (stdin)
+5
+Expected Output
+15
+### judge_discussion_prose [judgeSite]
+Discuss (999+)
+Why does this solution get Time Limit Exceeded? It uses two loops and worked on the examples.
+You get a wrong answer if you forget the empty array case. Runtime error happens on index -1.
+### markdown_notes_with_rust_comment [editor]
+// error[E0308]: mismatched types is the most common one beginners see
+// error: could not compile is printed after every failed build
+let guess: u32 = "42".parse().expect("not a number");
+### vscode_problems_panel_warnings [editor]
+PROBLEMS 2   OUTPUT   DEBUG CONSOLE   TERMINAL
+main.py  2
+  "os" is not accessed  Pylance  [Ln 1, Col 8]
+  Variable "error" is not accessed  Pylance  [Ln 14, Col 5]
+### make_nothing_to_do [terminal]
+$ make
+make: Nothing to be done for 'all'.
+$
+### cargo_build_finished [terminal]
+$ cargo build
+   Compiling errors v0.1.0 (/Users/ian/errors)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.92s
+$
+### mocha_all_passing [terminal]
+$ npx mocha
+  Array
+    #indexOf()
+      ✔ should return -1 when the value is not present
+
+  1 passing (4ms)
+$
+### node_error_word_in_program_output [terminal]
+$ node report.js
+Processed 120 rows
+Rows with errors: 0
+Error rate: 0.0%
+Done without errors.
+$

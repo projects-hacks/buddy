@@ -4,12 +4,14 @@
 <dict>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Buddy hears only the sound of the video in front of you, never your microphone or a call, so it knows what the lecturer just said. It keeps the last 90 seconds in memory and nothing on disk.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Buddy uses your microphone so you can talk to it</string>
+	<string>Buddy hears you while you hold Control + Option, while it explains so you can cut in, and when you explain a topic back to it.</string>
 	<key>NSScreenCaptureUsageDescription</key>
-	<string>Buddy needs screen recording access to see your screen and help you.</string>
+	<string>Buddy looks at your screen so it can explain what is there and draw on it.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Buddy uses speech recognition to transcribe your voice when you talk to it</string>
+	<string>Buddy turns what you say into text, as a backup to Deepgram or in its place when no Deepgram key is set.</string>
 	<key>VoiceTranscriptionProvider</key>
 	<string>apple</string>
 </dict>

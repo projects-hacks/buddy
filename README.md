@@ -5,8 +5,9 @@
 <h1 align="center">Buddy</h1>
 
 <p align="center">
-  <b>A study helper in your Mac's notch.</b><br>
-  Ask about what is on your screen. Buddy explains it out loud and draws on it while it talks.
+  <b>Your screen, explained.</b><br>
+  Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.<br>
+  Learn something new, get through an app, fix an error, or check your own work, from your Mac's notch.
 </p>
 
 <p align="center">
@@ -32,31 +33,47 @@
 
 <table>
   <tr>
-    <td width="33%" valign="top">
-      <b>Explains and draws</b><br>
-      <sub>Each sentence arrives with its marks: rings on your code, and hand-drawn cards for anything the screen does not show.</sub>
+    <td width="25%" valign="top">
+      <sub><b>LEARN</b></sub><br>
+      <b>Explains anything on screen</b><br>
+      <sub>Code, a paper, a dashboard, a config file. It rings what it is talking about, one sentence at a time.</sub>
     </td>
-    <td width="33%" valign="top">
-      <b>Talk or type</b><br>
-      <sub>Hold <kbd>⌃</kbd> <kbd>⌥</kbd> and speak, or press <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd> and type in the notch.</sub>
-    </td>
-    <td width="33%" valign="top">
-      <b>Walks you through apps</b><br>
+    <td width="25%" valign="top">
+      <sub><b>GET IT DONE</b></sub><br>
+      <b>Walks you through any app</b><br>
       <sub>"How do I export this?" One step at a time, pointing at each button. Ask again later and it replays from memory.</sub>
+    </td>
+    <td width="25%" valign="top">
+      <sub><b>FIX</b></sub><br>
+      <b>Explains the error you just hit</b><br>
+      <sub>An error in a terminal or editor makes the notch glow. One tap and it rings the line that caused it.</sub>
+    </td>
+    <td width="25%" valign="top">
+      <sub><b>REVIEW</b></sub><br>
+      <b>Reviews your own work</b><br>
+      <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <b>Remembers what you learn</b><br>
-      <sub>New answers build on earlier lessons. Stored on your Mac.</sub>
+      <sub><b>LEARN</b></sub><br>
+      <b>Teaches from scratch</b><br>
+      <sub>"Teach me TCP from scratch" turns the screen into a whiteboard. Then teach it back to check yourself.</sub>
     </td>
     <td valign="top">
+      <sub><b>LEARN</b></sub><br>
       <b>Hints before answers</b><br>
       <sub>On LeetCode and similar sites: a nudge, then the approach, then the code only when you ask.</sub>
     </td>
     <td valign="top">
-      <b>Reviews your diagrams</b><br>
-      <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
+      <sub><b>LEARN</b></sub><br>
+      <b>Knows what the lecture said</b><br>
+      <sub>Ask about a video lecture and it knows the last minute of what was said.</sub>
+    </td>
+    <td valign="top">
+      <sub><b>REMEMBER</b></sub><br>
+      <b>Remembers what you learn</b><br>
+      <sub>Answers build on earlier lessons; every lesson is a notebook page, and a map shows what is fading. On your Mac.</sub>
     </td>
   </tr>
 </table>
@@ -80,7 +97,7 @@ Each question goes to Sonnet, Opus or Gemini Argon, whichever measured best for 
 
 <p align="center"><img src="docs/images/install-steps.png" alt="The three install steps: drag Buddy onto Applications; open Buddy and click Done when macOS says it cannot check it; then in System Settings, Privacy and Security, click Open Anyway" width="640"></p>
 
-The download window shows these same steps. macOS asks for **Open Anyway** once, because Buddy is not notarized. Setup then asks for your name and keys and walks through three permissions; after that Buddy updates itself.
+The download window shows these same steps. macOS asks for **Open Anyway** once, because Buddy is not notarized. Setup then asks for your name and keys and walks through the permissions it needs; after that Buddy updates itself.
 
 <p>
   <a href="https://console.anthropic.com/settings/keys"><img alt="Anthropic key: recommended" src="https://img.shields.io/badge/Anthropic-recommended-111111"></a>
@@ -104,10 +121,11 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 |---|---|
 | Hold <kbd>Control</kbd> + <kbd>Option</kbd> | Ask out loud; your words show under the notch |
 | <kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>T</kbd> | Type a question; <kbd>Return</kbd> sends, <kbd>Shift</kbd> + <kbd>Return</kbd> adds a line |
-| Hover the notch | The last lesson, the day's chat, Settings |
+| Hover the notch | The last lesson with Replay, the day's chat, and Notebook, Map and Settings in its top row |
+| Hover the glow, then Explain this error (or tap <kbd>Control</kbd> + <kbd>Option</kbd>) | When the notch glows red and says "An error on screen.", explain the error that just appeared |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
-More in [docs/using-buddy.md](docs/using-buddy.md).
+Everything else is in the guide: [How to use Buddy](https://projects-hacks.github.io/buddy/guide/).
 
 ## How it works
 
@@ -136,10 +154,15 @@ The model answers with a short drawing program, and the first sentence is spoken
 
 | What | Where it goes |
 |---|---|
-| **Screen** | Captured only when you ask, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
-| **Voice** | Heard by Deepgram while the keys are held, when a Deepgram key is set; otherwise transcribed on the Mac |
-| **Sent** | The screenshot and question, to the model that answers |
+| **Screen** | Captured whole only while you hold the keys or ask, and dropped if no question follows, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Errors** | While a terminal, editor, Xcode or a coding judge's page is in front, after Return, a run shortcut or a click, the front window alone is read on the Mac (its accessibility text, or text recognition on the part that changed) to spot an error. Nothing is stored; fingerprints of errors already seen stay in memory until Buddy quits, and nothing is sent until you accept the offer |
+| **Voice** | The microphone is open while the keys are held and, so you can talk over it, while an answer plays. A small mic beside "explaining" in the notch shows it is open, Esc or Stop ends the answer and closes it, and it never opens on a Bluetooth headset. Heard by Deepgram when a Deepgram key is set; otherwise transcribed on the Mac |
+| **Teach it back** | After you ask to explain a topic ("let me explain X back to you"), the microphone stays open hands free until you are done: you say "I'm done", press Return, go quiet for eight seconds, or three minutes pass. The red meter and "Listening" show the whole time, and Esc or Cancel throws it away. Heard like any question (Deepgram with a key, on the Mac without); what you said goes to the model that answers board turns (Sonnet first with an Anthropic key) to be drawn and checked, and is kept on the board's Notebook page and, as every answer is, in the diagnostic log |
+| **Lectures** | When you ask while a video is in front, the minute before the playback time is read from the page's transcript or YouTube's captions (only the video's id goes to YouTube). Where there is none, and once you allow System Audio Recording, the last 90 seconds of the front app's own sound are kept in memory while it plays (a small screen glyph shows in the notch whenever it is), never on disk, emptied when you switch apps, and its newest 65 seconds transcribed only when you ask about the video, meaning a player's time is on screen or you ask what was said (by Deepgram with a key, on the Mac without). For a browser that is all its tabs. Never the microphone; never calls, meetings or music apps, and any app using a microphone counts as a call |
+| **Sent** | The screenshot and question, to the model that answers, with the lecture's last minute when there is one |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
+| **Notebook** | Each finished lesson as a page in `~/Library/Application Support/Buddy/Notebook`: the question, what was said, the cards drawn, and a small JPEG of only the part of the screen that was marked, cut from that question's screenshot (never the whole screen). A board lesson or a teach-back is one page when you leave the board, the whole board kept as one drawing with what was said. About 70 to 150 KB a page, the picture cut from the display's own pixels so code stays sharp, under 2 KB for an answer without a drawing. A cancelled question keeps nothing. Never uploaded; the Notebook window shows each page's size, deletes a page, a day or everything, and can stop keeping new lessons |
+| **Map** | Drawn on the Mac from memory. The first time it opens, ideas with no links on record yet (memory from before 2.0) have only their names and one-sentence summaries sent to Claude Haiku, 20 ideas a call, once, to find how they relate; no lesson, question or screen goes with them |
 | **Analytics** | None |
 
 <details>

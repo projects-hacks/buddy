@@ -24,13 +24,14 @@ FONT = "/System/Library/Fonts/SFNS.ttf"
 MONO = "/System/Library/Fonts/SFNSMono.ttf"
 
 BANNER = {
-    "version": "1.5",
-    "headline": "Hears you better",
-    "subline": "Technical words, long pauses and half-finished questions come through whole.",
-    "before_label": "The Mac's recognizer heard",
-    "before": [("does ", None), ("posters", "wrong"), (" keep the outbox round until ", None), ("Kath", "wrong"), (" acknowledges it?", None)],
-    "after_label": "Buddy 1.5 heard",
-    "after": [("does ", None), ("Postgres", "right"), (" keep the outbox round till ", None), ("Kafka", "right"), (" acknowledges it?", None)],
+    "version": "2.0",
+    "headline": "Your screen, explained.",
+    "subline": "Talk over it, learn on a whiteboard, teach it back, and keep every lesson.",
+    "card_label": "ASKING WHILE BUDDY IS STILL TALKING",
+    "before_label": "Buddy 1.5",
+    "before": [("Hold Control + Option again, ", None), ("which stops the answer", "wrong")],
+    "after_label": "Buddy 2.0, heard in the live test",
+    "after": [("Just say: ", None), ("\u201cWait, why does high start at the length of the list?\u201d", "right")],
 }
 
 THEMES = {
@@ -109,7 +110,7 @@ def banner(theme_name):
     left, top, right, bottom = 540, 70, 1216, 330
     pen.rounded_rectangle([(s(left), s(top)), (s(right), s(bottom))], radius=s(18),
                           fill=theme["card"], outline=theme["line"], width=s(1.5))
-    pen.text((s(left + 32), s(top + 44)), "SAME QUESTION, SAME MICROPHONE", fill=theme["faint"],
+    pen.text((s(left + 32), s(top + 44)), BANNER["card_label"], fill=theme["faint"],
              font=font(12.5, "Semibold"), anchor="ls")
     pen.text((s(left + 32), s(top + 92)), BANNER["before_label"], fill=theme["soft"], font=font(14), anchor="ls")
     draw_spans(pen, left + 32, top + 124, BANNER["before"], theme, 19)
@@ -131,6 +132,18 @@ ICONS = {
     "update": [("arc", (3, 3, 21, 21, 40, 330)), ("poly", ((21, 4), (20.2, 9.4), (15, 8.4)))],
     "install": [("line", (12, 3, 12, 15)), ("poly", ((7, 10.5), (12, 15.5), (17, 10.5))), ("line", (4, 20, 20, 20))],
     "check": [("poly", ((4, 12.5), (9.5, 18), (20, 6)))],
+    "talk": [("round_rect", (3, 4, 21, 16, 4)), ("poly", ((8, 16), (7, 20.5), (12, 16))), ("line", (8, 10, 8, 10)),
+             ("line", (12, 10, 12, 10)), ("line", (16, 10, 16, 10))],
+    "board": [("round_rect", (3, 4, 21, 16, 2)), ("line", (8, 21, 12, 16)), ("line", (16, 21, 12, 16)),
+              ("line", (7, 9, 13, 9)), ("line", (7, 12, 16, 12))],
+    "teach": [("poly", ((4, 20), (5, 15.5), (15.5, 5), (19, 8.5), (8.5, 19), (4, 20))), ("line", (13.5, 7, 17, 10.5))],
+    "notebook": [("round_rect", (5, 3, 19, 21, 2)), ("line", (9, 3, 9, 21)), ("line", (12, 8, 16, 8)), ("line", (12, 12, 16, 12))],
+    "map": [("circle", (6, 7, 2.3)), ("circle", (18, 6, 2.3)), ("circle", (12, 18, 2.3)), ("line", (8, 8.5, 10.6, 16)),
+            ("line", (16.5, 7.8, 13.4, 16)), ("line", (8.3, 6.8, 15.7, 6.2))],
+    "error": [("poly", ((12, 3.5), (21.5, 20), (2.5, 20), (12, 3.5))), ("line", (12, 10, 12, 14)), ("circle_fill", (12, 17, 1.2))],
+    "lecture": [("round_rect", (3, 5, 21, 17, 2)), ("poly", ((10, 8.5), (15, 11), (10, 13.5), (10, 8.5))), ("line", (8, 21, 16, 21))],
+    "size": [("line", (5, 19, 5, 14)), ("line", (10, 19, 10, 10)), ("line", (15, 19, 15, 7)), ("line", (20, 19, 20, 4))],
+    "look": [("poly", ((12, 3), (13.8, 10.2), (21, 12), (13.8, 13.8), (12, 21), (10.2, 13.8), (3, 12), (10.2, 10.2), (12, 3)))],
 }
 
 
