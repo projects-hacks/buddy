@@ -120,7 +120,6 @@ final class CompanionManager: ObservableObject {
     var typeQuestionCancellable: AnyCancellable?
     var voiceStateCancellable: AnyCancellable?
     var audioPowerCancellable: AnyCancellable?
-    var pendingKeyboardShortcutStartTask: Task<Void, Never>?
     /// Scheduled hide for transient cursor mode, cancelled if the user
     /// speaks again before the delay elapses.
     var transientHideTask: Task<Void, Never>?
@@ -254,13 +253,9 @@ final class CompanionManager: ObservableObject {
         permissionMonitor.stopPolling()
     }
 
-    var pendingTalkStart: Task<Void, Never>?
-    /// The screen read while the keys are held, for the question they end in.
-    let earlyScreenCapture = EarlyScreenCapture()
-    /// Where the pointer rested while the keys were held, and the rests of
-    /// the press just ended, until its question claims them.
-    let pointerRestWatcher = PointerRestWatcher()
-    var pointerRestsOfLastPress: [PointerRest] = []
+    /// One press of the talk keys: the wait, the early screen, the pointer
+    /// and the microphone (TalkSessionCoordinator.swift).
+    lazy var talkSession = TalkSessionCoordinator(dictation: buddyDictationManager)
     /// Listens while an answer plays, for the student talking over it.
     lazy var talkOverListener: TalkOverListener = {
         let listener = TalkOverListener()
@@ -310,10 +305,7 @@ final class CompanionManager: ObservableObject {
     var notchActivityCancellable: AnyCancellable?
     var notchHeardWordsCancellable: AnyCancellable?
 
-    /// When the keys were let go and when this answer began, for the stage
-    /// timings in the log: the only latency the student feels is from the
-    /// first to the first spoken word.
-    var shortcutReleasedAt: Date?
+    /// When this answer began, for the stage timings in the log.
     var answerStartedAt = Date()
 
     /// Where drawing programs are drawn, who speaks them, and what ties the two.

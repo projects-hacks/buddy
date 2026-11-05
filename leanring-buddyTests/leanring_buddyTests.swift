@@ -140,7 +140,7 @@ struct ProgramStreamTests {
 
 struct SpeechHintTests {
     @Test func shortLabelsAndTermsAreKeptAndNoiseIsDropped() {
-        let hints = CompanionManager.speechHints(
+        let hints = TalkSessionCoordinator.speechHints(
             screenLabels: ["Wallet DB", "O(n)", "S3 bucket", "12:40", "id 83749201", "the gRPC client retries"],
             recentAnswerPrograms: [],
             recentlyLearnedConceptNames: [])
@@ -156,13 +156,13 @@ struct SpeechHintTests {
     /// is dropped on its own, though the comment in `speechHints` names
     /// them as kept. Within a longer label ("S3 bucket") it is heard.
     @Test func aTwoCharacterNameOnItsOwnIsDropped() {
-        let hints = CompanionManager.speechHints(
+        let hints = TalkSessionCoordinator.speechHints(
             screenLabels: ["S3", "v2"], recentAnswerPrograms: [], recentlyLearnedConceptNames: [])
         #expect(hints.isEmpty)
     }
 
     @Test func duplicatesAreDroppedWhateverTheirCase() {
-        let hints = CompanionManager.speechHints(
+        let hints = TalkSessionCoordinator.speechHints(
             screenLabels: ["Kafka"], recentAnswerPrograms: [], recentlyLearnedConceptNames: ["kafka", "Consistent hashing"])
         #expect(hints.filter { $0.lowercased() == "kafka" }.count == 1)
         #expect(hints.contains("Consistent hashing"))
@@ -170,7 +170,7 @@ struct SpeechHintTests {
 
     @Test func spokenSentencesAndColoursInProgramsAreNotHints() {
         let program = "say(\"The Load Balancer spreads requests.\");\nbox(\"Load Balancer\", {color: \"#FF0000\"});"
-        let hints = CompanionManager.speechHints(
+        let hints = TalkSessionCoordinator.speechHints(
             screenLabels: [], recentAnswerPrograms: [program], recentlyLearnedConceptNames: [])
         #expect(hints == ["Load Balancer"])
     }
@@ -178,7 +178,7 @@ struct SpeechHintTests {
     @Test func eachSourceIsCappedAndTheScreenTakesWhatIsLeft() {
         let screenLabels = (1...80).map { "Screen Label \(String(UnicodeScalar(65 + $0 % 26)!))\(String(UnicodeScalar(65 + $0 / 26)!))" }
         let concepts = (1...30).map { "idea \(String(UnicodeScalar(97 + $0 % 26)!))\(String(UnicodeScalar(97 + $0 / 26)!))" }
-        let hints = CompanionManager.speechHints(
+        let hints = TalkSessionCoordinator.speechHints(
             screenLabels: screenLabels, recentAnswerPrograms: [], recentlyLearnedConceptNames: concepts)
         #expect(hints.count <= 100)
         #expect(hints.filter { $0.hasPrefix("idea") }.count == 15)

@@ -11,6 +11,12 @@ import Combine
 import Foundation
 
 extension CompanionManager {
+    /// When the keys were let go, for the stage timings in the log.
+    var shortcutReleasedAt: Date? {
+        get { talkSession.shortcutReleasedAt }
+        set { talkSession.shortcutReleasedAt = newValue }
+    }
+
     func bindAudioPowerLevel() {
         audioPowerCancellable = buddyDictationManager.$currentAudioPowerLevel
             .receive(on: DispatchQueue.main)
@@ -33,11 +39,8 @@ extension CompanionManager {
                 // transcript is handed over before this is reported; one
                 // still held was for nothing. Checked before the guard below,
                 // because a press that talks over an answer ends here too.
-                if !isRecording, !isFinalizing, !isPreparing,
-                   self.earlyScreenCapture.isHoldingCapture,
-                   self.earlyScreenCapture.keysWereReleasedForHeldCapture {
-                    self.earlyScreenCapture.discard(reason: "no question was heard")
-                    self.pointerRestsOfLastPress = []
+                if !isRecording, !isFinalizing, !isPreparing {
+                    self.talkSession.dropCaptureNoQuestionClaimed()
                 }
                 // Don't override .responding, the AI response pipeline
                 // manages that state directly until streaming finishes.
@@ -89,14 +92,7 @@ extension CompanionManager {
         TutorDebugLog.write("⌨️ chat opened from the keyboard")
         // Normally the T beats the talk delay and nothing was started. A slow
         // T finds listening begun, which is dropped without sending.
-        pendingTalkStart?.cancel()
-        pendingTalkStart = nil
-        pendingKeyboardShortcutStartTask?.cancel()
-        pendingKeyboardShortcutStartTask = nil
-        buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
-        earlyScreenCapture.discard(reason: "the keys became Control + Option + T")
-        pointerRestWatcher.cancel()
-        pointerRestsOfLastPress = []
+        talkSession.takeBackPress(reason: "the keys became Control + Option + T")
         controlBar.model.heardWords = ""
         errorOffer.studentStartedTyping() // Hook for ErrorOffer.swift.
         controlBar.openChat()
@@ -146,25 +142,12 @@ extension CompanionManager {
             if teachingBoard.talkKeysPressed() { return }
             guard !buddyDictationManager.isDictationInProgress else { return }
             errorOffer.talkKeysPressed() // Hook for ErrorOffer.swift.
-            // Control + Option + T starts with the same two keys. Waiting a
-            // fifth of a second before listening lets the T arrive first, so
-            // typing never turns the mic on, plays the listening sound or
-            // cuts off an answer. It is shorter than anyone takes to start
-            // speaking after the keys go down.
-            pendingTalkStart?.cancel()
-            pendingTalkStart = Task { @MainActor [weak self] in
-                try? await Task.sleep(nanoseconds: UInt64(Self.talkStartDelaySeconds * 1_000_000_000))
-                guard !Task.isCancelled, let self else { return }
-                self.pendingTalkStart = nil
-                self.beginTalking()
-            }
+            talkSession.keysPressed(thenBeginTalking: { [weak self] in self?.beginTalking() })
         case .released:
             if teachingBoard.talkKeysReleased() { return } // Teach it back hook.
             // Let go before listening began: a tap of the keys, or the T took
             // them for typing. Nothing was started, so nothing is stopped.
-            if let pendingTalkStart {
-                pendingTalkStart.cancel()
-                self.pendingTalkStart = nil
+            if talkSession.keysReleasedBeforeListening() {
                 // Hook for ErrorOffer.swift: a tap accepts an offered error.
                 errorOffer.talkKeysReleased(listeningBegan: false)
                 return
@@ -180,108 +163,18 @@ extension CompanionManager {
     /// an answer that is never going to be resumed.
     private static let talkOverHoldLimitSeconds: TimeInterval = 90
     static let joinUnansweredQuestionWithinSeconds: TimeInterval = 90
-    private static let talkStartDelaySeconds: TimeInterval = 0.2
-
-    /// Words the recognizer should expect, from three places, so jargon is
-    /// expected whether or not it is on screen right now:
-    /// the screen Buddy last read ("Wallet DB", "Kafka", "O(n)"), the labels
-    /// Buddy itself drew in the last few answers, and the ideas the student
-    /// has learned most recently. Deepgram takes about 60 terms, so each
-    /// source gets a share instead of the screen crowding the others out.
-    static func speechHints(
-        screenLabels: [String],
-        recentAnswerPrograms: [String],
-        recentlyLearnedConceptNames: [String]
-    ) -> [String] {
-        var seen = Set<String>()
-        func cleaned(_ hint: String) -> String? {
-            // Sentence punctuation only: the brackets in "O(n)" are part of it.
-            let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".,;:!?\"'")))
-            guard trimmed.count >= 2, trimmed.count <= 40, trimmed.split(separator: " ").count <= 4 else { return nil }
-            return trimmed
-        }
-
-        // Screens are full of things nobody says: times, file ids, counters,
-        // symbols. Each takes one of the few places Deepgram has, so only
-        // text that is mostly letters is kept, and a word with digits only
-        // when it is short, like "v2", "S3" or "O(n)".
-        func isSpeakable(_ text: String) -> Bool {
-            let letterCount = text.filter(\.isLetter).count
-            let digitCount = text.filter(\.isNumber).count
-            let wordsWithDigitsAreShort = text.split(separator: " ")
-                .allSatisfy { word in !word.contains(where: \.isNumber) || word.count <= 6 }
-            return letterCount >= 2 && letterCount * 2 >= text.count && digitCount <= 2 && wordsWithDigitsAreShort
-        }
-        var screenHints: [String] = []
-        for label in screenLabels {
-            let words = label.split(separator: " ")
-            // A short label is usually a name: a box, a button, a heading.
-            if words.count <= 4, let hint = cleaned(label), isSpeakable(hint) { screenHints.append(hint) }
-            // Inside longer text, keep the words a recognizer would not guess:
-            // capitals after the first letter, digits, acronyms.
-            for word in words where word.count >= 3 {
-                let text = String(word)
-                let hasInnerCapital = text.dropFirst().contains(where: \.isUppercase)
-                let hasDigit = text.contains(where: \.isNumber)
-                if hasInnerCapital || hasDigit, let hint = cleaned(text), isSpeakable(hint) { screenHints.append(hint) }
-            }
-        }
-
-        // The short quoted strings in Buddy's own programs are its card
-        // labels and headings: the terms of the topic being discussed.
-        var answerHints: [String] = []
-        let quotedString = try! NSRegularExpression(pattern: #""([^"\n]{2,40})""#)
-        // Spoken sentences are skipped: they are not terms, and a quote
-        // inside one would split it into fragments.
-        let drawingLines = recentAnswerPrograms.reversed().flatMap { $0.split(separator: "\n") }
-            .map(String.init).filter { !$0.contains("say(") }
-        for line in drawingLines {
-            let range = NSRange(line.startIndex..., in: line)
-            for match in quotedString.matches(in: line, range: range) {
-                guard let textRange = Range(match.range(at: 1), in: line) else { continue }
-                let text = String(line[textRange])
-                // Colours, pixel sizes and style names are not words.
-                guard text.contains(where: \.isLetter), !text.hasPrefix("#"), text != text.lowercased() || text.contains(" ") else { continue }
-                if let hint = cleaned(text) { answerHints.append(hint) }
-            }
-        }
-
-        let conceptHints = recentlyLearnedConceptNames.compactMap(cleaned)
-
-        var hints: [String] = []
-        func take(_ source: [String], upTo limit: Int) {
-            var taken = 0
-            for hint in source where taken < limit {
-                if seen.insert(hint.lowercased()).inserted {
-                    hints.append(hint)
-                    taken += 1
-                }
-            }
-        }
-        take(screenHints, upTo: 30)
-        take(answerHints, upTo: 15)
-        take(conceptHints, upTo: 15)
-        // Whatever share a source did not use goes to the screen.
-        take(screenHints, upTo: 100)
-        return Array(hints.prefix(100))
-    }
 
     func beginTalking() {
             guard !buddyDictationManager.isDictationInProgress else { return }
             // The talk keys work over an answer exactly as before: the
             // talk-over microphone closes before listening for the question.
             talkOverListener.stop()
-            buddyDictationManager.updateContextualKeyterms(Self.speechHints(
+            buddyDictationManager.updateContextualKeyterms(TalkSessionCoordinator.speechHints(
                 screenLabels: Array(screenIndex.lastListedLabels.values),
                 recentAnswerPrograms: conversation.exchanges.suffix(3).map(\.assistantResponse),
                 recentlyLearnedConceptNames: learningMemory.recentlyExplainedConceptNames(limit: 15)))
             stopGuide(reason: "the student is talking")
-            // The screen is read now, while they talk, rather than after they
-            // let go; at release it is checked against the screen as it is then.
-            TutorDebugLog.write("⏱ keys down: reading the screen while the student talks")
-            earlyScreenCapture.start()
-            pointerRestsOfLastPress = []
-            pointerRestWatcher.start()
+            talkSession.startReadingTheScreen()
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.
             InterfaceSounds.shared.play(.listen)
@@ -319,44 +212,22 @@ extension CompanionManager {
             clearDetectedElementLocation()
             clearAnnotations()
 
-            pendingKeyboardShortcutStartTask?.cancel()
-            pendingKeyboardShortcutStartTask = Task {
-                await buddyDictationManager.startPushToTalkFromKeyboardShortcut(
-                    currentDraftText: "",
-                    updateDraftText: { _ in
-                        // Partial transcripts are hidden (waveform-only UI)
-                    },
-                    submitDraftText: { [weak self] finalTranscript in
-                        InterfaceSounds.shared.play(.sent)
-                        self?.lastTranscript = finalTranscript
-                        print("🗣️ Companion received transcript: \(finalTranscript)")
-                        guard let self else { return }
-                        // What "this" means: where the pointer rested while
-                        // they talked, and what is selected now.
-                        let studentPointing = StudentPointingClues(
-                            pointerRests: self.pointerRestsOfLastPress,
-                            selection: SelectedTextReader.selectionInFrontApp())
-                        self.pointerRestsOfLastPress = []
-                        self.sendTranscriptToTutorWithScreenshot(
-                            transcript: finalTranscript,
-                            earlyScreen: self.earlyScreenCapture.handOverToQuestion(),
-                            studentPointing: studentPointing)
-                    }
-                )
-            }
+            talkSession.startListening(
+                onHeard: { [weak self] finalTranscript in
+                    InterfaceSounds.shared.play(.sent)
+                    self?.lastTranscript = finalTranscript
+                    print("🗣️ Companion received transcript: \(finalTranscript)")
+                },
+                onQuestion: { [weak self] finalTranscript, earlyScreen, studentPointing in
+                    self?.sendTranscriptToTutorWithScreenshot(
+                        transcript: finalTranscript,
+                        earlyScreen: earlyScreen,
+                        studentPointing: studentPointing)
+                })
     }
 
     func finishTalking() {
-            shortcutReleasedAt = Date()
-            // Cancel the pending start task in case the user released the shortcut
-            // before the async startPushToTalk had a chance to begin recording.
-            // Without this, a quick press-and-release drops the release event and
-            // leaves the waveform overlay stuck on screen indefinitely.
-            pendingKeyboardShortcutStartTask?.cancel()
-            pendingKeyboardShortcutStartTask = nil
-            earlyScreenCapture.keysWereReleased()
-            pointerRestsOfLastPress = pointerRestWatcher.stop()
-            buddyDictationManager.stopPushToTalkFromKeyboardShortcut()
+        talkSession.finishListening()
     }
 
     // MARK: - Talking over an answer

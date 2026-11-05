@@ -33,8 +33,7 @@ extension CompanionManager {
     private func systemWillSleep() {
         TutorDebugLog.write("💤 the Mac is going to sleep: answer stopped, listening cancelled")
         stopAnswering()
-        pendingTalkStart?.cancel()
-        pendingTalkStart = nil
+        talkSession.cancelPendingStart()
         buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
         talkOverListener.stop()
     }
@@ -75,15 +74,8 @@ extension CompanionManager {
         stopGuide(reason: "Esc")
         // Esc while the keys are held, or while the last words are still
         // being transcribed, takes the question back: nothing is sent.
-        if pendingTalkStart != nil || buddyDictationManager.isDictationInProgress || earlyScreenCapture.isHoldingCapture {
-            pendingTalkStart?.cancel()
-            pendingTalkStart = nil
-            pendingKeyboardShortcutStartTask?.cancel()
-            pendingKeyboardShortcutStartTask = nil
-            buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
-            earlyScreenCapture.discard(reason: "Esc")
-            pointerRestWatcher.cancel()
-            pointerRestsOfLastPress = []
+        if talkSession.isWaitingToListen || buddyDictationManager.isDictationInProgress || talkSession.earlyScreenCapture.isHoldingCapture {
+            talkSession.takeBackPress(reason: "Esc")
             controlBar.model.heardWords = ""
         }
         let closedNotch = controlBar.closeFromKeyboard()
