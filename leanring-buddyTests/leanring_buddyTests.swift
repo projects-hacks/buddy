@@ -223,6 +223,44 @@ struct HistoryShorteningTests {
     }
 }
 
+// MARK: - Filing a lesson under a known idea
+
+struct FilingMatchTests {
+    private func known(_ name: String, aliases: [String]) -> RememberedConcept {
+        RememberedConcept(id: UUID(), name: name, aliases: aliases, cues: nil, summary: "", lastAngle: nil,
+                          firstExplainedAt: Date(), lastExplainedAt: Date(), timesExplained: 1, timesLost: 0,
+                          lastLostAt: nil, stabilityDays: 2, lessonTitles: [])
+    }
+
+    @Test func theLiveMisreadIdIsRefused() {
+        let division = known("division by zero", aliases: ["zerodivisionerror", "divide by zero", "zero division"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "off by one error",
+                                             extractedAliases: ["off by one", "fencepost error", "index out of bounds"],
+                                             known: division))
+    }
+
+    @Test func theSameIdeaUnderItsOwnOrARelatedNameIsKept() {
+        let offByOne = known("off by one error", aliases: ["off-by-one", "index out of range", "fencepost error"])
+        #expect(FilingMatchCheck.namesAgree(extractedName: "off-by-one error", extractedAliases: [], known: offByOne))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "off-by-one bounds", extractedAliases: [], known: offByOne))
+        let hashing = known("consistent hashing", aliases: ["hash ring"])
+        #expect(FilingMatchCheck.namesAgree(extractedName: "adding nodes to hash ring", extractedAliases: [], known: hashing))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "node addition",
+                                            extractedAliases: ["consistent hashing node addition"], known: hashing))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "binary heap", extractedAliases: [], known: known("heap", aliases: [])))
+    }
+
+    @Test func sharedAliasesOrOneEverydayWordAreNotEnough() {
+        let arrayBounds = known("array index out of bounds", aliases: ["index out of range", "indexerror"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "off by one error", extractedAliases: ["index out of range"],
+                                             known: arrayBounds))
+        let indexing = known("database indexing", aliases: ["index"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "array index", extractedAliases: [], known: indexing))
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "linear scan", extractedAliases: ["search"],
+                                             known: known("binary search", aliases: [])))
+    }
+}
+
 // MARK: - Spending arithmetic
 
 struct SpendingArithmeticTests {
@@ -711,6 +749,39 @@ struct BoardLayoutTests {
         let (board, _) = boardAfterTurns()
         #expect(board.state.elements.filter { $0.identifier == "b" }.count == 1)
         #expect(board.state.elements.first { $0.identifier == "b" }?.text == "B left")
+    }
+
+    /// The live TCP board (scripts/board/live_tcp): a table right of a group
+    /// at the board's right edge, a label asked to sit below it and a second
+    /// below that. Both once sat on one row below and left of the table.
+    @Test func labelsAskedToSitBelowATableStackUnderIt() {
+        let surface = BoardSurface(canvasWidth: 1512, canvasHeight: 982)
+        let board = TeachingBoard(layout: surface.layout)
+        board.beginTurn()
+        _ = BoardProgramTranslator.translate("""
+            board.title("how tcp works");
+            board.box("client", "client", {tone: "sky"});
+            board.box("server", "server", {tone: "mint", near: "client", side: "right"});
+            board.note("loss", "network can lose or shuffle packets", {tone: "coral", near: "client", side: "below"});
+            board.group("hs", "the three way handshake", {near: "loss", side: "below"});
+            board.box("syn", "1. SYN, seq 100", {in: "hs", tone: "sky"});
+            board.box("synack", "2. SYN-ACK, seq 300, ack 101", {in: "hs", tone: "mint"});
+            board.box("ack", "3. ACK, ack 301", {in: "hs", tone: "sky"});
+            board.table("segs", "data segments", [["seq", "bytes"], ["101", "100 bytes"], ["201", "100 bytes"], ["301", "100 bytes"]], {near: "hs", side: "right"});
+            board.label("ackrule", "ack = next byte I expect", {near: "segs", side: "below", tone: "mint"});
+            board.label("retry", "no ack in time? resend", {near: "ackrule", side: "below", tone: "butter"});
+            """, on: board)
+        guard let table = board.state.element("segs")?.frame, let ackRule = board.state.element("ackrule")?.frame,
+              let retry = board.state.element("retry")?.frame else {
+            Issue.record("an element was not placed")
+            return
+        }
+        func sitsUnder(_ upper: BoardRect, _ lower: BoardRect) -> Bool {
+            lower.minY >= upper.maxY && lower.minY - upper.maxY <= BoardLayout.gapBetweenElements + 1
+                && lower.minX < upper.maxX && lower.maxX > upper.minX
+        }
+        #expect(sitsUnder(table, ackRule), "ackrule \(ackRule) is not under segs \(table)")
+        #expect(sitsUnder(ackRule, retry), "retry \(retry) is not under ackrule \(ackRule)")
     }
 }
 

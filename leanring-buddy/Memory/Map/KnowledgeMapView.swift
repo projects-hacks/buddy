@@ -764,12 +764,15 @@ struct KnowledgeMapView: View {
     private func hoverCard(for node: KnowledgeMapNode) -> some View {
         let centre = model.screenPoint(forMapPoint: node.position)
         let cardWidth: CGFloat = 250
+        // A capsule may be slid along its idea, so its own edges are used.
+        let dotRadius = node.radius * model.zoom
         let capsule = model.drawnCapsuleRects[node.id]
-        let halfWidth = (capsule?.width ?? node.radius * 2 * model.zoom) / 2
+        let rightEdge = capsule?.maxX ?? centre.x + dotRadius
+        let leftEdge = capsule?.minX ?? centre.x - dotRadius
         // Beside the idea, on whichever side has room.
-        let placeOnRight = centre.x + halfWidth + cardWidth + 30 < model.viewSize.width
-        let x = placeOnRight ? centre.x + halfWidth + 14 + cardWidth / 2
-            : centre.x - halfWidth - 14 - cardWidth / 2
+        let placeOnRight = rightEdge + cardWidth + 30 < model.viewSize.width
+        let x = placeOnRight ? rightEdge + 14 + cardWidth / 2
+            : leftEdge - 14 - cardWidth / 2
         let y = min(max(centre.y, 70), max(70, model.viewSize.height - 70))
         return VStack(alignment: .leading, spacing: 5) {
             Text(node.concept.name)
@@ -1167,7 +1170,8 @@ struct KnowledgeMapRenderer {
         let positions = Dictionary(uniqueKeysWithValues: model.layout.nodes.map {
             ($0.id, screen(model.displayPosition(of: $0, at: date)))
         })
-        let visibleRect = CGRect(origin: .zero, size: size).insetBy(dx: -80, dy: -80)
+        let canvasRect = CGRect(origin: .zero, size: size)
+        let visibleRect = canvasRect.insetBy(dx: -80, dy: -80)
 
         // Cluster names first, in a muted hand, where they have room.
         var occupied: [CGRect] = []
@@ -1219,12 +1223,22 @@ struct KnowledgeMapRenderer {
                 .foregroundColor(colors.ink))
             let measured = text.measure(in: CGSize(width: 320, height: 40))
             let width = max(measured.width + 34, 64)
-            let rect = CGRect(x: centre.x - width / 2, y: centre.y - Self.capsuleHeight / 2,
-                              width: width, height: Self.capsuleHeight)
-            let isFree = !occupied.contains { $0.intersects(rect.insetBy(dx: -4, dy: -3)) }
-            if appearance > 0.5, isFree || isForced {
-                occupied.append(rect)
-                capsules.append((node, rect, text, opacity))
+            let centredRect = CGRect(x: centre.x - width / 2, y: centre.y - Self.capsuleHeight / 2,
+                                     width: width, height: Self.capsuleHeight)
+            func isFree(_ rect: CGRect) -> Bool { !occupied.contains { $0.intersects(rect.insetBy(dx: -4, dy: -3)) } }
+            // A capsule slid along its idea must stay on the canvas, where it
+            // is read rather than cut off, and off every other idea's point,
+            // which it would otherwise hide.
+            func isAllowedIfSlid(_ rect: CGRect) -> Bool {
+                guard rect != centredRect else { return true }
+                guard canvasRect.contains(rect) else { return false }
+                let coveredRect = rect.insetBy(dx: -Self.dotRadius, dy: -Self.dotRadius)
+                return !positions.contains { $0.key != node.id && coveredRect.contains($0.value) }
+            }
+            let freeRect = Self.capsulePlacements(around: centredRect).first { isFree($0) && isAllowedIfSlid($0) }
+            if appearance > 0.5, let placedRect = freeRect ?? (isForced ? centredRect : nil) {
+                occupied.append(placedRect)
+                capsules.append((node, placedRect, text, opacity))
             } else {
                 dots.append((node, centre, opacity))
             }
@@ -1264,6 +1278,36 @@ struct KnowledgeMapRenderer {
             drawnCapsuleRects[node.id] = capsule.rect
         }
         model.drawnCapsuleRects = drawnCapsuleRects
+    }
+
+    /// Where an idea's capsule may sit, nearest first: centred on the idea,
+    /// then slid along it while the idea's own point stays inside the
+    /// capsule. Names are drawn at a fixed size on screen and the layout
+    /// spaces ideas for a dot with a name under it, so at the zoom that fits
+    /// the map two neighbours' centred capsules can touch by a few points
+    /// with empty paper just beyond; sliding uses that room instead of
+    /// leaving one of them a bare dot.
+    static func capsulePlacements(around centredRect: CGRect) -> [CGRect] {
+        let step: CGFloat = 6
+        // Far enough that the idea's point sits just inside one rounded end.
+        let longestSideways = max(0, centredRect.width / 2 - 10)
+        let longestUpOrDown = capsuleHeight / 2 - 6
+        var offsets: [CGSize] = [.zero]
+        var sideways = step
+        while sideways < longestSideways {
+            offsets.append(CGSize(width: sideways, height: 0))
+            offsets.append(CGSize(width: -sideways, height: 0))
+            sideways += step
+        }
+        if longestSideways > 0 {
+            offsets.append(CGSize(width: longestSideways, height: 0))
+            offsets.append(CGSize(width: -longestSideways, height: 0))
+        }
+        offsets.append(CGSize(width: 0, height: longestUpOrDown))
+        offsets.append(CGSize(width: 0, height: -longestUpOrDown))
+        return offsets
+            .sorted { hypot($0.width, $0.height) < hypot($1.width, $1.height) }
+            .map { centredRect.offsetBy(dx: $0.width, dy: $0.height) }
     }
 
     private func drawPaper(in context: inout GraphicsContext, size: CGSize, camera: (pan: CGSize, zoom: CGFloat)) {

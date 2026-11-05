@@ -1,0 +1,107 @@
+{
+ "_why": "Lessons whose filing reply is graded by filing_check.swift: which known idea each may be filed under (acceptable), and which it must never overwrite. The relation lessons come from scripts/knowledge_map/relation_fixture.json, the flow lessons from memory_flow_test.swift, and the live lessons from the store in live_store_fixture.json, with what was said read from that day's transcript.",
+ "flow_store": [
+  {
+   "key": "ch",
+   "name": "consistent hashing",
+   "aliases": [
+    "hash ring"
+   ],
+   "summary": "servers sit on a ring of hash values and each key goes to the first server clockwise, so adding a server only moves the keys just before it"
+  },
+  {
+   "key": "ec",
+   "name": "eventual consistency",
+   "aliases": [],
+   "summary": "after a write replicas can disagree for a moment, like a friend still seeing an old bio, and all catch up given time"
+  }
+ ],
+ "lessons": [
+  {
+   "store": "flow",
+   "title": "Adding Nodes to a Hash Ring",
+   "question": "wait how does the hash ring deal with a new box being added",
+   "explanation": "the new server takes a spot on the ring and only claims the keys just before it, so almost every key stays where it was.",
+   "acceptable": [
+    "ch"
+   ],
+   "should_merge": true
+  },
+  {
+   "store": "flow",
+   "title": "Virtual Nodes",
+   "question": "why does each server get lots of spots on the hash ring",
+   "explanation": "with one spot each, an unlucky server can own a huge arc of the ring. virtual nodes give every server many spots, so each one's share of the keys evens out, and a server leaving spreads its keys across all the others.",
+   "acceptable": [
+    "ch"
+   ],
+   "should_merge": false
+  },
+  {
+   "store": "live_before",
+   "title": "fixing binary search's high bound",
+   "question": "how do i fix the off by one in binary search? show it with the three, seven, nine example",
+   "explanation": "from_fixture",
+   "acceptable": [
+    "off by one error"
+   ],
+   "never": [
+    "division by zero"
+   ],
+   "should_merge": true
+  },
+  {
+   "store": "live_after",
+   "title": "binary search high bound",
+   "question": "why does the loop go one step too far here?",
+   "explanation": "high starts at three, one past the last real index, so the loop reaches a slot that doesn't exist. with less than or equal here, the loop still runs when low and high are both three. middle is one, seven is too small, so low moves up to two. middle is two, nine is too small, so low moves up to three. three is still less than or equal to three, so it reads index three and crashes. start high at length minus one, the same fix as yesterday, and low passes high safely.",
+   "acceptable": [
+    "off by one error",
+    "binary search bounds",
+    "array index out of bounds",
+    "binary search termination"
+   ],
+   "never": [
+    "division by zero"
+   ],
+   "should_merge": true
+  },
+  {
+   "store": "live_after",
+   "title": "why high must be length minus one",
+   "question": "why does this crash when I search for 10?",
+   "explanation": "high starts at the length, so the loop can touch a slot that does not exist. with three, seven and nine, the last real index is two, not three. ten is bigger than everything, so low keeps moving right past the nine. the while line allows low to equal high, so it runs with middle at three.",
+   "acceptable": [
+    "off by one error",
+    "binary search bounds",
+    "array index out of bounds",
+    "binary search termination"
+   ],
+   "never": [
+    "division by zero"
+   ],
+   "should_merge": true
+  },
+  {
+   "store": "live_after",
+   "title": "handshake and reliable delivery",
+   "question": "teach me how TCP works from scratch",
+   "explanation": "tcp makes sure data sent across the internet arrives complete and in order. picture two computers: a client that sends, and a server that receives. the network between them is unreliable: packets can get lost, duplicated, or arrive out of order. so before sending anything, tcp sets up a connection with three short messages. first, the client sends a syn message, saying: i want to talk, my numbers start at one hundred. second, the server replies syn ack: okay, and my numbers start at three hundred. third, the client sends ack, confirming it heard the server. now the connection is open. now data flows in segments, and every segment carries a sequence number saying where it fits. the receiver replies with an ack naming the next byte it expects, so ack 201 means everything before 201 arrived. if the sender gets no ack after a timeout, it assumes the segment was lost and sends it again. that is how tcp turns an unreliable network into a reliable, ordered stream.",
+   "acceptable": [
+    "tcp handshake",
+    "reliable delivery"
+   ],
+   "never": [
+    "transactional outbox",
+    "idempotency keys"
+   ],
+   "should_merge": true
+  }
+ ],
+ "relation_acceptable": {
+  "_why": "Known ideas a relation_fixture lesson may also be filed under besides its same_as: Async Await is the same promise underneath, and a reply naming promise with no summary only marks promises as met again.",
+  "Async Await": [
+   "promises"
+  ]
+ }
+}

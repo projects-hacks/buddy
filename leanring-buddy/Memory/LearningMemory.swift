@@ -70,6 +70,48 @@ struct ExtractedConcept {
     var relations: [ConceptRelation]? = nil
 }
 
+/// Whether a known idea the filing call says a lesson is the same as can be
+/// believed on the Mac's own evidence, before its explanation is replaced.
+/// Graded by scripts/learning_memory/filing_check.swift.
+nonisolated enum FilingMatchCheck {
+    /// The new name and a known name or alias, or a new alias and the known
+    /// name, where one's words hold all of the other's: "binary heap" and
+    /// "heap", "off-by-one bounds" and the alias "off-by-one", the alias
+    /// "consistent hashing node addition" and "consistent hashing". A known
+    /// alias of one everyday word ("index") is too loose to count unless it
+    /// is the whole new name. Two aliases alone never count, since related
+    /// ideas share them ("index out of range" is kept on both "off by one
+    /// error" and "array index out of bounds").
+    ///
+    /// Meaning is not used. The sentence model puts different ideas on one
+    /// real store between 0.88 and 0.98 and the same idea filed twice between
+    /// 0.94 and 0.99, and the off-by-one lesson scored 0.96 against "division
+    /// by zero", so no floor keeps real matches and refuses that one.
+    static func namesAgree(extractedName: String, extractedAliases: [String], known: RememberedConcept) -> Bool {
+        let extractedNameWords = words(of: extractedName)
+        let knownNameWords = words(of: known.name)
+        guard !extractedNameWords.isEmpty, !knownNameWords.isEmpty else { return false }
+        let knownAliasWords = known.aliases.map { words(of: $0) }.filter { !$0.isEmpty }
+        if knownAliasWords.contains(extractedNameWords) { return true }
+        let knownLabelsSpecificEnough = [knownNameWords] + knownAliasWords.filter { aliasWords in
+            aliasWords.count > 1 || aliasWords.allSatisfy(ConceptText.looksLikeTermOfArt)
+        }
+        if knownLabelsSpecificEnough.contains(where: { oneHoldsTheOther(extractedNameWords, $0) }) { return true }
+        return extractedAliases.map { words(of: $0) }.contains { aliasWords in
+            let isSpecificEnough = aliasWords.count > 1 || aliasWords.allSatisfy(ConceptText.looksLikeTermOfArt)
+            return (aliasWords == knownNameWords) || (isSpecificEnough && oneHoldsTheOther(aliasWords, knownNameWords))
+        }
+    }
+
+    private static func words(of label: String) -> Set<String> {
+        Set(ConceptText.tokens(label.lowercased()))
+    }
+
+    private static func oneHoldsTheOther(_ firstWords: Set<String>, _ secondWords: Set<String>) -> Bool {
+        firstWords.isSubset(of: secondWords) || secondWords.isSubset(of: firstWords)
+    }
+}
+
 @MainActor
 final class LearningMemory {
     static let enabledDefaultsKey = "learningMemoryEnabled"
@@ -451,7 +493,20 @@ final class LearningMemory {
         let normalised = ConceptText.normalisedName(name)
 
         var existingPosition: Int?
-        if let sameAsID = extracted.sameAsID { existingPosition = index.index(of: sameAsID) }
+        if let sameAsID = extracted.sameAsID, let matchedPosition = index.index(of: sameAsID) {
+            // The filing call names a match only by a short id, and a wrong
+            // id once filed an off-by-one lesson under "division by zero",
+            // which then explained off-by-one under that name. Updating a
+            // known idea replaces its explanation, so the match is kept only
+            // when the names agree; otherwise the lesson is filed by its own
+            // name, as a new idea when no known one has it.
+            let matchedConcept = index.concepts[matchedPosition]
+            if FilingMatchCheck.namesAgree(extractedName: name, extractedAliases: extracted.aliases, known: matchedConcept) {
+                existingPosition = matchedPosition
+            } else {
+                TutorDebugLog.write("🧠 memory: the filing call matched \(name) to \(matchedConcept.name), which shares no name with it, so \(matchedConcept.name) is left as it was")
+            }
+        }
         if existingPosition == nil {
             existingPosition = index.concepts.firstIndex { known in
                 ConceptText.normalisedName(known.name) == normalised

@@ -297,7 +297,10 @@ struct BoardLayout {
     func isFree(_ rect: BoardRect, in state: BoardState, ignoring ignoredIdentifiers: Set<String>,
                 avoidingArrows: Bool, gap: Double = BoardLayout.gapBetweenElements) -> Bool {
         guard rect.x >= 0, rect.y >= 0, rect.maxX <= widestBoardWidth else { return false }
-        let padded = rect.insetBy(-gap / 2)
+        // A hair less than half the gap: a spot tried at exactly the gap from
+        // its anchor must not be refused because the two padded edges, the
+        // same number worked out two ways, differ in the last bit.
+        let padded = rect.insetBy(-gap / 2 + 0.001)
         for element in state.elements where !ignoredIdentifiers.contains(element.identifier) {
             if padded.intersects(element.frame.insetBy(-gap / 2)) { return false }
         }
@@ -379,7 +382,15 @@ struct BoardLayout {
             }
             return nil
         }
-        if let spot = besideAnchor(within: tiers[0]) ?? besideAnchor(within: tiers[1]) { return spot }
+        // An anchor already past the paper that shows now is seen only by
+        // zooming out to it, so a spot beside it that reaches no further
+        // than it does costs no more zoom; without this, a label asked to sit
+        // under a table at the right edge went to the one spot inside the
+        // paper, slid off to the left, instead of straight under the table.
+        let firstRoom = anchor.map { anchor in
+            BoardRect(x: 0, y: 0, width: max(tiers[0].maxX, anchor.maxX), height: max(tiers[0].maxY, anchor.maxY))
+        } ?? tiers[0]
+        if let spot = besideAnchor(within: firstRoom) ?? besideAnchor(within: tiers[1]) { return spot }
         for room in tiers.prefix(2) {
             if let spot = firstFreeSpotInReadingOrder(width: width, height: height, in: state, within: room,
                                                       ignoring: ignoredIdentifiers) { return spot }
@@ -413,20 +424,24 @@ struct BoardLayout {
     }
 
     /// Positions on one side of `anchor`: aligned with its top or left edge,
-    /// centred on it, then sliding along that side.
+    /// centred on it, aligned with its bottom or right edge, then sliding
+    /// along that side.
     private static func candidates(beside anchor: BoardRect, side: BoardSide, width: Double, height: Double,
                                    distance: Double) -> [BoardRect] {
         let slide = 70.0
         switch side {
         case .right, .left:
             let x = side == .right ? anchor.maxX + distance : anchor.minX - distance - width
-            let alignments = [anchor.minY, anchor.midY - height / 2, anchor.minY + slide, anchor.minY - slide,
-                              anchor.minY + slide * 2, anchor.minY - slide * 2]
+            let alignments = [anchor.minY, anchor.midY - height / 2, anchor.maxY - height, anchor.minY + slide,
+                              anchor.minY - slide, anchor.minY + slide * 2, anchor.minY - slide * 2]
             return alignments.map { BoardRect(x: x, y: $0, width: width, height: height) }
         case .below, .above:
+            // Flush with the right edge comes before sliding, so something
+            // wider than its anchor at the board's right edge still sits
+            // under it rather than hanging off to the left.
             let y = side == .below ? anchor.maxY + distance : anchor.minY - distance - height
-            let alignments = [anchor.minX, anchor.midX - width / 2, anchor.minX + slide * 1.5, anchor.minX - slide * 1.5,
-                              anchor.minX + slide * 3, anchor.minX - slide * 3]
+            let alignments = [anchor.minX, anchor.midX - width / 2, anchor.maxX - width, anchor.minX + slide * 1.5,
+                              anchor.minX - slide * 1.5, anchor.minX + slide * 3, anchor.minX - slide * 3]
             return alignments.map { BoardRect(x: $0, y: y, width: width, height: height) }
         }
     }
