@@ -392,8 +392,12 @@ deadline above already hands such a question to the next brain. Before 2.0 the
 silent brain stayed in the running, so the next question routed to it waited
 the same seconds again before anyone spoke. Missing the deadline now benches
 it for five minutes, as an error before speaking always did
-(`CompanionManager+Pipeline.swift`, `ModelRouter.swift`); the unit tests check
-the benching with a clock moved forward. The deadline itself is unchanged:
+(`CompanionManager+Pipeline.swift`, `ModelRouter.swift`). On the day 2.0 was
+tested Argon missed it again and again, each time right after its bench ended,
+so every few minutes a question paid for Argon's attempt and then Sonnet's and
+waited eight seconds first. A brain that fails again as soon as it is back now
+has its bench doubled each time, up to an hour, and one answer from it clears
+the count. The unit tests check both with a clock moved forward. The deadline itself is unchanged:
 twice the brain's usual time to the first word for the question's kind, at
 least 8 s and at most 30 s, and only when there is another brain to hand over
 to.

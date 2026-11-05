@@ -65,7 +65,7 @@ flowchart TD
     pick --> sonnet[Sonnet]:::cloud
     pick --> argon[Argon]:::cloud
     pick --> opus[Opus]:::cloud
-    sonnet -. fails, or silent past its deadline .-> next[Next best answers instead,<br/>the first benched for five minutes]:::logic
+    sonnet -. fails, or silent past its deadline .-> next[Next best answers instead,<br/>the first benched, longer each time it fails again]:::logic
     argon -. fails, or silent past its deadline .-> next
     opus -. fails, or silent past its deadline .-> next
 
@@ -77,7 +77,7 @@ flowchart TD
 
 The route table comes from racing all three models on every kind of question and having two judges from different model families score the answers blind. The race, the judging and the sensitivity of the choice to how much waiting is worth are in [model-choice.md](model-choice.md).
 
-A brain's deadline is twice its usual time to the first word for the question's kind, at least 8 s and at most 30 s (`ModelRouter.swift`). It applies only when there is another brain to hand over to. Board turns are routed differently; see The teaching board below.
+A brain's deadline is twice its usual time to the first word for the question's kind, at least 8 s and at most 30 s (`ModelRouter.swift`). It applies only when there is another brain to hand over to. A brain that fails or stays silent is benched for five minutes; if it fails again as soon as it is back, each time doubles the bench, up to an hour, and one answer from it clears the count. Otherwise every question would pay for its attempt and then the next brain's, and wait out the whole deadline first. Board turns are routed differently; see The teaching board below.
 
 ## Draw only when it helps
 
@@ -185,7 +185,7 @@ Faithfulness is measured in `scripts/teach_back/` on fourteen spoken explanation
 
 Every finished lesson becomes a page (`NotebookRecorder.swift`), written only when the answer ends uncancelled; a new question drops the one being held. Guide steps and how-to replays are never kept; a prose answer is a page of words; a board lesson or teach-back is one page when the board is left.
 
-Pages are plain files, one folder per lesson under `Notebook/<day>/<time-id>/` (`NotebookStore.swift`): `page.json`, written last so a half-written page is never shown and is swept away; `card-N.svg` for each card; and `screen.jpg`, only the marked region of the question's own screenshot, at most 960 px, with the marks drawn in. Cards stay vectors because the engine already draws SVG; `notebook-snapshot.js` copies them out in an isolated content world and strips anything that is not a drawing (scripts, links, external images, event attributes). On the sample in `scripts/notebook/`, a drawn lesson is 38 to 76 KB and a prose one 1.1 KB.
+Pages are plain files, one folder per lesson under `Notebook/<day>/<time-id>/` (`NotebookStore.swift`): `page.json`, written last so a half-written page is never shown and is swept away; `card-N.svg` for each card; and `screen.jpg`, only the marked region, cut from a capture of the display at its own pixels taken beside the model's 1280 px screenshot (held in memory only, never sent), at most 1600 px, with the marks drawn over it. Cards stay vectors because the engine already draws SVG; `notebook-snapshot.js` copies them out in an isolated content world and strips anything that is not a drawing (scripts, links, external images, event attributes). On the sample in `scripts/notebook/`, a drawn lesson is 92 to 146 KB and a prose one 1.1 KB; cut from the model's screenshot instead, code in the picture was stretched about 1.6 times on a Retina display and read soft.
 
 **The PDF** (`NotebookPDFExporter.swift`) is the pages laid out as HTML into paper-sized sheets, A4 or US Letter by region, so a card is never cut. Each sheet is printed with WebKit's `createPDF`, keeping text and drawings vector, and the sheets are joined with PDFKit off the main thread. It runs in the background and ends with a notification with Open PDF; permission is asked at the first export, and if it is refused the notch shows the result instead.
 
