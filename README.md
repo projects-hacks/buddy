@@ -162,7 +162,7 @@ The model answers with a short drawing program, and the first sentence is spoken
 | **Sent** | The screenshot and question, to the model that answers, with the lecture's last minute when there is one |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
 | **Notebook** | Each finished lesson as a page in `~/Library/Application Support/Buddy/Notebook`: the question, what was said, the cards drawn, and a small JPEG of only the part of the screen that was marked, cut from that question's screenshot (never the whole screen). A board lesson or a teach-back is one page when you leave the board, the whole board kept as one drawing with what was said. About 40 to 80 KB a page, under 2 KB for an answer without a drawing. A cancelled question keeps nothing. Never uploaded; the Notebook window shows each page's size, deletes a page, a day or everything, and can stop keeping new lessons |
-| **Map** | Drawn on the Mac from memory. The first time it opens, ideas with no links on record yet (memory from before 1.6) have only their names and one-sentence summaries sent to Claude Haiku, 20 ideas a call, once, to find how they relate; no lesson, question or screen goes with them |
+| **Map** | Drawn on the Mac from memory. The first time it opens, ideas with no links on record yet (memory from before 2.0) have only their names and one-sentence summaries sent to Claude Haiku, 20 ideas a call, once, to find how they relate; no lesson, question or screen goes with them |
 | **Analytics** | None |
 
 <details>

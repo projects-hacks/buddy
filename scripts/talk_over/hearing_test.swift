@@ -109,7 +109,7 @@ func firstYield(in actions: [(at: Double, action: TalkOverTranscript.Action)]) -
     actions.first { $0.action == .yield }?.at
 }
 
-// 1. The live test of 1.6 (laptop speakers at 50%). Buddy's first sentence,
+// 1. The first live test of 2.0 (laptop speakers at 50%). Buddy's first sentence,
 // then the second from 4.9 s; five seconds in, a voice asked "Wait, why does
 // high start at the length of the list?". The recognizer delivered it in
 // pieces among Buddy's own words, dropped "of", and glued "The guests." from
@@ -195,7 +195,7 @@ let echoOnly: [(at: Double, event: Event)] = [
 let echoActions = play(echoOnly, until: 6)
 check("echo only: nothing at all", echoActions.isEmpty, describe(echoActions))
 
-// 6. The live retest of 1.6 after the first fix: Buddy at 50% through the
+// 6. The live retest of 2.0 after the first fix: Buddy at 50% through the
 // speakers, then macOS `say` speaking "Wait, why does high start at the
 // length of the list?" without a break but for a short comma after "Wait".
 // Deepgram's interim text stalled twice while it found the phrase's end.
