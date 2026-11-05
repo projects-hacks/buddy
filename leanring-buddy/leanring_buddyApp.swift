@@ -37,6 +37,11 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
 
         TutorDebugLog.beginSession()
+        // Every accessibility call waits on the app it asks, six seconds by
+        // default. Set on the system-wide element this is the ceiling for
+        // every element Buddy reads, including children read off a tree
+        // whose own timeout was never set.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.5)
         ClickyAnalytics.configure()
         ClickyAnalytics.trackAppOpened()
 

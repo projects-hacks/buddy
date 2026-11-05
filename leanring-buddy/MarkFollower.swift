@@ -176,6 +176,8 @@ final class MarkFollower {
               let application = NSWorkspace.shared.frontmostApplication,
               application.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
         let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        // Read on the main thread as the answer starts: a busy app must not hold it.
+        AXUIElementSetMessagingTimeout(applicationElement, 0.25)
         var windowValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(applicationElement, kAXFocusedWindowAttribute as CFString, &windowValue) == .success,
               let windowValue, CFGetTypeID(windowValue) == AXUIElementGetTypeID() else { return }

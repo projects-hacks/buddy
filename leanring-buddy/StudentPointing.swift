@@ -129,6 +129,8 @@ enum SelectedTextReader {
               let application = NSWorkspace.shared.frontmostApplication,
               application.bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
         let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        // Read on the main thread: a busy app must not hold it.
+        AXUIElementSetMessagingTimeout(applicationElement, 0.25)
         var focusedValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(applicationElement, kAXFocusedUIElementAttribute as CFString, &focusedValue) == .success,
               let focusedValue, CFGetTypeID(focusedValue) == AXUIElementGetTypeID() else { return nil }

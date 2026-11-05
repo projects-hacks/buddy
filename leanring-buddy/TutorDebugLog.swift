@@ -16,7 +16,8 @@
 
 import Foundation
 
-enum TutorDebugLog {
+/// Written from every thread: audio, network and accessibility work log too.
+nonisolated enum TutorDebugLog {
     /// `~/Library/Logs/Buddy.log`, the conventional place for an app's
     /// own log and readable without elevated permissions.
     static let fileURL: URL = {

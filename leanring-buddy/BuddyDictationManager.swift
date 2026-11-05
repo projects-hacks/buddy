@@ -13,7 +13,8 @@ import Combine
 import Foundation
 import Speech
 
-enum BuddyPushToTalkShortcut {
+/// Pure, and read on the event taps' own thread as well as the main one.
+nonisolated enum BuddyPushToTalkShortcut {
     enum ShortcutOption {
         case shiftFunction
         case controlOption
