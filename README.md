@@ -108,7 +108,7 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 | Hover the glow, then Explain this error (or tap <kbd>Control</kbd> + <kbd>Option</kbd>) | When the notch glows red and says "An error on screen.", explain the error that just appeared |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
-More in [docs/using-buddy.md](docs/using-buddy.md).
+Everything else is in the guide: [How to use Buddy](https://projects-hacks.github.io/buddy/guide/).
 
 ## How it works
 

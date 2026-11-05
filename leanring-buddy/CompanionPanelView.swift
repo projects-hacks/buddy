@@ -47,10 +47,10 @@ struct NotchSettingsView: View {
     /// flexible columns are measured at the wrong width and overflow.
     static let columnWidth: CGFloat = 276
 
-    /// Where How to use Buddy goes: the guide in the repository, readable in
-    /// any browser.
+    /// Where How to use Buddy goes: the guide on Buddy's site, written for
+    /// students rather than for the repository's readers.
     private var howToUseBuddyURL: URL {
-        URL(string: "https://github.com/\(AppUpdater.repository)/blob/main/docs/using-buddy.md")!
+        URL(string: "https://projects-hacks.github.io/buddy/guide/")!
     }
 
     var body: some View {
