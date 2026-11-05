@@ -13,7 +13,11 @@
 //   swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
 //       leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
 //       leanring-buddy/BoardProgramTranslator.swift leanring-buddy/BoardProgramPrompt.swift leanring-buddy/ProgramStream.swift
-//   /tmp/board_harness <out_dir> [sonnet|opus|offline] [topic ...]
+//   /tmp/board_harness <out_dir> [sonnet|opus|argon|offline] [topic ...]
+//
+// "argon" calls Gemini 4 Argon on Vertex the way GeminiVisionProvider does:
+// a gcloud access token and the project the app keeps in its defaults
+// (vertexProjectIdentifier). The token is never printed.
 //
 // "offline" draws two hand-written turns with no model call, to check the
 // drawing itself for free.
@@ -65,6 +69,7 @@ let topics: [Topic] = [
 /// judges' noise and Sonnet is cheaper); Opus is run for comparison.
 struct Brain {
     let name: String
+    var isArgon = false
     let model: String
     let thinking: [String: Any]
     let effort: String
@@ -76,7 +81,10 @@ let brains: [String: Brain] = [
     "sonnet": Brain(name: "sonnet", model: "claude-sonnet-5-5", thinking: ["type": "between_tools"], effort: "high",
                     thinkingHeadroom: 0, inputPrice: 2, cachedPrice: 0.2, outputPrice: 10),
     "opus": Brain(name: "opus", model: "claude-opus-5-5", thinking: ["type": "adaptive"], effort: "low",
-                  thinkingHeadroom: 1500, inputPrice: 4, cachedPrice: 0.2, outputPrice: 20)
+                  thinkingHeadroom: 1500, inputPrice: 4, cachedPrice: 0.2, outputPrice: 20),
+    // Introductory price until the end of November 2026 (SpendingMeter.swift).
+    "argon": Brain(name: "argon", isArgon: true, model: "gemini-4-argon", thinking: [:], effort: "LOW",
+                   thinkingHeadroom: 0, inputPrice: 2, cachedPrice: 0.1, outputPrice: 10)
 ]
 
 struct TurnUsage: Codable {
@@ -99,6 +107,8 @@ struct TurnUsage: Codable {
 @main
 struct BoardHarness {
     static func main() {
+        // A line at a time, so a long run can be followed and a cut-off run keeps what it printed.
+        setvbuf(stdout, nil, _IOLBF, 0)
         let application = NSApplication.shared
         application.setActivationPolicy(.prohibited)
         Task { @MainActor in
@@ -132,7 +142,10 @@ struct BoardHarness {
         let chosenTopics = isOffline ? [Topic(name: "offline-check", questions: offlinePrograms.map(\.question))]
             : (replayDirectory == nil && arguments.count > 3 ? topics.filter { arguments[3...].contains($0.name) } : topics)
         let apiKey = makesNoCalls ? "" : try readAnthropicKey()
+        let vertexProject = brain.isArgon ? try readVertexProject() : ""
+        var vertexToken = brain.isArgon ? try mintVertexToken() : ""
 
+        TutorBoardLog.write = { line in print("    " + line) }
         let repository = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let renderer = try await BoardRenderer(repository: repository)
 
@@ -144,6 +157,7 @@ struct BoardHarness {
             let board = TeachingBoard(layout: surface.layout)
             var history: [(question: String, program: String, sentences: [String])] = []
             var turns: [TurnUsage] = []
+            var partTitles: [String] = []
             try await renderer.openBoard(surface: surface)
 
             for (index, question) in topic.questions.enumerated() {
@@ -157,15 +171,29 @@ struct BoardHarness {
                             : BoardProgramPrompt.shortenedTurnPrefix + turn.sentences.joined(separator: " "))
                 }
                 let started = Date()
-                let reply = isOffline
-                    ? Reply(text: offlinePrograms[index].program, output: 0, freshInput: 0, cachedInput: 0, cacheWrites: 0)
-                    : replayDirectory != nil
-                    ? Reply(text: try String(contentsOf: replayDirectory!.appendingPathComponent(topic.name)
-                                                .appendingPathComponent("turn\(turnNumber).program.js"), encoding: .utf8),
-                            output: 0, freshInput: 0, cachedInput: 0, cacheWrites: 0)
-                    : try await askClaude(apiKey: apiKey, brain: brain, system: BoardProgramPrompt.system,
-                                          history: historyForModel, note: note,
-                                          maximumTokens: BoardProgramPrompt.maximumTokens(turnNumber: turnNumber))
+                let reply: Reply
+                do {
+                    reply = isOffline
+                        ? Reply(text: offlinePrograms[index].program, output: 0, freshInput: 0, cachedInput: 0, cacheWrites: 0)
+                        : replayDirectory != nil
+                        ? Reply(text: try String(contentsOf: replayDirectory!.appendingPathComponent(topic.name)
+                                                    .appendingPathComponent("turn\(turnNumber).program.js"), encoding: .utf8),
+                                output: 0, freshInput: 0, cachedInput: 0, cacheWrites: 0)
+                        : brain.isArgon
+                        ? try await askArgon(token: vertexToken, project: vertexProject, system: BoardProgramPrompt.system,
+                                             history: historyForModel, note: note,
+                                             maximumTokens: BoardProgramPrompt.maximumTokens(turnNumber: turnNumber))
+                        : try await askClaude(apiKey: apiKey, brain: brain, system: BoardProgramPrompt.system,
+                                              history: historyForModel, note: note,
+                                              maximumTokens: BoardProgramPrompt.maximumTokens(turnNumber: turnNumber))
+                } catch {
+                    // A failed call ends this topic, not the run: the turns so
+                    // far are kept and the next topic is tried.
+                    print(String(format: "%@ %@ turn %d FAILED after %.1fs: %@", brain.name, topic.name, turnNumber,
+                                 Date().timeIntervalSince(started), String(error.localizedDescription.prefix(160))))
+                    break
+                }
+                if brain.isArgon, turnNumber % 3 == 0 { vertexToken = try mintVertexToken() }
                 let seconds = Date().timeIntervalSince(started)
 
                 // Exactly what LessonProgramPlayer does: cut into pieces as
@@ -175,12 +203,18 @@ struct BoardHarness {
                 var problems: [String] = []
                 var translatedProgram = ""
                 try await renderer.beginTurn(surface: surface)
+                partTitles.append(question.split(separator: " ").prefix(6).joined(separator: " "))
+                try await renderer.setParts(partTitles)
                 var engineErrors: [String] = []
                 for piece in pieces {
                     let translation = BoardProgramTranslator.translate(piece, on: board)
                     problems += translation.problems
                     translatedProgram += translation.code
                     engineErrors += try await renderer.run(piece: translation.code)
+                }
+                if let title = Self.lessonTitle(in: reply.text) {
+                    partTitles[partTitles.count - 1] = title
+                    try await renderer.setParts(partTitles)
                 }
                 let pngURL = topicDirectory.appendingPathComponent("turn\(turnNumber).png")
                 try await renderer.snapshot(to: pngURL)
@@ -226,8 +260,9 @@ struct BoardHarness {
         let sizeProbe = twentyElementBoard()
         let probeNote = BoardProgramPrompt.turnNote(transcript: "what happens when a server leaves the ring",
                                                     boardListing: sizeProbe.state.compactListing(), turnNumber: 4, studentName: nil)
-        let probeTokens = try await countTokens(apiKey: apiKey, model: brain.model, text: probeNote)
-        let systemTokens = try await countTokens(apiKey: apiKey, model: brain.model, text: BoardProgramPrompt.system)
+        let countingModel = brain.isArgon ? "claude-sonnet-5-5" : brain.model
+        let probeTokens = try await countTokens(apiKey: apiKey, model: countingModel, text: probeNote)
+        let systemTokens = try await countTokens(apiKey: apiKey, model: countingModel, text: BoardProgramPrompt.system)
         try probeNote.write(to: outputDirectory.appendingPathComponent("twenty_element_note.txt"), atomically: true, encoding: .utf8)
         print("turn note for a \(sizeProbe.state.elements.count)-element board with \(sizeProbe.state.connectors.count) arrows: \(probeNote.count) characters, \(probeTokens) tokens")
         print("board system prompt: \(BoardProgramPrompt.system.count) characters, \(systemTokens) tokens")
@@ -309,6 +344,98 @@ struct BoardHarness {
         var freshInput: Int
         var cachedInput: Int
         var cacheWrites: Int
+    }
+
+    static func lessonTitle(in program: String) -> String? {
+        guard let match = program.range(of: #"lessonTitle\(\s*"([^"]*)""#, options: .regularExpression) else { return nil }
+        let call = String(program[match])
+        guard let open = call.firstIndex(of: "\"") else { return nil }
+        return String(call[call.index(after: open)...].dropLast())
+    }
+
+    static func readVertexProject() throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = ["read", "com.maverickrajeev.clicky-local", "vertexProjectIdentifier"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        try process.run()
+        process.waitUntilExit()
+        let project = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !project.isEmpty else { throw NSError(domain: "board", code: 4, userInfo: [NSLocalizedDescriptionKey: "no Vertex project in the app's defaults"]) }
+        return project
+    }
+
+    /// As GeminiVisionProvider mints it: gcloud's application default credential.
+    static func mintVertexToken() throws -> String {
+        let candidates = ["/opt/homebrew/bin/gcloud", "/usr/local/bin/gcloud", "\(NSHomeDirectory())/google-cloud-sdk/bin/gcloud"]
+        guard let gcloud = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            throw NSError(domain: "board", code: 5, userInfo: [NSLocalizedDescriptionKey: "gcloud not found"])
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: gcloud)
+        process.arguments = ["auth", "application-default", "print-access-token"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        try process.run()
+        process.waitUntilExit()
+        let token = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard process.terminationStatus == 0, !token.isEmpty else {
+            throw NSError(domain: "board", code: 6, userInfo: [NSLocalizedDescriptionKey: "gcloud gave no access token"])
+        }
+        return token
+    }
+
+    /// The request GeminiVisionProvider makes on Vertex, without a
+    /// screenshot: history in user and model pairs, the system instruction,
+    /// thinking LOW, the app's token room.
+    static func askArgon(token: String, project: String, system: String, history: [(String, String)], note: String,
+                         maximumTokens: Int) async throws -> Reply {
+        var contents: [[String: Any]] = []
+        for exchange in history {
+            contents.append(["role": "user", "parts": [["text": exchange.0]]])
+            contents.append(["role": "model", "parts": [["text": exchange.1]]])
+        }
+        contents.append(["role": "user", "parts": [["text": note]]])
+        let body: [String: Any] = [
+            "contents": contents,
+            "systemInstruction": ["parts": [["text": system]]],
+            "generationConfig": ["maxOutputTokens": maximumTokens, "thinkingConfig": ["thinkingLevel": "LOW"]]
+        ]
+        var request = URLRequest(url: URL(string: "https://aiplatform.googleapis.com/v1/projects/\(project)/locations/global/publishers/google/models/gemini-4-argon:generateContent")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 240
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        // Vertex answers a burst with 429 now and then: waited out, as a
+        // student's next question would be.
+        var data = Data()
+        var status = 0
+        for attempt in 0..<2 {
+            let (responseData, response) = try await URLSession.shared.data(for: request)
+            data = responseData
+            status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 429 else { break }
+            print("    Vertex said 429, waiting \(20 * (attempt + 1))s")
+            try await Task.sleep(nanoseconds: UInt64(20 * (attempt + 1)) * 1_000_000_000)
+        }
+        guard status == 200, let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NSError(domain: "board", code: status, userInfo: [NSLocalizedDescriptionKey:
+                "HTTP \(status): \(String(data: data, encoding: .utf8)?.prefix(400) ?? "")"])
+        }
+        let candidate = (object["candidates"] as? [[String: Any]])?.first
+        let parts = (candidate?["content"] as? [String: Any])?["parts"] as? [[String: Any]] ?? []
+        let text = parts.filter { $0["thought"] as? Bool != true }.compactMap { $0["text"] as? String }.joined()
+        let usage = object["usageMetadata"] as? [String: Any] ?? [:]
+        let prompt = usage["promptTokenCount"] as? Int ?? 0
+        let cached = usage["cachedContentTokenCount"] as? Int ?? 0
+        let output = (usage["candidatesTokenCount"] as? Int ?? 0) + (usage["thoughtsTokenCount"] as? Int ?? 0)
+        return Reply(text: text, output: output, freshInput: max(0, prompt - cached), cachedInput: cached, cacheWrites: 0)
     }
 
     static func readAnthropicKey() throws -> String {
@@ -439,6 +566,11 @@ final class BoardRenderer: NSObject, WKNavigationDelegate {
     }
 
     /// As LessonProgramPlayer.begin does before every answer, then the board's own turn start.
+    func setParts(_ parts: [String]) async throws {
+        let data = try JSONSerialization.data(withJSONObject: ["parts": parts, "current": parts.count - 1])
+        _ = try await evaluate("BuddyBoard.setParts(\(String(data: data, encoding: .utf8) ?? "{}"));")
+    }
+
     func beginTurn(surface: BoardSurface) async throws {
         try await setUpCanvas()
         _ = try await evaluate("BuddyBoard.beginTurn();")

@@ -35,28 +35,34 @@ The sorter's kinds, `QuestionKindExamples.json` and `QuestionSorterPrompt.txt` a
 swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
     leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
     leanring-buddy/BoardProgramTranslator.swift leanring-buddy/BoardProgramPrompt.swift leanring-buddy/ProgramStream.swift
-/tmp/board_harness build/board-runs sonnet     # or opus, or offline for a free drawing check
+/tmp/board_harness build/board-runs sonnet     # or opus, argon, or offline for a free drawing check
+/tmp/board_harness build/board-runs replay build/board-runs/sonnet   # earlier answers, current layout, no calls
+python3 -I scripts/board/overlap_check.py build/board-runs/sonnet
 ```
 
-Three scripted five-turn conversations (consistent hashing, binary search, the TCP handshake) against the real model with the real board prompt and turn notes. Each answer is cut into pieces as `ProgramStream` cuts the stream, each piece's board calls are applied by `BoardProgramTranslator` and `TeachingBoard`, and the pieces run in the app's own `DrawingEngine/` page in a web view inside a window placed outside every display. Each turn is saved as a PNG, with the program, the translated program, the turn note and the board state beside it, and `summary.json` with token counts and cost. The Anthropic key is read from the Keychain by the script itself and is never printed.
+Three scripted five-turn conversations (consistent hashing, binary search, the TCP handshake) against the real model with the real board prompt and turn notes. Each answer is cut into pieces as `ProgramStream` cuts the stream, each piece's board calls are applied by `BoardProgramTranslator` and `TeachingBoard`, and the pieces run in the app's own `DrawingEngine/` page in a web view inside a window placed outside every display. Each turn is saved as a PNG, with the program, the translated program, the turn note and the board state beside it, and `summary.json` with token counts and cost. The Anthropic key is read from the Keychain by the script itself, and Argon uses gcloud's access token and the app's own `vertexProjectIdentifier` default; neither is ever printed. Nothing is drawn on the screen and nothing captures it.
 
-Nothing is drawn on the screen and nothing captures it: the screen behind the board in the pictures is a placeholder.
+`replay` redraws the programs of an earlier run through the current layout with no model call. The model never sees a coordinate, so a replay is exactly what the same answers look like with the new layout.
 
-`replay <run_dir>` redraws the programs of an earlier run through the current layout with no model call. The model never sees a coordinate, so a replay is exactly what the same answers would look like with the new layout.
+`overlap_check.py` reads every saved board and lists every arrow label or stub tag that touches an element, a group's title or border, another label or another tag, and every two elements that touch. It should print 0.
 
 ### Results, November 2026
 
-Sonnet 5.5 without thinking, the brain a teach question is routed to under the Claude setting (Argon under Auto; the harness reads only the Anthropic key), and Opus 5.5 at low effort for comparison:
+The board's system prompt is 2,324 tokens; the turn note for a 20-element board with 7 arrows, question and length rule included, is 1,187 characters and 574 tokens (both counted with the API's tokenizer).
 
-| | Turn 1 | Turn 2 | Turn 3 | Turn 4 | Turn 5 | Mean a turn | A 5-turn session |
-|---|---|---|---|---|---|---|---|
-| Sonnet, output tokens (mean of 3 topics) | 1,011 | 562 | 613 | 641 | 618 | 689 | $0.056 |
-| Opus, output tokens (mean of 3 topics), one run earlier, before the prompt's sentence on messages back and forth and the history change | 973 | 790 | 857 | 850 | 761 | 846 | $0.137 |
+Output tokens per turn, mean of the three topics:
 
-Across all 30 turns, no board call failed to parse or apply, and the engine reported no error. The model used `update`, `append`, `remove` and `highlight` on what was already drawn rather than redrawing it.
+| Brain | Turn 1 | Turn 2 | Turn 3 | Turn 4 | Turn 5 | Mean a turn | A 5-turn session | Seconds a turn |
+|---|---|---|---|---|---|---|---|---|
+| Sonnet 5.5, thinking off | 895 | 471 | 644 | 519 | 544 | 614 | $0.051 | 3.6 to 8.8, median 4.8 |
+| Argon (gemini-4-argon, thinking LOW, Vertex) | 808 | 379 | 571 | 471 | 377 | 521 | $0.051 | 6.9 to 59.1, median 12.6 |
 
-Caching: the board's system prompt (2,159 tokens) is written once and read by every later turn and topic. Shortening one old turn per turn rewrote about 2,000 tokens of cached history at every turn from the fifth; shortening in fours (`BoardProgramPrompt.keepsWholeProgram`) brought turn 5's cache write down to 600 to 700 tokens.
+Seconds are for the whole answer, not streamed; in the app the first sentence is spoken as soon as it closes.
 
-The turn note for a 20-element board with 7 arrows, question and length rule included, is 1,187 characters and 574 tokens.
+Across every turn of both brains no board call failed to parse or apply and the engine reported no error. Both used `update`, `append`, `remove` and `highlight` on what was already drawn rather than redrawing it.
 
-Known weak spot, visible in the TCP pictures: a lesson of many messages between two parties grows past 20 elements by the third turn, the view has to scroll, and long arrows between far-apart boxes cross other things and leave their labels away from the middle.
+Argon, where Auto sends teach questions, drew every turn without a failed call, but slowly and unevenly: a first turn of 14 to 48 seconds and later turns up to 59, against Sonnet's 4 to 9 for the whole answer. An earlier Argon run stopped at consistent hashing's fifth turn on HTTP 429 (resource exhausted) and a second crawled through 429 waits. Its boards are looser: in binary search it drew no arrows at all and scattered the parts, where Sonnet walked a concrete search through the drawing. So board turns go to Sonnet first whenever there is an Anthropic key (`CompanionManager.answerTeachingBoardTurn`), with Argon as the fallback; under the Gemini or Claude settings the student's choice holds.
+
+Caching on Sonnet: the system prompt is written once (2,318 tokens) and read by every later turn and topic. Shortening one old turn per turn had rewritten about 2,000 tokens of cached history at every turn from the fifth; shortening in fours (`BoardProgramPrompt.keepsWholeProgram`) keeps turn 5's write at 500 to 600 tokens.
+
+Layout, checked by `overlap_check.py` on the Sonnet answers drawn with the final layout: 0 overlaps in 15 boards. The same answers drawn with the layout before the review had labels on group titles, across group borders and on each other (8 overlaps); the first stub version piled tags on each other around a node with many links (48), which is what led to fanning tags along each side and, when an element is boxed in, badges on its corners.
