@@ -149,6 +149,33 @@ final class DrawingOverlay: NSObject {
         callEngine("finishAll", argumentsJSON: "")
     }
 
+    /// Teaching board hook: while the board is open the whole overlay takes
+    /// the mouse, so a click lands on the board and never on an app the
+    /// student cannot see under the paper. Back to click-through on close.
+    var boardTakesTheMouse = false {
+        didSet { updateMousePassThrough() }
+    }
+
+    /// Teaching board hook: the board's Leave board button was clicked.
+    var onLeaveBoardRequested: (() -> Void)?
+
+    fileprivate func leaveBoardWasClicked() {
+        onLeaveBoardRequested?()
+    }
+
+    /// Teaching board hook: calls into DrawingEngine/draw-board.js
+    /// (BuddyBoard.open, close, beginTurn, apply).
+    func callBoard(_ function: String, argumentsJSON: String) {
+        let call: () -> Void = { [weak self] in
+            self?.webView?.evaluateJavaScript("BuddyBoard.\(function)(\(argumentsJSON));") { _, error in
+                if let error {
+                    TutorDebugLog.write("⚠️ board \(function) failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        if pageIsReady { call() } else { callsWaitingForPage.append(call) }
+    }
+
     func clearAll() {
         callEngine("clearAll", argumentsJSON: "")
     }
@@ -231,7 +258,7 @@ final class DrawingOverlay: NSObject {
             }
             return text
         }
-        let scripts = ["draw-vendor-rough", "draw-vendor-freehand", "draw-engine"]
+        let scripts = ["draw-vendor-rough", "draw-vendor-freehand", "draw-engine", "draw-board"]
             .map { "<script>\n\(bundled($0, "js"))\n</script>" }
             .joined(separator: "\n")
         return bundled("draw-page", "html").replacingOccurrences(of: "<!--SCRIPTS-->", with: scripts)
@@ -299,7 +326,7 @@ final class DrawingOverlay: NSObject {
         // While a card is being dragged the pointer can outrun it; keep the
         // mouse until the button is let go.
         let isDragging = NSEvent.pressedMouseButtons & 1 != 0 && !panel.ignoresMouseEvents
-        let shouldPassThrough = !(isOverCard || isDragging)
+        let shouldPassThrough = !(isOverCard || isDragging || boardTakesTheMouse)
         if panel.ignoresMouseEvents != shouldPassThrough {
             panel.ignoresMouseEvents = shouldPassThrough
         }
@@ -332,11 +359,17 @@ extension DrawingOverlay: WKNavigationDelegate {
 }
 
 /// The page reports where its cards are, so the overlay knows where to take
-/// the mouse. Nothing else it posts is acted on.
+/// the mouse, and that the board's Leave board button was clicked. Nothing
+/// else it posts is acted on.
 private final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
     weak var owner: DrawingOverlay?
     init(owner: DrawingOverlay) { self.owner = owner }
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        // Teaching board hook: the board's Leave board button.
+        if let body = message.body as? [String: Any], body["type"] as? String == "leaveBoard" {
+            MainActor.assumeIsolated { owner?.leaveBoardWasClicked() }
+            return
+        }
         guard let body = message.body as? [String: Any],
               body["type"] as? String == "cards",
               let rects = body["rects"] as? [[Double]] else { return }

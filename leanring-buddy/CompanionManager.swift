@@ -1556,6 +1556,83 @@ final class CompanionManager: ObservableObject {
         return player
     }()
 
+    // MARK: Teaching board hook (TeachingBoardSession.swift)
+
+    /// "Teach me X from scratch": the lesson on a full-screen board, over
+    /// several turns. Shares the overlay, voice and player with every answer.
+    private lazy var teachingBoard: TeachingBoardSession = {
+        var hooks = TeachingBoardSession.Hooks(answer: { [weak self] systemPrompt, history, turnNote, maximumTokens, progress, onTextChunk in
+            guard let self else { throw CancellationError() }
+            return try await self.answerTeachingBoardTurn(
+                systemPrompt: systemPrompt, history: history, turnNote: turnNote,
+                maximumTokens: maximumTokens, progress: progress, onTextChunk: onTextChunk)
+        })
+        hooks.setVoiceState = { [weak self] state in self?.voiceState = state }
+        hooks.clearScreenBeforeOpening = { [weak self] in self?.clearAnnotations() }
+        hooks.fileLesson = { [weak self] question, lessonTitle, spokenAnswer in
+            self?.fileLessonInMemory(question: question, lessonTitle: lessonTitle, spokenAnswer: spokenAnswer, questionKind: .teach)
+        }
+        hooks.rememberExchange = { [weak self] question, answer in self?.rememberExchange(question: question, answer: answer) }
+        hooks.questionNeedsNoAnswer = { [weak self] in self?.questionAwaitingAnswer = nil }
+        hooks.reportFailure = { [weak self] error in await self?.speakLocalErrorFallback(for: error) }
+        // The same recall as a normal question, inside the same one-second
+        // wait, so the board builds on what the student already knows.
+        hooks.studyNotes = { [weak self] question in
+            guard let self, self.learningMemory.isEnabled else { return [] }
+            let startedAt = Date()
+            let recallTask = self.learningMemory.startRecall(
+                question: question, windowTitle: nil, questionVector: self.questionSorter.sentenceVector(for: question))
+            let recollections = await self.settleRecollections(
+                recallTask: recallTask, question: question, screenContext: "",
+                deadline: startedAt.addingTimeInterval(Self.memoryChooserFloorSeconds))
+            self.controlBar.model.buildsOn = recollections.map(\.concept.name)
+            return [LearningMemory.promptNote(for: recollections)]
+        }
+        hooks.turnFinished = { [weak self] in
+            self?.questionAwaitingAnswer = nil
+            self?.scheduleTransientHideIfNeeded()
+        }
+        return TeachingBoardSession(overlay: drawingOverlay, player: lessonPlayer, bar: controlBar.model, hooks: hooks)
+    }()
+
+    /// A board turn goes to the brain a teach question would, with no
+    /// screenshot: the board is the whole context. A brain that fails before
+    /// its first word hands over to the next, as in the normal flow.
+    private func answerTeachingBoardTurn(
+        systemPrompt: String, history: [(userPlaceholder: String, assistantResponse: String)], turnNote: String,
+        maximumTokens: Int, progress: BoardTurnProgress, onTextChunk: @escaping @MainActor @Sendable (String) -> Void
+    ) async throws -> String {
+        var routing = routeQuestion(probabilities: [.teach: 1.0])
+        // Under Auto a teach question goes to Argon, but a board turn goes to
+        // Sonnet first whenever there is an Anthropic key: on the board's
+        // long system prompt Argon took 7 to 25 seconds a turn and answered
+        // 429 mid-session (scripts/board/README.md), and a board turn is a
+        // student waiting at the board in silence. Argon stays the fallback.
+        if brainKind == .auto, canUseClaude {
+            routing.removeAll { $0 == .sonnet }
+            routing.insert(.sonnet, at: 0)
+        }
+        var attempt = 0
+        while true {
+            if attempt < routing.count { activate(routing[attempt]) }
+            claudeBrain.maximumResponseTokens = maximumTokens
+            hostedBrain.maximumResponseTokens = maximumTokens
+            localBrain.maximumResponseTokens = maximumTokens
+            do {
+                let (text, duration) = try await tutorBrain.analyzeImageStreaming(
+                    images: [], systemPrompt: systemPrompt, conversationHistory: history,
+                    userPrompt: turnNote, onTextChunk: onTextChunk)
+                TutorDebugLog.write("🧑‍🏫 board turn answered in \(String(format: "%.1f", duration))s by \(lastAnsweringBrainName)")
+                return text
+            } catch {
+                guard !Task.isCancelled, !(error is CancellationError), !progress.hasReceivedText,
+                      attempt + 1 < routing.count else { throw error }
+                modelRouter.bench(routing[attempt])
+                attempt += 1
+            }
+        }
+    }
+
     /// Whether this answer is a drawing program or plain prose. Decided from
     /// its first characters: a model that ignores the format still gets
     /// spoken, through the older tag pipeline.
@@ -1626,6 +1703,14 @@ final class CompanionManager: ObservableObject {
         questionBeingAnswered = transcript
         if howToTakeover == nil { SpendingMeter.shared.countQuestion(isGuideStep: isGuideContinuation) }
         logStage("question in")
+
+        // MARK: Teaching board hook (TeachingBoardSession.swift)
+        // A question asking to be taught from scratch opens the board, and
+        // while it is open every question is answered there. Otherwise this
+        // returns false and nothing below changes.
+        if !isGuideContinuation, howToTakeover == nil, teachingBoard.takeQuestion(transcript) {
+            return
+        }
 
         // Asked before? A saved how-to for this app is replayed with no
         // model at all. Decided before the sorter and memory calls start, so
@@ -2738,6 +2823,7 @@ final class CompanionManager: ObservableObject {
     /// walkthrough. Closing the notch first and clearing on a second press
     /// read as Esc not working.
     private func handleEscape() {
+        teachingBoard.escapeWasPressed()
         stopGuide(reason: "Esc")
         // Esc while the keys are held, or while the last words are still
         // being transcribed, takes the question back: nothing is sent.

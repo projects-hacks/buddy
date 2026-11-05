@@ -1229,4 +1229,14 @@
     clearAll, clearScreenMarks, scrollScreenMarks, resetTurn, placeAnchors,
     lineCount: () => state.lines.length
   };
+
+  // Hook for the teaching board (draw-board.js): the same pen, paper and
+  // sentence pacing, so the board's strokes look and are timed exactly like
+  // a card's.
+  window.BuddyEngine.boardKit = {
+    makeMark, writeText, roughShape, roughOptions, inkStroke, arrowHead, fadeReveal, strokeReveal,
+    svgElement, tone, hexWithAlpha, TONES, HAND_FONT,
+    state: () => state,
+    reportError: message => state.errors.push(String(message))
+  };
 })();
