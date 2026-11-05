@@ -344,7 +344,9 @@ final class MarkCoordinator: ObservableObject {
         }
 
         func drawMarksReached(upToCharacterOffset offset: Int) {
-            let spokenOverall = charactersBeforeThisSegment + offset
+            // A sentence that is only tags asks for everything with Int.max;
+            // added to what was already spoken, that would overflow and trap.
+            let spokenOverall = charactersBeforeThisSegment + min(offset, segment.spokenText.count)
             charactersSpokenInAnswer = max(charactersSpokenInAnswer, spokenOverall)
             let fraction = Double(charactersSpokenInAnswer) / Double(max(1, totalCharactersInAnswer))
             // Monotonic: a diagram must never un-draw itself mid-sentence.

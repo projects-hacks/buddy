@@ -657,3 +657,21 @@ struct DrawingEngineTests {
         #expect(result.newLineTexts == ["for a while (it is fine) the total is 6."])
     }
 }
+
+@MainActor
+struct MarkPacingTests {
+    /// A sentence of tags alone asks for all its marks with Int.max. After
+    /// words were already spoken in the answer, adding the two used to trap.
+    @Test func aSentenceOfOnlyTagsAfterSpokenWordsDoesNotOverflow() {
+        let markCoordinator = MarkCoordinator()
+        let spokenSentence = markCoordinator.marksFollowingSpeech(
+            of: ParsedTeacherResponse(spokenText: "the loop starts at zero.", directives: []))
+        spokenSentence.reached(10)
+        spokenSentence.finished()
+        let sentenceOfOnlyTags = markCoordinator.marksFollowingSpeech(
+            of: ParsedTeacherResponse(spokenText: "", directives: []))
+        sentenceOfOnlyTags.reached(Int.max)
+        sentenceOfOnlyTags.finished()
+        #expect(markCoordinator.boardRevealFraction <= 1.0)
+    }
+}
