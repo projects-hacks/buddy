@@ -89,6 +89,8 @@ final class TalkOverListener {
     private var sessionGeneration = 0
 
     private var transcript = TalkOverTranscript()
+    /// The cut-in's words last shown, so the notch is told only of changes.
+    private var cutInWordsShown = ""
     /// Asks the transcript a few times a second whether the student paused.
     private var pauseClock: Task<Void, Never>?
     /// Loudness of recent buffers, newest last, for the loudness gate.
@@ -165,6 +167,7 @@ final class TalkOverListener {
         transcriptionSession = nil
         isListening = false
         transcript = TalkOverTranscript()
+        showCutInWords("")
         recentLevels = []
     }
 
@@ -242,10 +245,19 @@ final class TalkOverListener {
     /// The clock heard words and Buddy's sentences are both timed on.
     static var now: Double { Date().timeIntervalSinceReferenceDate }
 
+    /// The student's words while Buddy is paused for them, and nothing once
+    /// the pause ends or the question is sent.
+    private func showCutInWords(_ words: String) {
+        guard words != cutInWordsShown else { return }
+        cutInWordsShown = words
+        onWordsHeardWhileCuttingIn(words)
+    }
+
     private func heard(_ fullText: String) {
         let actions = transcript.heard(fullText, at: Self.now, recentlySpoken: recentlySpokenSentences(),
                                        wasLoudEnough: wasLoudEnoughRecently)
         perform(actions)
+        showCutInWords(transcript.wordsOfTheCutIn(recentlySpoken: recentlySpokenSentences()))
     }
 
     private func startPauseClock(generation: Int) {
@@ -257,6 +269,7 @@ final class TalkOverListener {
                 let actions = self.transcript.timePassed(to: Self.now, recentlySpoken: self.recentlySpokenSentences(),
                                                          wasLoudEnough: self.wasLoudEnoughRecently)
                 self.perform(actions)
+                self.showCutInWords(self.transcript.wordsOfTheCutIn(recentlySpoken: self.recentlySpokenSentences()))
             }
         }
     }

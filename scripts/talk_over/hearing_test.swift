@@ -235,5 +235,16 @@ check("wait alone: holds, and only after it was left alone for 1.5s",
       waitActions.first { $0.action == .hold }.map { $0.at >= 5.45 + TalkOverTranscript.holdConfirmSeconds } ?? false)
 check("wait alone: no question", question(in: waitActions) == nil)
 
+// 8. The notch's live line: the student's own words while Buddy is paused
+// for them, Buddy's words left out, and nothing once the question is sent.
+var shown = TalkOverTranscript()
+let spokenThen = [SpokenSentence(text: sentenceSaid, startedAt: 0, endedAt: nil)]
+_ = shown.heard("the guests sit in Wait.", at: 5.3, recentlySpoken: spokenThen, wasLoudEnough: true)
+check("notch line: the cue alone at first", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Wait.", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
+_ = shown.heard("the guests sit in Wait. Why does high", at: 6.1, recentlySpoken: spokenThen, wasLoudEnough: true)
+check("notch line: grows as words come", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Wait. Why does high", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
+_ = shown.timePassed(to: 9, recentlySpoken: spokenThen, wasLoudEnough: true)
+check("notch line: empty once the question is sent", shown.wordsOfTheCutIn(recentlySpoken: spokenThen).isEmpty)
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

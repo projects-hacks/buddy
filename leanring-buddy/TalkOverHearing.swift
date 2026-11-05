@@ -411,6 +411,19 @@ struct TalkOverTranscript {
         }
     }
 
+    /// The student's own words while Buddy is paused for them, Buddy's
+    /// words taken out and from the cue on, for the notch to show live.
+    /// Empty when Buddy is not paused for a cut-in.
+    func wordsOfTheCutIn(recentlySpoken: [SpokenSentence]) -> String {
+        guard isYielding else { return "" }
+        let studentIndices = studentTokenIndices(recentlySpoken: recentlySpoken)
+        var raw = studentIndices.map { tokens[$0].raw }
+        if let cueStart = TalkOverHearing.yieldCueStart(inStudentWords: studentIndices.map { tokens[$0].word }) {
+            raw = Array(raw[cueStart...])
+        }
+        return raw.joined(separator: " ")
+    }
+
     /// The live tokens that are the student's: not Buddy's, not filler.
     private func studentTokenIndices(recentlySpoken: [SpokenSentence]) -> [Int] {
         guard firstLiveToken < tokens.count else { return [] }
