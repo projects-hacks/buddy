@@ -177,10 +177,11 @@ final class ModelRouter {
         return min(30, max(8, 2 * usual))
     }
 
-    /// Takes a brain out of the running for a while after it failed.
-    func bench(_ brain: RoutedBrain) {
+    /// Takes a brain out of the running for a while after it failed, or
+    /// said nothing within its patience window.
+    func bench(_ brain: RoutedBrain, because reason: String) {
         benchedUntil[brain] = Date().addingTimeInterval(Self.benchSeconds)
-        TutorDebugLog.write("🪑 router: \(brain.rawValue) benched for \(Int(Self.benchSeconds))s")
+        TutorDebugLog.write("🪑 router: \(brain.rawValue) benched for \(Int(Self.benchSeconds))s, \(reason)")
     }
 
     /// Without the table: the fast brain for small questions, the strong one
