@@ -397,7 +397,7 @@ extension CompanionManager {
                     (userPlaceholder: entry.userTranscript, assistantResponse: entry.assistantResponse)
                 }
 
-                streamedCharactersAlreadyQueued = 0
+                proseSpeech.resetStreamPosition()
 
                 // The ceiling is lifted only when the user asks for depth.
                 // Keeping the default tight is what stops the tutor
@@ -718,7 +718,7 @@ extension CompanionManager {
 
                 // Flush whatever trailed the final sentence terminator, which
                 // the streaming path deliberately held back.
-                enqueueRemainder(ofStreamedText: fullResponseText)
+                proseSpeech.enqueueRemainder(ofStreamedText: fullResponseText)
                 if currentGuideStep != nil {
                     stopGuide(reason: "the answer came back as plain prose")
                 }
@@ -778,7 +778,7 @@ extension CompanionManager {
             if isStillTheCurrentQuestion() {
                 // Hold .responding while speech drains, so the overlay does not
                 // drop back to idle while the tutor is still talking.
-                while speechConsumerTask != nil || isAnyVoicePlaying {
+                while proseSpeech.isSpeaking || isAnyVoicePlaying {
                     try? await Task.sleep(nanoseconds: 150_000_000)
                     if Task.isCancelled { break }
                 }
@@ -819,7 +819,7 @@ extension CompanionManager {
         case .program:
             lessonPlayer.feed(accumulatedText: accumulatedText)
         case .prose:
-            enqueueCompletedSentences(fromStreamedText: accumulatedText)
+            proseSpeech.enqueueCompletedSentences(fromStreamedText: accumulatedText)
         case .undecided:
             break
         }
@@ -896,7 +896,7 @@ extension CompanionManager {
                 self.markFollower.stop()
             }
             await self.lessonPlayer.replay(recording, on: screenForReplay, includeScreenMarks: includeScreenMarks)
-            while self.speechConsumerTask != nil || self.isAnyVoicePlaying {
+            while self.proseSpeech.isSpeaking || self.isAnyVoicePlaying {
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 if Task.isCancelled { break }
             }
@@ -1056,7 +1056,7 @@ extension CompanionManager {
         // Cut off partway: what was already said finishes, then one sentence
         // says why it stopped, instead of a probe and a guess at the cause.
         if answerHadStarted, Self.isLostConnection(error) {
-            while speechConsumerTask != nil || isAnyVoicePlaying {
+            while proseSpeech.isSpeaking || isAnyVoicePlaying {
                 try? await Task.sleep(nanoseconds: 150_000_000)
                 guard !Task.isCancelled else { return }
             }

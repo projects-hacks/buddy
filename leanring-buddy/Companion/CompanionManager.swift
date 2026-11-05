@@ -83,34 +83,10 @@ final class CompanionManager: ObservableObject {
     /// How far up the hint ladder they are on each practice problem.
     let practiceHintLadder = PracticeHintLadder()
 
-    lazy var speechClient = LocalSpeechSynthesisClient()
-
-    /// Neural voice, used when its helper process comes up.
-    ///
-    /// The machine has no premium or enhanced system voice installed, so every
-    /// AVSpeechSynthesizer option is the compact tier and sounds plainly
-    /// synthetic. This is the difference between a voice you can listen to for
-    /// an hour of study and one you cannot.
-    /// Hosted voice. Preferred when a key is present: measured 0.16s to first
-    /// byte against Kokoro's 0.77s render, and it is a far better voice than
-    /// any compact system one.
-    lazy var deepgramClient = DeepgramSpeechClient()
-
-    /// Which voice is in use this session, decided once at startup.
-    enum VoiceEngine { case deepgram, kokoro, system }
-    var voiceEngine: VoiceEngine = .system
-    /// The prose path's Deepgram voice, benched for five minutes after a
-    /// failure and then tried again, instead of the system voice for good.
-    var deepgramProseVoiceBenchedUntil = Date.distantPast
+    /// The prose path's sentence queue and the three voice engines
+    /// (ProseSpeechQueue.swift).
+    let proseSpeech = ProseSpeechQueue()
     private var deepgramKeyRefusedObserver: NSObjectProtocol?
-
-    lazy var kokoroClient = KokoroSpeechClient(
-        helperScriptPath: Self.kokoroHelperScriptPath
-    )
-
-    /// Whether the neural voice is available this session. False falls back to
-    /// the system voice, which is worse but always works.
-    var isUsingNeuralVoice = false
 
     /// Draws the board on a fast model while the slow one explains.
     /// Only the older prose path uses it, and only on Vertex; with no
@@ -190,6 +166,7 @@ final class CompanionManager: ObservableObject {
     func start() {
         connectBrainLineup()
         connectPermissionMonitor()
+        connectProseSpeech()
         refreshAllPermissions()
         TutorDebugLog.write("🔑 at launch, accessibility: \(hasAccessibilityPermission), screen: \(hasScreenRecordingPermission), mic: \(hasMicrophonePermission), screenContent: \(hasScreenContentPermission)")
         permissionMonitor.startPolling()
@@ -273,20 +250,7 @@ final class CompanionManager: ObservableObject {
         // Brought up alongside the model, because its first generation would
         // otherwise pay the model load inside the user's first answer.
         Task {
-            // Ordered by quality. Deepgram first because it is both the best
-            // voice and the fastest to first audio; Kokoro next because it
-            // needs no network; the system voice last because every installed
-            // one here is the compact tier and sounds it.
-            if deepgramClient.isConfigured {
-                voiceEngine = .deepgram
-                TutorDebugLog.write("🔊 voice: Deepgram \(deepgramClient.voiceName)")
-            } else if await kokoroClient.start() {
-                voiceEngine = .kokoro
-                isUsingNeuralVoice = true
-            } else {
-                voiceEngine = .system
-                TutorDebugLog.write("🔈 no neural voice available, using the system voice")
-            }
+            await proseSpeech.chooseVoice()
         }
 
         // If all permissions are still granted, show the cursor overlay
@@ -351,19 +315,6 @@ final class CompanionManager: ObservableObject {
     var questionAwaitingAnswer: (text: String, askedAt: Date)?
 
     // MARK: - Tutor Response Pipeline
-
-    /// How much of the streamed response has already been handed to speech.
-    var streamedCharactersAlreadyQueued = 0
-
-    /// Complete sentences waiting to be spoken, in order.
-    var pendingSpeechSegments: [ParsedTeacherResponse] = []
-
-    /// Consumer draining `pendingSpeechSegments`, nil when nothing is speaking.
-    var speechConsumerTask: Task<Void, Never>?
-    /// Which consumer the handle above belongs to. A cancelled consumer can
-    /// still be unwinding when the next one starts, and when it ends it must
-    /// clear only its own handle, never the new consumer's.
-    var currentSpeechConsumerIdentifier: UUID?
 
     /// The display the current answer is marking up.
     var displayFrameForCurrentAnswer: CGRect = .zero

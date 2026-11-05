@@ -44,8 +44,7 @@ extension CompanionManager {
     private func systemDidWake() {
         TutorDebugLog.write("☀️ the Mac woke: audio engines and key taps rebuilt")
         narrationVoice.prepareAfterWake()
-        deepgramClient.prepareAfterWake()
-        deepgramProseVoiceBenchedUntil = .distantPast
+        proseSpeech.prepareAfterWake()
         globalPushToTalkShortcutMonitor.stop()
         if hasAccessibilityPermission { globalPushToTalkShortcutMonitor.start() }
         brains.probeAfterWake()

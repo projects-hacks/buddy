@@ -582,7 +582,7 @@ extension CompanionManager {
 
         transientHideTask?.cancel()
         transientHideTask = Task {
-            while isAnyVoicePlaying || speechConsumerTask != nil {
+            while isAnyVoicePlaying || proseSpeech.isSpeaking {
                 try? await Task.sleep(nanoseconds: 200_000_000)
                 guard !Task.isCancelled else { return }
             }

@@ -100,7 +100,7 @@ extension CompanionManager {
 
         // As after a model's answer: the status holds until the voice ends,
         // then the watcher waits for the student.
-        while speechConsumerTask != nil || isAnyVoicePlaying {
+        while proseSpeech.isSpeaking || isAnyVoicePlaying {
             try? await Task.sleep(nanoseconds: 150_000_000)
             if Task.isCancelled { break }
         }
