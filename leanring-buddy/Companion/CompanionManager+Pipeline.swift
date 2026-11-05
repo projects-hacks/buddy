@@ -164,8 +164,8 @@ extension CompanionManager {
         var routing = routeQuestion(probabilities: [.teach: 1.0])
         // Under Auto a teach question goes to Argon, but a board turn goes to
         // Sonnet first whenever there is an Anthropic key: on the board's
-        // long system prompt Argon took 7 to 25 seconds a turn and answered
-        // 429 mid-session (scripts/board/README.md), and a board turn is a
+        // long system prompt Argon took 6.9 to 59.1 seconds a turn (median 12.6)
+        // and answered 429 mid-session (scripts/board/README.md), and a board turn is a
         // student waiting at the board in silence. Argon stays the fallback.
         if brainKind == .auto, canUseClaude {
             routing.removeAll { $0 == .sonnet }

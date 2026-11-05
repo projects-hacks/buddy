@@ -97,7 +97,7 @@ Each question goes to Sonnet, Opus or Gemini Argon, whichever measured best for 
 
 <p align="center"><img src="docs/images/install-steps.png" alt="The three install steps: drag Buddy onto Applications; open Buddy and click Done when macOS says it cannot check it; then in System Settings, Privacy and Security, click Open Anyway" width="640"></p>
 
-The download window shows these same steps. macOS asks for **Open Anyway** once, because Buddy is not notarized. Setup then asks for your name and keys and walks through three permissions; after that Buddy updates itself.
+The download window shows these same steps. macOS asks for **Open Anyway** once, because Buddy is not notarized. Setup then asks for your name and keys and walks through the permissions it needs; after that Buddy updates itself.
 
 <p>
   <a href="https://console.anthropic.com/settings/keys"><img alt="Anthropic key: recommended" src="https://img.shields.io/badge/Anthropic-recommended-111111"></a>

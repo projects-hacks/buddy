@@ -231,7 +231,7 @@ struct SetupView: View {
 
             Spacer(minLength: 16)
             SetupFooter {
-                Text("About 2 minutes: your name, a key, three permissions.")
+                Text("About 2 minutes: your name, a key, a few permissions.")
                     .font(.system(size: 12))
                     .foregroundStyle(DS.Colors.textTertiary)
             } trailing: {
@@ -296,7 +296,7 @@ struct SetupView: View {
 
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Three permissions")
+            Text("Permissions")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .accessibilityAddTraits(.isHeader)

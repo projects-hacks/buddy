@@ -21,6 +21,7 @@ cask "buddy" do
     "~/Library/Application Support/Buddy",
     "~/Library/Logs/Buddy.log",
     "~/Library/Logs/Buddy.previous.log",
+    "~/Library/Logs/Buddy.rotated.log",
     "~/Library/Preferences/com.maverickrajeev.clicky-local.plist",
   ]
 
