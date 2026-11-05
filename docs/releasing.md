@@ -25,8 +25,9 @@ flowchart TD
 
 **Release notes.** `docs/release-notes.md` is the release page people read before deciding to download, so it is laid out to be scanned, not read:
 
-- A Download button at the top, then the release in one bold line and one plain sentence under it.
-- One section per headline change, led by something visual: a before and after table, a screenshot or a short GIF. Numbers in them come from real runs, never estimates.
+- A banner on top, in a light and a dark version shown with `<picture>`, drawn by `scripts/release-art/make_release_art.py` (set the version, headline and the real before and after in its `BANNER` first). Then the Download button and a row of badges.
+- One section per headline change, its heading led by an icon from `docs/images/icons/` (drawn by the same script), and the section led by something visual: a before and after table, a screenshot or a short GIF. Numbers in them come from real runs, never estimates.
+- GitHub's callouts (`> [!TIP]`, `> [!NOTE]`) for the one thing a reader must not miss in a section, at most one per section.
 - Everything smaller in one table, `Area | What changed`, one line each.
 - An Updating table (1.2 or later, 1.0 or 1.1, Homebrew) and a collapsed First time installing section with the install picture.
 - Plain words for someone who has never seen the code: what changed for them, not how it was built. No internal test numbers, no em or en dashes.
