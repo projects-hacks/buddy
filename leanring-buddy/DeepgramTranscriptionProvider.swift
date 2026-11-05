@@ -109,6 +109,10 @@ private final class CombinedTranscriptionSession: BuddyStreamingTranscriptionSes
         backup?.requestFinalTranscript()
     }
 
+    func flushPendingWords() {
+        deepgram?.flushPendingWords()
+    }
+
     func cancel() {
         deepgram?.cancel()
         backup?.cancel()
@@ -254,6 +258,15 @@ final class DeepgramStreamingSession {
             TutorDebugLog.write("🎙️ Deepgram: released after \(String(format: "%.1f", Double(self.bytesSent) / Double(Self.sampleRate * 2)))s of audio (loudest \(self.loudestSample) of 32767), \(self.finalizedSegments.count) finished segments so far")
             self.socket.send(.string(#"{"type":"Finalize"}"#)) { _ in }
             self.socket.send(.string(#"{"type":"CloseStream"}"#)) { _ in }
+        }
+    }
+
+    /// `Finalize` without `CloseStream`: Deepgram sends what it has heard
+    /// as final and the stream stays open, for talking over an answer.
+    func flushPendingWords() {
+        queue.async { [weak self] in
+            guard let self, !self.isFinishing, !self.hasEnded else { return }
+            self.socket.send(.string(#"{"type":"Finalize"}"#)) { _ in }
         }
     }
 

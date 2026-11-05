@@ -12,7 +12,15 @@ protocol BuddyStreamingTranscriptionSession: AnyObject {
     var finalTranscriptFallbackDelaySeconds: TimeInterval { get }
     func appendAudioBuffer(_ audioBuffer: AVAudioPCMBuffer)
     func requestFinalTranscript()
+    /// Asks for the words heard so far as final, and keeps listening.
+    func flushPendingWords()
     func cancel()
+}
+
+extension BuddyStreamingTranscriptionSession {
+    /// A recognizer whose partial words are already its best has nothing
+    /// to flush (Apple Speech).
+    func flushPendingWords() {}
 }
 
 protocol BuddyTranscriptionProvider {

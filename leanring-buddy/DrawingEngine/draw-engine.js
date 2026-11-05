@@ -491,6 +491,21 @@
     return containing ? containing.id : null;
   }
 
+  // The room, in canvas pixels, between an item and the nearest listed line
+  // above it and below it that shares some of its width. A box that holds
+  // the item (a text area from the accessibility tree) is neither.
+  function lineRoom(target) {
+    let above = Infinity, below = Infinity;
+    const middle = target.y + target.h / 2;
+    for (const [x, y, w, h] of Object.values(state.targets)) {
+      if (x + w <= target.x || x >= target.x + target.w) continue;
+      if (x === target.x && y === target.y && w === target.w && h === target.h) continue;
+      if (y >= middle) below = Math.min(below, y - (target.y + target.h));
+      else if (y + h <= middle) above = Math.min(above, target.y - (y + h));
+    }
+    return { above: Math.max(0, above), below: Math.max(0, below) };
+  }
+
   // A target is an id from the screen listing or explicit numbers.
   function rectOf(args) {
     if (typeof args[0] === 'string') {
@@ -624,7 +639,11 @@
 
     ring(...args) {
       const target = rectOf(args); if (!target) return;
-      const padX = Math.max(8, target.h * 0.45), padY = Math.max(6, target.h * 0.35);
+      // In small text the lines above and below are a pixel or two away, so
+      // the loop is kept flat enough not to run through them.
+      const room = lineRoom(target);
+      const padX = Math.max(8, target.h * 0.45);
+      const padY = Math.max(2, Math.min(Math.max(6, target.h * 0.35), Math.min(room.above, room.below) * 0.9 + 1));
       const cx = target.x + target.w / 2, cy = target.y + target.h / 2;
       const rx = target.w / 2 + padX, ry = target.h / 2 + padY;
       const points = [];
@@ -645,11 +664,27 @@
       // From a listing id the line goes under the box; from numbers, y is
       // already the bottom of the letters and the third number is the width.
       const fromId = typeof args[0] === 'string';
-      const y = fromId ? target.y + target.h + 3 : target.y + 3;
+      let y = fromId ? target.y + target.h + 3 : target.y + 3;
+      let size = 3.6, wobble = 0.9;
+      if (fromId) {
+        // The pen line stays in this line's own gap. At 11 pt the next line
+        // starts a pixel or two under the box, and the usual 3 pixels down
+        // with a 3 pixel pen drew through it, reading as a strike-through.
+        const room = lineRoom(target).below;
+        const usualStroke = penWidth(3.6);
+        if (room < 3 + usualStroke) {
+          const stroke = Math.max(penWidth(1.4), Math.min(usualStroke, room * 0.7));
+          size = stroke / state.unitsPerPoint;
+          // In the middle of the gap, or, with no gap, just above the next
+          // line, over this line's own descenders.
+          y = target.y + target.h + (room >= stroke ? room / 2 : room - stroke / 2);
+          wobble = Math.min(0.9, room * 0.1);
+        }
+      }
       const width = fromId ? target.w : (target.w || 80);
       const points = [];
-      for (let i = 0; i <= 12; i++) points.push([target.x + (width * i) / 12, y + Math.sin(i * 0.8) * 0.9]);
-      return inkStroke(state.screenLayer, points, { size: 3.6 });
+      for (let i = 0; i <= 12; i++) points.push([target.x + (width * i) / 12, y + Math.sin(i * 0.8) * wobble]);
+      return inkStroke(state.screenLayer, points, { size });
     },
 
     strike(...args) {

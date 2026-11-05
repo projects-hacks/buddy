@@ -3,11 +3,13 @@
 //  leanring-buddy
 //
 //  "Explain this error?" When a stack trace, a failing test, a compiler
-//  error or a judge's verdict appears in front of the student, the notch
-//  glows softly with "explain this error?". One press of the talk keys
-//  without speaking, or a click on the glow, and the error is explained
+//  error or a judge's verdict appears in front of the student, a soft red
+//  halo glows under the notch, which says "An error on screen." Hovering
+//  opens the notch on the error card; Explain this error there, or one
+//  press of the talk keys without speaking, and the error is explained
 //  through the ordinary answer, ringing the line it points to. Ignored, the
-//  glow fades after 20 seconds and never comes back for the same error.
+//  glow fades after 20 seconds and never comes back for the same error;
+//  Not now lets it go at once.
 //
 //  Nothing leaves the Mac and no model is asked until the student presses.
 //  ErrorWatcher finds the error; this file decides whether to offer it,
@@ -35,9 +37,16 @@ final class ErrorOfferController {
     var isDictationInProgress: () -> Bool = { false }
     /// The notch's black shape as last laid out, for placing the glow.
     var notchShapeSize: () -> CGSize = { .zero }
+    /// Whether the notch is open. Open, the card is on screen and the halo
+    /// is not needed; and an offer the student is reading is not taken away
+    /// when its 20 seconds run out.
+    var isNotchOpen: () -> Bool = { false }
+    /// Told when an offer appears or goes, for the notch's error row and
+    /// the Lesson tab's error card.
+    var onOfferChanged: (NotchErrorOffer?) -> Void = { _ in }
 
     private let watcher = ErrorWatcher()
-    private lazy var glow = ErrorGlowWindows(onClick: { [weak self] in self?.studentClickedGlow() })
+    private lazy var glow = ErrorGlowWindows()
 
     private var offeredError: DetectedScreenError?
     private var fadeTask: Task<Void, Never>?
@@ -72,13 +81,46 @@ final class ErrorOfferController {
         offeredError = error
         lastGlowAt = Date()
         TutorDebugLog.write("💡 offering to explain a \(error.recognized.kind.rawValue) in \(error.applicationName)")
-        glow.show(shapeSize: notchShapeSize)
+        glow.show(shapeSize: notchShapeSize, isNotchOpen: isNotchOpen)
+        onOfferChanged(Self.notchOffer(for: error))
+        // One announcement, never a sound: VoiceOver users get the same
+        // offer the glow makes.
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+            .announcement: "Buddy noticed an error on screen. Open the notch to have it explained.",
+            .priority: NSAccessibilityPriorityLevel.medium.rawValue
+        ])
         fadeTask?.cancel()
         fadeTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.glowLastsSeconds * 1_000_000_000))
+            // Opened during the glow, the card stays until the notch closes
+            // or the student answers it.
+            while let self, !Task.isCancelled, self.isNotchOpen() {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
             guard !Task.isCancelled else { return }
             self?.withdraw(reason: "ignored")
         }
+    }
+
+    /// The error as the card shows it: the message, and where it points as
+    /// "at render, app.js line 14" when the trace says.
+    static func notchOffer(for error: DetectedScreenError) -> NotchErrorOffer {
+        var locationLine: String?
+        if let fileName = error.recognized.causeFileName {
+            var place = (fileName as NSString).lastPathComponent
+            if let lineNumber = error.recognized.causeLineNumber { place += " line \(lineNumber)" }
+            // "at render (/path/app.js:14:23)" names the function first.
+            if let causeText = error.causeText, causeText.hasPrefix("at ") {
+                let functionName = causeText.dropFirst(3).prefix(while: { $0 != " " && $0 != "(" })
+                if !functionName.isEmpty, !functionName.contains("/") { place = "at \(functionName), " + place }
+            }
+            locationLine = place
+        } else if let causeText = error.causeText {
+            locationLine = String(causeText.prefix(120))
+        }
+        return NotchErrorOffer(applicationName: error.applicationName,
+                               messageLine: String(error.messageText.prefix(200)),
+                               locationLine: locationLine)
     }
 
     /// The glow goes. The error's fingerprint stays remembered by the
@@ -91,6 +133,7 @@ final class ErrorOfferController {
         fadeTask?.cancel()
         fadeTask = nil
         glow.hide()
+        onOfferChanged(nil)
     }
 
     private func accept(how: String) {
@@ -103,8 +146,16 @@ final class ErrorOfferController {
 
     // MARK: What the student does
 
-    private func studentClickedGlow() {
-        accept(how: "a click on the glow")
+    /// Explain this error on the notch's card, or Return in its chat box.
+    func studentChoseExplain() {
+        accept(how: "Explain this error in the notch")
+    }
+
+    /// Not now on the card. The watcher remembers the error's fingerprint,
+    /// so it is not offered again this session.
+    func studentChoseNotNow() {
+        waitForSilentPressTask?.cancel()
+        withdraw(reason: "Not now")
     }
 
     /// The glow is never shown while the student talks, but the offer
@@ -262,176 +313,5 @@ enum FocusModeProbe {
         return stores.contains { store in
             !((store["storeAssertionRecords"] as? [Any]) ?? []).isEmpty
         }
-    }
-}
-
-// MARK: - The glow
-
-/// Two small windows at the top of the notch screen: a soft halo behind
-/// the notch, which takes no clicks, and the label just under the notch's
-/// shape, which does. The notch's own window sits above both, so the halo
-/// seems to come from behind the black shape.
-@MainActor
-private final class ErrorGlowWindows {
-    private let onClick: () -> Void
-    private var haloPanel: NSPanel?
-    private var labelPanel: NSPanel?
-    private let appearance = ErrorGlowAppearance()
-    private var shapeSize: () -> CGSize = { .zero }
-    /// Runs only while the glow shows, at most 20 seconds, so the label
-    /// follows the notch when it grows or shrinks under it.
-    private var followNotchTimer: Timer?
-
-    private static let labelSize = CGSize(width: 214, height: 30)
-    private static let haloMargin: CGFloat = 40
-
-    init(onClick: @escaping () -> Void) {
-        self.onClick = onClick
-    }
-
-    private static var notchScreen: NSScreen? {
-        NSScreen.screens.first { $0.safeAreaInsets.top > 0 } ?? NSScreen.main
-    }
-
-    /// The camera housing's size when the notch has not reported its shape.
-    private static func housingSize(of screen: NSScreen) -> CGSize {
-        let height = max(screen.safeAreaInsets.top, NSStatusBar.system.thickness)
-        guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea else {
-            return CGSize(width: 180, height: height)
-        }
-        return CGSize(width: max(120, right.minX - left.maxX), height: height)
-    }
-
-    func show(shapeSize: @escaping () -> CGSize) {
-        self.shapeSize = shapeSize
-        if haloPanel == nil { haloPanel = makePanel(acceptsClicks: false, content: AnyView(ErrorGlowHalo(appearance: appearance))) }
-        if labelPanel == nil {
-            labelPanel = makePanel(acceptsClicks: true, content: AnyView(ErrorGlowLabel(appearance: appearance, onClick: { [weak self] in
-                self?.onClick()
-            })))
-        }
-        place()
-        haloPanel?.orderFrontRegardless()
-        labelPanel?.orderFrontRegardless()
-        withAnimation(.easeOut(duration: 0.45)) { appearance.isVisible = true }
-        followNotchTimer?.invalidate()
-        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.place() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        followNotchTimer = timer
-    }
-
-    func hide() {
-        followNotchTimer?.invalidate()
-        followNotchTimer = nil
-        withAnimation(.easeIn(duration: 0.5)) { appearance.isVisible = false }
-        // Taken off screen once faded, so nothing is left to catch clicks.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
-            guard let self, !self.appearance.isVisible else { return }
-            self.haloPanel?.orderOut(nil)
-            self.labelPanel?.orderOut(nil)
-        }
-    }
-
-    private func place() {
-        guard let screen = Self.notchScreen else { return }
-        let reported = shapeSize()
-        let shape = reported.width > 0 && reported.height > 0 ? reported : Self.housingSize(of: screen)
-        appearance.shapeSize = shape
-        let haloSize = CGSize(width: shape.width + Self.haloMargin * 2, height: shape.height + Self.haloMargin)
-        haloPanel?.setFrame(NSRect(x: screen.frame.midX - haloSize.width / 2, y: screen.frame.maxY - haloSize.height,
-                                   width: haloSize.width, height: haloSize.height), display: true)
-        labelPanel?.setFrame(NSRect(x: screen.frame.midX - Self.labelSize.width / 2,
-                                    y: screen.frame.maxY - shape.height - 8 - Self.labelSize.height,
-                                    width: Self.labelSize.width, height: Self.labelSize.height), display: true)
-    }
-
-    private func makePanel(acceptsClicks: Bool, content: AnyView) -> NSPanel {
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.labelSize),
-                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        // Just under the notch, which is one above .screenSaver, so the
-        // black shape covers the centre of the halo.
-        panel.level = .screenSaver
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.ignoresMouseEvents = !acceptsClicks
-        // Non-activating, so a click on the label leaves the app with the
-        // error in front: its name and window are what the answer is about.
-        panel.becomesKeyOnlyIfNeeded = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-        let hostingView = NSHostingView(rootView: content)
-        hostingView.sizingOptions = []
-        panel.contentView = hostingView
-        return panel
-    }
-}
-
-@MainActor
-private final class ErrorGlowAppearance: ObservableObject {
-    @Published var isVisible = false
-    @Published var shapeSize: CGSize = .zero
-}
-
-/// Warm, so it reads as "something went wrong" without the alarm of red.
-private let errorGlowColour = Color(red: 1.0, green: 0.62, blue: 0.28)
-
-private struct ErrorGlowHalo: View {
-    @ObservedObject var appearance: ErrorGlowAppearance
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isBreathingIn = false
-
-    var body: some View {
-        UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14)
-            .fill(errorGlowColour.opacity(isBreathingIn ? 0.75 : 0.45))
-            .frame(width: appearance.shapeSize.width, height: appearance.shapeSize.height)
-            .blur(radius: 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .opacity(appearance.isVisible ? 1 : 0)
-            .allowsHitTesting(false)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { isBreathingIn = true }
-            }
-    }
-}
-
-private struct ErrorGlowLabel: View {
-    @ObservedObject var appearance: ErrorGlowAppearance
-    let onClick: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onClick) {
-            HStack(spacing: 7) {
-                Image(systemName: "exclamationmark.bubble.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(errorGlowColour)
-                Text("explain this error?")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isHovered ? 1 : 0.9))
-                Text("\u{2303}\u{2325}")
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
-            }
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(isHovered ? 0.92 : 0.82))
-                    .overlay(Capsule().strokeBorder(errorGlowColour.opacity(isHovered ? 0.9 : 0.55), lineWidth: 1))
-            )
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { isHovered = hovering }
-        }
-        .help("Explain this error. Or tap Control + Option without speaking.")
-        .accessibilityLabel("Explain this error")
-        .opacity(appearance.isVisible ? 1 : 0)
-        .allowsHitTesting(appearance.isVisible)
     }
 }

@@ -105,6 +105,21 @@ final class LearningMemory {
     func recentlyExplainedConceptNames(limit: Int) -> [String] {
         index.concepts.sorted { $0.lastExplainedAt > $1.lastExplainedAt }.prefix(limit).map(\.name)
     }
+
+    /// The idea most worth teaching back now, for the notch's home: one that
+    /// is fading (recall between 60 and 85%), the most faded of those, so the
+    /// review lands before it is lost. Nil when nothing is fading, since a
+    /// start tile that cannot act is never shown.
+    func ideaFadingMost(now: Date = Date()) -> RememberedConcept? {
+        guard isEnabled else { return nil }
+        let fading = index.concepts.compactMap { concept -> (concept: RememberedConcept, retrievability: Double)? in
+            let elapsedDays = now.timeIntervalSince(concept.lastExplainedAt) / 86_400
+            let retrievability = ForgettingCurve.retrievability(elapsedDays: elapsedDays, stabilityDays: concept.stabilityDays)
+            guard retrievability >= 0.6, retrievability < 0.85 else { return nil }
+            return (concept, retrievability)
+        }
+        return fading.min { $0.retrievability < $1.retrievability }?.concept
+    }
     /// Bumped by forgetEverything, so work that started before it (a lesson
     /// waiting on Haiku, the re-embedding loop) never writes anything back.
     private var memoryGeneration = 0

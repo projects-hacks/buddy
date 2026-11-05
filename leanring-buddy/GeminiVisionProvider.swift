@@ -163,36 +163,72 @@ final class GeminiVisionProvider: TutorBrain {
         var accumulatedText = ""
         // Each event repeats the running totals; the last one is the answer's.
         var latestUsage: [String: Any]?
-        defer { if let latestUsage { SpendingMeter.record(APIPrices.gemini(usageMetadata: latestUsage), for: .gemini) } }
+        defer {
+            if let latestUsage {
+                SpendingMeter.record(APIPrices.gemini(usageMetadata: latestUsage), for: .gemini)
+            } else if Task.isCancelled {
+                // Given up on before a single event, so Google reported no
+                // usage, though the prompt was read and may still be billed.
+                // Its input is counted, estimated, rather than nothing.
+                let estimatedPromptTokens = Self.estimatedPromptTokens(
+                    systemPrompt: systemPrompt, conversationHistory: conversationHistory,
+                    userPrompt: userPrompt, imageCount: images.count)
+                SpendingMeter.record(APIPrices.gemini(promptTokens: estimatedPromptTokens, cachedTokens: 0, outputTokens: 0), for: .gemini)
+                TutorDebugLog.write("💸 Gemini request cancelled before any reply; about \(estimatedPromptTokens) input tokens counted")
+            }
+        }
 
         // With alt=sse the stream is Server-Sent Events, one JSON payload per
         // `data:` line, which matches the upstream Anthropic parser rather than
         // Ollama's bare newline-delimited objects.
-        for try await line in byteStream.lines {
-            guard line.hasPrefix("data: ") else { continue }
-            let payloadText = String(line.dropFirst(6))
-            guard payloadText != "[DONE]",
-                  let payloadData = payloadText.data(using: .utf8),
-                  let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
-                continue
-            }
-            if let usage = payload["usageMetadata"] as? [String: Any] { latestUsage = usage }
+        func readStream() async throws {
+            for try await line in byteStream.lines {
+                guard line.hasPrefix("data: ") else { continue }
+                let payloadText = String(line.dropFirst(6))
+                guard payloadText != "[DONE]",
+                      let payloadData = payloadText.data(using: .utf8),
+                      let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
+                    continue
+                }
+                if let usage = payload["usageMetadata"] as? [String: Any] { latestUsage = usage }
 
-            guard let candidates = payload["candidates"] as? [[String: Any]],
-                  let content = candidates.first?["content"] as? [String: Any],
-                  let parts = content["parts"] as? [[String: Any]] else {
-                continue
-            }
+                guard let candidates = payload["candidates"] as? [[String: Any]],
+                      let content = candidates.first?["content"] as? [String: Any],
+                      let parts = content["parts"] as? [[String: Any]] else {
+                    continue
+                }
 
-            for part in parts {
-                guard let chunk = part["text"] as? String, !chunk.isEmpty else { continue }
-                accumulatedText += chunk
-                let snapshot = accumulatedText
-                await onTextChunk(snapshot)
+                for part in parts {
+                    guard let chunk = part["text"] as? String, !chunk.isEmpty else { continue }
+                    accumulatedText += chunk
+                    let snapshot = accumulatedText
+                    await onTextChunk(snapshot)
+                }
             }
         }
 
+        // The stream is closed the moment the answer is given up on (a
+        // deadline passed, the student asked again), so a slow brain does
+        // not go on reading and writing a reply nobody will hear.
+        let dataTask = byteStream.task
+        try await withTaskCancellationHandler {
+            try await readStream()
+        } onCancel: {
+            dataTask.cancel()
+        }
+
         return (text: accumulatedText, duration: Date().timeIntervalSince(startTime))
+    }
+
+    /// About four characters a token for text, and Gemini's tiles for an
+    /// image the size Buddy sends (1280 wide: four tiles of 258 tokens and
+    /// a margin). Only for a request cut off before Google reported usage.
+    private static func estimatedPromptTokens(systemPrompt: String,
+                                              conversationHistory: [(userPlaceholder: String, assistantResponse: String)],
+                                              userPrompt: String, imageCount: Int) -> Int {
+        let historyCharacters = conversationHistory.reduce(0) { $0 + $1.userPlaceholder.count + $1.assistantResponse.count }
+        let textCharacters = systemPrompt.count + userPrompt.count + historyCharacters
+        return textCharacters / 4 + imageCount * 1_100
     }
 
     func analyzeImage(

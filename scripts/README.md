@@ -15,6 +15,7 @@
 | `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/RouteTable.json`) |
 | `lesson_race/` | The teaching-lesson race the routing table's teach row comes from |
 | `draw_judgement/` | Whether answers draw a card, marks or nothing only when that helps |
+| `talk_over/` | Reading what is heard while an answer plays: echoes of Buddy's voice, cut-ins, commands |
 | `question_sorting/` | The question sorter's calibration and its blind spoken test |
 | `board/` | The teaching board: when it opens and closes, and real five-turn sessions drawn to PNGs |
 | `teach_back/` | Teach it back: when it starts, when an explanation ends, and whether the board draws only what was said and finds the gaps put in on purpose, drawn to PNGs |

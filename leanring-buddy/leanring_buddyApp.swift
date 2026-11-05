@@ -45,7 +45,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         companionManager.start()
         // Lecture mode hook: watches which app is in front and whether it plays sound.
         LectureMode.shared.startWatching()
-        companionManager.keepSettingsOpenWhileSetupIsNeeded()
+        companionManager.updateNotchNeeds()
         registerAsLoginItemIfNeeded()
     }
 

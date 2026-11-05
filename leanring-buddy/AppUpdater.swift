@@ -51,7 +51,6 @@ final class AppUpdater: ObservableObject {
     }
 
     static let repository = "projects-hacks/buddy"
-    static let automaticChecksDefaultsKey = "automaticUpdateChecks"
     private static let lastCheckDefaultsKey = "lastUpdateCheck"
     /// Once a day is plenty for an app released every few weeks, and well
     /// inside GitHub's limit for unauthenticated requests.
@@ -69,12 +68,11 @@ final class AppUpdater: ObservableObject {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     }
 
-    var checksAutomatically: Bool {
-        get { UserDefaults.standard.object(forKey: Self.automaticChecksDefaultsKey) as? Bool ?? true }
-        set {
-            UserDefaults.standard.set(newValue, forKey: Self.automaticChecksDefaultsKey)
-            objectWillChange.send()
-        }
+    /// When GitHub was last asked, for Settings' "Checked today at 09:12".
+    /// There is no switch for the daily check: it is cheap and safe, and a
+    /// Buddy left on an old version is the worse outcome.
+    var lastCheckedAt: Date? {
+        UserDefaults.standard.object(forKey: Self.lastCheckDefaultsKey) as? Date
     }
 
     // MARK: - Checking
@@ -96,7 +94,6 @@ final class AppUpdater: ObservableObject {
     }
 
     private func checkIfDue() async {
-        guard checksAutomatically else { return }
         let lastCheck = UserDefaults.standard.object(forKey: Self.lastCheckDefaultsKey) as? Date ?? .distantPast
         guard Date().timeIntervalSince(lastCheck) > Self.checkEvery else { return }
         await check()

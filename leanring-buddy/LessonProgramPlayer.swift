@@ -46,6 +46,10 @@ final class LessonProgramPlayer {
     /// Sentences already written into the transcript, so one said again
     /// for "go back" is not written twice.
     private var sentencesRecordedInTranscript = Set<Int>()
+    /// When each sentence started and finished being said, for telling
+    /// Buddy's own voice apart from the student's while it plays.
+    private var sentenceStartTimes: [Int: Double] = [:]
+    private var sentenceEndTimes: [Int: Double] = [:]
 
     /// What the answer on screen was drawn over, and its program so far,
     /// for keeping it as a recording.
@@ -87,6 +91,8 @@ final class LessonProgramPlayer {
         voice.onLineStarted = { [weak self] index, seconds in
             guard let self else { return }
             TutorDebugLog.write("🗣️ sentence \(index + 1) starts, \(String(format: "%.1f", seconds))s")
+            self.sentenceStartTimes[index] = TalkOverListener.now
+            self.sentenceEndTimes[index] = nil
             if index == 0 { self.onFirstSentenceHeard?() }
             self.overlay.playLine(index, seconds: seconds)
             if index < self.sentences.count {
@@ -101,6 +107,7 @@ final class LessonProgramPlayer {
             self?.overlay.updateLineDuration(index, seconds: seconds)
         }
         voice.onLineFinished = { [weak self] index in
+            self?.sentenceEndTimes[index] = TalkOverListener.now
             self?.overlay.finishLine(index)
         }
     }
@@ -120,6 +127,8 @@ final class LessonProgramPlayer {
         stream = ProgramStream()
         sentences = []
         sentencesRecordedInTranscript = []
+        sentenceStartTimes = [:]
+        sentenceEndTimes = [:]
         pendingPieces = []
         lessonTitle = nil
         overlay.show(on: screen)
@@ -244,11 +253,12 @@ final class LessonProgramPlayer {
 
     /// The sentence being said and the two before it: what Buddy's own
     /// voice would sound like coming back through the microphone.
-    var recentlySpokenSentences: [String] {
-        guard let current = voice.currentLineIndex, current < sentences.count else {
-            return Array(sentences.suffix(1))
+    var recentlySpokenSentences: [SpokenSentence] {
+        let started = sentenceStartTimes.keys.sorted().suffix(3)
+        return started.compactMap { index in
+            guard index < sentences.count, let startedAt = sentenceStartTimes[index] else { return nil }
+            return SpokenSentence(text: sentences[index], startedAt: startedAt, endedAt: sentenceEndTimes[index])
         }
-        return Array(sentences[max(0, current - 2)...current])
     }
 
     /// What the student has heard of this answer so far, for an answer cut
