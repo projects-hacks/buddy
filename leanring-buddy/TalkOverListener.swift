@@ -19,6 +19,15 @@
 //  is the software guard below: heard words that match the sentence being
 //  said, or the two before it, are Buddy's own voice coming back.
 //
+//  With speakers, Buddy's own voice comes back into the same transcript as
+//  the student's, word by word, interleaved. So heard words are not judged
+//  in chunks cut at pauses: the last few seconds of words are kept, the runs
+//  that follow Buddy's own sentences word for word are taken out, and what
+//  is left is the student. A cue ("wait", "hold on", "but why") among the
+//  student's words stops Buddy at once; the student's words are judged as
+//  one utterance when the student, not Buddy, has paused; and the question
+//  sent is all of them, Buddy's words removed (TalkOverTranscript).
+//
 //  Other people, a video and background noise must not stop Buddy, so a
 //  question has to be loud enough to be the student at the Mac, addressed
 //  to Buddy (a question, or opened with "wait", "but", "sorry"...), short,
@@ -32,141 +41,6 @@
 import AVFoundation
 import CoreAudio
 import Foundation
-
-/// What something heard while an answer played means. Pure, so it can be
-/// checked without a microphone.
-enum TalkOverHearing {
-    enum Meaning: Equatable {
-        case ignore(reason: String)
-        case hold
-        case resume
-        case slower
-        case repeatPreviousSentence
-        case replayAnswer
-        case question(String)
-    }
-
-    /// A word counts as Buddy's own when its share of matching words is at
-    /// least this. A clean echo comes back almost word for word (0.8 and
-    /// up); a student's own question shares a topic noun or two with the
-    /// sentence, and its question words never, so it stays well below.
-    static let echoShareThreshold = 0.6
-    /// A real question has at least this many words, unless it is two
-    /// words opened by a cue, like "wait, why?".
-    static let minimumQuestionWords = 3
-    /// Past this it is a conversation or a video, not a question cutting in.
-    static let maximumQuestionWords = 40
-
-    private static let fillerWords: Set<String> = ["um", "uh", "er", "erm", "hmm", "mm", "mhm", "ah", "oh", "like"]
-    /// Words that carry no topic, left out when comparing with what Buddy said.
-    private static let commonWords: Set<String> = [
-        "the", "a", "an", "is", "are", "was", "were", "be", "it", "its", "this", "that", "these", "those",
-        "to", "of", "in", "on", "at", "for", "and", "or", "so", "you", "i", "we", "they", "he", "she",
-        "do", "does", "did", "has", "have", "had", "with", "as", "by", "from", "if", "then", "there", "here",
-        "can", "will", "just", "not", "no", "yes", "one", "all", "what"
-    ]
-    private static let cueOpenings = ["wait", "hold on", "hang on", "sorry", "but", "actually", "excuse me", "hey", "so"]
-    private static let questionWords: Set<String> = [
-        "why", "what", "how", "when", "where", "which", "who", "whats", "hows", "huh", "really",
-        "is", "does", "do", "can", "could", "should", "would", "are", "isnt", "doesnt", "explain"
-    ]
-
-    private static let holdPhrases: Set<String> = ["wait", "hold on", "hang on", "one sec", "one second", "pause", "wait a second", "wait a sec", "hold on a second", "just a second", "wait wait"]
-    private static let resumePhrases: Set<String> = ["go on", "continue", "keep going", "carry on", "go ahead", "resume", "ok go on", "okay go on", "ok continue", "okay continue", "yes go on", "yeah go on", "go on please", "please continue"]
-    private static let slowerPhrases: Set<String> = ["slower", "slow down", "more slowly", "a bit slower", "a little slower", "slower please", "slow down please", "can you slow down", "could you slow down", "talk slower", "speak slower"]
-    private static let replayPhrases: Set<String> = ["say that again", "say it again", "can you say that again", "could you say that again", "say all that again", "repeat the answer", "repeat your answer", "repeat the whole thing", "one more time", "from the top", "start again", "play that again"]
-    private static let repeatPhrases: Set<String> = ["go back", "go back one", "back", "repeat that", "repeat", "repeat that sentence", "say that sentence again", "what was that", "come again"]
-
-    /// The whole of something heard, once its speaker paused.
-    static func meaning(ofUtterance utterance: String, recentlySpoken: [String], wasLoudEnough: Bool) -> Meaning {
-        let words = Self.words(of: utterance)
-        guard !words.isEmpty else { return .ignore(reason: "nothing") }
-        guard wasLoudEnough else { return .ignore(reason: "too quiet to be the student at the Mac") }
-
-        let phrase = commandPhrase(from: words)
-        if holdPhrases.contains(phrase) { return .hold }
-        if resumePhrases.contains(phrase) { return .resume }
-        if slowerPhrases.contains(phrase) { return .slower }
-        if repeatPhrases.contains(phrase) { return .repeatPreviousSentence }
-        if replayPhrases.contains(phrase) { return .replayAnswer }
-
-        let realWords = words.filter { !fillerWords.contains($0) }
-        if echoShare(of: realWords, recentlySpoken: recentlySpoken) >= echoShareThreshold {
-            return .ignore(reason: "Buddy's own voice")
-        }
-        guard realWords.count <= maximumQuestionWords else { return .ignore(reason: "too long to be cutting in") }
-        let opensWithCue = opensWithCue(realWords)
-        let asksSomething = utterance.contains("?") || realWords.prefix(3).contains { questionWords.contains($0) }
-        if realWords.count >= minimumQuestionWords, opensWithCue || asksSomething {
-            return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        if realWords.count == 2, opensWithCue, questionWords.contains(realWords[1]) {
-            return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        return .ignore(reason: "not addressed to Buddy")
-    }
-
-    /// Whether a question asked the usual way is only asking to hear the
-    /// last answer again, which is replayed rather than answered.
-    static func isReplayRequest(_ question: String) -> Bool {
-        replayPhrases.contains(commandPhrase(from: words(of: question)))
-    }
-
-    /// While the student is still speaking: whether to stop talking at once,
-    /// before the whole of it is in. Only for what already reads as cutting
-    /// in, so a voice in the room does not make Buddy stutter.
-    static func shouldYield(toPartial partial: String, recentlySpoken: [String], wasLoudEnough: Bool) -> Bool {
-        guard wasLoudEnough else { return false }
-        let realWords = words(of: partial).filter { !fillerWords.contains($0) }
-        guard realWords.count >= 2, realWords.count <= maximumQuestionWords,
-              echoShare(of: realWords, recentlySpoken: recentlySpoken) < echoShareThreshold else { return false }
-        if opensWithCue(realWords) { return true }
-        return realWords.count >= 4 && realWords.prefix(3).contains { questionWords.contains($0) }
-    }
-
-    /// The share of the heard topic words that are also in what Buddy just
-    /// said. Common words are left out: "is", "the", "it" are in every
-    /// sentence and would make any question look like an echo.
-    static func echoShare(of heardWords: [String], recentlySpoken: [String]) -> Double {
-        let spokenWords = recentlySpoken.flatMap(words(of:))
-        guard !spokenWords.isEmpty else { return 0 }
-        var comparedWords = heardWords.filter { !commonWords.contains($0) }
-        if comparedWords.count < 2 { comparedWords = heardWords }
-        guard !comparedWords.isEmpty else { return 0 }
-        let matching = comparedWords.filter { heard in spokenWords.contains { spoken in sameWord(heard, spoken) } }
-        return Double(matching.count) / Double(comparedWords.count)
-    }
-
-    /// The same word, allowing for the recognizer's endings ("caches" for
-    /// "cache", "returned" for "returns").
-    private static func sameWord(_ first: String, _ second: String) -> Bool {
-        if first == second { return true }
-        guard first.count >= 5, second.count >= 5 else { return false }
-        return first.prefix(5) == second.prefix(5)
-    }
-
-    private static func opensWithCue(_ realWords: [String]) -> Bool {
-        let opening = realWords.prefix(2).joined(separator: " ")
-        return cueOpenings.contains { cue in opening == cue || opening.hasPrefix(cue + " ") }
-    }
-
-    /// The words with "okay", "buddy" and "please" around a command taken
-    /// off, so "okay buddy, go on please" is "go on".
-    private static func commandPhrase(from words: [String]) -> String {
-        var trimmed = words.filter { !fillerWords.contains($0) }
-        while let first = trimmed.first, ["okay", "ok", "buddy", "hey", "alright", "right"].contains(first) { trimmed.removeFirst() }
-        while let last = trimmed.last, ["please", "buddy", "thanks"].contains(last), trimmed.count > 1 { trimmed.removeLast() }
-        return trimmed.joined(separator: " ")
-    }
-
-    static func words(of text: String) -> [String] {
-        text.lowercased()
-            .replacingOccurrences(of: "'", with: "")
-            .replacingOccurrences(of: "\u{2019}", with: "")
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-    }
-}
 
 /// Listens while an answer plays and reports what the student asked for.
 @MainActor
@@ -194,12 +68,10 @@ final class TalkOverListener {
     /// this is about fifteen decibels above the room and below a person
     /// talking to the Mac. To be checked on real microphones.
     static let loudEnoughDecibels: Float = -40
-    /// How long nothing new is heard before what was said counts as finished.
-    static let utteranceEndSilenceSeconds: TimeInterval = 0.6
 
     var onRequest: (Request) -> Void = { _ in }
     /// The sentence being said and the two before it, for the echo guard.
-    var recentlySpokenSentences: () -> [String] = { [] }
+    var recentlySpokenSentences: () -> [SpokenSentence] = { [] }
 
     private(set) var isListening = false
     private var audioEngine: AVAudioEngine?
@@ -209,11 +81,9 @@ final class TalkOverListener {
     private var startTask: Task<Void, Never>?
     private var sessionGeneration = 0
 
-    private var heardWordsSoFar: [String] = []
-    private var latestHeardText = ""
-    private var consumedWordCount = 0
-    private var utteranceEndCheck: Task<Void, Never>?
-    private var isYielding = false
+    private var transcript = TalkOverTranscript()
+    /// Asks the transcript a few times a second whether the student paused.
+    private var pauseClock: Task<Void, Never>?
     /// Loudness of recent buffers, newest last, for the loudness gate.
     private var recentLevels: [(at: Date, decibels: Float)] = []
 
@@ -254,6 +124,7 @@ final class TalkOverListener {
                 self.transcriptionSession = session
                 try self.startMicrophone(generation: generation)
                 self.isListening = true
+                self.startPauseClock(generation: generation)
                 TutorDebugLog.write("👂 talk-over: listening while the answer plays")
             } catch {
                 TutorDebugLog.write("👂 talk-over: could not listen (\(error.localizedDescription))")
@@ -274,8 +145,8 @@ final class TalkOverListener {
     }
 
     private func tearDown() {
-        utteranceEndCheck?.cancel()
-        utteranceEndCheck = nil
+        pauseClock?.cancel()
+        pauseClock = nil
         if let configurationChangeObserver { NotificationCenter.default.removeObserver(configurationChangeObserver) }
         configurationChangeObserver = nil
         if let audioEngine {
@@ -286,10 +157,7 @@ final class TalkOverListener {
         transcriptionSession?.cancel()
         transcriptionSession = nil
         isListening = false
-        isYielding = false
-        heardWordsSoFar = []
-        latestHeardText = ""
-        consumedWordCount = 0
+        transcript = TalkOverTranscript()
         recentLevels = []
     }
 
@@ -363,76 +231,56 @@ final class TalkOverListener {
 
     // MARK: - Hearing
 
+    /// The clock heard words and Buddy's sentences are both timed on.
+    static var now: Double { Date().timeIntervalSinceReferenceDate }
+
     private func heard(_ fullText: String) {
-        latestHeardText = fullText
-        heardWordsSoFar = TalkOverHearing.words(of: fullText)
-        // A recognizer revising its words can make the text shorter.
-        if consumedWordCount > heardWordsSoFar.count { consumedWordCount = heardWordsSoFar.count }
-        let newText = newWordsText()
-        guard !newText.isEmpty else { return }
+        let actions = transcript.heard(fullText, at: Self.now, recentlySpoken: recentlySpokenSentences(),
+                                       wasLoudEnough: wasLoudEnoughRecently)
+        perform(actions)
+    }
 
-        if !isYielding, TalkOverHearing.shouldYield(toPartial: newText, recentlySpoken: recentlySpokenSentences(),
-                                                    wasLoudEnough: wasLoudEnoughRecently) {
-            isYielding = true
-            TutorDebugLog.write("👂 talk-over: the student is cutting in, pausing")
-            onRequest(.yield)
-        }
-
-        utteranceEndCheck?.cancel()
-        utteranceEndCheck = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.utteranceEndSilenceSeconds * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            self?.utteranceEnded()
+    private func startPauseClock(generation: Int) {
+        pauseClock?.cancel()
+        pauseClock = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                guard let self, self.sessionGeneration == generation else { return }
+                let actions = self.transcript.timePassed(to: Self.now, recentlySpoken: self.recentlySpokenSentences(),
+                                                         wasLoudEnough: self.wasLoudEnoughRecently)
+                self.perform(actions)
+            }
         }
     }
 
-    /// The words heard since the last finished utterance, with the
-    /// recognizer's own punctuation kept where it can be, since a question
-    /// mark is part of what is read.
-    private func newWordsText() -> String {
-        guard consumedWordCount < heardWordsSoFar.count else { return "" }
-        let newWords = heardWordsSoFar[consumedWordCount...]
-        let rawTokens = latestHeardText.split(whereSeparator: { $0.isWhitespace })
-        // Words and tokens line up one to one except around punctuation the
-        // word list drops; when they do, the raw text is used.
-        if rawTokens.count == heardWordsSoFar.count {
-            return rawTokens[consumedWordCount...].joined(separator: " ")
-        }
-        return newWords.joined(separator: " ")
-    }
-
-    private func utteranceEnded() {
-        let utterance = newWordsText()
-        consumedWordCount = heardWordsSoFar.count
-        guard !utterance.isEmpty else { return }
-        let meaning = TalkOverHearing.meaning(ofUtterance: utterance, recentlySpoken: recentlySpokenSentences(),
-                                              wasLoudEnough: wasLoudEnoughRecently)
-        let wasYielding = isYielding
-        isYielding = false
-        switch meaning {
-        case .ignore(let reason):
-            TutorDebugLog.write("👂 talk-over: ignored \(TalkOverHearing.words(of: utterance).count) words (\(reason))")
-            if wasYielding { onRequest(.endYield) }
-        case .hold:
-            TutorDebugLog.write("👂 talk-over: hold on")
-            onRequest(.hold)
-        case .resume:
-            TutorDebugLog.write("👂 talk-over: go on")
-            onRequest(.resume)
-        case .slower:
-            TutorDebugLog.write("👂 talk-over: slower")
-            if wasYielding { onRequest(.endYield) }
-            onRequest(.slower)
-        case .repeatPreviousSentence:
-            TutorDebugLog.write("👂 talk-over: go back")
-            if wasYielding { onRequest(.endYield) }
-            onRequest(.repeatPreviousSentence)
-        case .replayAnswer:
-            TutorDebugLog.write("👂 talk-over: say that again")
-            onRequest(.replayAnswer)
-        case .question(let question):
-            TutorDebugLog.write("👂 talk-over: a question cut in")
-            onRequest(.question(question))
+    private func perform(_ actions: [TalkOverTranscript.Action]) {
+        for action in actions {
+            switch action {
+            case .yield:
+                TutorDebugLog.write("👂 talk-over: the student is cutting in, pausing")
+                onRequest(.yield)
+            case .endYield: onRequest(.endYield)
+            case .ignored(let wordCount, let reason):
+                TutorDebugLog.write("👂 talk-over: ignored \(wordCount) words (\(reason))")
+            case .hold:
+                TutorDebugLog.write("👂 talk-over: hold on")
+                onRequest(.hold)
+            case .resume:
+                TutorDebugLog.write("👂 talk-over: go on")
+                onRequest(.resume)
+            case .slower:
+                TutorDebugLog.write("👂 talk-over: slower")
+                onRequest(.slower)
+            case .repeatPreviousSentence:
+                TutorDebugLog.write("👂 talk-over: go back")
+                onRequest(.repeatPreviousSentence)
+            case .replayAnswer:
+                TutorDebugLog.write("👂 talk-over: say that again")
+                onRequest(.replayAnswer)
+            case .question(let question):
+                TutorDebugLog.write("👂 talk-over: a question cut in")
+                onRequest(.question(question))
+            }
         }
     }
 
