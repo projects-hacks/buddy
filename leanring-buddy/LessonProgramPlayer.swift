@@ -28,6 +28,9 @@ final class LessonProgramPlayer {
     private var pieceRunner: Task<Void, Never>?
     private(set) var lessonTitle: String?
     private(set) var hasDrawing = false
+    /// Sentences already written into the transcript, so one said again
+    /// for "go back" is not written twice.
+    private var sentencesRecordedInTranscript = Set<Int>()
 
     var isSpeaking: Bool { voice.isSpeaking }
 
@@ -48,7 +51,9 @@ final class LessonProgramPlayer {
             self.overlay.playLine(index, seconds: seconds)
             if index < self.sentences.count {
                 self.bar.caption = self.sentences[index]
-                self.bar.recordTutorSentence(self.sentences[index])
+                if self.sentencesRecordedInTranscript.insert(index).inserted {
+                    self.bar.recordTutorSentence(self.sentences[index])
+                }
             }
             self.bar.isSpeaking = true
         }
@@ -68,6 +73,7 @@ final class LessonProgramPlayer {
         stop()
         stream = ProgramStream()
         sentences = []
+        sentencesRecordedInTranscript = []
         pendingPieces = []
         lessonTitle = nil
         overlay.show(on: screen)
@@ -121,6 +127,35 @@ final class LessonProgramPlayer {
         bar.caption = ""
         bar.followUps = []
         bar.hasDrawing = false
+    }
+
+    // MARK: - Talking over the answer
+
+    var isPaused: Bool { voice.isPaused }
+    func pauseVoice() { voice.pause() }
+    func resumeVoice() { voice.resume() }
+    func slowDown() { voice.slowDown() }
+    func repeatPreviousSentence() { voice.repeatPreviousSentence() }
+
+    /// The sentence being said and the two before it: what Buddy's own
+    /// voice would sound like coming back through the microphone.
+    var recentlySpokenSentences: [String] {
+        guard let current = voice.currentLineIndex, current < sentences.count else {
+            return Array(sentences.suffix(1))
+        }
+        return Array(sentences[max(0, current - 2)...current])
+    }
+
+    /// What the student has heard of this answer so far, for an answer cut
+    /// off by a question.
+    var sentencesSpokenSoFar: [String] {
+        sentencesRecordedInTranscript.sorted().compactMap { index in index < sentences.count ? sentences[index] : nil }
+    }
+
+    /// The sentence being said, for the caption after a pause.
+    var currentSentence: String? {
+        guard let current = voice.currentLineIndex, current < sentences.count else { return nil }
+        return sentences[current]
     }
 
     func clearScreenMarks() { overlay.clearScreenMarks() }

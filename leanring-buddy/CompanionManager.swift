@@ -1062,6 +1062,21 @@ final class CompanionManager: ObservableObject {
     /// the press just ended, until its question claims them.
     private let pointerRestWatcher = PointerRestWatcher()
     private var pointerRestsOfLastPress: [PointerRest] = []
+    /// Listens while an answer plays, for the student talking over it.
+    private lazy var talkOverListener: TalkOverListener = {
+        let listener = TalkOverListener()
+        listener.recentlySpokenSentences = { [weak self] in self?.lessonPlayer.recentlySpokenSentences ?? [] }
+        listener.onRequest = { [weak self] request in self?.handleTalkOver(request) }
+        return listener
+    }()
+    /// Paused by "hold on", as against paused while a question is heard.
+    private var isHeldByTalkOver = false
+    private var talkOverHoldTimeout: Task<Void, Never>?
+    /// Long enough to look something up; then the mic is not left open on
+    /// an answer that is never going to be resumed.
+    private static let talkOverHoldLimitSeconds: TimeInterval = 90
+    /// The question the current answer is for, for an answer cut off.
+    private var questionBeingAnswered: String?
     /// The last question, until its answer starts to be heard. A question
     /// asked before then continues it rather than replacing it.
     private var questionAwaitingAnswer: (text: String, askedAt: Date)?
@@ -1154,6 +1169,9 @@ final class CompanionManager: ObservableObject {
 
     private func beginTalking() {
             guard !buddyDictationManager.isDictationInProgress else { return }
+            // The talk keys work over an answer exactly as before: the
+            // talk-over microphone closes before listening for the question.
+            talkOverListener.stop()
             buddyDictationManager.updateContextualKeyterms(Self.speechHints(
                 screenLabels: Array(screenIndex.lastListedLabels.values),
                 recentAnswerPrograms: conversationHistory.suffix(3).map(\.assistantResponse),
@@ -1480,6 +1498,8 @@ final class CompanionManager: ObservableObject {
         player.onFirstSentenceHeard = { [weak self] in
             self?.logStage("first sentence heard")
             self?.questionAwaitingAnswer = nil
+            // Only while an answer plays, and never while the keys are held.
+            if self?.buddyDictationManager.isDictationInProgress == false { self?.talkOverListener.start() }
         }
         return player
     }()
@@ -1511,7 +1531,8 @@ final class CompanionManager: ObservableObject {
     private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
                                                      howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil,
                                                      earlyScreen: Task<PreparedScreen?, Never>? = nil,
-                                                     studentPointing: StudentPointingClues? = nil) {
+                                                     studentPointing: StudentPointingClues? = nil,
+                                                     interruptedAnswerNote: String? = nil) {
         let isGuideContinuation = guideStep != nil
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
@@ -1539,6 +1560,7 @@ final class CompanionManager: ObservableObject {
             questionAwaitingAnswer = (transcript, Date())
         }
         answerStartedAt = Date()
+        questionBeingAnswered = transcript
         if howToTakeover == nil { SpendingMeter.shared.countQuestion(isGuideStep: isGuideContinuation) }
         logStage("question in")
 
@@ -1714,6 +1736,7 @@ final class CompanionManager: ObservableObject {
                 if let howToTakeover, howToTakeover.stepsDone > 0 {
                     studyNotes.append(HowToMemory.takeoverNote(howToTakeover.howTo, stepsDone: howToTakeover.stepsDone))
                 }
+                if let interruptedAnswerNote { studyNotes.append(interruptedAnswerNote) }
                 if let guideStep {
                     studyNotes.append(GuideMode.continuationNote(
                         after: guideStep, stepNumber: guideStepsGiven,
@@ -1998,6 +2021,7 @@ final class CompanionManager: ObservableObject {
                     // the content under it changing: it is the part worth
                     // looking at once the talking stops.
                     await lessonPlayer.waitUntilSpoken()
+                    talkOverListener.stop()
                     controlBar.model.caption = ""
                     if let currentGuideStep, let guideBaseline, !Task.isCancelled {
                         guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
@@ -2055,6 +2079,64 @@ final class CompanionManager: ObservableObject {
         questionAwaitingAnswer = nil
         shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: question)
+    }
+
+    // MARK: - Talking over an answer
+
+    /// What the student said over the answer, without the keys.
+    private func handleTalkOver(_ request: TalkOverListener.Request) {
+        switch request {
+        case .yield:
+            lessonPlayer.pauseVoice()
+        case .endYield:
+            if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+        case .hold:
+            lessonPlayer.pauseVoice()
+            isHeldByTalkOver = true
+            controlBar.model.caption = "Paused. Say \u{201C}go on\u{201D} to continue."
+            talkOverHoldTimeout?.cancel()
+            talkOverHoldTimeout = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.talkOverHoldLimitSeconds * 1_000_000_000))
+                guard !Task.isCancelled, let self, self.isHeldByTalkOver else { return }
+                TutorDebugLog.write("👂 talk-over: paused for \(Int(Self.talkOverHoldLimitSeconds))s, ending the answer")
+                self.stopAnswering()
+            }
+        case .resume:
+            releaseTalkOverHold()
+            lessonPlayer.resumeVoice()
+            if let currentSentence = lessonPlayer.currentSentence { controlBar.model.caption = currentSentence }
+        case .slower:
+            lessonPlayer.slowDown()
+            if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+        case .repeatPreviousSentence:
+            releaseTalkOverHold()
+            lessonPlayer.repeatPreviousSentence()
+        case .question(let question):
+            // Cut off and answered with what was heard of this answer, which
+            // is not in the conversation until an answer finishes.
+            let note = TutorProgramPrompt.interruptionNote(
+                interruptedQuestion: questionBeingAnswered ?? "",
+                sentencesHeard: lessonPlayer.sentencesSpokenSoFar)
+            InterfaceSounds.shared.play(.sent)
+            shortcutReleasedAt = nil
+            questionAwaitingAnswer = nil
+            sendTranscriptToTutorWithScreenshot(
+                transcript: question,
+                studentPointing: StudentPointingClues(selection: SelectedTextReader.selectionInFrontApp()),
+                interruptedAnswerNote: note)
+        }
+    }
+
+    private func releaseTalkOverHold() {
+        isHeldByTalkOver = false
+        talkOverHoldTimeout?.cancel()
+        talkOverHoldTimeout = nil
+    }
+
+    /// Closes the talk-over microphone and forgets any hold.
+    private func endTalkOver() {
+        talkOverListener.stop()
+        releaseTalkOverHold()
     }
 
     /// Stop on the bar: stops talking and the answer being written, and
@@ -2379,6 +2461,7 @@ final class CompanionManager: ObservableObject {
         }
         voiceState = .idle
         await lessonPlayer.waitUntilSpoken()
+        talkOverListener.stop()
         controlBar.model.caption = ""
         if !isLastStep, !Task.isCancelled, let currentGuideStep, let guideBaseline {
             guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
@@ -2959,6 +3042,7 @@ final class CompanionManager: ObservableObject {
     }
 
     private func cancelSpeechAndClearQueue() {
+        endTalkOver()
         speechConsumerTask?.cancel()
         speechConsumerTask = nil
         pendingSpeechSegments.removeAll()
@@ -3459,6 +3543,8 @@ final class CompanionManager: ObservableObject {
     /// new question stay silent.
     @discardableResult
     func clearAnnotations() -> Bool {
+        // Clearing stops the voice, so nothing is left to talk over.
+        endTalkOver()
         let lessonHadDrawing = lessonPlayer.hasDrawing
         lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty

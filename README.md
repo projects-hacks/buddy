@@ -136,8 +136,8 @@ The model answers with a short drawing program, and the first sentence is spoken
 
 | What | Where it goes |
 |---|---|
-| **Screen** | Captured only when you ask, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
-| **Voice** | Heard by Deepgram while the keys are held, when a Deepgram key is set; otherwise transcribed on the Mac |
+| **Screen** | Captured only while you hold the keys or ask, and dropped if no question follows, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Voice** | The microphone is open while the keys are held and, so you can talk over it, while an answer plays (Listen while explaining, in Settings). Heard by Deepgram when a Deepgram key is set; otherwise transcribed on the Mac |
 | **Sent** | The screenshot and question, to the model that answers |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
 | **Analytics** | None |

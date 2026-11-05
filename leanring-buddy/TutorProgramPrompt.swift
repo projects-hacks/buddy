@@ -161,6 +161,17 @@ enum TutorProgramPrompt {
         return lines.joined(separator: "\n")
     }
 
+    /// For a question the student asked over an answer, cutting it off: what
+    /// they had heard of it, which may not be in the conversation yet.
+    static func interruptionNote(interruptedQuestion: String, sentencesHeard: [String]) -> String {
+        let heard = sentencesHeard.isEmpty ? "nothing yet" : "\"" + sentencesHeard.joined(separator: " ") + "\""
+        return """
+        THEY CUT IN
+        you were answering "\(interruptedQuestion)" and they had heard: \(heard)
+        they spoke over you with the question below. answer it from where you were, and do not start the earlier answer again.
+        """
+    }
+
     /// How long to talk, per kind of question, in beats.
     static func lengthInstruction(for questionKind: QuestionKind) -> String {
         switch questionKind {

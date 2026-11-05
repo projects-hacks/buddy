@@ -181,6 +181,16 @@ final class LocalSpeechSynthesisClient: NSObject {
         resumeActiveContinuation()
     }
 
+    /// Pauses mid-word and carries on from there, for the student saying
+    /// "hold on" and "go on" over an answer.
+    func pausePlayback() {
+        if synthesizer.isSpeaking { synthesizer.pauseSpeaking(at: .word) }
+    }
+
+    func resumePlayback() {
+        if synthesizer.isPaused { synthesizer.continueSpeaking() }
+    }
+
     /// Resumes and clears the pending continuation exactly once, so a
     /// cancel racing a natural finish cannot resume it twice.
     private func resumeActiveContinuation() {
