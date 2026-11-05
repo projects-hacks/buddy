@@ -217,6 +217,7 @@ final class TalkOverListener {
     }
 
     private func noteLevel(_ decibels: Float) {
+        transcript.levelHeard(decibels, at: Self.now)
         let now = Date()
         recentLevels.append((now, decibels))
         recentLevels.removeAll { now.timeIntervalSince($0.at) > 6 }
@@ -260,6 +261,8 @@ final class TalkOverListener {
                 TutorDebugLog.write("👂 talk-over: the student is cutting in, pausing")
                 onRequest(.yield)
             case .endYield: onRequest(.endYield)
+            case .flushRecognizer:
+                transcriptionSession?.flushPendingWords()
             case .ignored(let wordCount, let reason):
                 TutorDebugLog.write("👂 talk-over: ignored \(wordCount) words (\(reason))")
             case .hold:

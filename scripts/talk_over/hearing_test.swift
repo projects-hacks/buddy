@@ -49,10 +49,20 @@ enum Event {
     case sentenceStarts(String)
     case sentenceEnds
     case heard(String)
+    /// The microphone's level, in dBFS, as each buffer arrives.
+    case level(Float)
+}
+
+/// Microphone levels every 50 ms from `start` to `end`.
+func levels(_ decibels: Float, from start: Double, to end: Double) -> [(at: Double, event: Event)] {
+    stride(from: start, to: end, by: 0.05).map { ($0, Event.level(decibels)) }
 }
 
 /// Plays timed events through the transcript and returns its actions, timed.
-func play(_ events: [(at: Double, event: Event)], until end: Double, loud: Bool = true) -> [(at: Double, action: TalkOverTranscript.Action)] {
+/// `finalTextOnFlush` is what Deepgram sends back a quarter of a second
+/// after it is asked to finalize, as it does once the student stops.
+func play(_ events: [(at: Double, event: Event)], until end: Double, loud: Bool = true,
+          finalTextOnFlush: String? = nil) -> [(at: Double, action: TalkOverTranscript.Action)] {
     var transcript = TalkOverTranscript()
     var sentences: [SpokenSentence] = []
     var actions: [(Double, TalkOverTranscript.Action)] = []
@@ -73,10 +83,16 @@ func play(_ events: [(at: Double, event: Event)], until end: Double, loud: Bool 
                 for action in transcript.heard(text, at: next.at, recentlySpoken: Array(sentences.suffix(3)), wasLoudEnough: loud) {
                     actions.append((next.at, action))
                 }
+            case .level(let decibels):
+                transcript.levelHeard(decibels, at: next.at)
             }
         }
         for action in transcript.timePassed(to: clock, recentlySpoken: Array(sentences.suffix(3)), wasLoudEnough: loud) {
             actions.append((clock, action))
+            if action == .flushRecognizer, let finalTextOnFlush {
+                pending.append((clock + 0.25, .heard(finalTextOnFlush)))
+                pending.sort { $0.at < $1.at }
+            }
         }
     }
     return actions
@@ -178,6 +194,46 @@ let echoOnly: [(at: Double, event: Event)] = [
 ]
 let echoActions = play(echoOnly, until: 6)
 check("echo only: nothing at all", echoActions.isEmpty, describe(echoActions))
+
+// 6. The live retest of 1.6 after the first fix: Buddy at 50% through the
+// speakers, then macOS `say` speaking "Wait, why does high start at the
+// length of the list?" without a break but for a short comma after "Wait".
+// Deepgram's interim text stalled twice while it found the phrase's end.
+// That build took the lone "Wait." as a hold and then sent "Why does high".
+// Buddy's voice is loud at the microphone until it pauses at "Wait".
+let sentenceSaid = "the guests sit in seats zero to four, and there is no seat five."
+let wholeQuestion = "Wait. Why does high start at the length of the list?"
+func sayOverBuddy(stallAfterWait: Double) -> [(at: Double, event: Event)] {
+    let firstWords = 5.3, secondWords = firstWords + stallAfterWait, wholeSentence = secondWords + 0.7
+    var events: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(sentenceSaid))]
+    events += levels(-30, from: 0, to: firstWords)                             // Buddy's own voice
+    events += levels(-24, from: 5.0, to: 5.45) + levels(-48, from: 5.45, to: 5.6)   // "Wait", the comma
+    events += levels(-24, from: 5.6, to: wholeSentence + 0.3)                  // the rest, without a break
+    events += levels(-62, from: wholeSentence + 0.3, to: 14)                   // the room, Buddy paused
+    events += [(firstWords, .heard("Wait.")), (secondWords, .heard("Wait. Why does high")), (wholeSentence, .heard(wholeQuestion))]
+    return events
+}
+for stall in [0.8, 1.3] {
+    let actions = play(sayOverBuddy(stallAfterWait: stall), until: 14, finalTextOnFlush: wholeQuestion)
+    print("  say over Buddy, \(stall)s stall after Wait: " + describe(actions))
+    check("say over Buddy (\(stall)s stall): pauses at Wait", (firstYield(in: actions) ?? 99) <= 5.4)
+    check("say over Buddy (\(stall)s stall): no hold", !actions.contains { $0.action == .hold })
+    check("say over Buddy (\(stall)s stall): one question, the whole sentence",
+          actions.filter { if case .question = $0.action { return true }; return false }.count == 1
+              && question(in: actions)?.text == wholeQuestion, question(in: actions)?.text ?? "none")
+    check("say over Buddy (\(stall)s stall): the end read from the microphone, then the final words asked for",
+          actions.contains { $0.action == .flushRecognizer })
+}
+
+// 7. A real "wait" on its own still holds, once nothing follows it.
+var waitAlone: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(sentenceSaid))]
+waitAlone += levels(-30, from: 0, to: 5.3) + levels(-24, from: 5.0, to: 5.45) + levels(-62, from: 5.45, to: 10)
+waitAlone += [(5.3, .heard("Wait."))]
+let waitActions = play(waitAlone, until: 10, finalTextOnFlush: "Wait.")
+print("  wait alone: " + describe(waitActions))
+check("wait alone: holds, and only after it was left alone for 1.5s",
+      waitActions.first { $0.action == .hold }.map { $0.at >= 5.45 + TalkOverTranscript.holdConfirmSeconds } ?? false)
+check("wait alone: no question", question(in: waitActions) == nil)
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)
