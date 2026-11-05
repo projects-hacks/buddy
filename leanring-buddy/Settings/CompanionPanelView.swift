@@ -54,6 +54,15 @@ struct NotchSettingsView: View {
         URL(string: "https://projects-hacks.github.io/buddy/guide/")!
     }
 
+    /// Whether the pointer is over Spent today, which shows its breakdown
+    /// card over the other column.
+    @State private var isHoveringSpendingRow = false
+
+    /// The card covers the left column and half the gap beside it, which
+    /// leaves "Listening while it talks" room on one line beside two
+    /// columns of amounts.
+    private static let spendingCardWidth: CGFloat = columnWidth + 6
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
@@ -68,13 +77,17 @@ struct NotchSettingsView: View {
                 .frame(width: Self.columnWidth, alignment: .top)
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsGroup(title: "Answers") {
-                        AnswersSettings(companionManager: companionManager)
+                        AnswersSettings(companionManager: companionManager,
+                                        isHoveringSpendingRow: $isHoveringSpendingRow)
                     }
                     SettingsGroup(title: "Buddy \(companionManager.appUpdater.currentVersion)") {
                         UpdateRow(updater: companionManager.appUpdater)
                     }
                 }
                 .frame(width: Self.columnWidth, alignment: .top)
+            }
+            .overlayPreferenceValue(SpendingRowBoundsKey.self) { spendingRowAnchor in
+                spendingCardLayer(spendingRowAnchor: spendingRowAnchor)
             }
 
             HStack {
@@ -89,6 +102,29 @@ struct NotchSettingsView: View {
             }
             .padding(.horizontal, 6)
             .padding(.top, 2)
+        }
+    }
+
+    /// The spending card, drawn over the whole left column, beside Spent
+    /// today. An overlay takes no room, so the notch keeps its size and
+    /// never scrolls, and the card stays inside the columns, away from the
+    /// notch's curved edge. Covering the column from top to bottom leaves no
+    /// half-hidden group title or border peeking out around it. The left
+    /// column is covered rather than the right because the right one holds
+    /// the very amounts the card explains.
+    private func spendingCardLayer(spendingRowAnchor: Anchor<CGRect>?) -> some View {
+        GeometryReader { proxy in
+            if let spendingRowAnchor {
+                let rowFrame = proxy[spendingRowAnchor]
+                let cardLeadingX = max(0, rowFrame.minX - 12 - Self.columnWidth)
+                SpendingBreakdownCard(width: Self.spendingCardWidth, minimumHeight: proxy.size.height)
+                    .offset(x: cardLeadingX)
+                    .opacity(isHoveringSpendingRow ? 1 : 0)
+                    .animation(.easeInOut(duration: DS.Animation.normal), value: isHoveringSpendingRow)
+                    .allowsHitTesting(false)
+                    // The row's own label reads the whole breakdown.
+                    .accessibilityHidden(true)
+            }
         }
     }
 }
@@ -336,6 +372,7 @@ private struct SettingsTextButton: View {
 private struct AnswersSettings: View {
     @ObservedObject var companionManager: CompanionManager
     @ObservedObject private var meter = SpendingMeter.shared
+    @Binding var isHoveringSpendingRow: Bool
 
     /// Local is left out: its models are not installed by default, and a
     /// choice that can only fail is worse than none.
@@ -405,9 +442,14 @@ private struct AnswersSettings: View {
         }
         .settingsRowInsets()
         .contentShape(Rectangle())
-        .nativeTooltip(spendingTooltip(today))
+        // Not a tooltip: AppKit's tooltips are unreliable in the notch's
+        // never-active panel, so the breakdown is a card the settings view
+        // draws where this row says it is. The row does nothing when
+        // clicked, so the pointer stays the arrow.
+        .anchorPreference(key: SpendingRowBoundsKey.self, value: .bounds) { $0 }
+        .onHover { hovering in isHoveringSpendingRow = hovering }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Spent today, \(SpendingMeter.formatted(today.dollars)). This month, \(SpendingMeter.formatted(meter.thisMonthDollars)).")
+        .accessibilityLabel(spendingAccessibilityLabel)
 
         SettingsDivider()
 
@@ -416,12 +458,119 @@ private struct AnswersSettings: View {
         }
     }
 
-    private func spendingTooltip(_ today: SpendingMeter.Day) -> String {
-        var counts = today.questions == 1 ? "1 question" : "\(today.questions) questions"
-        if today.guideSteps > 0 {
-            counts += " and " + (today.guideSteps == 1 ? "1 guide step" : "\(today.guideSteps) guide steps")
+    private var spendingAccessibilityLabel: String {
+        let breakdown = SpendingBreakdown(today: SpendingMeter.Totals(adding: [meter.today]), thisMonth: meter.thisMonth)
+        return "Spent today, \(SpendingMeter.formatted(meter.today.dollars)). This month, "
+            + "\(SpendingMeter.formatted(meter.thisMonthDollars)). " + breakdown.spokenDescription
+    }
+}
+
+/// Where Spent today is, for the card that explains it.
+private struct SpendingRowBoundsKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// What Spent today is made of, today and this month: per service, then per
+/// purpose, then the day's questions and where the numbers come from.
+/// Drawn by NotchSettingsView over the left column while the pointer is on
+/// the row.
+struct SpendingBreakdownCard: View {
+    let width: CGFloat
+    /// The height of the column it covers, so nothing of it shows around
+    /// the card; more lines than that make the card taller instead.
+    let minimumHeight: CGFloat
+    @ObservedObject private var meter = SpendingMeter.shared
+
+    /// Wide enough for "under 1¢" and "$100.00" at this size.
+    private static let todayColumnWidth: CGFloat = 52
+    /// Wide enough for "$100.00"; its heading, a little wider, reaches over
+    /// the gap before it rather than making every row lose that room.
+    private static let thisMonthColumnWidth: CGFloat = 60
+
+    var body: some View {
+        let breakdown = SpendingBreakdown(today: SpendingMeter.Totals(adding: [meter.today]), thisMonth: meter.thisMonth)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                columnHeading("Today", width: Self.todayColumnWidth)
+                columnHeading("This month", width: Self.thisMonthColumnWidth)
+                    .padding(.leading, Self.spaceBetweenAmountColumns)
+            }
+            .padding(.bottom, 4)
+
+            ForEach(breakdown.serviceLines, id: \.name) { line in
+                amountRow(line)
+            }
+
+            if !breakdown.purposeLines.isEmpty {
+                Rectangle()
+                    .fill(DS.Notch.groupBorder)
+                    .frame(height: 1)
+                    .padding(.vertical, 6)
+                ForEach(breakdown.purposeLines, id: \.name) { line in
+                    amountRow(line)
+                }
+            }
+
+            // The counts and the note sit at the foot of the card, however
+            // few rows there are above them.
+            Spacer(minLength: 10)
+            Text(breakdown.countsSentence)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(DS.Notch.textSecondary)
+            Text(SpendingBreakdown.whereTheNumbersComeFrom)
+                .font(.system(size: 11))
+                .foregroundStyle(DS.Colors.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 3)
         }
-        return counts + " today. Worked out from published prices; your provider's bill is exact."
+        .padding(.horizontal, DS.Notch.settingsRowHorizontalInset)
+        .padding(.vertical, 10)
+        .frame(width: width, alignment: .leading)
+        .frame(minHeight: minimumHeight, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(DS.Colors.surface2))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(DS.Colors.borderSubtle, lineWidth: 1))
+        .shadow(color: .black.opacity(0.45), radius: 14, y: 6)
+    }
+
+    private static let spaceBetweenAmountColumns: CGFloat = 8
+
+    private func columnHeading(_ title: String, width: CGFloat) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(DS.Colors.textTertiary)
+            // On one line even when wider than its column: it then reaches
+            // left over the gap, and the amounts under it stay aligned.
+            .lineLimit(1)
+            .fixedSize()
+            .frame(width: width, alignment: .trailing)
+    }
+
+    private func amountRow(_ line: SpendingBreakdown.Line) -> some View {
+        HStack(spacing: 0) {
+            Text(line.name)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(DS.Notch.textPrimary)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Spacer(minLength: 6)
+            amount(line.today, width: Self.todayColumnWidth)
+            amount(line.thisMonth, width: Self.thisMonthColumnWidth)
+                .padding(.leading, Self.spaceBetweenAmountColumns)
+        }
+        .padding(.vertical, 1)
+    }
+
+    /// Nothing spent shows dimmer, so the eye goes to what did cost.
+    private func amount(_ dollars: Double, width: CGFloat) -> some View {
+        Text(SpendingMeter.formatted(dollars))
+            .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(dollars > 0 ? DS.Notch.textPrimary : DS.Colors.textTertiary)
+            .frame(width: width, alignment: .trailing)
     }
 }
 

@@ -170,7 +170,7 @@ extension ClaudeVisionProvider {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let content = json["content"] as? [[String: Any]] else { return nil }
-            SpendingMeter.record(APIPrices.claude(model: "claude-haiku-5-5", usageIn: json), for: .claude)
+            SpendingMeter.record(APIPrices.claude(model: "claude-haiku-5-5", usageIn: json), for: .claude, purpose: .helpers)
             return content.compactMap { $0["text"] as? String }.joined()
         } catch {
             return nil

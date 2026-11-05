@@ -36,6 +36,13 @@ final class PreferredTranscriptionProvider: BuddyTranscriptionProvider {
     let unavailableExplanation: String? = nil
 
     private let appleSpeech = AppleSpeechTranscriptionProvider()
+    /// What the heard minutes are for in the meter. One provider serves
+    /// push-to-talk, talk-over and teach-back, so its owner says which.
+    private let spendingPurpose: SpendingMeter.Purpose
+
+    init(spendingPurpose: SpendingMeter.Purpose) {
+        self.spendingPurpose = spendingPurpose
+    }
 
     func startStreamingSession(
         keyterms: [String],
@@ -60,7 +67,7 @@ final class PreferredTranscriptionProvider: BuddyTranscriptionProvider {
         }
         TutorDebugLog.write("🎙️ Deepgram told to expect \(min(keyterms.count, 60)) terms: \(keyterms.prefix(60).joined(separator: ", "))")
         combined.deepgram = DeepgramStreamingSession(
-            apiKey: deepgramKey, keyterms: keyterms,
+            apiKey: deepgramKey, keyterms: keyterms, spendingPurpose: spendingPurpose,
             onTranscriptUpdate: { [weak combined] text in combined?.deepgramUpdated(text) },
             onFinished: { [weak combined] text in combined?.deepgramFinished(text) },
             onFailed: { [weak combined] error in combined?.deepgramFailed(error) })
@@ -192,6 +199,7 @@ final class DeepgramStreamingSession {
     private let onTranscriptUpdate: (String) -> Void
     private let onFinished: (String) -> Void
     private let onFailed: (Error) -> Void
+    private let spendingPurpose: SpendingMeter.Purpose
     private let queue = DispatchQueue(label: "buddy.deepgram-listen")
 
     // Touched only on `queue`.
@@ -204,10 +212,11 @@ final class DeepgramStreamingSession {
     private var hasEnded = false
     private var isFinishing = false
 
-    init(apiKey: String, keyterms: [String],
+    init(apiKey: String, keyterms: [String], spendingPurpose: SpendingMeter.Purpose,
          onTranscriptUpdate: @escaping (String) -> Void,
          onFinished: @escaping (String) -> Void,
          onFailed: @escaping (Error) -> Void) {
+        self.spendingPurpose = spendingPurpose
         self.onTranscriptUpdate = onTranscriptUpdate
         self.onFinished = onFinished
         self.onFailed = onFailed
@@ -351,6 +360,6 @@ final class DeepgramStreamingSession {
     /// Billed per second of audio sent.
     private func recordCost() {
         let seconds = Double(bytesSent) / Double(Self.sampleRate * 2)
-        SpendingMeter.record(seconds / 60 * Self.dollarsPerMinute, for: .deepgram)
+        SpendingMeter.record(seconds / 60 * Self.dollarsPerMinute, for: .deepgram, purpose: spendingPurpose)
     }
 }

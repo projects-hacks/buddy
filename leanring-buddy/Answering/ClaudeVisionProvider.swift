@@ -156,7 +156,7 @@ final class ClaudeVisionProvider: TutorBrain {
                     cacheWritesKeptAnHour: inputUsageForCost.writtenForAnHour, output: accumulatedText.count / 4
                 )
                 TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for an answer that was stopped")
-                SpendingMeter.record(cost, for: .claude)
+                SpendingMeter.record(cost, for: .claude, purpose: .answers)
             }
         }
 
@@ -209,7 +209,7 @@ final class ClaudeVisionProvider: TutorBrain {
                         cacheWritesKeptAnHour: inputUsageForCost.writtenForAnHour, output: outputTokens
                     )
                     TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for this answer")
-                    SpendingMeter.record(cost, for: .claude)
+                    SpendingMeter.record(cost, for: .claude, purpose: .answers)
                     costRecorded = true
                     if stopReason == "refusal" {
                         TutorDebugLog.write("⚠️ Claude declined to answer this one")
