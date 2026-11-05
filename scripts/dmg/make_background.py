@@ -3,7 +3,7 @@
 People open the disk image; few read the README. So the window shows the
 drag to Applications, then the two things macOS shows the first time an app
 that is not notarized is opened, each drawn with the button to press ringed
-and a pointer on it. A shortcut in the window opens Privacy & Security.
+and a pointer on it. A link in the window opens Privacy & Security.
 Positions match the icon positions make-release.sh gives Finder (WINDOW and
 the *_AT values below).
 

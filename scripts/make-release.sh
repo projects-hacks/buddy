@@ -94,18 +94,10 @@ echo "architectures: $(lipo -archs "$STAGING/Buddy.app/Contents/MacOS/"*)"
 DMG="$OUT/Buddy.dmg"
 
 # A shortcut straight to the pane with Open Anyway, for the one step of a
-# first install that people otherwise cannot find.
-cat > "$STAGING/Open Privacy & Security.webloc" <<'WEBLOC'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>URL</key>
-	<string>x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension</string>
-</dict>
-</plist>
-WEBLOC
-SetFile -a E "$STAGING/Open Privacy & Security.webloc" 2>/dev/null || true
+# first install that people otherwise cannot find. A link to the pane itself:
+# a web-location file pointing at Settings is refused by Finder ("could not
+# be opened"), while opening the pane is like opening any setting.
+ln -s /System/Library/PreferencePanes/Security.prefPane "$STAGING/Open Privacy & Security"
 mkdir -p "$STAGING/.background"
 cp "scripts/dmg/background.tiff" "$STAGING/.background/background.tiff"
 
@@ -117,14 +109,6 @@ WRITABLE="$OUT/Buddy-writable.dmg"
 rm -f "$WRITABLE"
 hdiutil create -volname "$VOLUME" -srcfolder "$STAGING" -ov -format UDRW "$WRITABLE" >/dev/null
 MOUNTED="$(hdiutil attach "$WRITABLE" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*' | head -1)"
-# The shortcut wears System Settings' icon, so it reads as "open Settings"
-# rather than as a web page.
-osascript -l JavaScript >/dev/null 2>&1 <<SETICON || true
-ObjC.import('AppKit');
-const workspace = \$.NSWorkspace.sharedWorkspace;
-const icon = workspace.iconForFile('/System/Applications/System Settings.app');
-workspace.setIconForFileOptions(icon, '$MOUNTED/Open Privacy & Security.webloc', 0);
-SETICON
 # Window points; the background is drawn for this size (scripts/dmg/), plus
 # the title bar.
 WINDOW_BOUNDS="{200, 100, 960, 772}"
@@ -143,7 +127,7 @@ tell application "Finder"
     set background picture of viewOptions to file ".background:background.tiff"
     set position of item "Buddy.app" of container window to {210, 130}
     set position of item "Applications" of container window to {550, 130}
-    set position of item "Open Privacy & Security.webloc" of container window to {555, 556}
+    set position of item "Open Privacy & Security" of container window to {555, 556}
     close
     open
     -- Set again once reopened: the first size is not always the one saved.
