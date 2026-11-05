@@ -35,7 +35,13 @@
 //
 //  Costs: with a Deepgram key the audio goes to Nova-3 while the answer
 //  plays, about $0.009 a minute, counted in the meter as every question is;
-//  without one, Apple Speech on the Mac only. Off in Settings.
+//  without one, Apple Speech on the Mac only.
+//
+//  There is no switch, as for lecture mode and the error offer. What makes
+//  that safe: the microphone opens only while an answer plays and closes
+//  with it (Esc or Stop end it), the notch shows a mic glyph whenever it is
+//  open, a Bluetooth headset is never used, and the guards above keep
+//  Buddy's own voice and the room out.
 //
 
 import AVFoundation
@@ -58,8 +64,6 @@ final class TalkOverListener {
         case question(String)
     }
 
-    static let enabledDefaultsKey = "talkOverEnabled"
-    static var isEnabled: Bool { UserDefaults.standard.object(forKey: enabledDefaultsKey) as? Bool ?? true }
     private static let usesVoiceProcessingDefaultsKey = "talkOverUsesVoiceProcessing"
 
     /// The loudest 20 ms of what was heard must reach this. Speech from
@@ -97,11 +101,11 @@ final class TalkOverListener {
     private var recentLevels: [(at: Date, decibels: Float)] = []
 
     /// Opens the microphone for the answer that started playing. Does
-    /// nothing when switched off, without microphone permission, or when
-    /// the input is a Bluetooth headset, whose microphone would switch it to
-    /// call quality for the whole answer.
+    /// nothing without microphone permission, or when the input is a
+    /// Bluetooth headset, whose microphone would switch it to call quality
+    /// for the whole answer.
     func start() {
-        guard Self.isEnabled, !isListening, startTask == nil else { return }
+        guard !isListening, startTask == nil else { return }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
         if Self.defaultInputIsBluetooth() {
             TutorDebugLog.write("👂 talk-over: not listening, the microphone is a Bluetooth headset")

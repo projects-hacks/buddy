@@ -2,12 +2,13 @@
 //  CompanionPanelView.swift
 //  leanring-buddy
 //
-//  Settings, behind the gear in the open notch: nine controls in four
-//  groups, two columns, never a scroll. Talking (Talk over Buddy, Sounds,
-//  Open at login), Memory (Remember what I learn, Open Map, Forget
-//  everything), Answers (Answers from, Spent today, Name and keys) and
-//  Buddy itself (one update row), with How to use Buddy and Quit Buddy
-//  under them.
+//  Settings, behind the gear in the open notch: eight controls in four
+//  groups, two columns, never a scroll. Talking (Sounds, Open at login),
+//  Memory (Remember what I learn, Open Map, Forget everything), Answers
+//  (Answers from, Spent today, Name and keys) and Buddy itself (one update
+//  row), with How to use Buddy and Quit Buddy under them. Talking over an
+//  answer has no switch, like lecture mode and the error offer
+//  (TalkOverListener says why that is safe).
 //
 //  Settings only holds settings: the how-to lives in setup's last step and
 //  How to use Buddy, the day's lessons in the Notebook, and a missing
@@ -116,13 +117,27 @@ private struct SettingsGroup<Content: View>: View {
     }
 }
 
-/// The hairline between rows, inset from the group's edges.
+/// The hairline between rows, inset as far as the rows' content.
 private struct SettingsDivider: View {
     var body: some View {
         Rectangle()
             .fill(Color.white.opacity(0.07))
             .frame(height: 1)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, DS.Notch.settingsRowHorizontalInset)
+    }
+}
+
+private extension View {
+    /// Every row in every group is padded the same way, so each group has
+    /// the same room inside its border at the top and the bottom, whichever
+    /// kind of row comes first or last. A minimum height alone would leave
+    /// a captioned row, which outgrows it, closer to the border than a
+    /// one-line row centred in it.
+    func settingsRowInsets() -> some View {
+        self
+            .padding(.vertical, DS.Notch.settingsRowVerticalInset)
+            .padding(.horizontal, DS.Notch.settingsRowHorizontalInset)
+            .frame(minHeight: DS.Notch.settingsOneLineRowHeight)
     }
 }
 
@@ -162,9 +177,7 @@ private struct SettingsSwitchRow: View {
                 .labelsHidden()
                 .allowsHitTesting(false)
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
         .contentShape(Rectangle())
         .onTapGesture { isOn.toggle() }
         .pointerCursor()
@@ -185,7 +198,7 @@ struct NotchSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Capsule()
             .fill(configuration.isOn ? DS.Colors.accent : Color.white.opacity(0.18))
-            .frame(width: 32, height: 19)
+            .frame(width: DS.Notch.switchSize.width, height: DS.Notch.switchSize.height)
             .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                 Circle()
                     .fill(Color.white)
@@ -199,17 +212,10 @@ struct NotchSwitchStyle: ToggleStyle {
 // MARK: - Talking
 
 private struct TalkingSettings: View {
-    /// The existing talk-over switch: the microphone is open while an
-    /// answer plays, so the student can cut in without the keys.
-    @AppStorage(TalkOverListener.enabledDefaultsKey) private var talkOverEnabled = true
     @AppStorage(InterfaceSounds.enabledDefaultsKey) private var interfaceSoundsEnabled = true
     @State private var opensAtLogin = LoginItem.isChosen
 
     var body: some View {
-        SettingsSwitchRow(title: "Talk over Buddy",
-                          caption: "Keeps listening while it explains, so you can cut in.",
-                          isOn: $talkOverEnabled)
-        SettingsDivider()
         SettingsSwitchRow(title: "Sounds", isOn: $interfaceSoundsEnabled)
         SettingsDivider()
         SettingsSwitchRow(title: "Open at login", isOn: Binding(get: { opensAtLogin }, set: { chosen in
@@ -253,9 +259,7 @@ private struct MemorySettings: View {
             }
             .accessibilityLabel("Forget everything Buddy remembers")
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
     }
 
     /// Forgetting is permanent, so it asks first, in the system's own alert
@@ -385,9 +389,7 @@ private struct AnswersSettings: View {
             .pointerCursor()
             .accessibilityLabel("Answers from")
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
 
         SettingsDivider()
 
@@ -401,9 +403,7 @@ private struct AnswersSettings: View {
                 .contentTransition(.numericText())
                 .animation(.smooth(duration: 0.3), value: today.dollars)
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
         .contentShape(Rectangle())
         .nativeTooltip(spendingTooltip(today))
         .accessibilityElement(children: .ignore)
@@ -442,9 +442,7 @@ private struct SettingsChevronRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(DS.Colors.textTertiary)
             }
-            .padding(.vertical, 9)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 40)
+            .settingsRowInsets()
             .background(isHovering ? DS.Notch.rowHover : Color.clear)
             .contentShape(Rectangle())
         }
@@ -513,9 +511,7 @@ private struct UpdateRow: View {
                 }
             }
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
     }
 }
 
