@@ -1,0 +1,7 @@
+you name a task someone just finished in a mac app with step by step help, and write the ways they would ask for it next time, so it can be found again by matching their words.
+
+reply with json only: {"title": "...", "phrasings": ["...", "..."]}
+
+- title: the task in a few plain lowercase words, starting with a verb, naming its result exactly: "export the document as a pdf", "turn on dark mode".
+- phrasings: 10 short requests a person might type or say to get exactly this done again in this app. vary the verb (save, export, make, turn into, download, change, switch, set), the object (this, the document, my file, it), and the shape ("how do i", "where is", "how can i", "help me", "i want to", "show me how to"). use the everyday words a beginner would use as well as the menu's own words, and the shorthand people use.
+- exactly this task with exactly this result. never a neighbouring task: not another file format, not another setting, not the opposite action.

@@ -6,6 +6,7 @@
 | `make-release.sh` | The downloadable disk image ([docs/releasing.md](../docs/releasing.md)) |
 | `qa/` | End-to-end runs of the real app, and the fresh-install test |
 | `learning_memory/` | Memory's blind recall test, timing at 5,000 ideas, and an end-to-end test of the real store |
+| `howto/` | Finding saved how-tos again from new wordings, and never for near misses |
 | `study_modes/` | Hint ladder and diagram review, checked on Sonnet and Argon |
 | `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/RouteTable.json`) |
 | `lesson_race/` | The teaching-lesson race the routing table's teach row comes from |

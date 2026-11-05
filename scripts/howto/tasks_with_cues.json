@@ -1,0 +1,495 @@
+{
+ "tasks": [
+  {
+   "app": "com.apple.TextEdit",
+   "app_name": "TextEdit",
+   "asked": "how do I save this document as a PDF?",
+   "steps": [
+    [
+     "open the File menu",
+     "File"
+    ],
+    [
+     "click Export as PDF",
+     "Export as PDF\u2026"
+    ],
+    [
+     "type a name and click Save",
+     "Save"
+    ]
+   ],
+   "found": [
+    "how do i export this as pdf",
+    "i want to make a pdf of this document",
+    "help me turn this file into a pdf",
+    "where's the option to save as pdf",
+    "can you show me how to get a pdf version of this",
+    "how to save as a pdf",
+    "export to pdf please",
+    "how do i convert this doc to pdf"
+   ],
+   "not_found": [
+    "how do i export this as a word document",
+    "how do i save this as a png",
+    "how do i make my pdf smaller",
+    "how do i print this",
+    "how do i make the text bold",
+    "how do i open a pdf",
+    "how do i save a copy",
+    "how do i email this as a pdf"
+   ],
+   "title": "save the document as a pdf",
+   "cues": [
+    "how do i save this document as a pdf",
+    "how do i export this as a pdf",
+    "save this as a pdf",
+    "export as pdf",
+    "make this a pdf",
+    "turn this document into a pdf",
+    "how can i save my file as a pdf",
+    "where is export as pdf in textedit",
+    "help me save this textedit document as a pdf",
+    "i want to download this as a pdf"
+   ],
+   "cost": 0.0001077,
+   "fresh_found": [
+    "how do i get this as a pdf file",
+    "save it in pdf format",
+    "where do i export pdf from",
+    "turn this doc into a pdf for me",
+    "how can i make a pdf out of this"
+   ],
+   "fresh_not_found": [
+    "how do i export as html",
+    "how do i save this as a template",
+    "how do i share this pdf"
+   ]
+  },
+  {
+   "app": "com.apple.TextEdit",
+   "app_name": "TextEdit",
+   "asked": "how do I turn this into plain text?",
+   "steps": [
+    [
+     "open the Format menu",
+     "Format"
+    ],
+    [
+     "click Make Plain Text",
+     "Make Plain Text"
+    ],
+    [
+     "click OK to confirm",
+     "OK"
+    ]
+   ],
+   "found": [
+    "how do i remove all the formatting and make it plain text",
+    "make this a plain txt file",
+    "how can i convert this to plain text",
+    "i need this document as plain text",
+    "where is plain text mode",
+    "how do i switch this to plain text",
+    "change this to plain text",
+    "how to make it plain text"
+   ],
+   "not_found": [
+    "how do i turn this back into rich text",
+    "how do i make this rich text",
+    "how do i change the font",
+    "how do i make the text bigger",
+    "how do i copy this text",
+    "how do i make the text plain bold"
+   ],
+   "title": "convert the document to plain text",
+   "cues": [
+    "how do i turn this into plain text",
+    "how do i make this plain text",
+    "make this a plain text file",
+    "convert this document to plain text",
+    "how to remove formatting from this document",
+    "strip the formatting out of my text",
+    "where is make plain text in textedit",
+    "change this rich text to plain text",
+    "i want this as plain text",
+    "show me how to make it plain text"
+   ],
+   "cost": 0.0001054,
+   "fresh_found": [
+    "get rid of the formatting and make it plain text",
+    "how can i turn this into a txt",
+    "make the document plain text",
+    "switch to plain text format",
+    "how do i change it to plain text"
+   ],
+   "fresh_not_found": [
+    "how do i make this a rich text document",
+    "how do i remove the bold",
+    "how do i clear the text"
+   ]
+  },
+  {
+   "app": "com.apple.systempreferences",
+   "app_name": "System Settings",
+   "asked": "how do I turn on dark mode",
+   "steps": [
+    [
+     "click Appearance in the sidebar",
+     "Appearance"
+    ],
+    [
+     "choose Dark",
+     "Dark"
+    ]
+   ],
+   "found": [
+    "how do I switch to dark mode",
+    "make my mac dark",
+    "where's the dark appearance setting",
+    "i want the dark theme",
+    "how can i enable dark mode",
+    "set the appearance to dark",
+    "how do i get dark mode",
+    "turn on the dark look"
+   ],
+   "not_found": [
+    "how do I turn off dark mode",
+    "how do i switch to light mode",
+    "how do i change my wallpaper",
+    "how do i make the text bigger",
+    "how do i set dark mode to change automatically",
+    "how do i turn off night shift"
+   ],
+   "title": "turn on dark mode",
+   "cues": [
+    "how do i turn on dark mode",
+    "how do i switch to dark mode",
+    "turn on dark mode",
+    "enable dark mode on my mac",
+    "how to make the screen dark",
+    "make my mac dark",
+    "where is dark mode in settings",
+    "switch the appearance to dark",
+    "how can i change the look to dark",
+    "help me turn on dark theme"
+   ],
+   "cost": 0.0001026,
+   "fresh_found": [
+    "how do i make everything dark",
+    "enable the dark appearance",
+    "how can i turn dark mode on",
+    "switch my mac to dark",
+    "where do i turn on dark mode"
+   ],
+   "fresh_not_found": [
+    "how do i switch dark mode off",
+    "how do i make the screen brighter",
+    "how do i change the accent colour"
+   ]
+  },
+  {
+   "app": "com.apple.finder",
+   "app_name": "Finder",
+   "asked": "how do I make a new folder here",
+   "steps": [
+    [
+     "open the File menu",
+     "File"
+    ],
+    [
+     "click New Folder",
+     "New Folder"
+    ],
+    [
+     "type a name and press return",
+     "untitled folder"
+    ]
+   ],
+   "found": [
+    "how do i create a folder",
+    "make me a new folder in here",
+    "where do i click to add a folder",
+    "help me make a folder",
+    "how can i create a new directory",
+    "how to add a new folder",
+    "i need a new folder",
+    "create a folder please"
+   ],
+   "not_found": [
+    "how do i delete this folder",
+    "how do i rename a folder",
+    "how do i open a new finder window",
+    "how do i make a new file",
+    "how do i move this folder",
+    "how do i make a smart folder"
+   ],
+   "title": "create a new folder",
+   "cues": [
+    "how do i make a new folder here",
+    "how do i create a folder",
+    "how can i make a folder in finder",
+    "where is the new folder option",
+    "make a new folder",
+    "i want to make a folder",
+    "help me create a folder here",
+    "how do i add a folder to this location",
+    "show me how to make a new folder",
+    "how to make a directory in finder"
+   ],
+   "cost": 9.89e-05,
+   "fresh_found": [
+    "how can i add a folder here",
+    "new folder please",
+    "how do i make another folder",
+    "where's new folder",
+    "create a new folder for me"
+   ],
+   "fresh_not_found": [
+    "how do i open this folder",
+    "how do i put this file in a folder",
+    "how do i make a new tag"
+   ]
+  },
+  {
+   "app": "com.apple.Preview",
+   "app_name": "Preview",
+   "asked": "how do I rotate this page",
+   "steps": [
+    [
+     "open the Tools menu",
+     "Tools"
+    ],
+    [
+     "click Rotate Left",
+     "Rotate Left"
+    ]
+   ],
+   "found": [
+    "how can i rotate this pdf page",
+    "turn this page sideways",
+    "how do i flip the page 90 degrees",
+    "the page is upside down how do i rotate it",
+    "where's rotate",
+    "how do i turn the page around",
+    "rotate it please",
+    "how to rotate a page in preview"
+   ],
+   "not_found": [
+    "how do i crop this page",
+    "how do i delete this page",
+    "how do i add a page",
+    "how do i flip this image horizontally",
+    "how do i resize this image",
+    "how do i rotate the screen"
+   ],
+   "title": "rotate a page left",
+   "cues": [
+    "how do i rotate this page",
+    "how do i rotate a page in preview",
+    "rotate this page",
+    "how can i turn this page sideways",
+    "how do i flip this page the right way up",
+    "turn this page left",
+    "where is rotate left in preview",
+    "rotate my pdf page",
+    "help me turn this page around",
+    "i want to rotate this page to the left",
+    "show me how to rotate a page"
+   ],
+   "cost": 0.00010630000000000001,
+   "fresh_found": [
+    "how can i turn this page",
+    "rotate the page to the left",
+    "this page is sideways, how do i fix the rotation",
+    "where is rotate left",
+    "how do i rotate this"
+   ],
+   "fresh_not_found": [
+    "how do i rotate the whole pdf right",
+    "how do i zoom in",
+    "how do i move this page"
+   ]
+  },
+  {
+   "app": "com.apple.Safari",
+   "app_name": "Safari",
+   "asked": "how do i open a private window",
+   "steps": [
+    [
+     "open the File menu",
+     "File"
+    ],
+    [
+     "click New Private Window",
+     "New Private Window"
+    ]
+   ],
+   "found": [
+    "how do I go incognito",
+    "open a private browsing window",
+    "i want to browse privately",
+    "where is private window",
+    "how can i open incognito mode in safari",
+    "how to start private browsing",
+    "help me open a private tab",
+    "how do i browse without saving history"
+   ],
+   "not_found": [
+    "how do i open a new tab",
+    "how do i clear my history",
+    "how do i close the private window",
+    "how do i open a new window",
+    "how do i block pop ups",
+    "how do i see my history"
+   ],
+   "title": "open a private window",
+   "cues": [
+    "how do i open a private window",
+    "how do i open a private window in safari",
+    "open a private window",
+    "how do i browse privately in safari",
+    "how can i open an incognito window",
+    "where is the private window option",
+    "help me open a private browsing window",
+    "i want to open a private window",
+    "show me how to go incognito in safari",
+    "make a new private window"
+   ],
+   "cost": 9.559999999999999e-05,
+   "fresh_found": [
+    "open private browsing",
+    "how can i get a private window",
+    "start an incognito window",
+    "where's new private window",
+    "how do i browse in private"
+   ],
+   "fresh_not_found": [
+    "how do i open a new private tab group",
+    "how do i reopen a closed window",
+    "how do i go back"
+   ]
+  },
+  {
+   "app": "com.apple.Keynote",
+   "app_name": "Keynote",
+   "asked": "how do I add a slide",
+   "steps": [
+    [
+     "click Add Slide in the toolbar",
+     "Add Slide"
+    ],
+    [
+     "choose a layout",
+     "Title & Bullets"
+    ]
+   ],
+   "found": [
+    "how do i insert a new slide",
+    "add another slide please",
+    "how can i make a new slide",
+    "where's the add slide button",
+    "i need one more slide",
+    "how to create a slide",
+    "help me add a slide",
+    "put in a new slide"
+   ],
+   "not_found": [
+    "how do i delete a slide",
+    "how do i duplicate this slide",
+    "how do i add a text box",
+    "how do i add a chart",
+    "how do i change the slide layout",
+    "how do i reorder slides"
+   ],
+   "title": "add a slide",
+   "cues": [
+    "how do i add a slide",
+    "how do i add a new slide",
+    "how can i insert a slide",
+    "where is the add slide button",
+    "help me add a slide",
+    "i want to add another slide",
+    "show me how to add a slide",
+    "how do i make a new slide",
+    "add a slide to my presentation",
+    "how to add a page to keynote"
+   ],
+   "cost": 9.640000000000001e-05,
+   "fresh_found": [
+    "how can i add one more slide",
+    "make a new slide please",
+    "insert a slide here",
+    "where do i add a slide",
+    "how do i get a new slide"
+   ],
+   "fresh_not_found": [
+    "how do i remove this slide",
+    "how do i add a transition",
+    "how do i add a photo"
+   ]
+  },
+  {
+   "app": "com.apple.Notes",
+   "app_name": "Notes",
+   "asked": "how can I lock this note with a password",
+   "steps": [
+    [
+     "click the More button",
+     "More"
+    ],
+    [
+     "choose Lock Note",
+     "Lock Note"
+    ],
+    [
+     "enter your password and click OK",
+     "OK"
+    ]
+   ],
+   "found": [
+    "how do i password protect this note",
+    "can i lock this note",
+    "help me put a lock on this note",
+    "how to secure this note with a password",
+    "where's lock note",
+    "how do i make this note private with a password",
+    "i want to lock my note",
+    "lock this note please"
+   ],
+   "not_found": [
+    "how do i unlock this note",
+    "how do i delete this note",
+    "how do i change the note password",
+    "how do i share this note",
+    "how do i pin this note",
+    "how do i remove the lock from this note"
+   ],
+   "title": "lock a note with a password",
+   "cues": [
+    "how do i lock a note with a password",
+    "how can i lock this note",
+    "lock my note with a password",
+    "password protect this note",
+    "where is the lock note option",
+    "how do i put a password on a note",
+    "i want to lock this note",
+    "help me lock a note so nobody can read it",
+    "set a password on this note",
+    "show me how to lock a note"
+   ],
+   "cost": 9.96e-05,
+   "fresh_found": [
+    "how do i put a password on this note",
+    "lock my note please",
+    "how can i lock this note",
+    "where do i lock a note",
+    "protect this note with a password"
+   ],
+   "fresh_not_found": [
+    "how do i unlock my note",
+    "how do i lock my screen",
+    "how do i make a new note"
+   ]
+  }
+ ]
+}

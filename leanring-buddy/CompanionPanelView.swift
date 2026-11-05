@@ -46,6 +46,9 @@ struct CompanionPanelView: View {
                     .padding(.horizontal, 16)
 
                 Spacer().frame(height: 6)
+                SpendingRow()
+                    .padding(.horizontal, 16)
+
                 interfaceSoundsToggleRow
                     .padding(.horizontal, 16)
 
@@ -464,7 +467,7 @@ struct CompanionPanelView: View {
                     .font(.system(size: 11))
                     .foregroundColor(DS.Colors.textTertiary)
                 Spacer()
-                if companionManager.learningMemory.conceptCount > 0 {
+                if companionManager.learningMemory.conceptCount > 0 || companionManager.howToCount > 0 {
                     Button(action: forgetButtonTapped) {
                         Text(isConfirmingForget ? "Click again to forget all" : "Forget all")
                             .font(.system(size: 11, weight: .semibold))
@@ -482,8 +485,12 @@ struct CompanionPanelView: View {
     private var learningMemoryCaption: String {
         let count = companionManager.learningMemory.conceptCount
         guard learningMemoryEnabled else { return "Off. Each answer starts fresh." }
-        if count == 0 { return "Remembers what you learn, on this Mac only." }
-        return count == 1 ? "1 idea remembered, on this Mac only." : "\(count) ideas remembered, on this Mac only."
+        let howTos = companionManager.howToCount
+        if count == 0 && howTos == 0 { return "Remembers what you learn, on this Mac only." }
+        var parts: [String] = []
+        if count > 0 { parts.append(count == 1 ? "1 idea" : "\(count) ideas") }
+        if howTos > 0 { parts.append(howTos == 1 ? "1 how-to" : "\(howTos) how-tos") }
+        return parts.joined(separator: " and ") + " remembered, on this Mac only."
     }
 
     private func forgetButtonTapped() {
@@ -731,6 +738,51 @@ private struct PermissionStepRow: View {
 
 
 /// The version, automatic checks, and a check or update on demand.
+/// What Buddy has spent on the student's keys, from each reply's own token
+/// counts and the published prices (SpendingMeter.swift).
+private struct SpendingRow: View {
+    @ObservedObject private var meter = SpendingMeter.shared
+
+    var body: some View {
+        let today = meter.today
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "dollarsign.circle")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(DS.Colors.textTertiary)
+                        .frame(width: 16)
+                    Text("Spent today")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+                Spacer()
+                Text(SpendingMeter.formatted(today.dollars))
+                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
+                    .foregroundColor(DS.Colors.textPrimary)
+                    .contentTransition(.numericText())
+                    .animation(.smooth(duration: 0.3), value: today.dollars)
+            }
+            Text(caption(today))
+                .font(.system(size: 11))
+                .foregroundColor(DS.Colors.textTertiary)
+                .padding(.leading, 24)
+                .help("Worked out from each reply's token counts and the providers' published prices. Your provider's bill is the exact figure.")
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func caption(_ today: SpendingMeter.Day) -> String {
+        var parts: [String] = []
+        parts.append(today.questions == 1 ? "1 question" : "\(today.questions) questions")
+        if today.guideSteps > 0 {
+            parts.append(today.guideSteps == 1 ? "1 guide step" : "\(today.guideSteps) guide steps")
+        }
+        parts.append("this month \(SpendingMeter.formatted(meter.thisMonthDollars))")
+        return parts.joined(separator: ", ")
+    }
+}
+
 private struct UpdatesRow: View {
     @ObservedObject var updater: AppUpdater
 

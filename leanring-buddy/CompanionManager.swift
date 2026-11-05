@@ -1314,7 +1314,10 @@ final class CompanionManager: ObservableObject {
     /// the only latency the user perceives is time-to-first-sentence.
     /// `guideStep` is set when guide mode looks again after the student did
     /// a step: nobody spoke, so nothing goes in the transcript as theirs.
-    private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil) {
+    /// `howToTakeover` is set when a saved how-to stopped matching the screen
+    /// at that step and the model carries on from there.
+    private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
+                                                     howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil) {
         let isGuideContinuation = guideStep != nil
         let transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
@@ -1323,6 +1326,8 @@ final class CompanionManager: ObservableObject {
         if isGuideContinuation {
             guideWatcher.stop()
             TutorDebugLog.write("🧭 guide: \(transcript)")
+        } else if howToTakeover != nil {
+            TutorDebugLog.write("📒 replay handed to the model: \(transcript)")
         } else {
             stopGuide(reason: "a new question")
             TutorDebugLog.write("🎙️ asked: \(transcript)")
@@ -1330,7 +1335,29 @@ final class CompanionManager: ObservableObject {
             controlBar.model.heardWords = transcript
         }
         answerStartedAt = Date()
+        if howToTakeover == nil { SpendingMeter.shared.countQuestion(isGuideStep: isGuideContinuation) }
         logStage("question in")
+
+        // Asked before? A saved how-to for this app is replayed with no
+        // model at all. Decided before the sorter and memory calls start, so
+        // a replay costs only its voice.
+        if !isGuideContinuation, howToTakeover == nil, learningMemory.isEnabled,
+           let front = NSWorkspace.shared.frontmostApplication,
+           front.bundleIdentifier != Bundle.main.bundleIdentifier,
+           let howTo = howToMemory.match(question: transcript, appBundleIdentifier: front.bundleIdentifier,
+                                         vectorFor: { [questionSorter] text in questionSorter.sentenceVector(for: text) }) {
+            currentResponseTask = Task { [weak self] in
+                guard let self else { return }
+                let replayed = await self.replayHowToStep(howTo, stepIndex: 0, question: transcript,
+                                                          startedBy: transcript, application: front)
+                guard !replayed, !Task.isCancelled else { return }
+                TutorDebugLog.write("📒 replay: the first step's control is not on screen")
+                self.howToMemory.noteReplayFailed(howTo)
+                self.howToMemory.startRecording(question: transcript, application: front, replacing: howTo.id)
+                self.sendTranscriptToTutorWithScreenshot(transcript: transcript, howToTakeover: (howTo, 0))
+            }
+            return
+        }
         let hasPreviousAnswer = !conversationHistory.isEmpty
         // A guide step is always short: one or two sentences and a pointer.
         let localProbabilities = isGuideContinuation
@@ -1463,6 +1490,9 @@ final class CompanionManager: ObservableObject {
                 guard !Task.isCancelled else { return }
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
+                if let howToTakeover, howToTakeover.stepsDone > 0 {
+                    studyNotes.append(HowToMemory.takeoverNote(howToTakeover.howTo, stepsDone: howToTakeover.stepsDone))
+                }
                 if let guideStep {
                     studyNotes.append(GuideMode.continuationNote(
                         after: guideStep, stepNumber: guideStepsGiven,
@@ -1620,6 +1650,27 @@ final class CompanionManager: ObservableObject {
                         practiceHintLadder.record(level: levelGiven, for: problem)
                     }
                     let nextGuideStep = GuideMode.step(inProgram: fullResponseText)
+                    // Kept as a how-to once the task is finished. Memory's
+                    // switch covers these too.
+                    if learningMemory.isEnabled {
+                        let labels = screenIndex.lastListedLabels
+                        if !isGuideContinuation, let nextGuideStep {
+                            if howToTakeover == nil {
+                                howToMemory.startRecording(
+                                    question: transcript,
+                                    application: applicationInFront?.bundleIdentifier == Bundle.main.bundleIdentifier
+                                        ? nil : applicationInFront)
+                            }
+                            howToMemory.recordStep(program: fullResponseText, labels: labels, waitingFor: nextGuideStep)
+                        } else if isGuideContinuation, let nextGuideStep {
+                            howToMemory.recordStep(program: fullResponseText, labels: labels, waitingFor: nextGuideStep)
+                        } else if isGuideContinuation, !HowToMemory.sayArguments(in: fullResponseText).isEmpty {
+                            howToMemory.finishRecording(program: fullResponseText, labels: labels,
+                                                        lessonTitle: lessonPlayer.lessonTitle)
+                        } else {
+                            howToMemory.abandonRecording()
+                        }
+                    }
                     if let nextGuideStep, guideStepsGiven < GuideMode.maximumSteps {
                         currentGuideStep = nextGuideStep
                         guideStepsGiven += 1
@@ -1992,7 +2043,20 @@ final class CompanionManager: ObservableObject {
         return watcher
     }()
 
+    // How-tos (HowToMemory.swift): finished guides, replayed with no model.
+    private lazy var howToMemory: HowToMemory = {
+        let memory = HowToMemory()
+        memory.writeCues = { [weak self] howTo in await self?.claudeBrain.howToCues(howTo) }
+        return memory
+    }()
+    var howToCount: Int { howToMemory.count }
+    /// A saved how-to being replayed: which step comes next, and the
+    /// question that started it.
+    private var currentReplay: (howTo: HowTo, nextStepIndex: Int, question: String)?
+
     private func stopGuide(reason: String) {
+        if reason != "task finished" { howToMemory.abandonRecording() }
+        currentReplay = nil
         guard currentGuideStep != nil || guideWatcher.isWatching else { return }
         TutorDebugLog.write("🧭 guide stopped: \(reason)")
         guideWatcher.stop()
@@ -2009,10 +2073,129 @@ final class CompanionManager: ObservableObject {
     private func continueGuide(changedRegion: CGRect) {
         guard let step = currentGuideStep else { return }
         guideChangedRegion = changedRegion
+        if let replay = currentReplay {
+            continueReplay(replay, after: step)
+            return
+        }
         TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) looks done, looking again")
         shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: GuideMode.continuationQuestion(after: step), guideStep: step)
     }
+    // MARK: Replaying how-tos
+
+    /// Looks at the screen, finds the step's control by its label, and says
+    /// and draws the saved step: no model. False when the control is not
+    /// there, so the caller can hand over to the model.
+    private func replayHowToStep(_ howTo: HowTo, stepIndex: Int, question: String, startedBy originalQuestion: String,
+                                 application: NSRunningApplication?) async -> Bool {
+        guard stepIndex < howTo.steps.count else { return false }
+        let step = howTo.steps[stepIndex]
+        voiceState = .processing
+        controlBar.model.waitingStage = "reading your screen"
+        guard let screen = await captureScreenForReplay(), !Task.isCancelled else {
+            voiceState = .idle
+            return false
+        }
+        var targetIdentifier: String?
+        if let label = step.targetLabel {
+            guard let found = HowToMatching.targetIdentifier(forLabel: label, in: screen.labels) else {
+                TutorDebugLog.write("📒 replay: \"\(label)\" is not on screen")
+                voiceState = .idle
+                return false
+            }
+            targetIdentifier = found
+        }
+        TutorDebugLog.write("📒 replaying \"\(howTo.title)\" step \(stepIndex + 1) of \(howTo.steps.count), no model")
+        logStage("replay ready")
+
+        let program = HowToMemory.program(for: step, targetIdentifier: targetIdentifier)
+        clearAnnotations()
+        if let screenForDrawing = screen.screen {
+            lessonPlayer.begin(on: screenForDrawing, canvasSize: screen.canvasSize, targets: screen.boxes,
+                               targetLabels: screen.labels, screenInkHex: "#3380FF")
+        }
+        currentAnswerFormat = .program
+        controlBar.model.answeredBy = "from memory"
+        voiceState = .responding
+        lessonPlayer.feed(accumulatedText: program)
+        await lessonPlayer.finish(fullText: program)
+        conversationHistory.append((userTranscript: question, assistantResponse: program))
+        if conversationHistory.count > 10 { conversationHistory.removeFirst(conversationHistory.count - 10) }
+
+        let isLastStep = stepIndex + 1 >= howTo.steps.count || step.instruction == nil
+        if isLastStep {
+            howToMemory.noteReplayed(howTo, askedAs: originalQuestion)
+            controlBar.model.recordLessonTitle(howTo.title)
+            stopGuide(reason: "task finished")
+        } else if let instruction = step.instruction {
+            currentReplay = (howTo, stepIndex + 1, originalQuestion)
+            currentGuideStep = GuideStep(instruction: instruction, doneWhen: step.doneWhen ?? "")
+            guideStepsGiven = stepIndex + 1
+            guideBaseline = (screen.capture.imageData, screen.capture.displayFrame)
+            guidedApplication = application
+            controlBar.model.guideInstruction = instruction
+        }
+
+        // As after a model's answer: the status holds until the voice ends,
+        // then the watcher waits for the student.
+        while speechConsumerTask != nil || isAnyVoicePlaying {
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if Task.isCancelled { break }
+        }
+        voiceState = .idle
+        await lessonPlayer.waitUntilSpoken()
+        controlBar.model.caption = ""
+        if !isLastStep, !Task.isCancelled, let currentGuideStep, let guideBaseline {
+            guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
+                               displayFrame: guideBaseline.displayFrame, guidedApplication: guidedApplication)
+        }
+        return true
+    }
+
+    /// The student did a replayed step. The next saved step is replayed if
+    /// its control is now on screen; if not, something differs from last
+    /// time, so the model looks and carries on, and the walkthrough it gives
+    /// replaces the saved one.
+    private func continueReplay(_ replay: (howTo: HowTo, nextStepIndex: Int, question: String), after step: GuideStep) {
+        shortcutReleasedAt = nil
+        answerStartedAt = Date()
+        SpendingMeter.shared.countQuestion(isGuideStep: true)
+        currentResponseTask?.cancel()
+        cancelSpeechAndClearQueue()
+        let question = GuideMode.continuationQuestion(after: step)
+        let application = guidedApplication
+        currentResponseTask = Task { [weak self] in
+            guard let self else { return }
+            let replayed = await self.replayHowToStep(replay.howTo, stepIndex: replay.nextStepIndex, question: question,
+                                                      startedBy: replay.question, application: application)
+            guard !replayed, !Task.isCancelled else { return }
+            self.howToMemory.noteReplayFailed(replay.howTo)
+            self.howToMemory.startRecording(question: replay.question, application: application,
+                                            seededWith: Array(replay.howTo.steps.prefix(replay.nextStepIndex)),
+                                            replacing: replay.howTo.id)
+            self.currentReplay = nil
+            self.sendTranscriptToTutorWithScreenshot(transcript: question, guideStep: step,
+                                                     howToTakeover: (replay.howTo, replay.nextStepIndex))
+        }
+    }
+
+    /// The screen under the cursor, captured and read, for a replay.
+    private func captureScreenForReplay() async -> (capture: CompanionScreenCapture, canvasSize: CGSize,
+                                                    boxes: [String: [Double]], labels: [String: String],
+                                                    screen: NSScreen?)? {
+        guard let captures = try? await CompanionScreenCaptureUtility.captureAllScreensAsJPEG(), !captures.isEmpty else {
+            return nil
+        }
+        let primary = captures.first(where: { $0.isCursorScreen }) ?? captures[0]
+        displayFrameForCurrentAnswer = primary.displayFrame
+        let displaySize = CGSize(width: primary.displayWidthInPoints, height: primary.displayHeightInPoints)
+        await screenIndex.rebuild(fromScreenshot: primary.imageData, displayIndex: 0, displayBoundsInPoints: displaySize)
+        let canvasSize = CGSize(width: primary.screenshotWidthInPixels, height: primary.screenshotHeightInPixels)
+        let (_, boxes) = screenIndex.listingWithBoxes(canvasSize: canvasSize, displaySizeInPoints: displaySize)
+        let screen = NSScreen.screens.first { $0.frame == primary.displayFrame } ?? NSScreen.main
+        return (primary, canvasSize, boxes, screenIndex.lastListedLabels, screen)
+    }
+
     /// Which try at the current answer is live. A brain given up on at its
     /// deadline may still deliver words while it unwinds; they are dropped.
     private var currentAnswerAttempt = 0
@@ -2022,6 +2205,7 @@ final class CompanionManager: ObservableObject {
     func forgetLearningMemory() {
         learningMemory.forgetEverything()
         practiceHintLadder.forgetAll()
+        howToMemory.forgetAll()
     }
 
     /// An available update shows in the open notch, with its progress, until
@@ -2096,7 +2280,7 @@ final class CompanionManager: ObservableObject {
             + "claude=\(canUseClaude) argon=\(canUseArgon) vertex=\(usesVertexForArgon) setupNeeded=\(needsSetup) "
             + "tab=\(model.selectedTab) chatFocused=\(model.isChatFocused) chatDraft=\(model.chatDraft.count) "
             + "front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "-") appActive=\(NSApp.isActive) "
-            + "transcript=\(model.transcript.count)")
+            + "transcript=\(model.transcript.count) howtos=\(howToMemory.count) spentToday=\(SpendingMeter.shared.today.dollars)")
     }
     #endif
 

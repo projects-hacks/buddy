@@ -60,6 +60,7 @@ extension ClaudeVisionProvider {
                 TutorDebugLog.write("⚠️ question classifier: unexpected response")
                 return nil
             }
+            SpendingMeter.record(APIPrices.claude(model: "claude-haiku-5-5", usageIn: json), for: .claude)
             let word = content.compactMap { $0["text"] as? String }.joined().lowercased()
             // Longest names first, so "reexplain" is not read as something shorter.
             let kindsByName: [(String, QuestionKind)] = [

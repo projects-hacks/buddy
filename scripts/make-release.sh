@@ -92,7 +92,63 @@ echo "architectures: $(lipo -archs "$STAGING/Buddy.app/Contents/MacOS/"*)"
 # page: github.com/<repo>/releases/latest/download/Buddy.dmg. The version
 # is in the release's title and the app itself.
 DMG="$OUT/Buddy.dmg"
-hdiutil create -volname "Buddy $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG" >/dev/null
+
+# A shortcut straight to the pane with Open Anyway, for the one step of a
+# first install that people otherwise cannot find.
+cat > "$STAGING/Open Privacy & Security.webloc" <<'WEBLOC'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>URL</key>
+	<string>x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension</string>
+</dict>
+</plist>
+WEBLOC
+SetFile -a E "$STAGING/Open Privacy & Security.webloc" 2>/dev/null || true
+mkdir -p "$STAGING/.background"
+cp "scripts/dmg/background.tiff" "$STAGING/.background/background.tiff"
+
+# Laid out by Finder itself, the only thing that writes a window's layout:
+# the install steps are the window's background (scripts/dmg/), with the
+# icons placed where the picture leaves room for them.
+VOLUME="Buddy $VERSION"
+WRITABLE="$OUT/Buddy-writable.dmg"
+rm -f "$WRITABLE"
+hdiutil create -volname "$VOLUME" -srcfolder "$STAGING" -ov -format UDRW "$WRITABLE" >/dev/null
+MOUNTED="$(hdiutil attach "$WRITABLE" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*' | head -1)"
+if osascript <<APPLESCRIPT >/dev/null 2>&1
+tell application "Finder"
+  tell disk "$VOLUME"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set the bounds of container window to {200, 120, 860, 588}
+    set viewOptions to the icon view options of container window
+    set arrangement of viewOptions to not arranged
+    set icon size of viewOptions to 96
+    set text size of viewOptions to 13
+    set background picture of viewOptions to file ".background:background.tiff"
+    set position of item "Buddy.app" of container window to {165, 140}
+    set position of item "Applications" of container window to {495, 140}
+    set position of item "Open Privacy & Security.webloc" of container window to {560, 345}
+    close
+    open
+    delay 1
+    close
+  end tell
+end tell
+APPLESCRIPT
+then
+  echo "disk image window laid out with the install steps"
+else
+  echo "Finder could not be scripted (allow it in System Settings > Privacy & Security > Automation); the window keeps Finder's default layout"
+fi
+sync
+hdiutil detach "$MOUNTED" -quiet || hdiutil detach "$MOUNTED" -force -quiet
+hdiutil convert "$WRITABLE" -format UDZO -ov -o "$DMG" >/dev/null
+rm -f "$WRITABLE"
 CHECKSUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 echo "$CHECKSUM  Buddy.dmg" > "$DMG.sha256"
 # Unregistered before deleting: a registered copy that no longer exists is

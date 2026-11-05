@@ -148,6 +148,7 @@ final class NarrationVoice {
                 guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                     throw DeepgramError.httpStatus((response as? HTTPURLResponse)?.statusCode ?? -1)
                 }
+                SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram)
 
                 // About a fifth of a second per chunk: small enough that the
                 // first one plays almost at once, large enough not to swamp

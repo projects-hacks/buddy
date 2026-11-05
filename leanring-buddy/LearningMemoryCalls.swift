@@ -2,7 +2,7 @@
 //  LearningMemoryCalls.swift
 //  leanring-buddy
 //
-//  The two Claude Haiku calls learning memory makes, each with its prompt in
+//  The Claude Haiku calls learning memory makes (and the one how-tos make), each with its prompt in
 //  a file so scripts/learning_memory grades exactly what ships.
 //
 //  Filing (LessonConceptPrompt.txt) runs after an answer has been spoken and
@@ -23,6 +23,32 @@ extension ClaudeVisionProvider {
     private static let lessonConceptPrompt: String? = Bundle.main
         .url(forResource: "LessonConceptPrompt", withExtension: "txt")
         .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+
+    private static let howToCuesPrompt: String? = Bundle.main
+        .url(forResource: "HowToCuesPrompt", withExtension: "txt")
+        .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+
+    /// A plain name for a finished how-to and ten ways of asking for it, so
+    /// the next request finds it on the Mac with no model call. Written once,
+    /// when the how-to is saved, for about $0.0005.
+    func howToCues(_ howTo: HowTo) async -> (title: String, phrasings: [String])? {
+        guard let systemPrompt = Self.howToCuesPrompt else { return nil }
+        let steps = howTo.steps.enumerated().map { index, step in
+            "\(index + 1). \(step.instruction ?? step.sentences.joined(separator: " "))"
+                + (step.targetLabel.map { " (control: \($0))" } ?? "")
+        }.joined(separator: "\n")
+        let message = "app: \(howTo.appName)\nthey asked: \(howTo.questions.first ?? howTo.title)\nsteps:\n\(steps)"
+        guard let reply = await quickHaikuReply(system: systemPrompt, message: message, maximumTokens: 400, timeout: 10),
+              let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"),
+              let json = try? JSONSerialization.jsonObject(with: Data(reply[start...end].utf8)) as? [String: Any] else {
+            return nil
+        }
+        let title = (json["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let phrasings = (json["phrasings"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return (title, Array(phrasings.prefix(12)))
+    }
 
     private static let memoryRecallPrompt: String? = Bundle.main
         .url(forResource: "MemoryRecallPrompt", withExtension: "txt")
@@ -140,6 +166,7 @@ extension ClaudeVisionProvider {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                   let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let content = json["content"] as? [[String: Any]] else { return nil }
+            SpendingMeter.record(APIPrices.claude(model: "claude-haiku-5-5", usageIn: json), for: .claude)
             return content.compactMap { $0["text"] as? String }.joined()
         } catch {
             return nil

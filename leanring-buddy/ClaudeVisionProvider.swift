@@ -179,6 +179,7 @@ final class ClaudeVisionProvider: TutorBrain {
                         output: outputTokens
                     )
                     TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for this answer")
+                    SpendingMeter.record(cost, for: .claude)
                     if stopReason == "refusal" {
                         TutorDebugLog.write("⚠️ Claude declined to answer this one")
                     }
@@ -239,18 +240,8 @@ final class ClaudeVisionProvider: TutorBrain {
     private static func estimatedCostInDollars(
         model: String, freshInput: Int, cachedInput: Int, cacheWrites: Int, output: Int
     ) -> Double {
-        let (inputPrice, outputPrice): (Double, Double)
-        switch model {
-        case let name where name.contains("opus"): (inputPrice, outputPrice) = (4, 20)
-        case let name where name.contains("haiku"): (inputPrice, outputPrice) = (0.10, 0.50)
-        default: (inputPrice, outputPrice) = (2, 10)
-        }
-        let cacheReadPrice = model.contains("haiku") ? 0.01 : 0.20
-        let millions = 1_000_000.0
-        return Double(freshInput) * inputPrice / millions
-            + Double(cachedInput) * cacheReadPrice / millions
-            + Double(cacheWrites) * inputPrice * 1.25 / millions
-            + Double(output) * outputPrice / millions
+        APIPrices.claude(model: model, freshInput: freshInput, cachedInput: cachedInput,
+                         cacheWrites: cacheWrites, output: output)
     }
 
     // MARK: - Request construction

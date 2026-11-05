@@ -102,6 +102,7 @@ final class DeepgramSpeechClient {
         guard (200...299).contains(http.statusCode) else {
             throw DeepgramError.httpStatus(http.statusCode)
         }
+        SpendingMeter.record(APIPrices.deepgram(characters: spokenText.count), for: .deepgram)
 
         guard let format = Self.playbackFormat else {
             throw DeepgramError.malformedResponse

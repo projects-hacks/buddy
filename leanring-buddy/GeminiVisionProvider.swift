@@ -161,6 +161,9 @@ final class GeminiVisionProvider: TutorBrain {
         }
 
         var accumulatedText = ""
+        // Each event repeats the running totals; the last one is the answer's.
+        var latestUsage: [String: Any]?
+        defer { if let latestUsage { SpendingMeter.record(APIPrices.gemini(usageMetadata: latestUsage), for: .gemini) } }
 
         // With alt=sse the stream is Server-Sent Events, one JSON payload per
         // `data:` line, which matches the upstream Anthropic parser rather than
@@ -173,6 +176,7 @@ final class GeminiVisionProvider: TutorBrain {
                   let payload = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
                 continue
             }
+            if let usage = payload["usageMetadata"] as? [String: Any] { latestUsage = usage }
 
             guard let candidates = payload["candidates"] as? [[String: Any]],
                   let content = candidates.first?["content"] as? [String: Any],
@@ -217,6 +221,9 @@ final class GeminiVisionProvider: TutorBrain {
               let content = candidates.first?["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]] else {
             throw GeminiError.malformedResponse
+        }
+        if let usage = json["usageMetadata"] as? [String: Any] {
+            SpendingMeter.record(APIPrices.gemini(usageMetadata: usage), for: .gemini)
         }
 
         let text = parts.compactMap { part in part["text"] as? String }.joined()
