@@ -117,4 +117,13 @@ with tempfile.TemporaryDirectory() as folder:
     subprocess.run(["tiffutil", "-cathidpicheck", str(one), str(two), "-out", str(HERE / "background.tiff")],
                    check=True, capture_output=True)
     draw(2).save(pathlib.Path(tempfile.gettempdir()) / "buddy-dmg-preview.png")
+
+# The README shows the same picture, with Buddy and Applications drawn where
+# Finder puts their icons, so a visitor sees the install before downloading.
+readme = draw(2).convert("RGBA")
+apps = Image.open("/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ApplicationsFolderIcon.icns").convert("RGBA")
+for (x, y), picture in [(BUDDY_AT, Image.open(ICON).convert("RGBA")), (APPLICATIONS_AT, apps)]:
+    icon = picture.resize((192, 192), Image.LANCZOS)
+    readme.paste(icon, (x * 2 - 96, y * 2 - 96), icon)
+readme.convert("RGB").save(HERE.parents[1] / "docs/images/install-steps.png", optimize=True)
 print("wrote", HERE / "background.tiff")
