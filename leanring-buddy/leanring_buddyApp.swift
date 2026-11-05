@@ -43,6 +43,8 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         // No menu bar icon: everything lives in the notch, settings included,
         // so there is one place to look instead of two.
         companionManager.start()
+        // Lecture mode hook: watches which app is in front and whether it plays sound.
+        LectureMode.shared.startWatching()
         companionManager.keepSettingsOpenWhileSetupIsNeeded()
         registerAsLoginItemIfNeeded()
     }

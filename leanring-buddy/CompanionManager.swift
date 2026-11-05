@@ -1520,6 +1520,10 @@ final class CompanionManager: ObservableObject {
             question: transcript, windowTitle: earlyWindowTitle,
             questionVector: questionSorter.sentenceVector(for: transcript))
         _ = earlyFrontAppName
+        // Lecture mode hook: what the video in front just said, gathered
+        // while the screen is captured. Not for guide steps or replays.
+        let lectureGatheringTask = isGuideContinuation || howToTakeover != nil
+            ? nil : LectureMode.shared.beginGathering(question: transcript)
 
         let classifierTask: Task<QuestionKind?, Never>? =
             localConfidence < QuestionSorter.confidentEnough && APIKeyStore.hasKey(for: .anthropic)
@@ -1674,6 +1678,15 @@ final class CompanionManager: ObservableObject {
                     studyNotes.append(DiagramReview.instruction(tool: diagramTool))
                     TutorDebugLog.write("✏️ reviewing their drawing in \(diagramTool)")
                 }
+
+                // Lecture mode hook: a note only when a lecture's words were found.
+                if let lectureGatheringTask,
+                   let lectureNote = await LectureMode.shared.note(
+                    for: lectureGatheringTask, question: transcript, screenListing: screenListing,
+                    waitingUntil: answerStartedAt.addingTimeInterval(LectureMode.longestWaitAfterQuestionSeconds)) {
+                    studyNotes.append(lectureNote)
+                }
+                guard !Task.isCancelled else { return }
 
                 let turnPrompt = TutorProgramPrompt.turnContext(
                     transcript: transcript,

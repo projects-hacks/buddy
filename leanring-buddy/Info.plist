@@ -4,6 +4,8 @@
 <dict>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Buddy hears only the sound of the video in front of you, never your microphone or a call, so it knows what the lecturer just said. It keeps the last 90 seconds in memory and nothing on disk.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Buddy uses your microphone so you can talk to it</string>
 	<key>NSScreenCaptureUsageDescription</key>
