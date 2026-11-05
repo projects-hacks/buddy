@@ -81,25 +81,51 @@ struct BoardDrawCommand: Codable, Equatable {
     var isDashed: Bool?
     var removedIdentifiers: [String]?
     var viewport: BoardViewport?
+    /// For an arrow drawn as two stubs: the number on both tags, the stub
+    /// arriving at the end, and where the tags are.
+    var stubTag: Int?
+    var arrivingRoute: [BoardPoint]?
+    var tagFrames: [BoardRect]?
 }
 
-/// Where the paper sits on a screen, and the board area inside it, in the
-/// drawing canvas's pixels. The canvas is the screen's size in points, so
-/// board units at full zoom are points.
+/// Where everything sits on a screen, in the drawing canvas's pixels. The
+/// canvas is the screen's size in points, so board units at full zoom are
+/// points.
+///
+/// From the approved design (board mode): the whole display is paper, the
+/// title and the current part sit top left under the notch's height, a
+/// "Today's board" card lists the parts at top right, and one dark bar sits
+/// bottom centre. The drawing area is what is left, so nothing drawn ever
+/// goes under the title, the card or the bar.
 struct BoardSurface: Equatable {
     let canvasWidth: Double
     let canvasHeight: Double
     let paper: BoardRect
     let content: BoardRect
+    /// Top left of the board's title; the part's name is written under it.
+    let titleOrigin: BoardPoint
+    let partsCard: BoardRect
+    /// The bottom bar's vertical band; it is centred and sized to its words
+    /// by the page.
+    let barBand: BoardRect
 
-    /// The notch's caption hangs over the top 96 points, so the paper starts
-    /// below it; the title takes the paper's first 84 points.
+    static let sideMargin: Double = 56
+    static let partsCardWidth: Double = 280
+
     init(canvasWidth: Double, canvasHeight: Double) {
         self.canvasWidth = canvasWidth
         self.canvasHeight = canvasHeight
-        let paper = BoardRect(x: 28, y: 104, width: canvasWidth - 56, height: canvasHeight - 104 - 28)
-        self.paper = paper
-        self.content = BoardRect(x: paper.x + 40, y: paper.y + 84, width: paper.width - 80, height: paper.height - 84 - 30)
+        paper = BoardRect(x: 0, y: 0, width: canvasWidth, height: canvasHeight)
+        // Below the notch, which hangs about 90 points at most.
+        titleOrigin = BoardPoint(x: Self.sideMargin, y: 112)
+        partsCard = BoardRect(x: canvasWidth - Self.sideMargin - Self.partsCardWidth, y: 112,
+                              width: Self.partsCardWidth, height: 0)
+        barBand = BoardRect(x: 0, y: canvasHeight - 24 - 44, width: canvasWidth, height: 44)
+        let contentTop = 200.0
+        let contentBottom = barBand.y - 24
+        content = BoardRect(x: Self.sideMargin, y: contentTop,
+                            width: partsCard.x - 40 - Self.sideMargin,
+                            height: contentBottom - contentTop)
     }
 
     var layout: BoardLayout {
@@ -109,8 +135,18 @@ struct BoardSurface: Equatable {
     /// The argument for BuddyBoard.open in draw-board.js.
     var openArgumentsJSON: String {
         "{\"paper\": [\(paper.x), \(paper.y), \(paper.width), \(paper.height)], "
-            + "\"content\": [\(content.x), \(content.y), \(content.width), \(content.height)]}"
+            + "\"content\": [\(content.x), \(content.y), \(content.width), \(content.height)], "
+            + "\"title\": [\(titleOrigin.x), \(titleOrigin.y)], "
+            + "\"partsCard\": [\(partsCard.x), \(partsCard.y), \(partsCard.width)], "
+            + "\"bar\": [\(barBand.y), \(barBand.height)]}"
     }
+}
+
+/// Where the board's own notes go: the app's log in the app, nowhere in
+/// the offline harness. Kept here so this file needs nothing from the app.
+enum TutorBoardLog {
+    static var write: (String) -> Void = { _ in }
+    static func note(_ line: String) { write("🧑‍🏫 board layout: " + line) }
 }
 
 final class TeachingBoard {
@@ -120,10 +156,12 @@ final class TeachingBoard {
     private(set) var warnings: [String] = []
     /// The top-level element drawn last, where the next unanchored one goes beside.
     private var lastTopLevelIdentifier: String?
-    /// Everything this turn has drawn or pointed at, so the view, when it
-    /// has to scroll, shows the turn being talked about and not only its
-    /// last stroke.
-    private var thisTurnFocus: BoardRect?
+    /// What this turn has drawn or pointed at, by id, so the view can be
+    /// found again after a closing-up has moved things.
+    private var thisTurnIdentifiers: Set<String> = []
+    /// What this turn added: when not everything fits, the view keeps the
+    /// new parts in sight rather than an old one that was only pointed at.
+    private var thisTurnAddedIdentifiers: Set<String> = []
 
     init(layout: BoardLayout) {
         self.layout = layout
@@ -138,7 +176,89 @@ final class TeachingBoard {
 
     func beginTurn() {
         state.currentTurn += 1
-        thisTurnFocus = nil
+        thisTurnIdentifiers = []
+        thisTurnAddedIdentifiers = []
+        // Between turns is the moment to close up empty bands left by
+        // rubbed-out parts. Done at the turn's first board call, so the
+        // slide is drawn with the first sentence, and never at all in a turn
+        // that draws nothing.
+        compactsAtTheTurnsFirstChange = true
+    }
+
+    private var compactsAtTheTurnsFirstChange = false
+
+    /// When the board no longer fits the paper at full size, empty
+    /// horizontal bands (left by rubbed-out parts, or by a row that moved)
+    /// are closed up: everything below a band slides up together, so the
+    /// drawing keeps its shape and nothing changes its place relative to its
+    /// neighbours. This is the only time older parts move.
+    private func compactEmptyBands() -> [BoardDrawCommand] {
+        guard let bounds = state.contentBounds, bounds.maxY + 16 > layout.visibleHeight else { return [] }
+        // The vertical extent of everything that has a place of its own;
+        // arrows are re-routed afterwards, so they do not hold bands open.
+        var occupied: [(top: Double, bottom: Double)] = state.elements
+            .filter { $0.groupIdentifier == nil }
+            .map { ($0.frame.minY, $0.frame.maxY) }
+        occupied += state.connectors.compactMap(\.labelFrame).map { ($0.minY, $0.maxY) }
+        occupied.sort { $0.top < $1.top }
+        guard !occupied.isEmpty else { return [] }
+
+        // How far each band's content moves up: the sum of the excess of
+        // every gap above it.
+        var shifts: [(fromY: Double, by: Double)] = []
+        var totalShift = max(0, occupied[0].top)
+        if totalShift > 0 { shifts.append((occupied[0].top, totalShift)) }
+        var reachedBottom = occupied[0].bottom
+        for interval in occupied.dropFirst() {
+            if interval.top > reachedBottom + BoardLayout.gapBetweenElements * 2 {
+                totalShift += interval.top - reachedBottom - BoardLayout.gapBetweenElements
+                shifts.append((interval.top, totalShift))
+            }
+            reachedBottom = max(reachedBottom, interval.bottom)
+        }
+        guard !shifts.isEmpty else { return [] }
+        func shift(forTop top: Double) -> Double {
+            shifts.last { $0.fromY <= top + 0.5 }?.by ?? 0
+        }
+
+        var commands: [BoardDrawCommand] = []
+        var movedIdentifiers: [String] = []
+        for element in state.elements where element.groupIdentifier == nil {
+            let distance = shift(forTop: element.frame.minY)
+            guard distance > 0.5 else { continue }
+            var moving = [element] + state.members(ofGroup: element.identifier)
+            for index in moving.indices {
+                moving[index].frame = moving[index].frame.offsetBy(dx: 0, dy: -distance)
+                state.replace(moving[index])
+                commands.append(BoardDrawCommand(action: .move, identifier: moving[index].identifier, frame: moving[index].frame))
+                movedIdentifiers.append(moving[index].identifier)
+            }
+        }
+        // Labels are placed again with their arrows.
+        for var connector in state.connectors {
+            connector.labelFrame = nil
+            state.replace(connector)
+        }
+        commands += rerouteConnectors(touching: state.elements.map(\.identifier))
+        TutorBoardLog.note("closed \(shifts.count) empty bands, moved \(movedIdentifiers.count) elements up")
+        return commands
+    }
+
+    /// What the view should keep in sight: everything this turn touched if
+    /// that fits at the smallest zoom, else everything it added, else the
+    /// last thing it added, else the change just made.
+    private func focusForThisTurn(lastChange: BoardRect?) -> BoardRect? {
+        let fitsHeight = layout.visibleHeight / layout.minimumScale - 48
+        func union(of identifiers: Set<String>) -> BoardRect? {
+            let frames = state.elements.filter { identifiers.contains($0.identifier) }.map(\.frame)
+            return frames.dropFirst().reduce(frames.first) { result, frame in result?.union(frame) }
+        }
+        if let touched = union(of: thisTurnIdentifiers), touched.height <= fitsHeight { return touched }
+        if let added = union(of: thisTurnAddedIdentifiers), added.height <= fitsHeight { return added }
+        if let lastAdded = state.elements.last(where: { thisTurnAddedIdentifiers.contains($0.identifier) })?.frame {
+            return lastAdded
+        }
+        return lastChange
     }
 
     func takeWarnings() -> [String] {
@@ -152,7 +272,44 @@ final class TeachingBoard {
     /// zoom or scroll the change needs comes first, so the new part is drawn
     /// where the student can already see it.
     func apply(_ operation: BoardOperation) -> [BoardDrawCommand] {
+        // Before this turn's first change is placed, so it lands on the
+        // closed-up board.
+        var compaction: [BoardDrawCommand] = []
+        if compactsAtTheTurnsFirstChange {
+            compactsAtTheTurnsFirstChange = false
+            compaction = compactEmptyBands()
+        }
+        var commands = compaction + applyOperation(operation)
+        // A change that would make the view scroll closes up empty bands
+        // first, if there are any: scrolling hides part of the lesson.
+        if let bounds = state.contentBounds, bounds.maxY + 16 > layout.visibleHeight / layout.minimumScale {
+            let closingUp = compactEmptyBands()
+            if !closingUp.isEmpty {
+                commands += closingUp
+                let newViewport = layout.viewport(for: state, showing: focusForThisTurn(lastChange: nil), previous: state.viewport)
+                if newViewport != state.viewport {
+                    state.viewport = newViewport
+                    commands.append(BoardDrawCommand(action: .viewport, viewport: newViewport))
+                }
+            }
+        }
+        return commands
+    }
+
+    private func applyOperation(_ operation: BoardOperation) -> [BoardDrawCommand] {
         var commands: [BoardDrawCommand] = []
+        switch operation {
+        case .add(_, let identifier, _, _, _, _, _):
+            thisTurnIdentifiers.insert(identifier)
+            thisTurnAddedIdentifiers.insert(identifier)
+        case .update(let identifier, _), .append(let identifier, _),
+             .moveIntoGroup(let identifier, _), .highlight(let identifier):
+            thisTurnIdentifiers.insert(identifier)
+        case .link(let fromIdentifier, let toIdentifier, _, _, _):
+            thisTurnIdentifiers.formUnion([fromIdentifier, toIdentifier])
+        default:
+            break
+        }
         var focus: BoardRect?
 
         switch operation {
@@ -179,6 +336,7 @@ final class TeachingBoard {
             }
             guard fromIdentifier != toIdentifier else { return [] }
             let existing = state.connector(from: fromIdentifier, to: toIdentifier)
+            if existing == nil { commands += bringNewEndCloser(fromIdentifier: fromIdentifier, toIdentifier: toIdentifier) }
             var connector = existing ?? BoardConnector(
                 fromIdentifier: fromIdentifier, toIdentifier: toIdentifier, label: label, isDashed: isDashed,
                 tone: tone, routePoints: [], labelFrame: nil, addedInTurn: state.currentTurn)
@@ -294,9 +452,7 @@ final class TeachingBoard {
 
         // The whole turn in view when it fits at the smallest zoom, else
         // the part just drawn.
-        if let focus { thisTurnFocus = thisTurnFocus.map { $0.union(focus) } ?? focus }
-        let turnFitsInView = (thisTurnFocus?.height ?? 0) <= layout.visibleHeight / layout.minimumScale - 48
-        let newViewport = layout.viewport(for: state, showing: turnFitsInView ? thisTurnFocus : focus, previous: state.viewport)
+        let newViewport = layout.viewport(for: state, showing: focusForThisTurn(lastChange: focus), previous: state.viewport)
         if newViewport != state.viewport {
             state.viewport = newViewport
             commands.insert(BoardDrawCommand(action: .viewport, viewport: newViewport), at: 0)
@@ -360,13 +516,24 @@ final class TeachingBoard {
         if state.elements.isEmpty {
             return BoardRect(x: 0, y: 0, width: width, height: height)
         }
-        if let lastTopLevelIdentifier, let last = state.element(lastTopLevelIdentifier) {
-            let besideLast = BoardRect(x: last.frame.maxX + BoardLayout.gapBetweenElements, y: last.frame.minY,
-                                       width: width, height: height)
-            if !startsOnNewRow, layout.isFree(besideLast, in: state, ignoring: [], avoidingArrows: true) { return besideLast }
-            let underLast = BoardRect(x: 0, y: (state.contentBounds?.maxY ?? 0) + BoardLayout.gapBetweenElements,
-                                      width: width, height: height)
-            if layout.isFree(underLast, in: state, ignoring: [], avoidingArrows: true) { return underLast }
+        // Beside the last thing drawn, if that is on the paper as it shows
+        // now; else the first hole on that paper; else a new row, if the
+        // smallest zoom still shows it; and only then wherever there is room.
+        let tiers = layout.roomTiers(for: state)
+        let besideLast = lastTopLevelIdentifier.flatMap { state.element($0) }.map { last in
+            BoardRect(x: last.frame.maxX + BoardLayout.gapBetweenElements, y: last.frame.minY, width: width, height: height)
+        }
+        let underEverything = BoardRect(x: 0, y: (state.contentBounds?.maxY ?? 0) + BoardLayout.gapBetweenElements,
+                                        width: width, height: height)
+        for room in tiers.prefix(2) {
+            if !startsOnNewRow, let besideLast, room.contains(besideLast),
+               layout.isFree(besideLast, in: state, ignoring: [], avoidingArrows: true) { return besideLast }
+            if startsOnNewRow, room.contains(underEverything),
+               layout.isFree(underEverything, in: state, ignoring: [], avoidingArrows: true) { return underEverything }
+            if let hole = layout.firstFreeSpotInReadingOrder(width: width, height: height, in: state, within: room) { return hole }
+            if room.contains(underEverything), layout.isFree(underEverything, in: state, ignoring: [], avoidingArrows: true) {
+                return underEverything
+            }
         }
         return layout.findFreeSpot(width: width, height: height, in: state, near: nil, preferredSide: nil)
     }
@@ -484,26 +651,100 @@ final class TeachingBoard {
                 && element.identifier != toElement.identifier
                 && !endGroups.contains(element.identifier)
         }.map(\.frame) + state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
+            + state.connectors.filter { $0.identifier != connector.identifier }.flatMap { $0.stubTagFrames ?? [] }
+            // A group's title is words too, even the group an end sits in.
+            + state.elements.filter { $0.kind == .group }.map { group in
+                BoardRect(x: group.frame.x, y: group.frame.y,
+                          width: min(group.frame.width, BoardLayout.widthOfText(group.text, size: 22, isBold: true) + BoardLayout.groupPadding * 2),
+                          height: BoardLayout.groupTitleBand - 6)
+            }
         let reverseRoute = state.connector(from: connector.toIdentifier, to: connector.fromIdentifier)?.routePoints
-        connector.routePoints = layout.routeArrow(from: fromElement.frame, to: toElement.frame, obstacles: obstacles,
-                                                  avoiding: reverseRoute)
+        let route = layout.routeArrow(from: fromElement.frame, to: toElement.frame, obstacles: obstacles,
+                                      avoiding: reverseRoute)
         connector.labelFrame = nil
+        connector.drawnLabelLines = nil
+        // A line across the board, or through more than one thing, reads as
+        // clutter: two short stubs with the same number say the same.
+        if route.crossings > 1 || route.length > layout.longestArrow {
+            state.replace(BoardConnector(fromIdentifier: connector.fromIdentifier, toIdentifier: connector.toIdentifier,
+                                         label: connector.label, isDashed: connector.isDashed, tone: connector.tone,
+                                         routePoints: [], labelFrame: nil, addedInTurn: connector.addedInTurn))
+            let stubs = layout.stubs(from: fromElement.frame, to: toElement.frame, in: state,
+                                     ignoring: [fromElement.identifier, toElement.identifier])
+            connector.stubTag = connector.stubTag ?? nextStubTag()
+            connector.routePoints = stubs.leaving
+            connector.targetStubPoints = stubs.arriving
+            connector.stubTagFrames = [stubs.leavingTag, stubs.arrivingTag]
+        } else {
+            connector.routePoints = route.points
+            connector.stubTag = nil
+            connector.targetStubPoints = nil
+            connector.stubTagFrames = nil
+        }
         state.replace(connector)
-        let placedLabel = layout.placeArrowLabel(connector.label, along: connector.routePoints, in: state,
-                                                 ignoringConnector: connector.identifier)
+        // A stub whose start became a corner badge has no line there; its
+        // label goes by the arriving stub instead.
+        let labelRoute = connector.routePoints.count >= 2 ? connector.routePoints : (connector.targetStubPoints ?? [])
+        let placedLabel = layout.placeArrowLabel(connector.label, along: labelRoute, in: state,
+                                                 ignoringConnector: connector.identifier,
+                                                 alsoAvoiding: connector.stubTagFrames ?? [])
         connector.labelFrame = placedLabel?.frame
+        connector.drawnLabelLines = placedLabel?.lines
         state.replace(connector)
-        return linkCommand(for: connector, labelLines: placedLabel?.lines)
+        return linkCommand(for: connector)
+    }
+
+    private func nextStubTag() -> Int {
+        (state.connectors.compactMap(\.stubTag).max() ?? 0) + 1
+    }
+
+    /// When a link joins something drawn this turn to something older and
+    /// far away, the new one slides over beside the old one, the way a
+    /// teacher would have drawn it had they known. Only ever the new one:
+    /// what the student has been looking at stays where it is.
+    private func bringNewEndCloser(fromIdentifier: String, toIdentifier: String) -> [BoardDrawCommand] {
+        guard let fromElement = state.element(fromIdentifier), let toElement = state.element(toIdentifier) else { return [] }
+        for (newEnd, oldEnd) in [(toElement, fromElement), (fromElement, toElement)] {
+            guard newEnd.addedInTurn == state.currentTurn, oldEnd.addedInTurn < state.currentTurn,
+                  newEnd.groupIdentifier == nil, newEnd.kind != .group,
+                  state.connectors(touching: newEnd.identifier).isEmpty else { continue }
+            let distance = hypot(newEnd.frame.midX - oldEnd.frame.midX, newEnd.frame.midY - oldEnd.frame.midY)
+            guard distance > layout.longestArrow * 0.6 else { continue }
+            let anchor = oldEnd.groupIdentifier.flatMap { state.element($0)?.frame } ?? oldEnd.frame
+            let spot = layout.findFreeSpot(width: newEnd.frame.width, height: newEnd.frame.height, in: state,
+                                           near: anchor, preferredSide: newEnd.frame.midX >= anchor.midX ? .right : .left,
+                                           ignoring: [newEnd.identifier], extraSpacing: 110)
+            let newDistance = hypot(spot.midX - oldEnd.frame.midX, spot.midY - oldEnd.frame.midY)
+            guard newDistance < distance * 0.6 else { continue }
+            var moved = newEnd
+            moved.frame = spot
+            state.replace(moved)
+            return [BoardDrawCommand(action: .move, identifier: moved.identifier, frame: spot)]
+        }
+        return []
     }
 
     private func rerouteConnectors(touching identifiers: [String]) -> [BoardDrawCommand] {
         var commands: [BoardDrawCommand] = []
-        var seen = Set<String>()
+        var affected: [String] = []
         for identifier in identifiers {
-            for var connector in state.connectors(touching: identifier) where !seen.contains(connector.identifier) {
-                seen.insert(connector.identifier)
-                commands.append(routeAndDraw(&connector))
+            for connector in state.connectors(touching: identifier) where !affected.contains(connector.identifier) {
+                affected.append(connector.identifier)
             }
+        }
+        // Every affected arrow lets go of its old place first, so each one
+        // is placed against where the others are now, not where they were.
+        for identifier in affected {
+            guard var connector = state.connectors.first(where: { $0.identifier == identifier }) else { continue }
+            connector.routePoints = []
+            connector.labelFrame = nil
+            connector.targetStubPoints = nil
+            connector.stubTagFrames = nil
+            state.replace(connector)
+        }
+        for identifier in affected {
+            guard var connector = state.connectors.first(where: { $0.identifier == identifier }) else { continue }
+            commands.append(routeAndDraw(&connector))
         }
         return commands
     }
@@ -516,16 +757,11 @@ final class TeachingBoard {
                          keepsShape: keepsShape ? true : nil)
     }
 
-    private func linkCommand(for connector: BoardConnector, labelLines: [BoardTextLine]? = nil) -> BoardDrawCommand {
-        var lines = labelLines
-        if lines == nil, let labelFrame = connector.labelFrame, !connector.label.isEmpty {
-            lines = BoardLayout.wrapText(connector.label, size: 20, isBold: false, maximumWidth: 220).enumerated().map { index, line in
-                BoardTextLine(text: line, x: labelFrame.x + 4, y: labelFrame.y + Double(index) * BoardLayout.lineHeight(forSize: 20) + 20,
-                              size: 20, isBold: false, anchor: "start")
-            }
-        }
-        return BoardDrawCommand(action: .link, identifier: connector.identifier, tone: connector.tone,
-                                route: connector.routePoints, labelLines: lines,
-                                isDashed: connector.isDashed ? true : nil)
+    private func linkCommand(for connector: BoardConnector) -> BoardDrawCommand {
+        BoardDrawCommand(action: .link, identifier: connector.identifier, tone: connector.tone,
+                         route: connector.routePoints, labelLines: connector.drawnLabelLines,
+                         isDashed: connector.isDashed ? true : nil,
+                         stubTag: connector.stubTag, arrivingRoute: connector.targetStubPoints,
+                         tagFrames: connector.stubTagFrames)
     }
 }

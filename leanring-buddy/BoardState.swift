@@ -137,6 +137,16 @@ struct BoardConnector: Codable, Equatable {
     /// Where the label sits, so nothing else is placed on it.
     var labelFrame: BoardRect?
     let addedInTurn: Int
+    /// Set when the arrow would cross the board: it is drawn as two short
+    /// stubs carrying this number, one leaving the start (`routePoints`) and
+    /// one arriving at the end (`targetStubPoints`), so the eye can pair them.
+    var stubTag: Int? = nil
+    var targetStubPoints: [BoardPoint]? = nil
+    /// Where the two numbered tags sit, so nothing is placed on them.
+    var stubTagFrames: [BoardRect]? = nil
+    /// The label as drawn, which may be its first words only when the
+    /// whole label had no clear place.
+    var drawnLabelLines: [BoardTextLine]? = nil
 
     /// Stable and readable: the model can see which arrow is which.
     var identifier: String { Self.identifier(from: fromIdentifier, to: toIdentifier) }
@@ -190,7 +200,10 @@ struct BoardState: Codable, Equatable {
         for element in elements { include(element.frame) }
         for connector in connectors {
             if let labelFrame = connector.labelFrame { include(labelFrame) }
-            for point in connector.routePoints { include(BoardRect(x: point.x, y: point.y, width: 0, height: 0)) }
+            for point in connector.routePoints + (connector.targetStubPoints ?? []) {
+                include(BoardRect(x: point.x, y: point.y, width: 0, height: 0))
+            }
+            for tagFrame in connector.stubTagFrames ?? [] { include(tagFrame) }
         }
         return bounds
     }

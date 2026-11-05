@@ -64,14 +64,23 @@ enum BoardSide: String, Codable, CaseIterable {
 }
 
 struct BoardLayout {
-    /// How wide the board is in board units at full size. Fixed when the
-    /// board opens, from the paper's size, so the board grows downward.
+    /// How wide the paper's drawing area is in board units at full size.
+    /// Fixed when the board opens. Zoomed out, the same paper shows more
+    /// board, up to `widestBoardWidth`, so the board can grow sideways into
+    /// the paper's empty right before it has to scroll.
     let boardWidth: Double
     /// How tall the paper shows at full size.
     let visibleHeight: Double
     /// The smallest zoom before the view scrolls instead. Text 24 units tall
     /// at 0.62 is about 15 points, which still reads from across a desk.
     var minimumScale: Double = 0.62
+
+    /// As wide as the board may get: the paper's width at the smallest zoom.
+    var widestBoardWidth: Double { boardWidth / minimumScale }
+
+    /// An arrow longer than this, or crossing more than one element, is
+    /// drawn as two short numbered stubs instead of a line across the board.
+    var longestArrow: Double { boardWidth * 0.6 }
 
     /// Space kept between separate elements, wide enough for an arrow and
     /// its label to pass between them.
@@ -287,7 +296,7 @@ struct BoardLayout {
     /// `avoidingArrows`, not lying across an arrow already drawn.
     func isFree(_ rect: BoardRect, in state: BoardState, ignoring ignoredIdentifiers: Set<String>,
                 avoidingArrows: Bool, gap: Double = BoardLayout.gapBetweenElements) -> Bool {
-        guard rect.x >= 0, rect.y >= 0, rect.maxX <= boardWidth else { return false }
+        guard rect.x >= 0, rect.y >= 0, rect.maxX <= widestBoardWidth else { return false }
         let padded = rect.insetBy(-gap / 2)
         for element in state.elements where !ignoredIdentifiers.contains(element.identifier) {
             if padded.intersects(element.frame.insetBy(-gap / 2)) { return false }
@@ -298,41 +307,37 @@ struct BoardLayout {
                                                    && ignoredIdentifiers.contains(connector.toIdentifier)) {
             if let labelFrame = connector.labelFrame, padded.intersects(labelFrame) { return false }
             if avoidingArrows, Self.route(connector.routePoints, crosses: rect.insetBy(-6)) { return false }
+            if let tagFrames = connector.stubTagFrames, tagFrames.contains(where: { padded.intersects($0) }) { return false }
+            if avoidingArrows, let targetStub = connector.targetStubPoints,
+               Self.route(targetStub, crosses: rect.insetBy(-6)) { return false }
         }
         return true
     }
 
-    /// A free spot for something of `size`. Starts beside `anchor` on
-    /// `preferredSide` when given, then tries the other sides further out,
-    /// then searches the whole board in reading order.
-    func findFreeSpot(width: Double, height: Double, in state: BoardState, near anchor: BoardRect?,
-                      preferredSide: BoardSide?, ignoring ignoredIdentifiers: Set<String> = [],
-                      extraSpacing: Double = 0) -> BoardRect {
-        if let anchor {
-            var sides: [BoardSide] = []
-            if let preferredSide { sides.append(preferredSide) }
-            for side in [BoardSide.right, .below, .left, .above] where !sides.contains(side) { sides.append(side) }
-            for avoidingArrows in [true, false] {
-                for extraDistance in [0.0, 50, 120, 220, 360] {
-                    for side in sides {
-                        for candidate in Self.candidates(beside: anchor, side: side, width: width, height: height,
-                                                         distance: Self.gapBetweenElements + extraSpacing + extraDistance) {
-                            if isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: avoidingArrows) {
-                                return candidate
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        // Reading order: the first hole, row by row from the top left.
+    /// The parts of the board that show without zooming out any further:
+    /// the paper at the current zoom, then at the smallest zoom, then
+    /// everything, which means scrolling. A new element goes in the first
+    /// of these it fits in.
+    func roomTiers(for state: BoardState) -> [BoardRect] {
+        let currentScale = min(1, max(minimumScale, state.viewport.scale))
+        return [
+            BoardRect(x: 0, y: 0, width: boardWidth / currentScale, height: visibleHeight / currentScale),
+            BoardRect(x: 0, y: 0, width: widestBoardWidth, height: visibleHeight / minimumScale),
+            BoardRect(x: 0, y: 0, width: widestBoardWidth, height: 1_000_000)
+        ]
+    }
+
+    /// The first hole, row by row from the top left, inside `room`.
+    func firstFreeSpotInReadingOrder(width: Double, height: Double, in state: BoardState, within room: BoardRect,
+                                     ignoring ignoredIdentifiers: Set<String> = []) -> BoardRect? {
         let contentBottom = state.contentBounds?.maxY ?? 0
+        let lowestTop = min(room.maxY - height, contentBottom + Self.gapBetweenElements)
         let searchStep = 20.0
         for avoidingArrows in [true, false] {
             var y = 0.0
-            while y <= contentBottom + Self.gapBetweenElements {
+            while y <= lowestTop {
                 var x = 0.0
-                while x + width <= boardWidth {
+                while x + width <= room.maxX {
                     let candidate = BoardRect(x: x, y: y, width: width, height: height)
                     if isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: avoidingArrows) {
                         return candidate
@@ -342,7 +347,47 @@ struct BoardLayout {
                 y += searchStep
             }
         }
-        // Wider than the board itself, or no hole anywhere: a new row.
+        return nil
+    }
+
+    /// A free spot for something of `size`. Beside `anchor` first, on
+    /// `preferredSide` and then the other sides further out, in the part of
+    /// the board that shows without zooming; then beside it anywhere the
+    /// smallest zoom shows; then the first hole in reading order; and only
+    /// then below everything, where the view has to scroll.
+    func findFreeSpot(width: Double, height: Double, in state: BoardState, near anchor: BoardRect?,
+                      preferredSide: BoardSide?, ignoring ignoredIdentifiers: Set<String> = [],
+                      extraSpacing: Double = 0) -> BoardRect {
+        let tiers = roomTiers(for: state)
+        func besideAnchor(within room: BoardRect) -> BoardRect? {
+            guard let anchor else { return nil }
+            var sides: [BoardSide] = []
+            if let preferredSide { sides.append(preferredSide) }
+            for side in [BoardSide.right, .below, .left, .above] where !sides.contains(side) { sides.append(side) }
+            for avoidingArrows in [true, false] {
+                for extraDistance in [0.0, 50, 120, 220, 360] {
+                    for side in sides {
+                        for candidate in Self.candidates(beside: anchor, side: side, width: width, height: height,
+                                                         distance: Self.gapBetweenElements + extraSpacing + extraDistance)
+                        where room.contains(candidate) {
+                            if isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: avoidingArrows) {
+                                return candidate
+                            }
+                        }
+                    }
+                }
+            }
+            return nil
+        }
+        if let spot = besideAnchor(within: tiers[0]) ?? besideAnchor(within: tiers[1]) { return spot }
+        for room in tiers.prefix(2) {
+            if let spot = firstFreeSpotInReadingOrder(width: width, height: height, in: state, within: room,
+                                                      ignoring: ignoredIdentifiers) { return spot }
+        }
+        if let spot = besideAnchor(within: tiers[2]) { return spot }
+        if let spot = firstFreeSpotInReadingOrder(width: width, height: height, in: state, within: tiers[2],
+                                                  ignoring: ignoredIdentifiers) { return spot }
+        let contentBottom = state.contentBounds?.maxY ?? 0
         return BoardRect(x: 0, y: (state.elements.isEmpty ? 0 : contentBottom + Self.gapBetweenElements),
                          width: width, height: height)
     }
@@ -420,8 +465,15 @@ struct BoardLayout {
     /// The path for an arrow from `fromFrame` to `toFrame` that crosses the
     /// fewest other elements, then is shortest. Only crossings of elements
     /// that are not the ends, and not a group holding an end, count.
+    /// A route, with what decides whether to draw it whole or as stubs.
+    struct ArrowRoute {
+        var points: [BoardPoint]
+        var crossings: Int
+        var length: Double
+    }
+
     func routeArrow(from fromFrame: BoardRect, to toFrame: BoardRect, obstacles: [BoardRect],
-                    avoiding existingRoute: [BoardPoint]? = nil) -> [BoardPoint] {
+                    avoiding existingRoute: [BoardPoint]? = nil) -> ArrowRoute {
         // An arrow leaves from the middle of one side and arrives at the
         // middle of one side; every pairing is tried, each as a straight
         // line, an elbow and bowed curves.
@@ -444,6 +496,21 @@ struct BoardLayout {
         let isHorizontalSide: (BoardSide) -> Bool = { $0 == .left || $0 == .right }
 
         var candidates: [(route: [BoardPoint], facesAway: Bool)] = []
+        // Linked both ways: first choice is the same straight line drawn
+        // twice side by side, as a teacher draws a request and its reply.
+        var parallelCandidates: [[BoardPoint]] = []
+        if let existingRoute, existingRoute.count == 2 {
+            let reversedStart = existingRoute[1], reversedEnd = existingRoute[0]
+            let deltaX = reversedEnd.x - reversedStart.x, deltaY = reversedEnd.y - reversedStart.y
+            let length = max(1, hypot(deltaX, deltaY))
+            for offset in [18.0, -18.0] {
+                let shiftX = -deltaY / length * offset, shiftY = deltaX / length * offset
+                let parallel = [BoardPoint(x: reversedStart.x + shiftX, y: reversedStart.y + shiftY),
+                                BoardPoint(x: reversedEnd.x + shiftX, y: reversedEnd.y + shiftY)]
+                parallelCandidates.append(parallel)
+                candidates.append((parallel, false))
+            }
+        }
         for startSide in BoardSide.allCases {
             for endSide in BoardSide.allCases {
                 let start = port(of: fromFrame, on: startSide, standingOff: 6)
@@ -481,15 +548,26 @@ struct BoardLayout {
             }
         }
 
-        func cost(_ candidate: (route: [BoardPoint], facesAway: Bool)) -> Double {
-            let route = candidate.route
-            let crossings = obstacles.filter { Self.route(route, crosses: $0.insetBy(-10)) }.count
-            // Off the board is out of view: the paper clips it.
-            let leavesBoard = route.contains { $0.x < 0 || $0.x > boardWidth || $0.y < 0 }
+        // Never off the drawing area: above it is the title, to the left
+        // and right the paper's edge. A candidate that leaves is not a
+        // choice at all, however much shorter.
+        let inside = candidates.filter { candidate in
+            Self.sampledPoints(of: candidate.route).allSatisfy { isInsideDrawingArea($0) }
+        }
+        func crossingCount(_ route: [BoardPoint]) -> Int {
+            obstacles.filter { Self.route(route, crosses: $0.insetBy(-10)) }.count
+        }
+        func length(_ route: [BoardPoint]) -> Double {
             var pathLength = 0.0
             for index in 1..<route.count {
                 pathLength += hypot(route[index].x - route[index - 1].x, route[index].y - route[index - 1].y)
             }
+            return pathLength
+        }
+        func cost(_ candidate: (route: [BoardPoint], facesAway: Bool)) -> Double {
+            let route = candidate.route
+            let crossings = crossingCount(route)
+            let pathLength = length(route)
             // A curve's middle point is where it bends: the first bend is
             // worth taking only when it saves a crossing.
             let bendPenalty = route.count == 3 ? 60.0 : Double(route.count - 2) * 40
@@ -500,64 +578,251 @@ struct BoardLayout {
                 for point in route.dropFirst().dropLast() where Self.route(existingRoute, crosses: BoardRect(x: point.x - 20, y: point.y - 20, width: 40, height: 40)) {
                     overlapsExisting = true
                 }
-                if route.count == 2 { overlapsExisting = true }
+                if route.count == 2 && !parallelCandidates.contains(route) { overlapsExisting = true }
             }
-            return Double(crossings) * 900 + (leavesBoard ? 5_000 : 0) + (candidate.facesAway ? 600 : 0)
+            return Double(crossings) * 900 + (candidate.facesAway ? 600 : 0)
                 + (overlapsExisting ? 3_000 : 0) + pathLength + bendPenalty
         }
-        return candidates.min { cost($0) < cost($1) }?.route ?? [BoardPoint(x: fromFrame.midX, y: fromFrame.midY), BoardPoint(x: toFrame.midX, y: toFrame.midY)]
+        let chosen = inside.min { cost($0) < cost($1) }?.route
+            ?? [clampedIntoDrawingArea(BoardPoint(x: fromFrame.midX, y: fromFrame.midY)),
+                clampedIntoDrawingArea(BoardPoint(x: toFrame.midX, y: toFrame.midY))]
+        return ArrowRoute(points: chosen, crossings: crossingCount(chosen), length: length(chosen))
     }
 
-    /// Where an arrow's label goes: beside the middle of its longest
-    /// stretch, on whichever side is free.
-    func placeArrowLabel(_ text: String, along route: [BoardPoint], in state: BoardState,
-                         ignoringConnector ignoredConnectorIdentifier: String) -> (frame: BoardRect, lines: [BoardTextLine])? {
-        guard !text.isEmpty, route.count >= 2 else { return nil }
-        let size = 20.0
-        let lines = Self.wrapText(text, size: size, isBold: false, maximumWidth: 220)
-        let width = (lines.map { Self.widthOfText($0, size: size, isBold: false) }.max() ?? 0) + 8
-        let height = Double(lines.count) * Self.lineHeight(forSize: size) + 4
+    func isInsideDrawingArea(_ point: BoardPoint) -> Bool {
+        point.x >= 0 && point.y >= 0 && point.x <= widestBoardWidth
+    }
 
-        var longestIndex = 1
-        var longestLength = 0.0
-        for index in 1..<route.count {
-            let segmentLength = hypot(route[index].x - route[index - 1].x, route[index].y - route[index - 1].y)
-            if segmentLength > longestLength { longestLength = segmentLength; longestIndex = index }
+    func clampedIntoDrawingArea(_ point: BoardPoint) -> BoardPoint {
+        BoardPoint(x: min(max(0, point.x), widestBoardWidth), y: max(0, point.y))
+    }
+
+    /// The points a pen path really passes through: the corners of a line,
+    /// and along a bowed curve, which the engine draws smoothly through its
+    /// three points and which bulges past them.
+    static func sampledPoints(of route: [BoardPoint]) -> [BoardPoint] {
+        guard route.count == 3 else { return route }
+        let start = route[0], through = route[1], end = route[2]
+        // The quadratic through `through` at its midpoint has this control point.
+        let control = BoardPoint(x: 2 * through.x - (start.x + end.x) / 2, y: 2 * through.y - (start.y + end.y) / 2)
+        return (0...12).map { step in
+            let fraction = Double(step) / 12
+            let inverse = 1 - fraction
+            return BoardPoint(x: inverse * inverse * start.x + 2 * inverse * fraction * control.x + fraction * fraction * end.x,
+                              y: inverse * inverse * start.y + 2 * inverse * fraction * control.y + fraction * fraction * end.y)
         }
-        let segmentStart = route[longestIndex - 1], segmentEnd = route[longestIndex]
-        // Beside the line, square to it, so a diagonal arrow's label sits
-        // off the stroke rather than across it.
-        let segmentLength = max(1, hypot(segmentEnd.x - segmentStart.x, segmentEnd.y - segmentStart.y))
-        let perpendicular = (x: -(segmentEnd.y - segmentStart.y) / segmentLength, y: (segmentEnd.x - segmentStart.x) / segmentLength)
-        let extent = abs(perpendicular.x) * width / 2 + abs(perpendicular.y) * height / 2
-        var candidates: [BoardRect] = []
-        for distance in [10.0, 34, 64, 110, 170, 240] {
-            for fraction in [0.5, 0.32, 0.68] {
-                let pointX = segmentStart.x + (segmentEnd.x - segmentStart.x) * fraction
-                let pointY = segmentStart.y + (segmentEnd.y - segmentStart.y) * fraction
-                for direction in [-1.0, 1.0] {
-                    let centreX = pointX + perpendicular.x * direction * (extent + distance)
-                    let centreY = pointY + perpendicular.y * direction * (extent + distance)
-                    candidates.append(BoardRect(x: centreX - width / 2, y: centreY - height / 2, width: width, height: height))
+    }
+
+    // MARK: - Stubs
+
+    /// Two short arrows with a matching number, for a link that would
+    /// otherwise cross the board: one leaving `fromFrame` towards the other
+    /// end, one arriving at `toFrame` from it. Each side is chosen to face
+    /// the other end and to keep its tag clear.
+    struct ArrowStubs {
+        var leaving: [BoardPoint]
+        var arriving: [BoardPoint]
+        var leavingTag: BoardRect
+        var arrivingTag: BoardRect
+    }
+
+    static let stubTagRadius = 16.0
+
+    func stubs(from fromFrame: BoardRect, to toFrame: BoardRect, in state: BoardState,
+               ignoring endIdentifiers: Set<String>) -> ArrowStubs {
+        func sidesFacing(_ target: BoardRect, from frame: BoardRect) -> [BoardSide] {
+            let deltaX = target.midX - frame.midX, deltaY = target.midY - frame.midY
+            let horizontal: BoardSide = deltaX >= 0 ? .right : .left
+            let vertical: BoardSide = deltaY >= 0 ? .below : .above
+            let first = abs(deltaX) >= abs(deltaY) ? [horizontal, vertical] : [vertical, horizontal]
+            return first + BoardSide.allCases.filter { !first.contains($0) }
+        }
+        func stub(of frame: BoardRect, facing target: BoardRect) -> (points: [BoardPoint], tag: BoardRect) {
+            let radius = Self.stubTagRadius
+            var fallback: (points: [BoardPoint], tag: BoardRect, touches: Int)?
+            // Each side, at the middle and then sliding along it, at two
+            // reaches: an element with many links gets a fan of tags rather
+            // than a pile of them.
+            var placements: [(side: BoardSide, reach: Double, slide: Double)] = []
+            for side in sidesFacing(target, from: frame) {
+                for reach in [52.0, 92.0, 132.0] {
+                    for slide in [0.0, -44, 44, -88, 88, -132, 132] { placements.append((side, reach, slide)) }
                 }
             }
+            for (side, reach, slide) in placements {
+                let port: BoardPoint
+                let direction: (x: Double, y: Double)
+                let alongWidth = max(0, frame.width / 2 - 10), alongHeight = max(0, frame.height / 2 - 10)
+                let slideAcross = min(max(slide, -alongWidth), alongWidth)
+                let slideDown = min(max(slide, -alongHeight), alongHeight)
+                switch side {
+                case .right: port = BoardPoint(x: frame.maxX + 6, y: frame.midY + slideDown); direction = (1, 0)
+                case .left: port = BoardPoint(x: frame.minX - 6, y: frame.midY + slideDown); direction = (-1, 0)
+                case .below: port = BoardPoint(x: frame.midX + slideAcross, y: frame.maxY + 6); direction = (0, 1)
+                case .above: port = BoardPoint(x: frame.midX + slideAcross, y: frame.minY - 6); direction = (0, -1)
+                }
+                let centre = BoardPoint(x: port.x + direction.x * reach, y: port.y + direction.y * reach)
+                let tag = BoardRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2)
+                let points = [port, BoardPoint(x: centre.x - direction.x * radius, y: centre.y - direction.y * radius)]
+                guard isInsideDrawingArea(BoardPoint(x: tag.minX, y: tag.minY)), tag.maxX <= widestBoardWidth else { continue }
+                // What the tag would touch; the first spot touching nothing
+                // wins, and with none the spot touching least.
+                var touches = state.elements.filter { $0.kind != .group && $0.frame.insetBy(-6).intersects(tag) }.count * 3
+                // A group's title, and its border: a tag is wholly inside a
+                // group or wholly outside it.
+                for group in state.elements where group.kind == .group {
+                    let titleBand = BoardRect(x: group.frame.x, y: group.frame.y,
+                                              width: min(group.frame.width, Self.widthOfText(group.text, size: 22, isBold: true) + Self.groupPadding * 2),
+                                              height: Self.groupTitleBand)
+                    if titleBand.insetBy(-4).intersects(tag) { touches += 3 }
+                    if group.frame.insetBy(-4).intersects(tag) && !group.frame.insetBy(4).contains(tag) { touches += 2 }
+                }
+                for connector in state.connectors {
+                    if connector.labelFrame.map({ $0.insetBy(-6).intersects(tag) }) ?? false { touches += 3 }
+                    touches += (connector.stubTagFrames ?? []).filter { $0.insetBy(-6).intersects(tag) }.count * 3
+                    if Self.route(Self.sampledPoints(of: connector.routePoints), crosses: tag) { touches += 1 }
+                }
+                // The stub's own line keeps off other elements and group titles too.
+                for element in state.elements where element.frame != frame {
+                    if element.kind != .group, Self.route(points, crosses: element.frame.insetBy(-2)) { touches += 3 }
+                    if element.kind == .group {
+                        let titleBand = BoardRect(x: element.frame.x, y: element.frame.y,
+                                                  width: min(element.frame.width, Self.widthOfText(element.text, size: 22, isBold: true) + Self.groupPadding * 2),
+                                                  height: Self.groupTitleBand)
+                        if Self.route(points, crosses: titleBand) { touches += 3 }
+                    }
+                }
+                if touches == 0 { return (points, tag) }
+                if fallback == nil || touches < fallback!.touches { fallback = (points, tag, touches) }
+            }
+            // Boxed in on every side: the tag becomes a badge on the
+            // element's own corner, where a box keeps only padding, and the
+            // stub's line is left out.
+            var badgeCentres: [(Double, Double)] = [(frame.maxX, frame.maxY), (frame.minX, frame.maxY), (frame.maxX, frame.minY), (frame.minX, frame.minY)]
+            // Then along the edges, for an element with many links: a box's
+            // padding is as deep as a badge's half.
+            for fraction in [0.85, 0.15] {
+                let alongX = frame.minX + frame.width * fraction, alongY = frame.minY + frame.height * fraction
+                badgeCentres += [(alongX, frame.maxY), (alongX, frame.minY), (frame.maxX, alongY), (frame.minX, alongY)]
+            }
+            for (cornerX, cornerY) in badgeCentres {
+                let badge = BoardRect(x: cornerX - radius, y: cornerY - radius, width: radius * 2, height: radius * 2)
+                guard badge.minX >= 0, badge.minY >= 0, badge.maxX <= widestBoardWidth else { continue }
+                let touchesSomethingElse = state.elements.contains { element in
+                    element.kind != .group && element.frame != frame && element.frame.insetBy(-4).intersects(badge)
+                } || state.elements.contains { group in
+                    group.kind == .group && BoardRect(
+                        x: group.frame.x, y: group.frame.y,
+                        width: min(group.frame.width, Self.widthOfText(group.text, size: 22, isBold: true) + Self.groupPadding * 2),
+                        height: Self.groupTitleBand).intersects(badge)
+                } || state.connectors.contains { connector in
+                    (connector.labelFrame.map { $0.insetBy(-4).intersects(badge) } ?? false)
+                        || (connector.stubTagFrames ?? []).contains { $0.insetBy(-4).intersects(badge) }
+                }
+                if !touchesSomethingElse { return ([], badge) }
+            }
+            return fallback.map { ($0.points, $0.tag) } ?? ([], BoardRect(x: 0, y: 0, width: 0, height: 0))
         }
+        let leaving = stub(of: fromFrame, facing: toFrame)
+        let arrivingStub = stub(of: toFrame, facing: fromFrame)
+        // The arriving stub is drawn from its tag into the element, so its
+        // arrowhead lands on the element.
+        return ArrowStubs(leaving: leaving.points, arriving: arrivingStub.points.reversed(),
+                          leavingTag: leaving.tag, arrivingTag: arrivingStub.tag)
+    }
+
+    /// Where an arrow's label goes, so that it touches nothing: no
+    /// element, no group's title or border, no other label, tag or stroke.
+    /// Tried beside every stretch of the route, then with only its first
+    /// words, then by the arrow's start. With no clear place at all the
+    /// label is left off the drawing (it stays in the board's listing),
+    /// because words on top of words are worse than no words.
+    func placeArrowLabel(_ text: String, along route: [BoardPoint], in state: BoardState,
+                         ignoringConnector ignoredConnectorIdentifier: String,
+                         alsoAvoiding ownTags: [BoardRect] = []) -> (frame: BoardRect, lines: [BoardTextLine])? {
+        guard !text.isEmpty, route.count >= 2 else { return nil }
+        let size = 20.0
+        let words = text.split(separator: " ").map(String.init)
+        var wordings = [text]
+        if words.count > 3 { wordings.append(words.prefix(3).joined(separator: " ") + "\u{2026}") }
+        if words.count > 2 { wordings.append(words.prefix(2).joined(separator: " ") + "\u{2026}") }
+
+        let groupTitleBands = state.elements.filter { $0.kind == .group }.map { group in
+            BoardRect(x: group.frame.x, y: group.frame.y,
+                      width: min(group.frame.width, Self.widthOfText(group.text, size: 22, isBold: true) + Self.groupPadding * 2),
+                      height: Self.groupTitleBand)
+        }
+        let groupFrames = state.elements.filter { $0.kind == .group }.map(\.frame)
+        let pathPoints = Self.sampledPoints(of: route)
+
         func isClear(_ candidate: BoardRect) -> Bool {
-            if candidate.x < 0 || candidate.maxX > boardWidth || candidate.y < 0 { return false }
-            if Self.route(route, crosses: candidate.insetBy(-2)) { return false }
-            for element in state.elements where element.kind != .group && candidate.insetBy(-4).intersects(element.frame) { return false }
+            guard candidate.x >= 0, candidate.y >= 0, candidate.maxX <= widestBoardWidth else { return false }
+            let padded = candidate.insetBy(-4)
+            if Self.route(pathPoints, crosses: candidate.insetBy(-2)) { return false }
+            for element in state.elements where element.kind != .group && padded.intersects(element.frame) { return false }
+            for band in groupTitleBands where padded.intersects(band) { return false }
+            // Wholly inside a group or wholly outside it, never across its border.
+            for frame in groupFrames where padded.intersects(frame) && !frame.insetBy(6).contains(padded) { return false }
+            for tag in ownTags where padded.intersects(tag) { return false }
             for connector in state.connectors where connector.identifier != ignoredConnectorIdentifier {
-                if let labelFrame = connector.labelFrame, candidate.insetBy(-4).intersects(labelFrame) { return false }
-                if Self.route(connector.routePoints, crosses: candidate) { return false }
+                if let labelFrame = connector.labelFrame, padded.intersects(labelFrame) { return false }
+                if Self.route(Self.sampledPoints(of: connector.routePoints), crosses: candidate) { return false }
+                if let targetStub = connector.targetStubPoints, Self.route(targetStub, crosses: candidate) { return false }
+                if let tagFrames = connector.stubTagFrames, tagFrames.contains(where: { padded.intersects($0) }) { return false }
             }
             return true
         }
-        let chosen = candidates.first(where: isClear) ?? candidates[0]
-        let textLines = lines.enumerated().map { index, line in
-            BoardTextLine(text: line, x: chosen.x + 4, y: chosen.y + Double(index) * Self.lineHeight(forSize: size) + size * 1.0,
-                          size: size, isBold: false, anchor: "start")
+
+        func candidates(width: Double, height: Double, aroundStartOnly: Bool) -> [BoardRect] {
+            var rects: [BoardRect] = []
+            if aroundStartOnly {
+                let start = route[0]
+                for (offsetX, offsetY) in [(10.0, -height - 6), (10.0, 6), (-width - 10, -height - 6), (-width - 10, 6),
+                                           (-width / 2, -height - 14), (-width / 2, 14)] {
+                    rects.append(BoardRect(x: start.x + offsetX, y: start.y + offsetY, width: width, height: height))
+                }
+                return rects
+            }
+            // Stretches longest first, so a label sits on the arrow's main run.
+            var stretches: [(BoardPoint, BoardPoint, Double)] = []
+            for index in 1..<pathPoints.count {
+                let from = pathPoints[index - 1], to = pathPoints[index]
+                stretches.append((from, to, hypot(to.x - from.x, to.y - from.y)))
+            }
+            stretches.sort { $0.2 > $1.2 }
+            for distance in [8.0, 28, 56, 96] {
+                for (from, to, stretchLength) in stretches where stretchLength > 1 {
+                    let perpendicular = (x: -(to.y - from.y) / stretchLength, y: (to.x - from.x) / stretchLength)
+                    let extent = abs(perpendicular.x) * width / 2 + abs(perpendicular.y) * height / 2
+                    for fraction in [0.5, 0.3, 0.7] {
+                        let pointX = from.x + (to.x - from.x) * fraction
+                        let pointY = from.y + (to.y - from.y) * fraction
+                        for direction in [-1.0, 1.0] {
+                            let centreX = pointX + perpendicular.x * direction * (extent + distance)
+                            let centreY = pointY + perpendicular.y * direction * (extent + distance)
+                            rects.append(BoardRect(x: centreX - width / 2, y: centreY - height / 2, width: width, height: height))
+                        }
+                    }
+                }
+            }
+            return rects
         }
-        return (chosen, textLines)
+
+        for aroundStartOnly in [false, true] {
+            for wording in wordings {
+                let lines = Self.wrapText(wording, size: size, isBold: false, maximumWidth: 220)
+                let width = (lines.map { Self.widthOfText($0, size: size, isBold: false) }.max() ?? 0) + 8
+                let height = Double(lines.count) * Self.lineHeight(forSize: size) + 4
+                if let chosen = candidates(width: width, height: height, aroundStartOnly: aroundStartOnly).first(where: isClear) {
+                    let textLines = lines.enumerated().map { index, line in
+                        BoardTextLine(text: line, x: chosen.x + 4, y: chosen.y + Double(index) * Self.lineHeight(forSize: size) + size,
+                                      size: size, isBold: false, anchor: "start")
+                    }
+                    return (chosen, textLines)
+                }
+            }
+        }
+        return nil
     }
 
     /// Whether a pen path passes through `rect`, segment by segment.
@@ -597,8 +862,11 @@ struct BoardLayout {
     func viewport(for state: BoardState, showing focus: BoardRect?, previous: BoardViewport) -> BoardViewport {
         guard let bounds = state.contentBounds else { return BoardViewport() }
         let contentHeight = bounds.maxY + 16
-        guard contentHeight > visibleHeight else { return BoardViewport() }
-        let scale = max(minimumScale, visibleHeight / contentHeight)
+        let contentWidth = bounds.maxX + 16
+        guard contentHeight > visibleHeight || contentWidth > boardWidth else { return BoardViewport() }
+        // Zoomed out just enough for the board's width and height, never
+        // below the smallest readable zoom; the width always fits there.
+        let scale = max(minimumScale, min(1, visibleHeight / contentHeight, boardWidth / contentWidth))
         // Anchored at the top left as it shrinks, like stepping back from a
         // whiteboard: nothing appears to slide sideways.
         let horizontalInset = 0.0
