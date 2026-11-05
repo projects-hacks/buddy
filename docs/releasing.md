@@ -18,10 +18,19 @@ flowchart TD
 
 1. Commit everything. The script refuses to package uncommitted app code.
 2. Run `zsh scripts/make-release.sh 1.1` with the new version. It builds the Release configuration into its own folder, so the copy in daily use is untouched, signs it with the same `Clicky Local Dev` certificate as every earlier release, stops if a personal Google Cloud project is still in the binary, and writes the disk image and its checksum.
-3. Update `docs/release-notes.md`.
+3. Update `docs/release-notes.md` in the layout under Release notes below, render it and look at it.
 4. Run the `gh release create` command the script prints. Every copy from 1.2 on finds it within a day and offers it in the notch; the updater relies on `Buddy.dmg` and `Buddy.dmg.sha256` both being attached, which the printed command does. The file name never changes, so the README's Download button, which points at the latest release's `Buddy.dmg`, always gets the newest one.
 
 5. Commit `Casks/buddy.rb`, the Homebrew cask in this repository. The release script has already set its `version` and `sha256` to the new image; commit it once the release is published, since Homebrew downloads from the release. Copies installed with Homebrew update themselves either way; this keeps fresh `brew install`s on the newest version.
+
+**Release notes.** `docs/release-notes.md` is the release page people read before deciding to download, so it is laid out to be scanned, not read:
+
+- A Download button at the top, then the release in one bold line and one plain sentence under it.
+- One section per headline change, led by something visual: a before and after table, a screenshot or a short GIF. Numbers in them come from real runs, never estimates.
+- Everything smaller in one table, `Area | What changed`, one line each.
+- An Updating table (1.2 or later, 1.0 or 1.1, Homebrew) and a collapsed First time installing section with the install picture.
+- Plain words for someone who has never seen the code: what changed for them, not how it was built. No internal test numbers, no em or en dashes.
+- Before publishing, render it the way GitHub will (`gh api markdown` with `mode: gfm`) and look at it: no empty table headers, no broken images, nothing that only makes sense to a developer.
 
 **Why the same certificate every time.** macOS ties Microphone, Screen Recording and Accessibility to the app's signature. A release signed with the same certificate keeps everyone's permissions; a new certificate would make everyone grant them again. Keep the certificate backed up: Keychain Access, right-click it, Export.
 

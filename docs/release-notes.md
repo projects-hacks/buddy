@@ -1,12 +1,61 @@
-## [Download Buddy for Mac](https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg)
+<p align="center">
+  <a href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="44"></a>
+</p>
 
-**Install in three steps**
+<h3 align="center">Buddy hears you better</h3>
 
-1. Open the downloaded **Buddy.dmg** and drag **Buddy** onto **Applications**.
-2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
-3. Follow the setup window: your name, your keys, three permissions.
+<p align="center">Technical words, long pauses and half-finished questions now come through whole.</p>
 
-Already have Buddy 1.2 or later? It offers this update in the notch by itself: click **Update**. On 1.0 or 1.1, download it once and drag it onto Applications, choosing **Replace**. Your keys, memory and permissions stay.
+---
+
+### Gets technical words right
+
+With a Deepgram key, Deepgram now hears your questions as well as speaking the answers. The same questions, on the same microphone:
+
+| You said | The Mac's recognizer heard | Buddy 1.5 hears |
+|:--|:--|:--|
+| Kafka | Kakkar | **Kafka** |
+| idempotent | Eden potent | **idempotent** |
+| Postgres | posters | **Postgres** |
+
+Before you speak, Buddy tells it which words to expect: the labels on your screen, the terms on cards it just drew, and the ideas you have been learning. About a third of a cent per question, shown in **Spent today**. No Deepgram key? The Mac's recognizer works as before.
+
+### Take your time
+
+| | Before | Now |
+|:--|:--|:--|
+| Pause to think mid-question | Only the words after the pause arrived | **The whole question arrives** |
+| Let go too early, press again | Two separate questions | **Joined into one**, if the answer has not started |
+
+### Long sessions stay in view
+
+Buddy remembers the last **40** questions of a session instead of 10. Recent answers are kept with their drawings; older ones keep what was said, so long sessions stay cheap.
+
+### Also in this release
+
+| Area | What changed |
+|:--|:--|
+| **Fixed** | Buddy could stop responding when the microphone changed, for example AirPods connecting. It now keeps listening. |
+| **Spent today** | Counts answers you cut off, and keeps the last cents of the day when Buddy quits. |
+| **Mishearings** | When a word is still misheard, Buddy answers what you meant. |
+| **Chat** | Long folded answers no longer draw over the messages below. |
+
+---
+
+### Updating
+
+| You have | Do this |
+|:--|:--|
+| Buddy 1.2 or later | Click **Update** when the notch offers it |
+| Buddy 1.0 or 1.1 | Download, drag onto Applications, choose **Replace** |
+| Homebrew | `brew upgrade --cask projects-hacks/buddy/buddy` |
+
+Your keys, memory and permissions stay.
+
+<details>
+<summary><b>First time installing?</b></summary>
+<br>
+<p align="center"><img src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/install-steps.png" alt="Drag Buddy onto Applications; open it and click Done when macOS says it cannot check it; then click Open Anyway in Privacy and Security" width="560"></p>
 
 Or with Homebrew:
 
@@ -16,27 +65,7 @@ brew trust projects-hacks/buddy
 brew install --cask projects-hacks/buddy/buddy
 ```
 
-## What's new in 1.5
+Needs macOS 14.2 or later, Apple silicon or Intel. More help: [install guide](https://github.com/projects-hacks/buddy/blob/main/docs/install.md).
+</details>
 
-**Buddy hears you better**
-
-With a Deepgram key, Buddy now uses Deepgram to hear your questions as well as to speak its answers. It gets technical words right far more often: "Kafka" and "idempotent" where the Mac's own recognizer heard "Kakkar" and "Eden potent". Before you speak, Buddy tells it which words to expect: the labels on your screen, the terms on the cards it just drew, and the ideas you have been learning, so jargon is expected even when it is not on screen. Hearing costs about a third of a cent for a 20 second question and shows in Spent today. Without a Deepgram key, Buddy uses the Mac's recognizer as before; with one, the Mac's recognizer still listens alongside as a backup in case the connection drops.
-
-**Take your time**
-
-Pausing to think while you hold the keys no longer loses what you said before the pause. And if you let go mid-thought and press again within a minute and a half, before the answer has started, Buddy joins the two halves into one question.
-
-**Long sessions stay in view**
-
-Buddy now remembers the last 40 questions of a session instead of the last 10. Recent answers are kept whole, with their drawings; older ones keep what was said, which keeps long sessions cheap.
-
-**Also in this release**
-
-- Fixed: Buddy could stop responding when the microphone changed under it, for example AirPods connecting or another app taking the mic for a call. It now picks up the new format and keeps listening.
-- Spent today now counts answers you cut off with a new question or Esc, and never loses the last few cents of the day when Buddy quits.
-- When a word is misheard anyway, Buddy answers what you meant instead of what it heard.
-- Long answers folded in the chat no longer draw over the messages below them.
-
-Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/buddy/blob/main/docs/install.md).
-
-<sub>For the careful: each update is checked against `Buddy.dmg.sha256` and against the app's signature before it is installed. To check a download by hand, `shasum -a 256 -c Buddy.dmg.sha256` in the folder holding both.</sub>
+<sub>Every update is checked against `Buddy.dmg.sha256` and the app's signature before it installs. To check a download by hand: `shasum -a 256 -c Buddy.dmg.sha256`.</sub>
