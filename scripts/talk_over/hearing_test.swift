@@ -264,5 +264,17 @@ print("  echo of ten: " + describe(echoOfTenActions))
 check("echo of ten: Buddy's own voice heard back with digits is no question", question(in: echoOfTenActions) == nil)
 check("echo of ten: Buddy is never paused for it", firstYield(in: echoOfTenActions) == nil)
 
+// 10. The teach-back live test of 2.0: Buddy said "here's what you
+// described." as the drawing call ended, the next call began at once, and
+// the recognizer wrote its echo as "Here is what you described. knee".
+let describedSentence = "here's what you described."
+check("contractions are compared spelled out", TalkOverHearing.words(of: "Here's what") == ["here", "is", "what"])
+var describedEcho: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(describedSentence)), (1.6, .sentenceEnds)]
+describedEcho += levels(-30, from: 0, to: 3) + levels(-62, from: 3, to: 8)
+describedEcho += [(1.0, .heard("Here is what")), (2.2, .heard("Here is what you described. knee"))]
+let describedActions = play(describedEcho, until: 8, finalTextOnFlush: "Here is what you described. knee")
+print("  echo of here's: " + describe(describedActions))
+check("echo of here's: Buddy's own sentence written out in full is no question", question(in: describedActions) == nil)
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

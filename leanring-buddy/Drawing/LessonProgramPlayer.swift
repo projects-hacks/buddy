@@ -50,6 +50,11 @@ final class LessonProgramPlayer {
     /// Buddy's own voice apart from the student's while it plays.
     private var sentenceStartTimes: [Int: Double] = [:]
     private var sentenceEndTimes: [Int: Double] = [:]
+    /// The last sentences of the answer before this one. Teach-back's two
+    /// calls and the board's turns start a new answer the moment the last
+    /// one ends, while its final sentence is still coming back through the
+    /// microphone; without them that echo reads as the student cutting in.
+    private var previousAnswerSentences: [SpokenSentence] = []
 
     /// What the answer on screen was drawn over, and its program so far,
     /// for keeping it as a recording.
@@ -118,6 +123,10 @@ final class LessonProgramPlayer {
     func begin(on screen: NSScreen, canvasSize: CGSize, targets: [String: [Double]],
                targetLabels: [String: String] = [:], screenInkHex: String,
                screenThumbnail: [UInt8]? = nil, screenMarksHidden: Bool = false) {
+        previousAnswerSentences = recentlySpokenSentences.map { sentence in
+            SpokenSentence(text: sentence.text, startedAt: sentence.startedAt,
+                           endedAt: sentence.endedAt ?? TalkOverListener.now)
+        }
         stop()
         isReplaying = false
         currentAnswerSetup = AnswerSetup(canvasSize: canvasSize, targets: targets, targetLabels: targetLabels,
@@ -255,10 +264,16 @@ final class LessonProgramPlayer {
     /// voice would sound like coming back through the microphone.
     var recentlySpokenSentences: [SpokenSentence] {
         let started = sentenceStartTimes.keys.sorted().suffix(3)
-        return started.compactMap { index in
+        let thisAnswer = started.compactMap { index -> SpokenSentence? in
             guard index < sentences.count, let startedAt = sentenceStartTimes[index] else { return nil }
             return SpokenSentence(text: sentences[index], startedAt: startedAt, endedAt: sentenceEndTimes[index])
         }
+        // The answer before, only while its echo can still arrive.
+        let now = TalkOverListener.now
+        let echoOfPreviousAnswer = previousAnswerSentences.filter { sentence in
+            (sentence.endedAt ?? now) + TalkOverHearing.echoArrivesWithinSeconds + 1 >= now
+        }
+        return echoOfPreviousAnswer + thisAnswer
     }
 
     /// What the student has heard of this answer so far, for an answer cut

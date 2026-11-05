@@ -151,7 +151,8 @@ final class TeachBackListener {
         // Words still arriving after the end was asked for are the last of
         // the sentence being said, and are kept.
         guard isListening else { return }
-        if fullText != latestHeardText {
+        let isNewText = fullText != latestHeardText
+        if isNewText {
             // Only words count as speech: a fan or a room's hum moves the
             // meter but never keeps the microphone open.
             if TalkOverHearing.words(of: fullText) != TalkOverHearing.words(of: latestHeardText) { lastNewWordsAt = Date() }
@@ -159,7 +160,12 @@ final class TeachBackListener {
             onWordsHeard(fullText)
         }
         guard !hasEnded else { return }
+        // The recognizer repeats the same words more often than the grace
+        // below; restarting the wait on a repeat would mean it never ends,
+        // and "I'm done" would only end the explanation eight seconds later.
+        guard isNewText || closingPhraseCheck == nil else { return }
         closingPhraseCheck?.cancel()
+        closingPhraseCheck = nil
         guard TeachBackHearing.explanationIfFinished(fullText) != nil else { return }
         let generation = sessionGeneration
         closingPhraseCheck = Task { @MainActor [weak self] in

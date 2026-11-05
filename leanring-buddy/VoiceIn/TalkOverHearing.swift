@@ -230,7 +230,23 @@ enum TalkOverHearing {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
             .flatMap(spokenWords(forNumber:))
+            .flatMap { contractionsSpelledOut[$0] ?? [$0] }
     }
+
+    /// Buddy's sentence says "here's" and the recognizer may write "here
+    /// is", or the other way round, so both sides are compared spelled out.
+    /// Only contractions that cannot be another word are listed: "we're"
+    /// written without its apostrophe is "were", so it is left alone.
+    private static let contractionsSpelledOut: [String: [String]] = [
+        "heres": ["here", "is"], "theres": ["there", "is"], "thats": ["that", "is"], "whats": ["what", "is"],
+        "wheres": ["where", "is"], "hows": ["how", "is"], "whos": ["who", "is"], "lets": ["let", "us"],
+        "im": ["i", "am"], "youre": ["you", "are"], "theyre": ["they", "are"], "ive": ["i", "have"],
+        "youve": ["you", "have"], "weve": ["we", "have"], "theyve": ["they", "have"], "youll": ["you", "will"],
+        "theyll": ["they", "will"], "itll": ["it", "will"], "dont": ["do", "not"], "doesnt": ["does", "not"],
+        "didnt": ["did", "not"], "isnt": ["is", "not"], "arent": ["are", "not"], "wasnt": ["was", "not"],
+        "cant": ["can", "not"], "wont": ["will", "not"], "wouldnt": ["would", "not"],
+        "shouldnt": ["should", "not"], "couldnt": ["could", "not"]
+    ]
 
     /// Buddy's sentences spell numbers out ("ten is bigger") and the
     /// recognizer writes them as digits ("10 is"), so digits are compared
