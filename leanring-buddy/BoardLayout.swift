@@ -306,7 +306,8 @@ struct BoardLayout {
     /// `preferredSide` when given, then tries the other sides further out,
     /// then searches the whole board in reading order.
     func findFreeSpot(width: Double, height: Double, in state: BoardState, near anchor: BoardRect?,
-                      preferredSide: BoardSide?, ignoring ignoredIdentifiers: Set<String> = []) -> BoardRect {
+                      preferredSide: BoardSide?, ignoring ignoredIdentifiers: Set<String> = [],
+                      extraSpacing: Double = 0) -> BoardRect {
         if let anchor {
             var sides: [BoardSide] = []
             if let preferredSide { sides.append(preferredSide) }
@@ -315,7 +316,7 @@ struct BoardLayout {
                 for extraDistance in [0.0, 50, 120, 220, 360] {
                     for side in sides {
                         for candidate in Self.candidates(beside: anchor, side: side, width: width, height: height,
-                                                         distance: Self.gapBetweenElements + extraDistance) {
+                                                         distance: Self.gapBetweenElements + extraSpacing + extraDistance) {
                             if isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: avoidingArrows) {
                                 return candidate
                             }
@@ -419,7 +420,8 @@ struct BoardLayout {
     /// The path for an arrow from `fromFrame` to `toFrame` that crosses the
     /// fewest other elements, then is shortest. Only crossings of elements
     /// that are not the ends, and not a group holding an end, count.
-    func routeArrow(from fromFrame: BoardRect, to toFrame: BoardRect, obstacles: [BoardRect]) -> [BoardPoint] {
+    func routeArrow(from fromFrame: BoardRect, to toFrame: BoardRect, obstacles: [BoardRect],
+                    avoiding existingRoute: [BoardPoint]? = nil) -> [BoardPoint] {
         // An arrow leaves from the middle of one side and arrives at the
         // middle of one side; every pairing is tried, each as a straight
         // line, an elbow and bowed curves.
@@ -491,8 +493,17 @@ struct BoardLayout {
             // A curve's middle point is where it bends: the first bend is
             // worth taking only when it saves a crossing.
             let bendPenalty = route.count == 3 ? 60.0 : Double(route.count - 2) * 40
+            // The same two elements linked both ways: the second arrow keeps
+            // clear of the first instead of drawing over it.
+            var overlapsExisting = false
+            if let existingRoute {
+                for point in route.dropFirst().dropLast() where Self.route(existingRoute, crosses: BoardRect(x: point.x - 20, y: point.y - 20, width: 40, height: 40)) {
+                    overlapsExisting = true
+                }
+                if route.count == 2 { overlapsExisting = true }
+            }
             return Double(crossings) * 10_000 + (leavesBoard ? 5_000 : 0) + (candidate.facesAway ? 600 : 0)
-                + pathLength + bendPenalty
+                + (overlapsExisting ? 3_000 : 0) + pathLength + bendPenalty
         }
         return candidates.min { cost($0) < cost($1) }?.route ?? [BoardPoint(x: fromFrame.midX, y: fromFrame.midY), BoardPoint(x: toFrame.midX, y: toFrame.midY)]
     }

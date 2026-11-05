@@ -35,6 +35,9 @@ struct BoardPlacementHint: Equatable {
     var nearIdentifier: String?
     var side: BoardSide?
     var groupIdentifier: String?
+    /// Set when the same sentence also links it to what it is near, so the
+    /// two are kept far enough apart for the arrow and its label to read.
+    var leavesRoomForArrow = false
 }
 
 /// New words for an element: text, a list's items, or a table's rows.
@@ -271,6 +274,22 @@ final class TeachingBoard {
                 self.lastTopLevelIdentifier = state.elements.last { $0.groupIdentifier == nil }?.identifier
             }
             commands.append(BoardDrawCommand(action: .remove, removedIdentifiers: removedElements + Array(Set(removedConnectors)).sorted()))
+            // A group that lost a member closes up around the rest, from its
+            // top left, so it moves nothing and leaves no empty frame.
+            if let groupIdentifier = element.groupIdentifier, var group = state.element(groupIdentifier) {
+                let remaining = state.members(ofGroup: groupIdentifier)
+                let minimum = layout.naturalSize(of: group)
+                var fitted = BoardRect(x: group.frame.x, y: group.frame.y, width: minimum.width, height: minimum.height)
+                for member in remaining { fitted = fitted.union(member.frame.insetBy(-BoardLayout.groupPadding)) }
+                if fitted.width < group.frame.width - 1 || fitted.height < group.frame.height - 1 {
+                    group.frame = BoardRect(x: group.frame.x, y: group.frame.y,
+                                            width: min(group.frame.width, fitted.maxX - group.frame.x),
+                                            height: min(group.frame.height, fitted.maxY - group.frame.y))
+                    state.replace(group)
+                    commands.append(drawCommand(for: group, keepsShape: false))
+                    commands += rerouteConnectors(touching: [groupIdentifier])
+                }
+            }
         }
 
         // The whole turn in view when it fits at the smallest zoom, else
@@ -335,7 +354,8 @@ final class TeachingBoard {
             // Beside a group's member from outside the group means beside the group.
             let anchorFrame = nearElement.groupIdentifier.flatMap { state.element($0)?.frame } ?? nearElement.frame
             return layout.findFreeSpot(width: width, height: height, in: state, near: anchorFrame,
-                                       preferredSide: placement.side)
+                                       preferredSide: placement.side,
+                                       extraSpacing: placement.leavesRoomForArrow ? 110 : 0)
         }
         if state.elements.isEmpty {
             return BoardRect(x: 0, y: 0, width: width, height: height)
@@ -464,7 +484,9 @@ final class TeachingBoard {
                 && element.identifier != toElement.identifier
                 && !endGroups.contains(element.identifier)
         }.map(\.frame) + state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
-        connector.routePoints = layout.routeArrow(from: fromElement.frame, to: toElement.frame, obstacles: obstacles)
+        let reverseRoute = state.connector(from: connector.toIdentifier, to: connector.fromIdentifier)?.routePoints
+        connector.routePoints = layout.routeArrow(from: fromElement.frame, to: toElement.frame, obstacles: obstacles,
+                                                  avoiding: reverseRoute)
         connector.labelFrame = nil
         state.replace(connector)
         let placedLabel = layout.placeArrowLabel(connector.label, along: connector.routePoints, in: state,

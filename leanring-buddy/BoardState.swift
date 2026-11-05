@@ -228,7 +228,9 @@ struct BoardState: Codable, Equatable {
 
     /// The board as the model needs it to refer to and edit what is there:
     /// ids, kinds, texts, groups and arrows, one line each, and never a
-    /// coordinate. Measured at about 330 tokens for a 20-element board.
+    /// coordinate. A whole turn note for a 20-element board with 7 arrows
+    /// is 574 tokens, counted by the API's tokenizer in
+    /// scripts/board/board_harness.swift.
     func compactListing() -> String {
         guard !isEmpty else { return "ON THE BOARD: nothing yet." }
         var lines: [String] = []

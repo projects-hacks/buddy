@@ -327,7 +327,21 @@ struct BoardProgramTranslator {
         var result = operations
         for (index, operation) in operations.enumerated() {
             guard case let .add(kind, identifier, text, listItems, tableRows, placement, tone) = operation,
-                  placement.nearIdentifier == nil, placement.groupIdentifier == nil else { continue }
+                  placement.groupIdentifier == nil else { continue }
+            // Already near something: only make room if it is linked to it.
+            if let nearIdentifier = placement.nearIdentifier {
+                let isLinkedToIt = operations[(index + 1)...].contains { later in
+                    guard case let .link(fromIdentifier, toIdentifier, _, _, _) = later else { return false }
+                    return Set([fromIdentifier, toIdentifier]) == Set([identifier, nearIdentifier])
+                }
+                if isLinkedToIt {
+                    var roomier = placement
+                    roomier.leavesRoomForArrow = true
+                    result[index] = .add(kind: kind, identifier: identifier, text: text, listItems: listItems,
+                                         tableRows: tableRows, placement: roomier, tone: tone)
+                }
+                continue
+            }
             var known = Set(state.elements.map(\.identifier))
             for earlier in operations[..<index] {
                 if case let .add(_, earlierIdentifier, _, _, _, _, _) = earlier { known.insert(earlierIdentifier) }
@@ -336,9 +350,9 @@ struct BoardProgramTranslator {
                 guard case let .link(fromIdentifier, toIdentifier, _, _, _) = later else { continue }
                 var inferred: BoardPlacementHint?
                 if fromIdentifier == identifier, known.contains(toIdentifier) {
-                    inferred = BoardPlacementHint(nearIdentifier: toIdentifier, side: .left, groupIdentifier: nil)
+                    inferred = BoardPlacementHint(nearIdentifier: toIdentifier, side: .left, groupIdentifier: nil, leavesRoomForArrow: true)
                 } else if toIdentifier == identifier, known.contains(fromIdentifier) {
-                    inferred = BoardPlacementHint(nearIdentifier: fromIdentifier, side: .right, groupIdentifier: nil)
+                    inferred = BoardPlacementHint(nearIdentifier: fromIdentifier, side: .right, groupIdentifier: nil, leavesRoomForArrow: true)
                 }
                 if let inferred {
                     result[index] = .add(kind: kind, identifier: identifier, text: text, listItems: listItems,
