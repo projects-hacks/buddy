@@ -33,7 +33,7 @@ stateDiagram-v2
     class Explaining talk
 ```
 
-The dot in the notch follows the same colours: grey ready, red listening, amber thinking, blue explaining, and green "your turn" while it waits for you to do a step in an app. While it thinks, the notch also says which model is answering.
+The dot in the notch follows the same colours: grey ready, red listening, amber thinking, blue explaining, and green "your turn" while it waits for you to do a step in an app. The notch says one thing on each side: what Buddy is doing on the left, and on the right what it is about (the lesson's name). Which model answered is in the Chat tab, on the time beside each answer.
 
 ## Good questions
 
@@ -69,16 +69,24 @@ flowchart LR
 
 If you go the wrong way, the next step says how to get back. If you are mid-step, still typing a name, it stays quiet and keeps waiting. Switching to another app to reply to a message does not count as doing the step.
 
-**Asked before? Answered from memory.** When a walkthrough reaches the end, Buddy keeps it: each step's words and the button it pointed at. Ask for the same thing again in that app, in your own words ("how do I get a PDF of this" after "how do I save this as a PDF"), and it walks you through from memory: the same steps, pointing at the same buttons, with no model asked at all, so only the voice costs anything (well under a cent). It only does this when the request is plainly the same task; something that only sounds like it, "save as PNG" after "save as PDF", gets a fresh answer instead. If the app has changed and a saved step's button is not there, the model takes over from that step and the walkthrough is saved again. The notch shows **from memory** while it replays. Kept on this Mac; Forget all clears these with the rest of memory.
+**Asked before? Answered from memory.** When a walkthrough reaches the end, Buddy keeps it: each step's words and the button it pointed at. Ask for the same thing again in that app, in your own words ("how do I get a PDF of this" after "how do I save this as a PDF"), and it walks you through from memory: the same steps, pointing at the same buttons, with no model asked at all, so only the voice costs anything (well under a cent). It only does this when the request is plainly the same task; something that only sounds like it, "save as PNG" after "save as PDF", gets a fresh answer instead. If the app has changed and a saved step's button is not there, the model takes over from that step and the walkthrough is saved again. The notch shows **from memory** while it replays. Kept on this Mac; Forget everything clears these with the rest of memory.
 
 ## The notch
 
 - **Idle**, it disappears into the camera housing.
-- **While answering**, it widens to show what is being said.
+- **While answering**, it widens to show what is being said. A small mic beside "explaining" means you can just talk over it (Talk over Buddy, in Settings); when you do, it says **Buddy paused** and shows your words.
 - **While guiding**, it shows the step it is waiting for, with "esc to stop".
-- **Hover it** for the last lesson as a paper card (title, your question, the answer, follow-ups), the chat with the whole day's conversation and the box to type in, and Settings.
+- **When something needs you**, a failed key, an expired Google Cloud sign-in or a missing permission, it says so in amber ("key problem", "can't see the screen") with "hover to fix", and the open notch has the fix.
+- **When an error appears** in a terminal, an editor or a judge's page, a soft red glow shows under the notch with "An error on screen." Hover it and the Lesson tab leads with the error as Buddy read it: **Explain this error** asks about it (so does a tap of Control + Option), **Not now** lets it go. Nothing is sent anywhere until you ask, and the same error is never offered twice.
+- **When a lecture's sound is being kept** (see lectures below), a small screen glyph shows on the right, even at rest.
+- **Hover it** to open it. **Lesson** shows the last lesson as a paper card: its name, what it builds on, your question, the answer, and the next steps (the model's follow-ups, **Teach it back**, and **Go deeper** after a lesson that could go further). **Replay** plays it again, voice and drawing, with no new request; beside it are Open in Notebook and Copy. On a day with nothing asked yet, it shows three ways in instead: learn something new, teach back an idea you are starting to forget, and yesterday's lessons. **Chat** is the whole day's conversation, with Copy all. **Notebook** and **Map** open their windows, and the gear opens Settings.
+- **At most one alert** shows above the lesson: a missing permission (Allow), a key or sign-in problem (Fix, or Copy command for the Google Cloud sign-in), or a new Buddy (What's new, Update).
 
-Every conversation is also saved as a Markdown file per day in `~/Library/Application Support/Buddy/Transcripts`, opened from the notch with **Open full transcript**.
+Every conversation is also saved as a Markdown file per day in `~/Library/Application Support/Buddy/Transcripts`, shown in Finder from the Notebook's More menu.
+
+## The Notebook
+
+Every finished lesson is kept as a page. **Notebook**, in the open notch, opens them: lessons down the side grouped by day, the chosen one as a page with its drawing, what was said, and **Teach it back** and **Ask a follow-up**. Search finds a lesson by its name, question or words. **Replay** draws your last lesson again on the screen. **Export PDF** saves this page, this day, a range or everything. **More** shows the transcripts in Finder, turns **Keep new lessons** on or off, and deletes a page, a day or every note, asking first. Up and Down move through the pages, Space replays, Delete deletes.
 
 ## Follow-ups
 
@@ -111,23 +119,27 @@ Drawing a design in Excalidraw, draw.io, Miro, Freeform or any whiteboard app, a
 
 Buddy remembers the ideas it explains, across days. When a new question touches one, the answer builds on it ("the same trade-off as the consistent hashing from Tuesday"), and the lesson card shows **Builds on** with the idea's name. If you said you did not follow an explanation, the next one uses a different example.
 
-Memory keeps only the latest explanation of each idea, estimates how well you still remember it, and sets aside ideas met once and unseen for months. It stays on this Mac. Turn it off or **Forget all** in Settings.
+Memory keeps only the latest explanation of each idea, estimates how well you still remember it, and sets aside ideas met once and unseen for months. It stays on this Mac. Turn **Remember what I learn** off, or **Forget everything**, in Settings.
 
-**The map of what you know.** The map button in the open notch (beside the gear), or **Map** under Learning memory in Settings, opens every idea Buddy has taught you as a map: each idea a dot, related ideas joined ("async await" uses "promises"), each topic tinted its own colour. Ideas you are probably forgetting fade and say **review soon**. Hover an idea for how it was last explained and when you learned it; drag or scroll to move around, pinch or Command and scroll to zoom, Command F to search by name. Click an idea for **Re-teach this**, which asks Buddy to teach it again with a different example from last time: the map steps aside and the answer is spoken and drawn as usual. **Forget this idea** removes just that one, after you confirm. The first time the map opens on memory from before 1.6, Buddy finds the links between older ideas once in the background, sending only their names and one-sentence summaries.
+**The map of what you know.** **Map**, in the open notch or in Settings under Memory, opens every idea Buddy has taught you as a map on paper: each idea its name in a capsule, related ideas joined ("async await" uses "promises"), clusters named by topic. Green is **Strong**, amber **Fading**, and a red dashed outline **Time to review**; the legend says so. **All**, **Fading** and **This week** narrow the map, and Command F finds an idea by name. Drag or scroll to move around, pinch or Command and scroll to zoom. Click an idea and the panel on the right shows how it was last explained, when you learned it, when to look again, what it links to and the lessons it came from (a click opens that page in the Notebook). **Quick recap** asks Buddy for a short recap, spoken and drawn as usual; **Teach it back** puts "let me explain ... to you" in the chat box. **Forget this idea...** removes just that one, after you confirm. Arrow keys move along the links, Return gives a quick recap. The first time the map opens on memory from before 1.6, Buddy finds the links between older ideas once in the background, sending only their names and one-sentence summaries.
 
 ## Settings
 
 Hover the notch and open the gear tab.
 
-| Setting | What it does |
-|---|---|
-| Brain | **Auto** picks Sonnet, Opus or Argon per question; or always use Claude, Gemini, or a local model |
-| Spent today | What Buddy has spent on your keys today and this month, with how many questions it answered |
-| Sounds | Soft tones when the mic opens and a question is sent, key taps when the chat box opens, a water drop when the notch opens |
-| Learning memory | On or off, how many ideas and how-tos are remembered, Map, Forget all |
-| Name and API keys | Reopens setup on the keys |
-| Open at login | Whether Buddy starts when you log in |
-| Check for updates | The daily check for a newer Buddy, and Check now |
+Nine controls in four groups, with **How to use Buddy** (this guide) and **Quit Buddy** under them.
+
+| Group | Setting | What it does |
+|---|---|---|
+| Talking | Talk over Buddy | Keeps listening while it explains, so you can cut in without the keys. On by default |
+| | Sounds | Soft tones when the mic opens and a question is sent, key taps when the chat box opens, a water drop when the notch opens |
+| | Open at login | Whether Buddy starts when you log in |
+| Memory | Remember what I learn | On or off, with how many ideas and how-tos are kept |
+| | Open Map, Forget everything... | The map of what you know; forgetting asks first |
+| Answers | Answers from | **Auto** picks Sonnet, Opus or Argon per question; or always Claude, or always Gemini. One without a key says "add a key" and opens setup |
+| | Spent today | What Buddy has spent on your keys today, and this month under it |
+| | Name and keys | Reopens setup on the keys |
+| Buddy | The update row | When Buddy last looked for a newer version (once a day, always) and Check now, or Update when there is one |
 
 ## What it costs
 
