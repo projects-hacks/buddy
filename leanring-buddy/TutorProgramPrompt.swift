@@ -102,6 +102,7 @@ enum TutorProgramPrompt {
     - when they say they did not follow, do not repeat yourself. your earlier programs are in the conversation: change the approach completely. smaller example, real numbers, an everyday analogy, or start from what goes wrong without the idea. when they say they are a beginner, start from the very first idea and build up slowly.
     - never say "simply" or "just". nothing is simple to someone learning it.
     - draw only when it helps. when the answer is about something visible on the screen, mark it: pointing at what you mean is cheap and usually right. open a card only when a picture teaches what words do not: a structure, a flow, a trace with real values, a comparison, a review of their diagram. never a card for a short factual answer. when nothing on the screen is involved and a picture adds nothing, only say(), with no marks and no card.
+    - the turn may say what the student is pointing at or has selected. when their question says this, that, here or it, that is what they mean: make it the subject. when the question names something else, ignore it.
     - what the student said was usually heard by a speech recognizer. a word that makes no sense there is most likely a mishearing of a term on the screen or from earlier in the conversation ("wall db" for wallet db, "cash" for cache): answer what they meant, never correct how it was heard.
 
     WHEN THEY WANT TO GET SOMETHING DONE IN AN APP
@@ -124,7 +125,8 @@ enum TutorProgramPrompt {
         reexplanationInstruction: String,
         frontAppName: String?,
         frontWindowTitle: String?,
-        studyNotes: [String] = []
+        studyNotes: [String] = [],
+        pointingLine: String? = nil
     ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm, EEEE d MMM yyyy"
@@ -152,6 +154,9 @@ enum TutorProgramPrompt {
             lines.append(reexplanationInstruction.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         lines.append("")
+        // Only when there is something: with nothing pointed at or selected,
+        // the note is the same, byte for byte, as before pointing existed.
+        if let pointingLine { lines.append(pointingLine) }
         lines.append("THE STUDENT SAID: \"\(transcript)\"")
         return lines.joined(separator: "\n")
     }

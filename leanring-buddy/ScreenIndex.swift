@@ -639,6 +639,22 @@ final class ScreenIndex {
     /// when a program names a control by its label instead of its id.
     private(set) var lastListedLabels: [String: String] = [:]
 
+    /// The smallest target in the last listing under a point, in the same
+    /// display-local points as the targets. Only listed ones, since an id
+    /// the model was not shown means nothing to it. A few points of slack,
+    /// because recognised text hugs the glyphs and a pointer resting on a
+    /// word often sits just above or below them.
+    func listedTarget(atDisplayLocalPoint point: CGPoint) -> ScreenTarget? {
+        orderedTargets
+            .filter { target in
+                lastListedLabels[target.id] != nil && target.boundsInDisplayPoints.insetBy(dx: -4, dy: -4).contains(point)
+            }
+            .min { first, second in
+                first.boundsInDisplayPoints.width * first.boundsInDisplayPoints.height
+                    < second.boundsInDisplayPoints.width * second.boundsInDisplayPoints.height
+            }
+    }
+
     /// Resolves an identifier the model emitted back to its exact rectangle.
     /// Returns nil for an identifier that was invented rather than chosen.
     func target(forIdentifier identifier: String) -> ScreenTarget? {

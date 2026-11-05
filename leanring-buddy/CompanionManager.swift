@@ -935,6 +935,7 @@ final class CompanionManager: ObservableObject {
                    self.earlyScreenCapture.isHoldingCapture,
                    self.earlyScreenCapture.keysWereReleasedForHeldCapture {
                     self.earlyScreenCapture.discard(reason: "no question was heard")
+                    self.pointerRestsOfLastPress = []
                 }
                 // Don't override .responding, the AI response pipeline
                 // manages that state directly until streaming finishes.
@@ -989,6 +990,8 @@ final class CompanionManager: ObservableObject {
         pendingKeyboardShortcutStartTask = nil
         buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
         earlyScreenCapture.discard(reason: "the keys became Control + Option + T")
+        pointerRestWatcher.cancel()
+        pointerRestsOfLastPress = []
         controlBar.model.heardWords = ""
         controlBar.openChat()
     }
@@ -1013,7 +1016,11 @@ final class CompanionManager: ObservableObject {
         }
         transientHideTask?.cancel()
         transientHideTask = nil
-        sendTranscriptToTutorWithScreenshot(transcript: question)
+        // Text selected in the app before typing is what a typed "this"
+        // means. There is no pointer to read: nothing was said while it rested.
+        let selection = SelectedTextReader.selectionInFrontApp()
+        sendTranscriptToTutorWithScreenshot(transcript: question,
+                                            studentPointing: StudentPointingClues(selection: selection))
     }
 
     private func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
@@ -1051,6 +1058,10 @@ final class CompanionManager: ObservableObject {
     private var pendingTalkStart: Task<Void, Never>?
     /// The screen read while the keys are held, for the question they end in.
     private let earlyScreenCapture = EarlyScreenCapture()
+    /// Where the pointer rested while the keys were held, and the rests of
+    /// the press just ended, until its question claims them.
+    private let pointerRestWatcher = PointerRestWatcher()
+    private var pointerRestsOfLastPress: [PointerRest] = []
     /// The last question, until its answer starts to be heard. A question
     /// asked before then continues it rather than replacing it.
     private var questionAwaitingAnswer: (text: String, askedAt: Date)?
@@ -1152,6 +1163,8 @@ final class CompanionManager: ObservableObject {
             // let go; at release it is checked against the screen as it is then.
             TutorDebugLog.write("⏱ keys down: reading the screen while the student talks")
             earlyScreenCapture.start()
+            pointerRestsOfLastPress = []
+            pointerRestWatcher.start()
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.
             InterfaceSounds.shared.play(.listen)
@@ -1220,9 +1233,17 @@ final class CompanionManager: ObservableObject {
                         self?.lastTranscript = finalTranscript
                         print("🗣️ Companion received transcript: \(finalTranscript)")
                         ClickyAnalytics.trackUserMessageSent(transcript: finalTranscript)
-                        self?.sendTranscriptToTutorWithScreenshot(
+                        guard let self else { return }
+                        // What "this" means: where the pointer rested while
+                        // they talked, and what is selected now.
+                        let studentPointing = StudentPointingClues(
+                            pointerRests: self.pointerRestsOfLastPress,
+                            selection: SelectedTextReader.selectionInFrontApp())
+                        self.pointerRestsOfLastPress = []
+                        self.sendTranscriptToTutorWithScreenshot(
                             transcript: finalTranscript,
-                            earlyScreen: self?.earlyScreenCapture.handOverToQuestion())
+                            earlyScreen: self.earlyScreenCapture.handOverToQuestion(),
+                            studentPointing: studentPointing)
                     }
                 )
             }
@@ -1238,6 +1259,7 @@ final class CompanionManager: ObservableObject {
             pendingKeyboardShortcutStartTask?.cancel()
             pendingKeyboardShortcutStartTask = nil
             earlyScreenCapture.keysWereReleased()
+            pointerRestsOfLastPress = pointerRestWatcher.stop()
             buddyDictationManager.stopPushToTalkFromKeyboardShortcut()
     }
 
@@ -1488,7 +1510,8 @@ final class CompanionManager: ObservableObject {
     /// result) means the screen is captured now, as before.
     private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
                                                      howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil,
-                                                     earlyScreen: Task<PreparedScreen?, Never>? = nil) {
+                                                     earlyScreen: Task<PreparedScreen?, Never>? = nil,
+                                                     studentPointing: StudentPointingClues? = nil) {
         let isGuideContinuation = guideStep != nil
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
@@ -1575,7 +1598,9 @@ final class CompanionManager: ObservableObject {
             do {
                 let screenCaptures: [CompanionScreenCapture]
                 let primaryCapture: CompanionScreenCapture
+                var screenWasReadWhileTheyTalked = false
                 if let preparedScreen = await earlyScreen?.value, !Task.isCancelled {
+                    screenWasReadWhileTheyTalked = true
                     screenCaptures = preparedScreen.screenCaptures
                     primaryCapture = preparedScreen.primaryCapture
                     screenIndex = preparedScreen.screenIndex
@@ -1724,6 +1749,18 @@ final class CompanionManager: ObservableObject {
                     TutorDebugLog.write("✏️ reviewing their drawing in \(diagramTool)")
                 }
 
+                // The pointer's rests are places on the screen as it was while
+                // they talked. Read again because it moved, the screen no
+                // longer matches them, so only a selection is kept.
+                var pointingLine: String?
+                if let studentPointing, !studentPointing.isEmpty {
+                    pointingLine = StudentPointingNote.line(
+                        for: studentPointing, screenIndex: screenIndex,
+                        displayFrame: primaryCapture.displayFrame, canvasSize: canvasSize,
+                        includePointer: screenWasReadWhileTheyTalked)
+                    TutorDebugLog.write("👉 \(pointingLine.map { $0.hasPrefix("SELECTED") ? "selected text, \(studentPointing.selection?.text.count ?? 0) characters" : $0 } ?? "pointer rested on nothing listed")")
+                }
+
                 let turnPrompt = TutorProgramPrompt.turnContext(
                     transcript: transcript,
                     canvasSize: canvasSize,
@@ -1732,7 +1769,8 @@ final class CompanionManager: ObservableObject {
                     reexplanationInstruction: reexplanationInstruction(),
                     frontAppName: frontAppName,
                     frontWindowTitle: frontWindowTitle,
-                    studyNotes: studyNotes
+                    studyNotes: studyNotes,
+                    pointingLine: pointingLine
                 )
 
                 let screenForDrawing = NSScreen.screens.first { screen in
@@ -2444,6 +2482,8 @@ final class CompanionManager: ObservableObject {
             pendingKeyboardShortcutStartTask = nil
             buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
             earlyScreenCapture.discard(reason: "Esc")
+            pointerRestWatcher.cancel()
+            pointerRestsOfLastPress = []
             controlBar.model.heardWords = ""
         }
         let closedNotch = controlBar.closeFromKeyboard()
