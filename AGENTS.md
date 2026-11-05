@@ -26,7 +26,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 - **Teaching board**: "teach me X from scratch" turns the whole display into paper and teaches on it over several turns, with the notch saying "On the board", a "Today's board" card of parts and one dark bar (Leave board). The model emits `board.*` operations against a board kept in Swift (`BoardState`); layout is computed on the Mac (`BoardLayout`), and each piece's board calls are replaced by exact strokes before the engine runs it. See `TeachingBoardSession.swift` and `scripts/board/`.
 - **Teach it back**: "let me explain X back to you" opens the same board titled "You explain: X" and listens hands free (no keys, a visible red meter, ends on "I'm done", Return, eight quiet seconds or three minutes). One call draws only what the student said in their purple ink (`BoardInk.student`), wrong claims as stated; a second call marks the gaps on it in dashed red (`BoardInk.gap`), at most four, while the board refuses any change to the student's drawing. What they got right strengthens those ideas in memory and what they missed counts as lost. See `TeachBackSession.swift` and `scripts/teach_back/`.
 - **Concurrency**: `@MainActor` isolation, async/await throughout
-- **Analytics**: none. `ClickyAnalytics.swift` is an inert no-op surface.
+- **Analytics**: none. Nothing is transmitted about how Buddy is used.
 
 ### Where each capability runs
 
@@ -76,12 +76,10 @@ Paths are under `leanring-buddy/`.
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `App/leanring_buddyApp.swift` | ~89 | Menu bar app entry point. Uses `@NSApplicationDelegateAdaptor` with `CompanionAppDelegate` which creates `MenuBarPanelManager` and starts `CompanionManager`. No main window, the app lives entirely in the status bar. |
+| `App/leanring_buddyApp.swift` | ~89 | Menu bar app entry point. Uses `@NSApplicationDelegateAdaptor` with `CompanionAppDelegate` which starts `CompanionManager`. No main window and no menu bar icon: the app lives in the notch. |
 | `Companion/CompanionManager.swift` | ~4200 | Central state machine. Owns dictation, shortcut monitoring, screen capture, Claude API, ElevenLabs TTS, and overlay management. Tracks voice state (idle/listening/processing/responding), conversation history, model selection, and cursor visibility. Coordinates the full push-to-talk → screenshot → Claude → TTS → pointing pipeline. |
-| `MenuBarPanelManager.swift` | ~243 | NSStatusItem + custom NSPanel lifecycle. Creates the menu bar icon, manages the floating companion panel (show/hide/position), installs click-outside-to-dismiss monitor. |
 | `Settings/CompanionPanelView.swift` | ~690 | Settings, the notch's gear tab: nine controls in four groups in two fixed columns, never a scroll. Talking (Talk over Buddy, Sounds, Open at login), Memory (Remember what I learn, Open Map, Forget everything with a native alert), Answers (Answers from as a pop-up, a brain without a key opening setup on Keys; Spent today; Name and keys), Buddy (one update row; checks are always daily). Footer: How to use Buddy, Quit. Switches are drawn (`NotchSwitchStyle`) because AppKit greys every switch in the never-active notch panel. Also the permission rows setup shows. |
 | `Drawing/ProsePath/OverlayWindow.swift` | ~881 | Full-screen transparent overlay hosting the blue cursor, response text, waveform, and spinner. Handles cursor animation, element pointing with bezier arcs, multi-monitor coordinate mapping, and fade-out transitions. |
-| `CompanionResponseOverlay.swift` | ~217 | SwiftUI view for the response text bubble and waveform displayed next to the cursor in the overlay. |
 | `Screen/CompanionScreenCaptureUtility.swift` | ~132 | Multi-monitor screenshot capture using ScreenCaptureKit. Returns labeled image data for each connected display. |
 | `Screen/EarlyScreenCapture.swift` | ~230 | Captures and indexes the screen while the talk keys are held, into its own `ScreenIndex`, so only the work that needs the words is left after release. At release it is checked against the screen (app and window in front, display under the pointer, guide mode's 96x60 thumbnail) and thrown away if anything moved; a capture no question claims (a tap, Control + Option + T, Esc, nothing heard) is dropped, and nothing is kept on disk. |
 | `Screen/StudentPointing.swift` | ~240 | What "this" means: text selected in the app in front (accessibility, with its bounds when given), or the listed screen item the pointer rested on for 0.4s or more while the keys were held, as one line of the turn note. Nothing is added when neither is there, so the note is unchanged. |
@@ -162,9 +160,7 @@ Paths are under `leanring-buddy/`.
 | `Drawing/ProsePath/TeacherAnnotationLayer.swift` | ~340 | SwiftUI rendering of every mark: hand-drawn circles, boxes, underlines, highlights, strikethroughs, curved arrows, step badges, callouts, and the spotlight scrim. |
 | `VoiceOut/LocalSpeechSynthesisClient.swift` | ~175 | On-device TTS. Picks the best installed English voice and reports word boundaries, which is what drives mark timing. |
 | `Support/DesignSystem.swift` | ~960 | Design system tokens, colors, corner radii, shared styles. All UI references `DS.Colors`, `DS.Notch` (the notch's text floor, controls, dots, error glow), `DS.Paper` (lesson and board paper, ink), `DS.Ink`, `DS.CornerRadius`, etc. `textTertiary` is #858D89 (AA on black); the old grey is `textDisabled`. `nativeTooltip` passes clicks through. |
-| `Support/ClickyAnalytics.swift` | ~55 | Inert. Same static surface, every method a no-op, so nothing is transmitted. |
 | `Settings/WindowPositionManager.swift` | ~262 | Window placement logic, Screen Recording permission flow, and accessibility permission helpers. |
-| `AppBundleConfiguration.swift` | ~28 | Runtime configuration reader for keys stored in the app bundle Info.plist. |
 
 ## Build & Run
 
