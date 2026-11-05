@@ -97,8 +97,15 @@ final class DeepgramSpeechClient {
             throw DeepgramError.missingKey
         }
 
+        // One sentence at a time. A call that arrives while another is still
+        // speaking ends that one first, so its continuation is resumed rather
+        // than overwritten and its stream stops feeding the player.
+        if activePlaybackContinuation != nil || playerNode.isPlaying { stopPlayback() }
         isCancelled = false
         sentenceToken += 1
+        let thisSentenceToken = sentenceToken
+        /// Ended by a stop, a device change or a newer sentence.
+        func thisSentenceWasEnded() -> Bool { isCancelled || sentenceToken != thisSentenceToken }
         totalCharactersInCurrentSentence = spokenText.count
         scheduledFrameCount = 0
         playedFrameCount = 0
@@ -129,6 +136,8 @@ final class DeepgramSpeechClient {
             throw DeepgramError.malformedResponse
         }
 
+        guard !thisSentenceWasEnded() else { return }
+
         // The engine may have stopped while the request was in flight, and
         // playing into a stopped engine raises an exception nothing catches.
         try startEngineIfNeeded()
@@ -145,7 +154,7 @@ final class DeepgramSpeechClient {
         var hasSkippedHeader = false
 
         for try await byte in byteStream {
-            if isCancelled { break }
+            if thisSentenceWasEnded() { break }
             pendingBytes.append(byte)
 
             // Deepgram returns a WAV container for linear16, so the 44 byte
@@ -164,11 +173,11 @@ final class DeepgramSpeechClient {
             scheduleChunk(chunk, format: format)
         }
 
-        if !isCancelled, !pendingBytes.isEmpty {
+        if !thisSentenceWasEnded(), !pendingBytes.isEmpty {
             scheduleChunk(pendingBytes, format: format)
         }
 
-        guard !isCancelled else { return }
+        guard !thisSentenceWasEnded() else { return }
 
         // Never longer than what is left of the audio plus a margin: an
         // output that stops rendering without a notification leaves the
@@ -192,9 +201,10 @@ final class DeepgramSpeechClient {
             await withCheckedContinuation { continuation in
                 // Nothing was scheduled, or all of it has played already, so
                 // nothing will complete.
-                if scheduledFrameCount == 0 || playedFrameCount >= scheduledFrameCount {
+                if scheduledFrameCount == 0 || playedFrameCount >= scheduledFrameCount || thisSentenceWasEnded() {
                     continuation.resume()
                 } else {
+                    resumePlaybackContinuation()
                     activePlaybackContinuation = continuation
                 }
             }

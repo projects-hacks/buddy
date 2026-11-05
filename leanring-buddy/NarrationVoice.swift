@@ -530,7 +530,12 @@ final class NarrationVoice {
             self.isEngineRunning = false
             drained.resume()
         }
-        await withCheckedContinuation { currentLineDrained = $0 }
+        await withCheckedContinuation { continuation in
+            // Never overwritten without being resumed: a waiter left behind
+            // would hold its task forever.
+            currentLineDrained?.resume()
+            currentLineDrained = continuation
+        }
         watchdog.cancel()
     }
 

@@ -1547,6 +1547,10 @@ final class CompanionManager: ObservableObject {
 
     /// Consumer draining `pendingSpeechSegments`, nil when nothing is speaking.
     private var speechConsumerTask: Task<Void, Never>?
+    /// Which consumer the handle above belongs to. A cancelled consumer can
+    /// still be unwinding when the next one starts, and when it ends it must
+    /// clear only its own handle, never the new consumer's.
+    private var currentSpeechConsumerIdentifier: UUID?
 
     /// The display the current answer is marking up.
     private var displayFrameForCurrentAnswer: CGRect = .zero
@@ -3288,8 +3292,16 @@ final class CompanionManager: ObservableObject {
     private func startSpeechConsumerIfIdle() {
         guard speechConsumerTask == nil else { return }
 
+        let consumerIdentifier = UUID()
+        currentSpeechConsumerIdentifier = consumerIdentifier
         speechConsumerTask = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if self.currentSpeechConsumerIdentifier == consumerIdentifier {
+                    self.speechConsumerTask = nil
+                    self.currentSpeechConsumerIdentifier = nil
+                }
+            }
 
             // Audio for the sentence after the current one, rendered while the
             // current one plays. Without this the speech stopped for a second
@@ -3299,7 +3311,7 @@ final class CompanionManager: ObservableObject {
             var prefetchedClipTask: Task<KokoroSpeechClient.GeneratedClip, Error>?
 
             while !self.pendingSpeechSegments.isEmpty {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled, self.currentSpeechConsumerIdentifier == consumerIdentifier else { break }
 
                 let segment = self.pendingSpeechSegments.removeFirst()
                 if !segment.spokenText.isEmpty {
@@ -3347,13 +3359,29 @@ final class CompanionManager: ObservableObject {
 
                 if finishedSpeaking == nil {
                     TutorDebugLog.write("⚠️ sentence never finished speaking, abandoning the rest")
-                    self.cancelSpeechAndClearQueue()
+                    // Only the speech: the stream's place is kept, so the
+                    // sentences still to come are spoken, not the answer again
+                    // from its start.
+                    self.abandonQueuedSpeech()
                     break
                 }
             }
-
-            self.speechConsumerTask = nil
         }
+    }
+
+    /// Stops every voice and drops the sentences waiting, but keeps how far
+    /// the answer's stream has been read and what format it is.
+    private func abandonQueuedSpeech() {
+        speechConsumerTask?.cancel()
+        speechConsumerTask = nil
+        currentSpeechConsumerIdentifier = nil
+        pendingSpeechSegments.removeAll()
+        speechClient.onWillSpeakRange = nil
+        speechClient.stopPlayback()
+        kokoroClient.onSpokenProgress = nil
+        kokoroClient.stopPlayback()
+        deepgramClient.onSpokenProgress = nil
+        deepgramClient.stopPlayback()
     }
 
     /// Speaks one segment, drawing its marks as the words carrying them are said.
@@ -3471,16 +3499,8 @@ final class CompanionManager: ObservableObject {
 
     private func cancelSpeechAndClearQueue() {
         endTalkOver()
-        speechConsumerTask?.cancel()
-        speechConsumerTask = nil
-        pendingSpeechSegments.removeAll()
+        abandonQueuedSpeech()
         streamedCharactersAlreadyQueued = 0
-        speechClient.onWillSpeakRange = nil
-        speechClient.stopPlayback()
-        kokoroClient.onSpokenProgress = nil
-        kokoroClient.stopPlayback()
-        deepgramClient.onSpokenProgress = nil
-        deepgramClient.stopPlayback()
         lessonPlayer.stop()
         currentAnswerFormat = .undecided
     }

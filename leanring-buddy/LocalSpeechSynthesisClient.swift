@@ -29,6 +29,10 @@ final class LocalSpeechSynthesisClient: NSObject {
     /// Continuation for the in-flight `speakText` call, resumed when the
     /// utterance finishes or is cancelled.
     private var activeSpeechContinuation: CheckedContinuation<Void, Error>?
+    /// The utterance that continuation waits for. Stopping one utterance and
+    /// starting the next reports the old one's cancel later, and that report
+    /// must not end the new one.
+    private var activeUtterance: AVSpeechUtterance?
 
     /// Called as each word is about to be spoken, with the character range of
     /// that word in the text passed to `speakText`.
@@ -181,7 +185,9 @@ final class LocalSpeechSynthesisClient: NSObject {
 
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
+                resumeActiveContinuation()
                 activeSpeechContinuation = continuation
+                activeUtterance = utterance
                 synthesizer.speak(utterance)
             }
         } onCancel: {
@@ -220,34 +226,45 @@ final class LocalSpeechSynthesisClient: NSObject {
     private func resumeActiveContinuation() {
         guard let continuation = activeSpeechContinuation else { return }
         activeSpeechContinuation = nil
+        activeUtterance = nil
         continuation.resume()
+    }
+
+    /// A delegate's report, acted on only for the utterance being waited for.
+    private func utteranceEnded(_ utterance: AVSpeechUtterance) {
+        guard activeUtterance === utterance else { return }
+        resumeActiveContinuation()
     }
 }
 
 // MARK: - AVSpeechSynthesizerDelegate
 
 extension LocalSpeechSynthesisClient: AVSpeechSynthesizerDelegate {
-    func speechSynthesizer(
+    // Hopped to the main actor rather than assumed on it: the synthesizer
+    // does not promise which thread it reports on, and assuming wrongly traps.
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didFinish utterance: AVSpeechUtterance
     ) {
-        MainActor.assumeIsolated { resumeActiveContinuation() }
+        Task { @MainActor in utteranceEnded(utterance) }
     }
 
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         didCancel utterance: AVSpeechUtterance
     ) {
-        MainActor.assumeIsolated { resumeActiveContinuation() }
+        Task { @MainActor in utteranceEnded(utterance) }
     }
 
-    func speechSynthesizer(
+    nonisolated func speechSynthesizer(
         _ synthesizer: AVSpeechSynthesizer,
         willSpeakRangeOfSpeechString characterRange: NSRange,
         utterance: AVSpeechUtterance
     ) {
-        MainActor.assumeIsolated {
-            onWillSpeakRange?(characterRange, utterance.speechString)
+        let spokenString = utterance.speechString
+        Task { @MainActor in
+            guard activeUtterance === utterance else { return }
+            onWillSpeakRange?(characterRange, spokenString)
         }
     }
 }
