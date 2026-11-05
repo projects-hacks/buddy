@@ -107,14 +107,9 @@ final class CompanionManager: ObservableObject {
     /// student has said an answer did not land (ConversationHistory.swift).
     var conversation = ConversationHistory()
 
-    /// The currently running AI response task, if any. Cancelled when the user
-    /// speaks again so a new response can begin immediately.
-    var currentResponseTask: Task<Void, Never>?
-    /// Which question is being answered. Bumped whenever the answer is
-    /// cancelled or replaced, and checked by the answer after every wait, so
-    /// an answer that was replaced never writes history, memory, how-tos,
-    /// guide steps or notebook pages for a question nobody is asking now.
-    var currentQuestionTicket = 0
+    /// Which question is being answered, the task answering it, and which
+    /// try at it is live (QuestionTicket.swift).
+    let questionTicket = QuestionTicket()
 
     var shortcutTransitionCancellable: AnyCancellable?
     var typeQuestionCancellable: AnyCancellable?
@@ -462,9 +457,6 @@ final class CompanionManager: ObservableObject {
         return offer
     }()
 
-    /// Which try at the current answer is live. A brain given up on at its
-    /// deadline may still deliver words while it unwinds; they are dropped.
-    var currentAnswerAttempt = 0
 
     #if DEBUG
     private lazy var qaHooks = QAHooks(companionManager: self)

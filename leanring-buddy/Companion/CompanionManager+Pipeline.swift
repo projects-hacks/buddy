@@ -12,9 +12,14 @@ import Foundation
 import ScreenCaptureKit
 
 extension CompanionManager {
+    /// The answer task running now, if any.
+    var currentResponseTask: Task<Void, Never>? {
+        get { questionTicket.responseTask }
+        set { questionTicket.responseTask = newValue }
+    }
+
     func cancelCurrentResponseTask() {
-        currentQuestionTicket += 1
-        currentResponseTask?.cancel()
+        questionTicket.cancelCurrentAnswer()
     }
 
     /// A cancelled request, however it reports it: Swift's own error, or
@@ -313,10 +318,10 @@ extension CompanionManager {
             }
             : nil
 
-        let questionTicket = currentQuestionTicket
+        let isThisQuestionStillAsked = questionTicket.checkForThisQuestion()
         currentResponseTask = Task {
             @MainActor func isStillTheCurrentQuestion() -> Bool {
-                questionTicket == currentQuestionTicket && !Task.isCancelled
+                isThisQuestionStillAsked()
             }
             // The side calls end with their answer, so a question cut short
             // does not go on spending on a classifier, recall or a lecture.
@@ -559,8 +564,7 @@ extension CompanionManager {
                 while answer == nil {
                     if attempt < routing.count { activate(routing[attempt]) }
                     let brainForAttempt = tutorBrain
-                    currentAnswerAttempt += 1
-                    let thisAttempt = currentAnswerAttempt
+                    let thisAttempt = questionTicket.beginAttempt()
                     // Only a fallback is worth a deadline: with nobody to hand
                     // over to, a slow answer still beats none.
                     let deadline: TimeInterval? = attempt + 1 < routing.count
@@ -575,7 +579,7 @@ extension CompanionManager {
                                     conversationHistory: historyForModel,
                                     userPrompt: turnPrompt,
                                     onTextChunk: { [weak self] accumulatedText in
-                                        guard let self, self.currentAnswerAttempt == thisAttempt else { return }
+                                        guard let self, self.questionTicket.isCurrentAttempt(thisAttempt) else { return }
                                         self.lastStreamedTextAt = Date()
                                         self.routeStreamedText(accumulatedText)
                                     }
