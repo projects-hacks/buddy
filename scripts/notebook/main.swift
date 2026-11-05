@@ -221,14 +221,17 @@ let fixtures: [FixtureLesson] = [
 
 // MARK: - A made-up screenshot
 
-/// A 1440x900 dark code editor with the lines given, so screen marks land on
-/// readable code the way they do on a real screen.
-func editorScreenshotJPEG(lines: [String]) -> Data {
+/// A dark code editor with the lines given on a 1440x900 point display, so
+/// screen marks land on readable code the way they do on a real screen.
+/// At one pixel a point it is the model's screenshot, the canvas; at two it
+/// is the display's own pixels, which the crop is cut from.
+func editorScreenshot(lines: [String], pixelsPerPoint: Int) -> CGImage {
     let width = 1440, height = 900
-    let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+    let context = CGContext(data: nil, width: width * pixelsPerPoint, height: height * pixelsPerPoint,
+                            bitsPerComponent: 8, bytesPerRow: 0,
                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-    context.translateBy(x: 0, y: CGFloat(height))
-    context.scaleBy(x: 1, y: -1)
+    context.translateBy(x: 0, y: CGFloat(height * pixelsPerPoint))
+    context.scaleBy(x: CGFloat(pixelsPerPoint), y: -CGFloat(pixelsPerPoint))
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
     NSColor(calibratedRed: 0.11, green: 0.12, blue: 0.15, alpha: 1).setFill()
@@ -249,8 +252,12 @@ func editorScreenshotJPEG(lines: [String]) -> Data {
         (line as NSString).draw(at: NSPoint(x: 96, y: top + 2), withAttributes: codeAttributes)
     }
     NSGraphicsContext.restoreGraphicsState()
-    let image = context.makeImage()!
-    return NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.8])!
+    return context.makeImage()!
+}
+
+func editorScreenshotJPEG(lines: [String]) -> Data {
+    NSBitmapImageRep(cgImage: editorScreenshot(lines: lines, pixelsPerPoint: 1))
+        .representation(using: .jpeg, properties: [.compressionFactor: 0.8])!
 }
 
 // MARK: - Running the engine without a window
@@ -481,7 +488,12 @@ func run() async {
                 }
                 if let marks = snapshot.screenMarks {
                     crop = await cropMaker.makeCrop(screenshotJPEGData: editorScreenshotJPEG(lines: fixture.editorLines),
+                                                    fullResolutionScreenshot: editorScreenshot(lines: fixture.editorLines, pixelsPerPoint: 2),
                                                     canvasSize: CGSize(width: 1440, height: 900), screenMarks: marks)
+                    let displayPixelsAcross = min(Double(NotebookScreenCropMaker.longestSideInPixels),
+                                                  2 * max(marks.regionInCanvasPixels.width, marks.regionInCanvasPixels.height))
+                    check("the crop is cut from the display's own pixels",
+                          Double(max(crop?.widthInPixels ?? 0, crop?.heightInPixels ?? 0)) >= displayPixelsAcross - 2)
                 }
             }
         } else {

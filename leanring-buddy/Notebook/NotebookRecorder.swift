@@ -47,6 +47,7 @@ final class NotebookRecorder {
         let paragraphs: [String]
         let answeredBy: String?
         let screenshotJPEGData: Data?
+        let fullResolutionScreenshotTask: Task<CGImage?, Never>?
         let canvasSize: CGSize
         let drawingSnapshotTask: Task<NotebookDrawingSnapshot?, Never>?
     }
@@ -94,7 +95,8 @@ final class NotebookRecorder {
     /// Holds a lesson answered as a drawing program. Called once the whole
     /// program has run, so the board holds everything it drew.
     func holdDrawnLesson(question: String, lessonTitle: String?, program: String,
-                         screenshotJPEGData: Data, canvasSize: CGSize, answeredBy: String) {
+                         screenshotJPEGData: Data, fullResolutionScreenshotTask: Task<CGImage?, Never>?,
+                         canvasSize: CGSize, answeredBy: String) {
         guard Self.keepsLessons, !Task.isCancelled, !currentAnswerWasDismissed else { return }
         let drawingOverlay = self.drawingOverlay
         let snapshotTask = Task { @MainActor () -> NotebookDrawingSnapshot? in
@@ -105,7 +107,8 @@ final class NotebookRecorder {
         heldLesson = HeldLesson(
             pageID: UUID(), askedAt: Date(), question: question, lessonTitle: lessonTitle,
             paragraphs: NotebookText.paragraphs(inProgram: program), answeredBy: answeredBy,
-            screenshotJPEGData: screenshotJPEGData, canvasSize: canvasSize, drawingSnapshotTask: snapshotTask)
+            screenshotJPEGData: screenshotJPEGData, fullResolutionScreenshotTask: fullResolutionScreenshotTask,
+            canvasSize: canvasSize, drawingSnapshotTask: snapshotTask)
     }
 
     /// Holds a lesson that came back as plain prose: a page of words only.
@@ -115,7 +118,8 @@ final class NotebookRecorder {
         guard !paragraphs.isEmpty else { return }
         heldLesson = HeldLesson(
             pageID: UUID(), askedAt: Date(), question: question, lessonTitle: nil, paragraphs: paragraphs,
-            answeredBy: answeredBy, screenshotJPEGData: nil, canvasSize: .zero, drawingSnapshotTask: nil)
+            answeredBy: answeredBy, screenshotJPEGData: nil, fullResolutionScreenshotTask: nil, canvasSize: .zero,
+            drawingSnapshotTask: nil)
     }
 
     // MARK: Teaching board hook (TeachingBoardSession.close)
@@ -202,8 +206,10 @@ final class NotebookRecorder {
         }
         var screenCrop: NotebookScreenCropMaker.Crop?
         if let screenMarks = snapshot?.screenMarks, let screenshotJPEGData = held.screenshotJPEGData {
+            let fullResolutionScreenshot = await held.fullResolutionScreenshotTask?.value
             screenCrop = await screenCropMaker.makeCrop(
-                screenshotJPEGData: screenshotJPEGData, canvasSize: held.canvasSize, screenMarks: screenMarks)
+                screenshotJPEGData: screenshotJPEGData, fullResolutionScreenshot: fullResolutionScreenshot,
+                canvasSize: held.canvasSize, screenMarks: screenMarks)
         }
 
         var ideas: [NotebookPage.Idea] = []

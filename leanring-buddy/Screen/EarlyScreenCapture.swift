@@ -72,7 +72,9 @@ final class EarlyScreenCapture {
         frontWindowAtCapture = Self.frontWindowNow()
         let startedAt = Date()
         captureTask = Task { @MainActor in
-            guard let screenCaptures = try? await CompanionScreenCaptureUtility.captureAllScreensAsJPEG(),
+            // Notebook hook: the full capture is for the page's crop.
+            guard let screenCaptures = try? await CompanionScreenCaptureUtility.captureAllScreensAsJPEG(
+                    alsoCapturingFullResolution: NotebookRecorder.keepsLessons),
                   !screenCaptures.isEmpty, !Task.isCancelled else { return nil }
             let capturedAt = Date()
             // Same choice as a question asked after release: only the display
