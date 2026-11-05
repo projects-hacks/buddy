@@ -223,7 +223,28 @@ struct TalkOverTranscript {
         case yield, endYield, hold, resume, slower, repeatPreviousSentence, replayAnswer
         case question(String)
         case ignored(wordCount: Int, reason: String)
+        /// Ask the recognizer for its final words now: the student stopped.
+        case flushRecognizer
     }
+
+    /// "Wait" or "hold on" alone pauses Buddy, but it is also how most
+    /// cut-ins start ("wait, why does..."). It counts as a hold only once
+    /// nothing has followed it for this long.
+    static let holdConfirmSeconds: Double = 1.5
+    /// Once Buddy has paused, the microphone hears the student alone, so
+    /// the end of what they said is read from it: this long below the
+    /// speech level. Deepgram's interim text can stall for longer than a
+    /// comma while it decides where a phrase ends, so the text is not used.
+    static let silenceEndsUtteranceSeconds: Double = 1.2
+    /// After asking the recognizer for its final words, how long to wait
+    /// for them before using the text there is.
+    static let finalWordsWaitSeconds: Double = 0.6
+    /// Speech the student is still making, as loud as TalkOverListener's
+    /// loudness gate: a person at the Mac.
+    static let speechDecibels: Float = -40
+    /// A room too noisy for the level to drop: judged this long after the
+    /// student's last word all the same.
+    static let longestUtteranceAfterLastWordSeconds: Double = 4.0
 
     /// The student has finished when none of their words has arrived for
     /// this long. Buddy's words arriving meanwhile do not count, so the
@@ -256,11 +277,30 @@ struct TalkOverTranscript {
     private var studentWordsSeenCount = 0
     private var needsJudging = false
     private(set) var isYielding = false
+    /// When the microphone last heard speech, and whether any level has
+    /// been heard at all (offline sequences may have none).
+    private var lastSpeechAt: Double?
+    private var hasHeardLevels = false
+    private var flushRequestedAt: Double?
+    private var changedSinceFlush = false
+
+    /// The loudness of the latest buffer from the microphone.
+    mutating func levelHeard(_ decibels: Float, at time: Double) {
+        hasHeardLevels = true
+        if decibels >= Self.speechDecibels {
+            lastSpeechAt = time
+            // Speaking again while the final words were awaited: not the end.
+            if flushRequestedAt != nil, isYielding { flushRequestedAt = nil }
+        }
+    }
 
     /// The recognizer's whole text so far. Words it revises keep the time
     /// they were first heard.
     mutating func heard(_ fullText: String, at time: Double, recentlySpoken: [SpokenSentence], wasLoudEnough: Bool) -> [Action] {
-        if fullText != lastFullText { lastChangeAt = time }
+        if fullText != lastFullText {
+            lastChangeAt = time
+            if flushRequestedAt != nil { changedSinceFlush = true }
+        }
         lastFullText = fullText
         var updated: [HeardToken] = []
         for raw in fullText.split(whereSeparator: { $0.isWhitespace }).map(String.init) {
@@ -293,10 +333,27 @@ struct TalkOverTranscript {
     /// Called as time passes: judges the student's words once they paused.
     mutating func timePassed(to time: Double, recentlySpoken: [SpokenSentence], wasLoudEnough: Bool) -> [Action] {
         forgetOldTokens(now: time)
-        guard needsJudging, let lastStudentWordAt, time - lastStudentWordAt >= Self.studentPauseSeconds else { return [] }
-        let recognizerHasSettled = time - (lastChangeAt ?? lastStudentWordAt) >= Self.recognizerSettledSeconds
-        guard recognizerHasSettled || time - lastStudentWordAt >= Self.longestWaitForTheRecognizerSeconds else { return [] }
-        needsJudging = false
+        guard needsJudging, let lastStudentWordAt else { return [] }
+        let tooLongSinceTheLastWord = time - lastStudentWordAt >= Self.longestUtteranceAfterLastWordSeconds
+        if isYielding && hasHeardLevels {
+            // Buddy is silent: the microphone says when the student stopped.
+            let silentFor = time - (lastSpeechAt ?? lastStudentWordAt)
+            guard silentFor >= Self.silenceEndsUtteranceSeconds || tooLongSinceTheLastWord else { return [] }
+            guard let flushRequestedAt else {
+                flushRequestedAt = time
+                changedSinceFlush = false
+                return [.flushRecognizer]
+            }
+            // The final words, or as long as they may take.
+            let finalWordsArrived = changedSinceFlush && time - (lastChangeAt ?? time) >= 0.15
+            guard finalWordsArrived || time - flushRequestedAt >= Self.finalWordsWaitSeconds else { return [] }
+        } else {
+            // Buddy still talking: its words keep the transcript moving, so
+            // the student's pause and the text settling decide.
+            guard time - lastStudentWordAt >= Self.studentPauseSeconds else { return [] }
+            let recognizerHasSettled = time - (lastChangeAt ?? lastStudentWordAt) >= Self.recognizerSettledSeconds
+            guard recognizerHasSettled || time - lastStudentWordAt >= Self.longestWaitForTheRecognizerSeconds else { return [] }
+        }
         let studentIndices = studentTokenIndices(recentlySpoken: recentlySpoken)
         var studentWords = studentIndices.map { tokens[$0].word }
         var studentRaw = studentIndices.map { tokens[$0].raw }
@@ -309,6 +366,17 @@ struct TalkOverTranscript {
         // Buddy's words are already taken out, so the echo share is not
         // asked again: a question may share the answer's topic words.
         let meaning = TalkOverHearing.meaning(ofUtterance: utterance, recentlySpoken: [], wasLoudEnough: wasLoudEnough)
+        // A hold is only a hold once nothing has followed it for a while:
+        // until then it may be the first word of a question.
+        if meaning == .hold {
+            // While Buddy talks the microphone hears Buddy too, so only once
+            // it has paused does the level say the student went quiet.
+            let microphoneSaysQuietSince = isYielding && hasHeardLevels ? (lastSpeechAt ?? lastStudentWordAt) : lastStudentWordAt
+            let quietSince = max(lastStudentWordAt, microphoneSaysQuietSince)
+            if time - quietSince < Self.holdConfirmSeconds { return [] }
+        }
+        needsJudging = false
+        flushRequestedAt = nil
         let wasYielding = isYielding
         var actions: [Action] = []
         switch meaning {
@@ -341,6 +409,19 @@ struct TalkOverTranscript {
             firstLiveToken += 1
             studentWordsSeenCount = max(0, studentWordsSeenCount - 1)
         }
+    }
+
+    /// The student's own words while Buddy is paused for them, Buddy's
+    /// words taken out and from the cue on, for the notch to show live.
+    /// Empty when Buddy is not paused for a cut-in.
+    func wordsOfTheCutIn(recentlySpoken: [SpokenSentence]) -> String {
+        guard isYielding else { return "" }
+        let studentIndices = studentTokenIndices(recentlySpoken: recentlySpoken)
+        var raw = studentIndices.map { tokens[$0].raw }
+        if let cueStart = TalkOverHearing.yieldCueStart(inStudentWords: studentIndices.map { tokens[$0].word }) {
+            raw = Array(raw[cueStart...])
+        }
+        return raw.joined(separator: " ")
     }
 
     /// The live tokens that are the student's: not Buddy's, not filler.
