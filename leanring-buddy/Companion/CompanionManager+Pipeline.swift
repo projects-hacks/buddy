@@ -328,9 +328,7 @@ extension CompanionManager {
             voiceState = .processing
             controlBar.model.waitingStage = "reading your screen"
             clearAnnotations()
-            charactersSpokenInAnswer = 0
-            totalCharactersInAnswer = 0
-            boardRevealFraction = 0
+            marks.resetRevealForNewAnswer()
 
             do {
                 let screenCaptures: [CompanionScreenCapture]
@@ -364,7 +362,7 @@ extension CompanionManager {
                     )
                     guard isStillTheCurrentQuestion() else { return }
                 }
-                displayFrameForCurrentAnswer = primaryCapture.displayFrame
+                marks.displayFrameForCurrentAnswer = primaryCapture.displayFrame
                 logStage("screen captured and read")
                 controlBar.model.waitingStage = "thinking"
                 let screenReadAt = Date()
@@ -724,7 +722,7 @@ extension CompanionManager {
                 }
 
                 let spokenOnlyText = TeacherResponseParser.parse(rawResponse: fullResponseText).spokenText
-                totalCharactersInAnswer = max(totalCharactersInAnswer, spokenOnlyText.count)
+                marks.noteSpokenLength(ofWholeAnswer: spokenOnlyText.count)
 
                 // Drawn on a fast model in parallel, because the model that
                 // explains well will not draw cheaply: offering Argon a layout
@@ -735,7 +733,7 @@ extension CompanionManager {
                 //
                 // Nothing awaits this. A slow or failed drawing pass costs the
                 // student nothing; they simply get no picture.
-                if budget.allowsBoard, !whiteboard.hasContent {
+                if budget.allowsBoard, !marks.whiteboard.hasContent {
                     diagramTask?.cancel()
                     let explanationForDrawing = spokenOnlyText
                     let indexForDrawing = screenIndex.renderForPrompt(maximumTargets: 40)
@@ -797,7 +795,7 @@ extension CompanionManager {
                                            guidedApplication: guidedApplication)
                     }
                 } else {
-                    scheduleMarkDismissal()
+                    marks.scheduleDismissal()
                 }
                 scheduleTransientHideIfNeeded()
                 // Notebook hook: finished and not cancelled, so it is kept.

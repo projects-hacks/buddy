@@ -312,8 +312,7 @@ extension CompanionManager {
 
             // Cancel any in-progress response and TTS from a previous utterance
             cancelCurrentResponseTask()
-            markDismissalTask?.cancel()
-            markDismissalTask = nil
+            marks.cancelDismissal()
             diagramTask?.cancel()
             diagramTask = nil
             cancelSpeechAndClearQueue()

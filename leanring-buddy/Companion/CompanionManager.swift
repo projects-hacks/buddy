@@ -34,13 +34,10 @@ final class CompanionManager: ObservableObject {
     let permissionMonitor = PermissionMonitor()
     var permissionMonitorCancellable: AnyCancellable?
 
-    /// Screen location (global AppKit coords) of a detected UI element the
-    /// buddy should fly to and point at. Parsed from Claude's response;
-    /// observed by BlueCursorView to trigger the flight animation.
-    @Published var detectedElementScreenLocation: CGPoint?
-    /// The display frame (global AppKit coords) of the screen the detected
-    /// element is on, so BlueCursorView knows which screen overlay should animate.
-    @Published var detectedElementDisplayFrame: CGRect?
+    /// What the prose path has drawn and where the buddy points
+    /// (MarkCoordinator.swift).
+    let marks = MarkCoordinator()
+    var marksCancellable: AnyCancellable?
     let buddyDictationManager = BuddyDictationManager()
     let globalPushToTalkShortcutMonitor = GlobalPushToTalkShortcutMonitor()
     let overlayWindowManager = OverlayWindowManager()
@@ -106,30 +103,6 @@ final class CompanionManager: ObservableObject {
     /// is still current at release (EarlyScreenCapture).
     var screenIndex = ScreenIndex()
 
-    /// Marks currently drawn on screen.
-    @Published var activeAnnotations: [TeacherAnnotation] = []
-
-    /// Regions kept lit while the rest of the screen dims. Empty means no spotlight.
-    @Published var spotlightRectsInGlobalPoints: [CGRect] = []
-
-    /// How much of the answer has been spoken, 0 to 1.
-    ///
-    /// The board is drawn up to this point. Screen marks already fire from
-    /// per-word callbacks, but the diagram arrives as one shape from the
-    /// second pass, so without this it would appear complete in an instant
-    /// while the explanation is still in its first sentence.
-    @Published var boardRevealFraction: Double = 0
-
-    /// Characters spoken so far across every segment of this answer.
-    var charactersSpokenInAnswer = 0
-
-    /// Length of the whole answer, known once the stream completes.
-    var totalCharactersInAnswer = 0
-
-    /// The scratch board the tutor draws on while explaining. Built up as it
-    /// speaks, so the picture assembles in the order it is described.
-    @Published var whiteboard = TutorWhiteboard()
-
     /// What was asked and answered this session, and how often running the
     /// student has said an answer did not land (ConversationHistory.swift).
     var conversation = ConversationHistory()
@@ -167,6 +140,7 @@ final class CompanionManager: ObservableObject {
         connectBrainLineup()
         connectPermissionMonitor()
         connectProseSpeech()
+        connectMarks()
         refreshAllPermissions()
         TutorDebugLog.write("🔑 at launch, accessibility: \(hasAccessibilityPermission), screen: \(hasScreenRecordingPermission), mic: \(hasMicrophonePermission), screenContent: \(hasScreenContentPermission)")
         permissionMonitor.startPolling()
@@ -315,12 +289,6 @@ final class CompanionManager: ObservableObject {
     var questionAwaitingAnswer: (text: String, askedAt: Date)?
 
     // MARK: - Tutor Response Pipeline
-
-    /// The display the current answer is marking up.
-    var displayFrameForCurrentAnswer: CGRect = .zero
-
-    /// Clears the board and marks once the answer has had time to be read.
-    var markDismissalTask: Task<Void, Never>?
 
     /// The strip at the bottom while the tutor talks or has drawn: the
     /// sentence being said, the follow-ups it offered, Stop and Clear.

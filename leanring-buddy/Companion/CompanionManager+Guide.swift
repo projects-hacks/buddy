@@ -150,7 +150,7 @@ extension CompanionManager {
             return nil
         }
         let primary = captures.first(where: { $0.isCursorScreen }) ?? captures[0]
-        displayFrameForCurrentAnswer = primary.displayFrame
+        marks.displayFrameForCurrentAnswer = primary.displayFrame
         let displaySize = CGSize(width: primary.displayWidthInPoints, height: primary.displayHeightInPoints)
         await screenIndex.rebuild(fromScreenshot: primary.imageData, displayIndex: 0, displayBoundsInPoints: displaySize)
         let canvasSize = CGSize(width: primary.screenshotWidthInPixels, height: primary.screenshotHeightInPixels)
