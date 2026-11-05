@@ -18,6 +18,10 @@
 </p>
 
 <p align="center">
+  <a href="https://projects-hacks.github.io/buddy/"><b>projects-hacks.github.io/buddy</b></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="52"></a>
 </p>
 
