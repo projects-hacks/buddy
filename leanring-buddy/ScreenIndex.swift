@@ -110,24 +110,30 @@ final class ScreenIndex {
             displayBoundsInPoints: displayBoundsInPoints
         )
 
-        for recognizedLine in recognizedLines {
-            // Vision reports a normalised rectangle with a bottom-left origin,
-            // which already matches AppKit, so this is a scale with no flip.
-            let boundsInPoints = CGRect(
-                x: recognizedLine.normalizedBounds.origin.x * displayBoundsInPoints.width,
-                y: recognizedLine.normalizedBounds.origin.y * displayBoundsInPoints.height,
-                width: recognizedLine.normalizedBounds.size.width * displayBoundsInPoints.width,
-                height: recognizedLine.normalizedBounds.size.height * displayBoundsInPoints.height
+        // Vision reports a normalised rectangle with a bottom-left origin,
+        // which already matches AppKit, so this is a scale with no flip.
+        let piecesInPoints = recognizedLines.map { recognizedLine in
+            LinePiece(
+                text: recognizedLine.text,
+                bounds: CGRect(
+                    x: recognizedLine.normalizedBounds.origin.x * displayBoundsInPoints.width,
+                    y: recognizedLine.normalizedBounds.origin.y * displayBoundsInPoints.height,
+                    width: recognizedLine.normalizedBounds.size.width * displayBoundsInPoints.width,
+                    height: recognizedLine.normalizedBounds.size.height * displayBoundsInPoints.height
+                ),
+                confidence: recognizedLine.confidence
             )
+        }
 
+        for piece in Self.joiningPiecesOfOneLine(piecesInPoints) {
             collectedTargets.append(
                 ScreenTarget(
                     id: "t\(nextIdentifierNumber)",
-                    displayedText: recognizedLine.text,
-                    boundsInDisplayPoints: boundsInPoints,
+                    displayedText: piece.text,
+                    boundsInDisplayPoints: piece.bounds,
                     displayIndex: displayIndex,
                     locationSource: .recognizedText,
-                    confidence: recognizedLine.confidence
+                    confidence: piece.confidence
                 )
             )
             nextIdentifierNumber += 1
@@ -173,6 +179,48 @@ final class ScreenIndex {
             "content \(Int(region.width))x\(Int(region.height)) at \(Int(region.minX)),\(Int(region.minY))"
         } ?? "no content region found"
         TutorDebugLog.write("🗂️ ScreenIndex: \(targetsToKeep.count) targets (\(recognizedLines.count) recognised, \(droppedOutsideContent) dropped as chrome), \(regionDescription)")
+    }
+
+    /// One run of recognised text, in display points.
+    struct LinePiece: Equatable {
+        var text: String
+        var bounds: CGRect
+        var confidence: Float
+    }
+
+    /// Recognition sometimes reads one line of small text as two or three
+    /// items ("low," then "high = 0, len(items)" at 11 pt), and a mark on
+    /// one then covers part of the line the model meant. Pieces on the same
+    /// baseline, of the same height, with no more than about a word's space
+    /// between them, are listed as the one line they are. Columns, menu
+    /// titles and table cells sit further apart and stay separate.
+    static func joiningPiecesOfOneLine(_ pieces: [LinePiece]) -> [LinePiece] {
+        var joined: [LinePiece] = []
+        for piece in pieces.sorted(by: { $0.bounds.minX < $1.bounds.minX }) {
+            if let index = joined.lastIndex(where: { isNextOnTheSameLine(piece, after: $0) }) {
+                joined[index].text += " " + piece.text
+                joined[index].bounds = joined[index].bounds.union(piece.bounds)
+                joined[index].confidence = min(joined[index].confidence, piece.confidence)
+            } else {
+                joined.append(piece)
+            }
+        }
+        // Back in the order recognition gave, top to bottom, so ids read as before.
+        return joined.sorted { first, second in
+            abs(first.bounds.midY - second.bounds.midY) > min(first.bounds.height, second.bounds.height) / 2
+                ? first.bounds.midY > second.bounds.midY
+                : first.bounds.minX < second.bounds.minX
+        }
+    }
+
+    private static func isNextOnTheSameLine(_ piece: LinePiece, after earlier: LinePiece) -> Bool {
+        let first = earlier.bounds, second = piece.bounds
+        let shorter = min(first.height, second.height), taller = max(first.height, second.height)
+        guard shorter > 0, taller / shorter <= 1.6 else { return false }
+        let verticalOverlap = min(first.maxY, second.maxY) - max(first.minY, second.minY)
+        guard verticalOverlap >= shorter * 0.6, abs(first.midY - second.midY) <= taller * 0.35 else { return false }
+        let gap = second.minX - first.maxX
+        return gap >= -shorter * 0.3 && gap <= taller * 1.2
     }
 
     // MARK: - On-device text recognition
