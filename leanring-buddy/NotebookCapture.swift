@@ -41,6 +41,8 @@ struct NotebookDrawingSnapshot {
 
     let cards: [Card]
     let screenMarks: ScreenMarks?
+    /// Teaching board hook: the whole board, when one was open.
+    var board: Card? = nil
 
     /// The script that reads the board, bundled beside the drawing engine.
     static var snapshotScript: String? {
@@ -69,7 +71,13 @@ struct NotebookDrawingSnapshot {
                                              width: region[2].doubleValue, height: region[3].doubleValue)
             )
         }
-        return NotebookDrawingSnapshot(cards: cards, screenMarks: screenMarks)
+        var board: Card?
+        if let boardEntry = object["board"] as? [String: Any], let svgText = boardEntry["svg"] as? String,
+           let width = (boardEntry["width"] as? NSNumber)?.doubleValue,
+           let height = (boardEntry["height"] as? NSNumber)?.doubleValue, width > 0, height > 0 {
+            board = Card(svgText: svgText, widthInPixels: width, heightInPixels: height, title: nil)
+        }
+        return NotebookDrawingSnapshot(cards: cards, screenMarks: screenMarks, board: board)
     }
 }
 

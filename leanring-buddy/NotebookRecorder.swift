@@ -118,6 +118,48 @@ final class NotebookRecorder {
             answeredBy: answeredBy, screenshotJPEGData: nil, canvasSize: .zero, drawingSnapshotTask: nil)
     }
 
+    // MARK: Teaching board hook (TeachingBoardSession.close)
+
+    /// A board lesson or a teach-back, kept as one page when the board is
+    /// left: the board as it stands as one SVG (cut the way a card is, bar
+    /// left out), and what was said. The snapshot is asked for before the
+    /// board fades; the page script reads the board's layer, which stays in
+    /// the page for the length of the fade.
+    func keepBoard(question: String, lessonTitle: String?, paragraphs: [String]) {
+        guard Self.keepsLessons, !paragraphs.isEmpty else { return }
+        let drawingOverlay = self.drawingOverlay
+        let snapshotTask = Task { @MainActor () -> NotebookDrawingSnapshot? in
+            guard let script = NotebookDrawingSnapshot.snapshotScript,
+                  let json = await drawingOverlay.evaluateInIsolatedWorld(script: script) as? String else { return nil }
+            return NotebookDrawingSnapshot.parse(json: json)
+        }
+        let pageID = UUID()
+        let askedAt = Date()
+        Task {
+            let board = await snapshotTask.value?.board
+            let cards = board.map {
+                [NotebookPage.Card(fileName: "card-1.svg", widthInPixels: $0.widthInPixels,
+                                   heightInPixels: $0.heightInPixels, title: lessonTitle)]
+            } ?? []
+            var ideas: [NotebookPage.Idea] = []
+            if let lastFiledIdeas, lastFiledIdeas.question == question,
+               lastFiledIdeas.filedAt >= askedAt.addingTimeInterval(-Self.ideasMatchWindowSeconds) {
+                ideas = lastFiledIdeas.ideas
+            }
+            let page = NotebookPage(id: pageID, createdAt: askedAt, lessonTitle: lessonTitle, question: question,
+                                    paragraphs: paragraphs, cards: cards, screenCrop: nil, ideas: ideas, answeredBy: nil)
+            do {
+                let storedPage = try await store.write(page: page, cardSVGTexts: board.map { [$0.svgText] } ?? [],
+                                                       screenCropJPEGData: nil)
+                TutorDebugLog.write("📓 notebook: kept the board \"\(page.displayTitle)\", \(storedPage.sizeInBytes / 1024) KB")
+                lastWrittenPage = (storedPage, question)
+                onNotebookChanged()
+            } catch {
+                TutorDebugLog.write("⚠️ notebook: board not kept: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// The answer ended and was not cancelled: the held lesson becomes a page.
     func keepHeldLesson() {
         guard !Task.isCancelled, !currentAnswerWasDismissed, let held = heldLesson else { return }

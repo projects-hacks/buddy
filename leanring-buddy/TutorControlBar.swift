@@ -68,6 +68,15 @@ final class TutorControlBarModel: ObservableObject {
     /// Teaching board hook (TeachingBoardSession): true while the board is
     /// open, so the notch can say "On the board" for the whole session.
     @Published var isBoardOpen = false
+    /// Teach it back hook (TeachBackSession): true while the student is
+    /// explaining a topic on the board, so the notch says "Teach it back"
+    /// and, while it listens, "you're teaching".
+    @Published var isTeachingBack = false
+    /// Teach it back hook: what the Teach it back chip and start tile ask,
+    /// through the normal question path, which TeachBackIntent recognises.
+    static func teachItBackQuestion(topic: String) -> String {
+        "let me explain \(topic) back to you"
+    }
     /// What the student is saying, live while the keys are held, then the
     /// question as sent while the answer is prepared.
     @Published var heardWords: String = ""
@@ -769,6 +778,7 @@ struct TutorNotchView: View {
 
     private var rightSideLabel: String {
         // Teaching board hook: the board's label wins for the whole session.
+        if model.isTeachingBack { return "Teach it back" } // Teach it back hook.
         if model.isBoardOpen { return "On the board" }
         if isAnswering, !model.answeredBy.isEmpty { return model.answeredBy }
         return currentLessonTitle ?? ""
@@ -1163,7 +1173,7 @@ struct TutorNotchView: View {
     private var activityWord: String {
         switch model.activity {
         case .ready: return model.guideInstruction == nil ? "ready" : "your turn"
-        case .listening: return "listening"
+        case .listening: return model.isTeachingBack ? "you\u{2019}re teaching" : "listening" // Teach it back hook.
         case .thinking: return model.waitingStage ?? "thinking"
         case .speaking: return "explaining"
         }

@@ -86,6 +86,16 @@ func boardRounded(_ value: Double) -> Double {
     (value * 10).rounded() / 10
 }
 
+/// Whose pen drew something, for teach it back (TeachBackSession.swift):
+/// the student's explanation in their own purple, and the gaps Buddy marks
+/// on it in red, dashed. A board taught by Buddy alone has none.
+enum BoardInk: String, Codable, Equatable {
+    /// What the student said, drawn as they said it.
+    case student
+    /// What is missing or wrong in it: dashed red, beside what they said.
+    case gap
+}
+
 /// One thing on the board.
 struct BoardElement: Codable, Equatable {
     enum Kind: String, Codable, CaseIterable {
@@ -123,6 +133,11 @@ struct BoardElement: Codable, Equatable {
     /// replayed or a later turn can tell what is new.
     let addedInTurn: Int
     var lastChangedInTurn: Int
+    /// Teach it back: whose pen drew it. Nil for Buddy's own lessons.
+    var ink: BoardInk? = nil
+    /// Teach it back: set on a correction, the id of the element or arrow
+    /// ("from>to") it corrects, which is ringed in red while it stands.
+    var correctsIdentifier: String? = nil
 }
 
 /// An arrow between two elements.
@@ -147,6 +162,8 @@ struct BoardConnector: Codable, Equatable {
     /// The label as drawn, which may be its first words only when the
     /// whole label had no clear place.
     var drawnLabelLines: [BoardTextLine]? = nil
+    /// Teach it back: whose pen drew it. Nil for Buddy's own lessons.
+    var ink: BoardInk? = nil
 
     /// Stable and readable: the model can see which arrow is which.
     var identifier: String { Self.identifier(from: fromIdentifier, to: toIdentifier) }
@@ -260,6 +277,9 @@ struct BoardState: Codable, Equatable {
             }
             if let groupIdentifier = element.groupIdentifier { line += " in \(groupIdentifier)" }
             line += " t\(element.addedInTurn)"
+            // Teach it back: whose words these are, and what a correction corrects.
+            if let ink = element.ink { line += " \(ink.rawValue)" }
+            if let correctsIdentifier = element.correctsIdentifier { line += " corrects \(correctsIdentifier)" }
             lines.append(line)
         }
         if !connectors.isEmpty {
@@ -267,6 +287,7 @@ struct BoardState: Codable, Equatable {
                 var arrow = connector.identifier
                 if !connector.label.isEmpty { arrow += " \"\(connector.label)\"" }
                 if connector.isDashed { arrow += " dashed" }
+                if let ink = connector.ink { arrow += " \(ink.rawValue)" }
                 return arrow
             }
             lines.append("ARROWS: " + arrows.joined(separator: "; "))

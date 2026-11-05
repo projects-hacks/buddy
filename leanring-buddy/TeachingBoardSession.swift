@@ -7,12 +7,14 @@
 //  student keeps asking. This ties the board to the rest of the app.
 //
 //  Lifecycle:
-//  - opens on a question BoardIntent says asks for it;
+//  - opens on a question BoardIntent says asks for it, or, for teach it
+//    back, on one TeachBackIntent says asks for that (TeachBackSession);
 //  - while open, every question (spoken, typed, or a follow-up button) is
 //    answered on the board, with the board's contents in the turn note;
 //  - closes on Esc, on "done" / "thanks, that's it", or after ten minutes
 //    with no question, with a short fade; the whole board lesson is then
-//    filed into learning memory as one lesson.
+//    filed into learning memory as one lesson, and the board is kept in the
+//    Notebook as one page.
 //
 //  The answer is spoken and drawn by the same LessonProgramPlayer as every
 //  answer, so the voice and the pen keep the same pace; the only difference
@@ -32,6 +34,26 @@ final class BoardTurnProgress {
     var hasReceivedText = false
     /// Decided from the first characters, as for any answer.
     var answerIsProgram: Bool?
+}
+
+/// One answer played on the board: what it said, and the board calls it made.
+struct PlayedBoardAnswer {
+    let program: String
+    let sentences: [String]
+    let operations: [BoardOperation]
+    let lessonTitle: String?
+}
+
+/// What a teach-back session leaves for learning memory when it ends.
+struct TeachBackRecord {
+    let topic: String
+    let openingQuestion: String
+    /// Every go at explaining, in order, as heard.
+    let explanations: [String]
+    let rightIdeas: [String]
+    let missedIdeas: [String]
+    /// What Buddy said about it, the gaps included.
+    let spokenAnswer: String
 }
 
 @MainActor
@@ -64,18 +86,40 @@ final class TeachingBoardSession {
         /// from learning memory, as notes for the turn. Bounded by the same
         /// wait as the normal path's recall.
         var studyNotes: (_ question: String) async -> [String] = { _ in [] }
+
+        // Teach it back hooks (TeachBackSession.swift).
+        /// The lesson just given, which "teach it back" is about.
+        var lastLessonTitle: () -> String? = { nil }
+        /// Words the recognizer should expect: the topic and the ideas
+        /// memory holds near it.
+        var keytermsForTopic: (_ topic: String) -> [String] = { [$0] }
+        /// Before the microphone opens: the talk-over listener and any
+        /// voice still playing are stopped.
+        var prepareForListening: () -> Void = {}
+        /// Asks a question as the student would, through the normal path:
+        /// the bar's Fill the gaps and Try again.
+        var askAsStudent: (String) -> Void = { _ in }
+        /// What the student got right and missed, for learning memory.
+        var recordTeachBack: (TeachBackRecord) -> Void = { _ in }
+
+        // Notebook hook (NotebookRecorder.keepBoard).
+        /// Keeps the board as it stands as a Notebook page. Called before the
+        /// board fades, so the snapshot still has it.
+        var keepBoardInNotebook: (_ question: String, _ title: String?, _ paragraphs: [String]) -> Void = { _, _, _ in }
     }
 
     var hooks: Hooks
 
-    private let overlay: DrawingOverlay
+    let overlay: DrawingOverlay
     private let player: LessonProgramPlayer
-    private let bar: TutorControlBarModel
+    let bar: TutorControlBarModel
 
     private(set) var isOpen = false
     private var board: TeachingBoard?
     private var surface: BoardSurface?
     private var screenForBoard: NSScreen?
+    /// Whether BuddyBoard.open has been called for this session.
+    private var boardIsOnScreen = false
     private var turnNumber = 0
     private var currentTurnIdentifier = 0
     private var turnTask: Task<Void, Never>?
@@ -88,6 +132,16 @@ final class TeachingBoardSession {
     private var partTitles: [String] = []
     /// The board's own conversation: earlier board turns only.
     private var boardHistory: [(question: String, program: String, sentences: [String])] = []
+    /// The board calls of the answer being played, for teach-back's verdict.
+    private var operationsThisAnswer: [BoardOperation] = []
+    /// Strokes decided before the answer, drawn with its first sentence.
+    private var commandsWaitingForFirstPiece: [BoardDrawCommand] = []
+    /// Teach it back, while the board is open for it.
+    private(set) var teachBack: TeachBackSession?
+    var isTeachBackListening: Bool { teachBack?.isListening == true }
+    /// The talk keys were pressed to end a teach-back explanation, so their
+    /// release is not a question either.
+    private(set) var talkKeysEndedTeachBack = false
 
     /// Ten minutes: long enough to read the board and think, short enough
     /// that a board left up while the student went away does not greet them.
@@ -117,7 +171,33 @@ final class TeachingBoardSession {
                 hooks.questionNeedsNoAnswer()
                 return true
             }
+            if let teachBack {
+                if teachBack.isListening {
+                    // A typed question while the microphone is open: the
+                    // explanation is still being given, so it waits.
+                    TutorDebugLog.write("🎓 teach-back: a question arrived while listening; it is not answered")
+                    hooks.questionNeedsNoAnswer()
+                    return true
+                }
+                if TeachBackIntent.asksToExplainAgain(transcript) {
+                    TutorDebugLog.write("🎓 teach-back: \"\(transcript)\" is another go")
+                    hooks.questionNeedsNoAnswer()
+                    teachBack.listenAgain()
+                    return true
+                }
+            } else if let topic = TeachBackIntent.decide(transcript, fallbackTopic: lessonTitle ?? board?.state.title).topic {
+                // From a lesson on the board to explaining it back.
+                close(reason: "teach it back starts")
+                openTeachBack(topic: topic, question: transcript)
+                return true
+            }
             runTurn(question: transcript)
+            return true
+        }
+        let teachBackDecision = TeachBackIntent.decide(transcript, fallbackTopic: hooks.lastLessonTitle())
+        if let topic = teachBackDecision.topic {
+            TutorDebugLog.write("🎓 teach-back opens: \(teachBackDecision)")
+            openTeachBack(topic: topic, question: transcript)
             return true
         }
         let decision = BoardIntent.decide(transcript)
@@ -129,29 +209,53 @@ final class TeachingBoardSession {
     }
 
     /// Esc, as the design has it: while Buddy is speaking it stops the
-    /// sentence and leaves the board up; when it is quiet it leaves.
+    /// sentence and leaves the board up; when it is quiet it leaves. While
+    /// teach-back listens it cancels what was being said.
     func escapeWasPressed() {
         guard isOpen else { return }
+        if let teachBack, teachBack.isListening {
+            teachBack.cancelListening()
+            return
+        }
         if player.isSpeaking || turnTask != nil {
             TutorDebugLog.write("🧑‍🏫 board: Esc stops the turn, the board stays")
-            currentTurnIdentifier += 1
-            turnTask?.cancel()
-            turnTask = nil
-            player.stop()
-            overlay.callBoard("setSpeaking", argumentsJSON: "false")
-            bar.caption = ""
-            hooks.setVoiceState(.idle)
+            stopCurrentTurn()
+            teachBack?.answerWasStopped()
             scheduleIdleClose()
             return
         }
         close(reason: "Esc")
     }
 
-    /// Fades the board away and files its lesson. Safe to call when closed.
-    func close(reason: String) {
+    /// Teach it back: the talk keys pressed while the student explains end
+    /// the explanation, as Return does, and start no question. Returns true
+    /// when it took them.
+    func talkKeysPressed() -> Bool {
+        guard let teachBack, teachBack.isListening else { return false }
+        talkKeysEndedTeachBack = true
+        teachBack.finishListening()
+        return true
+    }
+
+    /// The release that goes with `talkKeysPressed`. Returns true when the
+    /// press had been taken, so the release starts nothing either.
+    func talkKeysReleased() -> Bool {
+        guard talkKeysEndedTeachBack else { return false }
+        talkKeysEndedTeachBack = false
+        return true
+    }
+
+    /// Fades the board away, keeps it in the Notebook and files its lesson.
+    /// `keepsNothing` is for an explanation cancelled before anything was
+    /// drawn: nothing is saved anywhere. Safe to call when closed.
+    func close(reason: String, keepsNothing: Bool = false) {
         guard isOpen else { return }
         TutorDebugLog.write("🧑‍🏫 board closes: \(reason), \(turnNumber) turns, \(board?.state.elements.count ?? 0) elements")
         isOpen = false
+        let endingTeachBack = teachBack
+        endingTeachBack?.end()
+        teachBack = nil
+        bar.isTeachingBack = false
         currentTurnIdentifier += 1
         turnTask?.cancel()
         turnTask = nil
@@ -159,16 +263,34 @@ final class TeachingBoardSession {
         idleCloseTask = nil
         player.stop()
         player.transformPieceBeforeRunning = nil
+
+        // Notebook hook: the board as it stands, before it fades.
+        let boardHasContent = !(board?.state.isEmpty ?? true)
+        if !keepsNothing, boardHasContent {
+            if let endingTeachBack {
+                hooks.keepBoardInNotebook(openingQuestion, "You taught: \(endingTeachBack.topic)", endingTeachBack.notebookParagraphs)
+            } else if !everySentenceSaid.isEmpty {
+                hooks.keepBoardInNotebook(openingQuestion, lessonTitle ?? board?.state.title, everySentenceSaid)
+            }
+        }
+
         overlay.callBoard("close", argumentsJSON: "0.6")
         overlay.boardTakesTheMouse = false
         overlay.onLeaveBoardRequested = nil
+        overlay.onTeachBackAction = nil
+        overlay.releaseKeyboard()
         bar.isBoardOpen = false
         bar.caption = ""
         bar.followUps = []
         hooks.setVoiceState(.idle)
         InterfaceSounds.shared.play(.wipe)
 
-        if !everySentenceSaid.isEmpty {
+        if let endingTeachBack {
+            if !keepsNothing, let record = endingTeachBack.record(openingQuestion: openingQuestion) {
+                hooks.recordTeachBack(record)
+                hooks.rememberExchange(openingQuestion, "(Taught back on the board, now closed.) " + record.spokenAnswer)
+            }
+        } else if !everySentenceSaid.isEmpty {
             let spokenLesson = everySentenceSaid.joined(separator: " ")
             hooks.fileLesson(openingQuestion, lessonTitle ?? board?.state.title, spokenLesson)
             hooks.rememberExchange(openingQuestion, "(Taught on the board, now closed.) " + spokenLesson)
@@ -176,6 +298,7 @@ final class TeachingBoardSession {
         board = nil
         surface = nil
         screenForBoard = nil
+        boardIsOnScreen = false
         boardHistory = []
         everySentenceSaid = []
         lessonTitle = nil
@@ -198,11 +321,61 @@ final class TeachingBoardSession {
         self.openingQuestion = firstQuestion
         self.isOpen = true
         self.turnNumber = 0
+        self.boardIsOnScreen = false
         // While the board is up it is the only surface: clicks land on it,
         // never on an app the student cannot see, and the notch says so.
         overlay.boardTakesTheMouse = true
         overlay.onLeaveBoardRequested = { [weak self] in self?.close(reason: "Leave board") }
         bar.isBoardOpen = true
+    }
+
+    /// Teach it back: the board opens titled with the topic, in its calm
+    /// listening state, and the microphone opens.
+    private func openTeachBack(topic: String, question: String) {
+        open(firstQuestion: question)
+        guard isOpen, let board, let surface, let screenForBoard else { return }
+        let session = TeachBackSession(topic: topic, host: self)
+        teachBack = session
+        bar.isTeachingBack = true
+        hooks.questionNeedsNoAnswer()
+        // The player sizes the drawing page to the screen before the board
+        // is put on it, as the first board turn does.
+        player.begin(on: screenForBoard, canvasSize: CGSize(width: surface.canvasWidth, height: surface.canvasHeight),
+                     targets: [:], targetLabels: [:], screenInkHex: "#3380FF")
+        overlay.callBoard("open", argumentsJSON: surface.openArgumentsJSON)
+        boardIsOnScreen = true
+        board.beginTurn()
+        let title = "Teach me \(topic)"
+        _ = board.apply(.setTitle(title))
+        lessonTitle = title
+        overlay.onTeachBackAction = { [weak self] action in self?.teachBackBarWasClicked(action) }
+        showTeachBackPhase("listening")
+        session.startListening()
+    }
+
+    private func teachBackBarWasClicked(_ action: String) {
+        guard let teachBack else { return }
+        switch action {
+        case "done": teachBack.finishListening()
+        case "cancel": teachBack.cancelListening()
+        case "fill": hooks.askAsStudent("fill in the gaps you marked on my drawing")
+        case "again": hooks.askAsStudent("let me try that part again")
+        default: break
+        }
+    }
+
+    /// The board's bar and the line under its title, for teach-back's phase:
+    /// listening, drawing, checking or result.
+    func showTeachBackPhase(_ phase: String) {
+        guard let teachBack else { return }
+        let payload: [String: Any] = [
+            "title": "Teach me \(teachBack.topic)",
+            "subtitle": "Explain it like you would to a friend. I\u{2019}ll draw what you say.",
+            "phase": phase
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        overlay.callBoard("setTeachBack", argumentsJSON: json)
     }
 
     /// A part's name for the bar and the parts card: the lesson title, or
@@ -222,33 +395,20 @@ final class TeachingBoardSession {
     // MARK: - One turn
 
     private func runTurn(question: String) {
-        guard let board, let surface, let screenForBoard else { return }
-        turnTask?.cancel()
+        guard let board else { return }
         idleCloseTask?.cancel()
-        currentTurnIdentifier += 1
-        let turnIdentifier = currentTurnIdentifier
+        stopCurrentTurn()
         turnNumber += 1
         let thisTurnNumber = turnNumber
+        let turnIdentifier = currentTurnIdentifier
 
         turnTask = Task { [weak self] in
             guard let self else { return }
             self.hooks.setVoiceState(.processing)
             self.bar.waitingStage = "thinking"
-
-            // The same player as every answer, on a canvas the size of the
-            // screen in points. Its begin() clears screen marks and cards,
-            // never the board, which is its own layer.
-            self.player.begin(on: screenForBoard, canvasSize: CGSize(width: surface.canvasWidth, height: surface.canvasHeight),
-                              targets: [:], targetLabels: [:], screenInkHex: "#3380FF")
-            if thisTurnNumber == 1 { self.overlay.callBoard("open", argumentsJSON: surface.openArgumentsJSON) }
-            self.overlay.callBoard("beginTurn", argumentsJSON: "")
-            board.beginTurn()
-            self.partTitles.append(Self.partName(forQuestion: question))
-            self.showParts()
-            self.player.transformPieceBeforeRunning = { [weak self] piece in
-                self?.translate(piece) ?? piece
+            if self.teachBack == nil {
+                self.partTitles.append(Self.partName(forQuestion: question))
             }
-
             let studyNotes = await self.hooks.studyNotes(question)
             guard !Task.isCancelled, self.currentTurnIdentifier == turnIdentifier else { return }
             let turnNote = BoardProgramPrompt.turnNote(
@@ -256,68 +416,207 @@ final class TeachingBoardSession {
                 studentName: UserDefaults.standard.string(forKey: "studentName"), studyNotes: studyNotes)
             TutorDebugLog.write("🧑‍🏫 board turn \(thisTurnNumber): note is \(turnNote.count) characters")
 
-            let progress = BoardTurnProgress()
-            do {
-                let fullText = try await self.hooks.answer(
-                    BoardProgramPrompt.system, self.historyForModel(), turnNote,
-                    BoardProgramPrompt.maximumTokens(turnNumber: thisTurnNumber), progress
-                ) { [weak self] accumulatedText in
-                    guard let self, self.currentTurnIdentifier == turnIdentifier else { return }
-                    progress.hasReceivedText = true
-                    if progress.answerIsProgram == nil, let isProgram = ProgramStream.looksLikeProgram(accumulatedText) {
-                        progress.answerIsProgram = isProgram
-                        if isProgram {
-                            self.hooks.setVoiceState(.responding)
-                            self.overlay.callBoard("setSpeaking", argumentsJSON: "true")
-                        }
-                    }
-                    if progress.answerIsProgram == true { self.player.feed(accumulatedText: accumulatedText) }
-                }
-                guard !Task.isCancelled, self.currentTurnIdentifier == turnIdentifier else { return }
-                TutorDebugLog.write("RAW BOARD RESPONSE:\n\(fullText)\n--- end ---")
-
-                // An answer that came back as prose is still spoken, a
-                // sentence per beat, with nothing drawn.
-                let program = (progress.answerIsProgram ?? ProgramStream.looksLikeProgram(fullText) ?? false)
-                    ? fullText : Self.programSpeaking(prose: fullText)
-                if progress.answerIsProgram != true {
-                    self.hooks.setVoiceState(.responding)
-                    self.player.feed(accumulatedText: program)
-                }
-                await self.player.finish(fullText: program)
-
-                let sentences = ProgramStream.closedSayArguments(in: ProgramStream.code(in: program))
-                self.everySentenceSaid += sentences
-                self.boardHistory.append((question: question, program: program, sentences: sentences))
-                if let title = self.player.lessonTitle {
+            let played = await self.playBoardAnswer(
+                systemPrompt: BoardProgramPrompt.system, history: self.historyForModel(), turnNote: turnNote,
+                maximumTokens: BoardProgramPrompt.maximumTokens(turnNumber: thisTurnNumber), ink: nil)
+            guard self.currentTurnIdentifier == turnIdentifier else { return }
+            if let played {
+                self.everySentenceSaid += played.sentences
+                self.teachBack?.boardAnswerWasGiven(sentences: played.sentences)
+                self.boardHistory.append((question: question, program: played.program, sentences: played.sentences))
+                if let title = played.lessonTitle, self.teachBack == nil {
                     self.lessonTitle = title
                     self.bar.recordLessonTitle(title)
                     if !self.partTitles.isEmpty { self.partTitles[self.partTitles.count - 1] = title }
                     self.showParts()
                 }
-                await self.player.waitUntilSpoken()
-            } catch is CancellationError {
-                return
-            } catch {
-                guard self.currentTurnIdentifier == turnIdentifier else { return }
-                TutorDebugLog.write("⚠️ board turn failed: \(error.localizedDescription)")
-                await self.hooks.reportFailure(error)
             }
-            guard self.currentTurnIdentifier == turnIdentifier else { return }
-            self.overlay.callBoard("setSpeaking", argumentsJSON: "false")
-            self.bar.caption = ""
-            self.hooks.setVoiceState(.idle)
-            self.hooks.turnFinished()
-            self.scheduleIdleClose()
-            self.turnTask = nil
+            self.turnFinished()
         }
+    }
+
+    /// Ends the turn as every turn ends: quiet, idle, the idle close armed.
+    private func turnFinished() {
+        overlay.callBoard("setSpeaking", argumentsJSON: "false")
+        bar.caption = ""
+        hooks.setVoiceState(.idle)
+        hooks.turnFinished()
+        scheduleIdleClose()
+        turnTask = nil
+    }
+
+    private func stopCurrentTurn() {
+        currentTurnIdentifier += 1
+        turnTask?.cancel()
+        turnTask = nil
+        player.stop()
+        overlay.callBoard("setSpeaking", argumentsJSON: "false")
+        bar.caption = ""
+        hooks.setVoiceState(.idle)
+    }
+
+    /// One answer from the brain, spoken and drawn on the board, the same
+    /// way for a lesson turn and for teach-back's two calls. `ink` is the
+    /// pen for what it adds (nil is Buddy's own); `commandsWithFirstSentence`
+    /// are strokes decided before it (teach-back's old gap marks rubbed
+    /// out), drawn while its first sentence is said. Returns nil when the answer was
+    /// stopped or failed.
+    func playBoardAnswer(systemPrompt: String, history: [(userPlaceholder: String, assistantResponse: String)],
+                         turnNote: String, maximumTokens: Int, ink: BoardInk?,
+                         commandsWithFirstSentence: [BoardDrawCommand] = [],
+                         keepsOnlyTheFirstBlock: Bool = false) async -> PlayedBoardAnswer? {
+        guard let board, let surface, let screenForBoard else { return nil }
+        let answerIdentifier = currentTurnIdentifier
+        hooks.setVoiceState(.processing)
+        bar.waitingStage = "thinking"
+
+        // The same player as every answer, on a canvas the size of the
+        // screen in points. Its begin() clears screen marks and cards,
+        // never the board, which is its own layer.
+        player.begin(on: screenForBoard, canvasSize: CGSize(width: surface.canvasWidth, height: surface.canvasHeight),
+                     targets: [:], targetLabels: [:], screenInkHex: "#3380FF")
+        if !boardIsOnScreen {
+            overlay.callBoard("open", argumentsJSON: surface.openArgumentsJSON)
+            boardIsOnScreen = true
+        }
+        overlay.callBoard("beginTurn", argumentsJSON: "")
+        board.beginTurn()
+        board.inkForNewMarks = ink
+        operationsThisAnswer = []
+        commandsWaitingForFirstPiece = commandsWithFirstSentence
+        if teachBack == nil { showParts() }
+        player.transformPieceBeforeRunning = { [weak self] piece in
+            self?.translate(piece) ?? piece
+        }
+
+        let progress = BoardTurnProgress()
+        // Teach it back runs only its first block: a model that writes a
+        // corrected second one would otherwise draw the student's words twice.
+        func usable(_ text: String) -> String {
+            keepsOnlyTheFirstBlock ? TeachBackPrompt.firstProgramBlock(of: text) : text
+        }
+        do {
+            let fullText = usable(try await hooks.answer(systemPrompt, history, turnNote, maximumTokens, progress) { [weak self] accumulatedText in
+                guard let self, self.currentTurnIdentifier == answerIdentifier else { return }
+                progress.hasReceivedText = true
+                let text = usable(accumulatedText)
+                if progress.answerIsProgram == nil, let isProgram = ProgramStream.looksLikeProgram(text) {
+                    progress.answerIsProgram = isProgram
+                    if isProgram {
+                        self.hooks.setVoiceState(.responding)
+                        self.overlay.callBoard("setSpeaking", argumentsJSON: "true")
+                    }
+                }
+                if progress.answerIsProgram == true { self.player.feed(accumulatedText: text) }
+            })
+            guard !Task.isCancelled, currentTurnIdentifier == answerIdentifier else { return nil }
+            TutorDebugLog.write("RAW BOARD RESPONSE:\n\(fullText)\n--- end ---")
+
+            // An answer that came back as prose is still spoken, a
+            // sentence per beat, with nothing drawn.
+            let program = (progress.answerIsProgram ?? ProgramStream.looksLikeProgram(fullText) ?? false)
+                ? fullText : Self.programSpeaking(prose: fullText)
+            if progress.answerIsProgram != true {
+                hooks.setVoiceState(.responding)
+                player.feed(accumulatedText: program)
+            }
+            await player.finish(fullText: program)
+            // Strokes still waiting (an answer with no runnable piece) are
+            // drawn now rather than lost.
+            if !commandsWaitingForFirstPiece.isEmpty, let json = Self.json(commandsWaitingForFirstPiece) {
+                overlay.callBoard("apply", argumentsJSON: json)
+                commandsWaitingForFirstPiece = []
+            }
+            let sentences = ProgramStream.closedSayArguments(in: ProgramStream.code(in: program))
+            let lessonTitle = player.lessonTitle
+            await player.waitUntilSpoken()
+            board.inkForNewMarks = nil
+            guard currentTurnIdentifier == answerIdentifier else { return nil }
+            return PlayedBoardAnswer(program: program, sentences: sentences, operations: operationsThisAnswer,
+                                     lessonTitle: lessonTitle)
+        } catch is CancellationError {
+            board.inkForNewMarks = nil
+            return nil
+        } catch {
+            board.inkForNewMarks = nil
+            guard currentTurnIdentifier == answerIdentifier else { return nil }
+            TutorDebugLog.write("⚠️ board turn failed: \(error.localizedDescription)")
+            await hooks.reportFailure(error)
+            return nil
+        }
+    }
+
+    /// Speaks one sentence on the board with no model: teach-back's "I did
+    /// not hear anything".
+    func speakOnBoard(_ sentence: String) async {
+        guard let surface, let screenForBoard else { return }
+        player.begin(on: screenForBoard, canvasSize: CGSize(width: surface.canvasWidth, height: surface.canvasHeight),
+                     targets: [:], targetLabels: [:], screenInkHex: "#3380FF")
+        player.transformPieceBeforeRunning = nil
+        let program = Self.programSpeaking(prose: sentence)
+        hooks.setVoiceState(.responding)
+        player.feed(accumulatedText: program)
+        await player.finish(fullText: program)
+        await player.waitUntilSpoken()
+        bar.caption = ""
+        hooks.setVoiceState(.idle)
+    }
+
+    /// Teach it back: rubs out the last check's marks, to be drawn with the
+    /// next answer's first sentence.
+    func removeGapMarks() -> [BoardDrawCommand] {
+        guard let board else { return [] }
+        board.inkForNewMarks = nil
+        return board.removeGapMarks()
+    }
+
+    var boardListing: String { board?.state.compactListing() ?? "ON THE BOARD: nothing yet." }
+
+    /// Runs teach-back's work as the board's turn, so Esc and a new
+    /// question stop it the way they stop a lesson turn.
+    func runTeachBackWork(_ work: @escaping @MainActor () async -> Void) {
+        idleCloseTask?.cancel()
+        stopCurrentTurn()
+        turnNumber += 1
+        let turnIdentifier = currentTurnIdentifier
+        turnTask = Task { [weak self] in
+            await work()
+            guard let self, self.currentTurnIdentifier == turnIdentifier else { return }
+            self.turnFinished()
+        }
+    }
+
+    /// The microphone is about to open: whatever was being said stops, and
+    /// the board does not close itself while the student talks.
+    func prepareForListening() {
+        stopCurrentTurn()
+        idleCloseTask?.cancel()
+        hooks.prepareForListening()
+    }
+
+    func listeningEnded() {
+        scheduleIdleClose()
     }
 
     private func translate(_ piece: String) -> String {
         guard let board else { return piece }
         let translation = BoardProgramTranslator.translate(piece, on: board)
         for problem in translation.problems { TutorDebugLog.write("⚠️ board: \(problem)") }
-        return translation.code
+        operationsThisAnswer += translation.operations
+        var code = translation.code
+        if !commandsWaitingForFirstPiece.isEmpty, let json = Self.json(commandsWaitingForFirstPiece),
+           let withStrokes = TeachBackPrompt.inserting("\nBuddyBoard.apply(\(json));", afterFirstSentenceOf: code) {
+            code = withStrokes
+            commandsWaitingForFirstPiece = []
+        }
+        return code
+    }
+
+    private static func json(_ commands: [BoardDrawCommand]) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes]
+        guard let data = try? encoder.encode(commands) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private func historyForModel() -> [(userPlaceholder: String, assistantResponse: String)] {
@@ -331,6 +630,8 @@ final class TeachingBoardSession {
 
     private func scheduleIdleClose() {
         idleCloseTask?.cancel()
+        // Never while the student is explaining: a long pause there is theirs.
+        guard teachBack?.isListening != true else { return }
         idleCloseTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.idleSecondsBeforeClosing * 1_000_000_000))
             guard !Task.isCancelled else { return }

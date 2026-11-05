@@ -231,6 +231,22 @@
     return { svg: standaloneSVG(copy, left, top, width, height), region: [left, top, width, height] };
   }
 
+  // ---------------------------------------------------------------- board
+
+  // Teaching board hook: the whole board (draw-board.js), paper, title and
+  // drawing, as one standalone SVG, without its dark bar of controls.
+  // Taken by NotebookRecorder.keepBoard just before the board fades.
+  function exportBoard() {
+    const layer = document.getElementById('board-layer');
+    if (!layer) return null;
+    const copy = layer.cloneNode(true);
+    copy.removeAttribute('id');
+    const bar = copy.querySelector('[id="board-bar"]');
+    if (bar) bar.remove();
+    cleanCopy(copy);
+    return { svg: standaloneSVG(copy, 0, 0, canvasWidth, canvasHeight), width: canvasWidth, height: canvasHeight };
+  }
+
   const cards = [...cardLayer.querySelectorAll(':scope > g.card')].map(exportCard).filter(Boolean);
-  return JSON.stringify({ cards, marks: exportMarks(), canvas: [canvasWidth, canvasHeight] });
+  return JSON.stringify({ cards, marks: exportMarks(), board: exportBoard(), canvas: [canvasWidth, canvasHeight] });
 })();
