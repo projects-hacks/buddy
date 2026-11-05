@@ -929,14 +929,14 @@ private struct KnowledgeMapInspector: View {
                                         Image(systemName: "book.closed")
                                             .font(.system(size: 11))
                                             .foregroundStyle(DS.Colors.textTertiary)
-                                        Text(lessonTitle)
+                                        Text(LessonTitle.displayed(lessonTitle))
                                             .font(.system(size: 13))
                                             .foregroundStyle(DS.Colors.textPrimary)
                                             .lineLimit(1)
                                         Spacer(minLength: 0)
                                     }
                                 }
-                                .accessibilityLabel("\(lessonTitle), opens the Notebook")
+                                .accessibilityLabel("\(LessonTitle.displayed(lessonTitle)), opens the Notebook")
                             }
                         }
                     }

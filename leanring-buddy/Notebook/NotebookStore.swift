@@ -63,18 +63,78 @@ nonisolated struct NotebookPage: Codable, Equatable, Identifiable {
     var answeredBy: String?
     var formatVersion: Int = 1
 
-    /// The lesson's own name when it gave one, the question otherwise.
+    /// The lesson's own name when it gave one, the question otherwise, as a
+    /// title. Made when shown rather than when written, so pages already on
+    /// disk read the same as new ones.
     var displayTitle: String {
-        if let lessonTitle, !lessonTitle.trimmingCharacters(in: .whitespaces).isEmpty { return lessonTitle }
-        // Speech recognition hears questions in lower case; a title starts
-        // with a capital.
-        return question.prefix(1).uppercased() + question.dropFirst()
+        LessonTitle.forLesson(named: lessonTitle, askedAs: question)
+    }
+
+    /// The question as it was asked, for the page's "You asked" line, shown
+    /// on every page that has one, whichever way it was asked and whatever
+    /// the title is. Nil only for a page kept without a question.
+    var askedQuestion: String? {
+        let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedQuestion.isEmpty ? nil : trimmedQuestion
     }
 
     /// The earliest of the ideas' review dates: by then the first of them is
     /// starting to fade.
     var reviewAgainAround: Date? {
         ideas.map(\.reviewAround).min()
+    }
+}
+
+/// How a lesson's name reads wherever it is shown as a title: the notebook's
+/// page, sidebar, search and PDF, the notch's lesson card, its closed side
+/// and the chat, the Map's lesson list. The model writes its names in lower
+/// case as often as not ("what return does") and speech recognition hears
+/// questions that way, so the first letter is made a capital here, once,
+/// and the name is otherwise kept exactly as given ("binary search", "TCP").
+nonisolated enum LessonTitle {
+    /// A question longer than this is shortened to a title; the whole
+    /// question is still on the page under "You asked".
+    static let longestQuestionTitleInCharacters = 60
+
+    /// The name with its first letter a capital and nothing else changed.
+    /// A first word that already has a capital inside it ("iPhone", "macOS")
+    /// is a name of its own and is left as written.
+    static func displayed(_ lessonName: String) -> String {
+        let trimmedName = lessonName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let firstCharacter = trimmedName.first, firstCharacter.isLowercase else { return trimmedName }
+        let firstWord = trimmedName.prefix { !$0.isWhitespace }
+        if firstWord.dropFirst().contains(where: \.isUppercase) { return trimmedName }
+        return firstCharacter.uppercased() + trimmedName.dropFirst()
+    }
+
+    /// A title made from the question, for a lesson the model gave no name:
+    /// the whole question, or when it is long, as much of it as fits ended
+    /// at a word with an ellipsis, so it is never cut mid word.
+    static func fromQuestion(_ question: String) -> String {
+        let words = question.split(whereSeparator: \.isWhitespace)
+        let wholeQuestion = words.joined(separator: " ")
+        guard wholeQuestion.count > longestQuestionTitleInCharacters else { return displayed(wholeQuestion) }
+        var shortenedQuestion = ""
+        for word in words {
+            let longer = shortenedQuestion.isEmpty ? String(word) : shortenedQuestion + " " + word
+            // The ellipsis takes one character of the room.
+            if longer.count > longestQuestionTitleInCharacters - 1 { break }
+            shortenedQuestion = longer
+        }
+        // A single word longer than the room has nowhere to break.
+        if shortenedQuestion.isEmpty { shortenedQuestion = String(wholeQuestion.prefix(longestQuestionTitleInCharacters - 1)) }
+        // "when I search, …" reads as a stumble; brackets and quotes stay.
+        let withoutTrailingComma = shortenedQuestion.trimmingCharacters(in: CharacterSet(charactersIn: ",;:."))
+        return displayed(withoutTrailingComma) + "\u{2026}"
+    }
+
+    /// The lesson's own name when it has one, a title made from the
+    /// question otherwise.
+    static func forLesson(named lessonName: String?, askedAs question: String) -> String {
+        if let lessonName, !lessonName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return displayed(lessonName)
+        }
+        return fromQuestion(question)
     }
 }
 

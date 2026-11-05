@@ -348,8 +348,13 @@ struct FoldedLessonRow: View {
     @State private var isHovering = false
 
     private var lessonTitle: String {
-        model.transcript.last(where: { $0.lessonTitle != nil })?.lessonTitle
-            ?? model.transcript.last(where: { $0.speaker == .student })?.text ?? "Your lesson"
+        if let lessonName = model.transcript.last(where: { $0.lessonTitle != nil })?.lessonTitle {
+            return LessonTitle.displayed(lessonName)
+        }
+        if let lastQuestion = model.transcript.last(where: { $0.speaker == .student })?.text {
+            return LessonTitle.fromQuestion(lastQuestion)
+        }
+        return "Your lesson"
     }
 
     var body: some View {
@@ -413,6 +418,14 @@ struct LessonCard: View {
         model.transcript.last(where: { $0.speaker == .student })?.text
     }
 
+    /// The card's heading: the lesson's name, or the question when it has
+    /// none, as a title.
+    private var cardTitle: String {
+        if let lessonName = lastTutorTurn?.lessonTitle { return LessonTitle.displayed(lessonName) }
+        if let lastQuestion { return LessonTitle.fromQuestion(lastQuestion) }
+        return "Your lesson"
+    }
+
     /// "LAST LESSON · 14:32 · LEETCODE", or "EXPLAINING NOW".
     private var eyebrow: String {
         if model.isSpeaking { return "EXPLAINING NOW" }
@@ -443,7 +456,7 @@ struct LessonCard: View {
                 // The lesson's own name leads. The question as speech
                 // recognition heard it is often rough, so it sits
                 // underneath, small, as a reminder.
-                Text(lastTutorTurn.lessonTitle ?? lastQuestion ?? "Your lesson")
+                Text(cardTitle)
                     .font(.system(size: 19, weight: .bold, design: .rounded))
                     .foregroundStyle(DS.Paper.ink)
                     .lineLimit(2)
@@ -452,7 +465,9 @@ struct LessonCard: View {
                 if let firstIdea = model.buildsOn.first {
                     BuildsOnChip(ideaNames: model.buildsOn) { model.onOpenKnowledgeMap(firstIdea) }
                 }
-                if lastTutorTurn.lessonTitle != nil, let lastQuestion {
+                // Under a name, and under a question too long to be the
+                // heading whole.
+                if let lastQuestion, cardTitle != LessonTitle.displayed(lastQuestion) {
                     Text("You asked: \u{201C}\(lastQuestion)\u{201D}")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(DS.Paper.inkMuted)
@@ -480,7 +495,7 @@ struct LessonCard: View {
         // A new lesson starts folded again.
         .onChange(of: lastTutorTurn?.id) { _, _ in isShowingWholeAnswer = false }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Last lesson, \(lastTutorTurn?.lessonTitle ?? lastQuestion ?? "")")
+        .accessibilityLabel("Last lesson, \(cardTitle)")
     }
 
     private var header: some View {
@@ -508,7 +523,7 @@ struct LessonCard: View {
             .accessibilityLabel("Open in Notebook")
             PaperIconButton(systemImage: hasJustCopied ? "checkmark" : "doc.on.doc", tooltip: "Copy") {
                 guard let lastTutorTurn else { return }
-                let title = lastTutorTurn.lessonTitle.map { $0 + "\n\n" } ?? ""
+                let title = lastTutorTurn.lessonTitle.map { LessonTitle.displayed($0) + "\n\n" } ?? ""
                 onCopyLesson(title + lastTutorTurn.text)
                 hasJustCopied = true
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { hasJustCopied = false }

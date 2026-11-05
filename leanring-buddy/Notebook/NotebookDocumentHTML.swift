@@ -75,7 +75,7 @@ enum NotebookDocumentHTML {
         <div class="block lesson-header">
           <div class="kicker">\(escaped(kicker))</div>
           <h2 class="lesson-title">\(escaped(page.displayTitle))</h2>
-          \(page.lessonTitle != nil ? "<div class=\"question\"><span class=\"question-label\">You asked</span> \u{201C}\(escaped(page.question))\u{201D}</div>" : "")
+          \(page.askedQuestion.map { "<div class=\"question\"><span class=\"question-label\">You asked</span> \u{201C}\(escaped($0))\u{201D}</div>" } ?? "")
         </div>
 
         """
@@ -223,7 +223,7 @@ enum NotebookDocumentHTML {
           <div class="eyebrow">\(escaped(eyebrow))</div>
           <h1>\(escaped(page.displayTitle))</h1>
           \(ideasHTML)
-          \(page.lessonTitle != nil ? "<div class=\"question\">You asked: \u{201C}\(escaped(page.question))\u{201D}</div>" : "")
+          \(page.askedQuestion.map { "<div class=\"question\">You asked: \u{201C}\(escaped($0))\u{201D}</div>" } ?? "")
           \(drawingHTML)
           \(paragraphsHTML)
           \(reviewHTML)

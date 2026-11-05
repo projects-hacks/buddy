@@ -129,7 +129,7 @@ let fixtures: [FixtureLesson] = [
         createdAt: date("2026-11-03 11:02"),
         question: "what are the replicas for in this hash ring",
         program: #"""
-        lessonTitle("Virtual nodes in consistent hashing");
+        lessonTitle("virtual nodes in consistent hashing");
         step(1);
         say("Each server is placed on the ring a hundred times, so keys spread evenly instead of piling onto one server.");
         highlight("R2");
@@ -418,6 +418,46 @@ func runChecks(board: HeadlessDrawingBoard, sampleStore: NotebookStore) async {
     check("unicode escapes are unescaped", paragraphs.last == "It\u{2019}s fine.")
     check("without beats, three sentences a paragraph",
           NotebookText.paragraphs(inProgram: #"say("One."); say("Two."); say("Three."); say("Four.");"#).count == 2)
+
+    // Titles read as titles: the first letter a capital, nothing else changed.
+    check("a lower case name gets a capital", LessonTitle.displayed("what return does") == "What return does")
+    check("the rest of a name is kept as given",
+          LessonTitle.displayed("binary search over TCP logs") == "Binary search over TCP logs")
+    check("a name starting with an acronym is unchanged", LessonTitle.displayed("TCP handshake") == "TCP handshake")
+    check("a name like iPhone is left as written", LessonTitle.displayed("iPhone backups") == "iPhone backups")
+    check("a short question is the whole title",
+          LessonTitle.fromQuestion("what does len do in one sentence?") == "What does len do in one sentence?")
+    let longQuestion = "give me a quick recap of binary search in about thirty seconds, with a different example from last time"
+    let longQuestionTitle = LessonTitle.fromQuestion(longQuestion)
+    let longQuestionTitleWords = String(longQuestionTitle.dropLast())
+    let wordAfterTheCut = longQuestion.dropFirst(longQuestionTitleWords.count).first
+    check("a long question is shortened with an ellipsis",
+          longQuestionTitle.hasSuffix("\u{2026}") && longQuestionTitle.count <= LessonTitle.longestQuestionTitleInCharacters)
+    check("a long question is cut between words",
+          longQuestion.lowercased().hasPrefix(longQuestionTitleWords.lowercased())
+              && (wordAfterTheCut == " " || wordAfterTheCut == ","))
+    func samplePage(lessonTitle: String?, question: String) -> NotebookStoredPage {
+        let page = NotebookPage(id: UUID(), createdAt: date("2026-11-05 12:18"), lessonTitle: lessonTitle, question: question,
+                                paragraphs: ["Said."], cards: [], screenCrop: nil, ideas: [], answeredBy: nil)
+        return NotebookStoredPage(page: page, folder: URL(fileURLWithPath: "/tmp/2026-11-05/121800-sample"),
+                                  sizeInBytes: 0, dayIdentifier: "2026-11-05")
+    }
+    let namedPage = samplePage(lessonTitle: "why high starts at length minus one", question: "why does this crash when I search for 10?")
+    let unnamedPage = samplePage(lessonTitle: nil, question: "Why does high")
+    let questionlessPage = samplePage(lessonTitle: "what while does", question: "")
+    func windowHTML(_ storedPage: NotebookStoredPage) -> String {
+        NotebookDocumentHTML.windowPageHTML(storedPage: storedPage, pageNumber: 1, pageCount: 1, dayName: "today", canReplay: false)
+    }
+    let printHTML = NotebookDocumentHTML.printDocumentHTML(pages: [namedPage, unnamedPage], rangeDescription: "today",
+                                                           paperSize: .a4, generatedAt: Date())
+    check("a page's title is capitalized in the window", windowHTML(namedPage).contains("<h1>Why high starts at length minus one</h1>"))
+    check("a page's title is capitalized in the PDF",
+          printHTML.contains("1. Why high starts at length minus one</span>")
+              && printHTML.contains("<h2 class=\"lesson-title\">Why high starts at length minus one</h2>"))
+    check("a named page says what was asked", windowHTML(namedPage).contains("You asked: \u{201C}why does this crash when I search for 10?\u{201D}"))
+    check("a page without a name says what was asked too", windowHTML(unnamedPage).contains("You asked: \u{201C}Why does high\u{201D}")
+              && printHTML.contains("<span class=\"question-label\">You asked</span> \u{201C}Why does high\u{201D}"))
+    check("a page kept without a question has no question line", !windowHTML(questionlessPage).contains("You asked"))
 
     check("US Letter in the United States", NotebookPaperSize.forRegion("US") == .usLetter)
     check("A4 in the United Kingdom", NotebookPaperSize.forRegion("GB") == .a4)
