@@ -72,14 +72,19 @@ final class ErrorGlowWindows {
         guard let screen = Self.notchScreen else { return }
         let reported = shapeSize()
         let shape = reported.width > 0 && reported.height > 0 ? reported : Self.housingSize(of: screen)
-        appearance.shapeSize = shape
+        // Only real changes reach SwiftUI and the window: this runs four
+        // times a second, and every change starts a layout pass.
+        if appearance.shapeSize != shape { appearance.shapeSize = shape }
         let notchIsOpen = isNotchOpen()
         if appearance.isNotchOpen != notchIsOpen {
             withAnimation(.easeOut(duration: 0.2)) { appearance.isNotchOpen = notchIsOpen }
         }
         let haloSize = CGSize(width: shape.width + Self.haloMargin * 2, height: shape.height + Self.haloMargin)
-        haloPanel?.setFrame(NSRect(x: screen.frame.midX - haloSize.width / 2, y: screen.frame.maxY - haloSize.height,
-                                   width: haloSize.width, height: haloSize.height), display: true)
+        let haloFrame = NSRect(x: screen.frame.midX - haloSize.width / 2, y: screen.frame.maxY - haloSize.height,
+                               width: haloSize.width, height: haloSize.height)
+        if let haloPanel, haloPanel.frame != haloFrame {
+            haloPanel.setFrame(haloFrame, display: false)
+        }
     }
 
     private func makePanel(content: AnyView) -> NSPanel {
@@ -93,9 +98,20 @@ final class ErrorGlowWindows {
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        // The halo is drawn inside a plain view that fills the window, never
+        // as the window's own content view. As content view, SwiftUI takes
+        // part in the window's constraint pass, and a new size proposed while
+        // the notch grew marked the window for another pass on every pass,
+        // until AppKit gave up and quit the app (seen live when an error
+        // offer appeared; reproduced in ErrorGlowWindowTests).
+        let container = NSView(frame: NSRect(origin: .zero, size: panel.frame.size))
+        container.autoresizesSubviews = true
         let hostingView = NSHostingView(rootView: content)
         hostingView.sizingOptions = []
-        panel.contentView = hostingView
+        hostingView.frame = container.bounds
+        hostingView.autoresizingMask = [.width, .height]
+        container.addSubview(hostingView)
+        panel.contentView = container
         return panel
     }
 }

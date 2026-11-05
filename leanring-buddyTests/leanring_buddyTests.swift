@@ -799,3 +799,24 @@ struct MarkPacingTests {
         #expect(markCoordinator.boardRevealFraction <= 1.0)
     }
 }
+
+@MainActor
+struct ErrorGlowWindowTests {
+    /// Live, Buddy quit with AppKit's "more Update Constraints passes than
+    /// views" the moment an error offer showed: the halo follows the notch
+    /// four times a second while the notch widens for the offer's words.
+    @Test func theHaloFollowsAGrowingNotchWithoutALayoutLoop() async throws {
+        let glow = ErrorGlowWindows()
+        var width: CGFloat = 180
+        var notchIsOpen = false
+        glow.show(shapeSize: { CGSize(width: width, height: 32) }, isNotchOpen: { notchIsOpen })
+        for step in 0..<24 {
+            width = step.isMultiple(of: 2) ? 180 + CGFloat(step) * 6 : 420
+            if step == 12 { notchIsOpen = true }
+            if step == 16 { notchIsOpen = false }
+            try await Task.sleep(nanoseconds: 125_000_000)
+        }
+        glow.hide()
+        try await Task.sleep(nanoseconds: 800_000_000)
+    }
+}
