@@ -122,6 +122,17 @@ final class QuestionSorter {
     /// Chosen on the dev half of the blind spoken set.
     static let confidentEnough = 0.95
 
+    /// How close a question must come to the examples for the sorter to
+    /// judge it alone. Greetings, thanks and "what can you do" score 0.69 to
+    /// 0.89 against the examples and were still sorted with 0.99 certainty
+    /// into whichever kind sat a hair closer ("Hello, Buddy." as teach,
+    /// "thanks" as reexplain), which sent thanks to Opus. Below this the
+    /// sorter's guess is made five times softer, so it is never sure and
+    /// Haiku, told what small talk is, decides. On the 100 blind spoken
+    /// questions this asks Haiku for 86 instead of 84, and none decided
+    /// alone is wrong at either setting.
+    static let familiarSimilarity = 0.89
+
     /// How likely each kind is, or nil when the sorter is not ready and the
     /// caller should fall back to keywords.
     ///
@@ -150,7 +161,9 @@ final class QuestionSorter {
         }
         guard let highestScore = scoresByKind.values.max() else { return nil }
 
-        var weights = scoresByKind.mapValues { exp(($0 - highestScore) / Self.temperature) }
+        let isFamiliar = highestScore >= Self.familiarSimilarity
+        let temperature = isFamiliar ? Self.temperature : Self.temperature * 5
+        var weights = scoresByKind.mapValues { exp(($0 - highestScore) / temperature) }
         if !hasPreviousAnswer, let reexplainWeight = weights[.reexplain] {
             weights[.reexplain] = 0
             weights[.teach, default: 0] += reexplainWeight

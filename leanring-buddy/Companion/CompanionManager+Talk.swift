@@ -124,7 +124,7 @@ extension CompanionManager {
                                             studentPointing: StudentPointingClues(selection: selection))
     }
 
-    private func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
+    func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
         // Setup's last step checks the shortcut and the microphone for real.
         // The keys go to that check alone, so nothing is sent to a model.
         if setupWindow.isTryingTheShortcut {

@@ -209,9 +209,13 @@ struct SetupView: View {
                 }
             }
 
+            // The window is a fixed height and this step is the shortest:
+            // the room left over is shared between the gaps, so the step
+            // reads as one composed page rather than content with a hole
+            // under it.
+            Spacer(minLength: 22)
             SetupWelcomeScene()
                 .frame(height: 150)
-                .padding(.top, 24)
                 .accessibilityHidden(true)
 
             HStack(alignment: .top, spacing: 14) {
@@ -221,15 +225,16 @@ struct SetupView: View {
             }
             .padding(.top, 20)
 
+            Spacer(minLength: 22)
+
             VStack(alignment: .leading, spacing: 9) {
                 Text("What should Buddy call you?")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.88))
                 SetupNameField(name: $model.name, onSubmit: continueFromWelcome)
             }
-            .padding(.top, 24)
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 22)
             SetupFooter {
                 Text("About 2 minutes: your name, a key, a few permissions.")
                     .font(.system(size: 12))

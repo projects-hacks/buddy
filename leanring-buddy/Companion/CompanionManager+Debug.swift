@@ -68,7 +68,9 @@ extension CompanionManager {
     func qaPressEscape() { handleEscape() }
     /// Control + Option held and let go, as the shortcut monitor reports
     /// them, so a spoken question can be tested through the real microphone.
-    func qaHoldTalkKeys(down: Bool) { down ? beginTalking() : finishTalking() }
+    /// Through the same handler as the real keys, so setup's trial,
+    /// teach-back and the error offer see a scripted press as they would a real one.
+    func qaHoldTalkKeys(down: Bool) { handleShortcutTransition(down ? .pressed : .released) }
     func qaOpenChat() { openChatForTyping() }
     func qaSetNotchTab(_ name: String) {
         // "chat" is the tab's name now; "transcript" still works for older scripts.
