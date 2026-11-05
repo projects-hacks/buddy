@@ -287,6 +287,11 @@ final class DrawingOverlay: NSObject {
         self.panel = panel
         self.webView = webView
         watchMouseOverCards()
+        // A page built again mid-answer (the last one hung, died or failed
+        // to load) is set up as the answer's was, so its later pieces draw.
+        if let lastSetupArgumentsJSON {
+            callEngine("setup", argumentsJSON: lastSetupArgumentsJSON)
+        }
 
         WKContentRuleListStore.default().compileContentRuleList(
             forIdentifier: "clicky-drawing-no-network",
@@ -376,13 +381,17 @@ final class DrawingOverlay: NSObject {
         guard let panel else { return }
         panel.setFrame(frameShownOn, display: true)
         panel.orderFrontRegardless()
-        if let lastSetupArgumentsJSON {
-            callEngine("setup", argumentsJSON: lastSetupArgumentsJSON)
-        }
     }
 
     private func tearDownPage() {
         if let webView {
+            // A page stuck in a loop keeps its process spinning a core even
+            // after its view is released (seen in the unit test: 99% for
+            // minutes). WebKit's own call for ending it is not public API;
+            // it is asked for only if it is there, which it has been on
+            // every macOS this app supports.
+            let endWebContentProcess = NSSelectorFromString("_killWebContentProcess")
+            if webView.responds(to: endWebContentProcess) { webView.perform(endWebContentProcess) }
             webView.navigationDelegate = nil
             webView.configuration.userContentController.removeScriptMessageHandler(forName: "clicky")
             webView.stopLoading()
