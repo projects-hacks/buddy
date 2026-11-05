@@ -502,7 +502,7 @@ struct BoardLayout {
                 }
                 if route.count == 2 { overlapsExisting = true }
             }
-            return Double(crossings) * 10_000 + (leavesBoard ? 5_000 : 0) + (candidate.facesAway ? 600 : 0)
+            return Double(crossings) * 900 + (leavesBoard ? 5_000 : 0) + (candidate.facesAway ? 600 : 0)
                 + (overlapsExisting ? 3_000 : 0) + pathLength + bendPenalty
         }
         return candidates.min { cost($0) < cost($1) }?.route ?? [BoardPoint(x: fromFrame.midX, y: fromFrame.midY), BoardPoint(x: toFrame.midX, y: toFrame.midY)]
