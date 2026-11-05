@@ -435,7 +435,7 @@ private final class TranscriptStore {
         case .student: return "\n\n## \(time) · You\n\n\(event.text)\n"
         case .tutorTurnStart: return "\n**Buddy**\n\n\(event.text)"
         case .sentence: return " \(event.text)"
-        case .lessonTitle: return "\n\n*Lesson: \(event.text)*\n"
+        case .lessonTitle: return "\n\n*Lesson: \(LessonTitle.displayed(event.text))*\n"
         }
     }
 
@@ -1458,7 +1458,7 @@ struct TutorNotchView: View {
     }
 
     private var currentLessonTitle: String? {
-        model.transcript.last(where: { $0.lessonTitle != nil })?.lessonTitle
+        model.transcript.last(where: { $0.lessonTitle != nil })?.lessonTitle.map(LessonTitle.displayed)
     }
 
     private var activityWord: String {
@@ -1758,7 +1758,7 @@ private struct TranscriptRow: View {
                         .foregroundStyle(.white.opacity(0.7))
                 }
                 if let lessonTitle = entry.lessonTitle {
-                    Text(lessonTitle)
+                    Text(LessonTitle.displayed(lessonTitle))
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(DS.Colors.accentText)
                         .lineLimit(1)

@@ -225,7 +225,9 @@ final class NotebookModel: ObservableObject {
         if let pageTitleToOpenOnNextLoad {
             self.pageTitleToOpenOnNextLoad = nil
             searchText = ""
-            if let page = visiblePages.first(where: { $0.page.displayTitle == pageTitleToOpenOnNextLoad }) {
+            // The Map names a lesson as the model wrote it; the page shows it as a title.
+            let titleToOpen = LessonTitle.displayed(pageTitleToOpenOnNextLoad)
+            if let page = visiblePages.first(where: { $0.page.displayTitle == titleToOpen }) {
                 selectedPageIdentifier = page.id
                 return
             }

@@ -19,6 +19,10 @@ struct CompanionScreenCapture {
     let displayFrame: CGRect
     let screenshotWidthInPixels: Int
     let screenshotHeightInPixels: Int
+    /// Notebook hook: the same display at its own pixels, for the page's
+    /// crop of the marked region. Only asked for on the question's capture,
+    /// held in memory only, and never sent anywhere.
+    var fullResolutionScreenshotTask: Task<CGImage?, Never>? = nil
 }
 
 @MainActor
@@ -28,7 +32,11 @@ enum CompanionScreenCaptureUtility {
     /// such. Every caller uses only that screen (its screenshot is the
     /// canvas the answer draws on), so the other displays are not captured
     /// and encoded for nothing; `cursorScreenOnly: false` captures them all.
-    static func captureAllScreensAsJPEG(cursorScreenOnly: Bool = true) async throws -> [CompanionScreenCapture] {
+    /// `alsoCapturingFullResolution` starts a second capture of the cursor's
+    /// display at its own pixels once the model's screenshot is taken, for
+    /// the notebook; nothing waits for it on the way to the answer.
+    static func captureAllScreensAsJPEG(cursorScreenOnly: Bool = true,
+                                        alsoCapturingFullResolution: Bool = false) async throws -> [CompanionScreenCapture] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
         guard !content.displays.isEmpty else {
@@ -99,6 +107,21 @@ enum CompanionScreenCaptureUtility {
                 configuration: configuration
             )
 
+            // The model's screenshot is 1280 pixels across, under half of a
+            // Retina display's, which is too few for code in a notebook page
+            // to stay sharp. Started after it, so it never delays it.
+            var fullResolutionScreenshotTask: Task<CGImage?, Never>?
+            if alsoCapturingFullResolution, isCursorScreen {
+                let fullResolutionConfiguration = SCStreamConfiguration()
+                let pixelsPerPoint = CGFloat(filter.pointPixelScale)
+                fullResolutionConfiguration.width = Int((CGFloat(display.width) * pixelsPerPoint).rounded())
+                fullResolutionConfiguration.height = Int((CGFloat(display.height) * pixelsPerPoint).rounded())
+                fullResolutionScreenshotTask = Task {
+                    try? await SCScreenshotManager.captureImage(contentFilter: filter,
+                                                                configuration: fullResolutionConfiguration)
+                }
+            }
+
             // Encoded off the main thread: a full display is tens of
             // milliseconds of work the notch and the voice would wait for.
             let jpegData = await Task.detached(priority: .userInitiated) {
@@ -125,7 +148,8 @@ enum CompanionScreenCaptureUtility {
                 displayHeightInPoints: Int(displayFrame.height),
                 displayFrame: displayFrame,
                 screenshotWidthInPixels: configuration.width,
-                screenshotHeightInPixels: configuration.height
+                screenshotHeightInPixels: configuration.height,
+                fullResolutionScreenshotTask: fullResolutionScreenshotTask
             ))
         }
 

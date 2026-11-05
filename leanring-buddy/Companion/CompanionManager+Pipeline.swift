@@ -347,7 +347,9 @@ extension CompanionManager {
                     logStage("screen read while they talked, still current")
                 } else {
                     guard isStillTheCurrentQuestion() else { return }
-                    screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
+                    // Notebook hook: the full capture is for the page's crop.
+                    screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG(
+                        alsoCapturingFullResolution: !isGuideContinuation && NotebookRecorder.keepsLessons)
                     guard isStillTheCurrentQuestion(), !screenCaptures.isEmpty else { return }
                     logStage("screen captured")
 
@@ -698,8 +700,9 @@ extension CompanionManager {
                         // whole drawing; written only if the answer finishes.
                         notebookRecorder.holdDrawnLesson(
                             question: transcript, lessonTitle: lessonPlayer.lessonTitle, program: fullResponseText,
-                            screenshotJPEGData: primaryCapture.imageData, canvasSize: canvasSize,
-                            answeredBy: lastAnsweringBrainName)
+                            screenshotJPEGData: primaryCapture.imageData,
+                            fullResolutionScreenshotTask: primaryCapture.fullResolutionScreenshotTask,
+                            canvasSize: canvasSize, answeredBy: lastAnsweringBrainName)
                         fileLessonInMemory(question: transcript, lessonTitle: lessonPlayer.lessonTitle,
                                            spokenAnswer: Self.spokenSentences(inProgram: fullResponseText),
                                            questionKind: questionKind)

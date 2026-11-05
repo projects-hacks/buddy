@@ -49,7 +49,9 @@ extension CompanionManager {
             }
         }
         notebookModel.onTeachBack = { [weak self] storedPage in
-            self?.controlBar.openChat(withDraft: "let me explain \(storedPage.page.displayTitle) back to you")
+            // Inside a sentence, so the name as the model wrote it, not as a title.
+            let topic = storedPage.page.lessonTitle ?? storedPage.page.displayTitle
+            self?.controlBar.openChat(withDraft: "let me explain \(topic) back to you")
         }
         notebookModel.onAskFollowUp = { [weak self] storedPage in
             self?.controlBar.openChat(withDraft: "About \u{201C}\(storedPage.page.displayTitle)\u{201D}: ")

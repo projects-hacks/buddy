@@ -11,13 +11,21 @@
 //  a few tens of kilobytes. A screenshot of the card would be blurry when
 //  printed large and several times the size.
 //
-//  The screen is different: it is the screenshot the question was asked
-//  over, so it can only be an image. Only the part the marks were on is
-//  kept, with a margin, cut from the screenshot taken for the question (the
-//  screen is never captured again for the notebook), scaled down to at most
-//  960 pixels on its longest side, with the marks drawn into it, as a JPEG.
-//  The marks are drawn in by WebKit (the same renderer as on screen, glow
-//  included) in a web view that never joins a window.
+//  The screen is different: it is the screen the question was asked over,
+//  so it can only be an image. Only the part the marks were on is kept,
+//  with a margin, as a JPEG with the marks drawn into it. It is cut from the
+//  display's own pixels, captured beside the model's screenshot when the
+//  question was asked (the screen is never captured again for the
+//  notebook). The model's screenshot is only 1280 pixels across, under half
+//  a Retina display's pixels, so a crop of it was shown on the page at
+//  about one and a half times its size and code in it came out soft. It is
+//  still the fallback when the full capture is missing.
+//
+//  The screenshot is drawn into the crop directly, never through WebKit,
+//  so its pixels are copied or scaled down once and never resampled twice.
+//  Only the marks are drawn by WebKit (the same renderer as on screen, glow
+//  included), on a clear page in a web view that never joins a window, and
+//  laid over it.
 //
 
 import AppKit
@@ -81,12 +89,17 @@ struct NotebookDrawingSnapshot {
     }
 }
 
-/// Cuts the marked region out of the question's screenshot and draws the
-/// marks into it.
+/// Cuts the marked region out of the screen the question was asked over and
+/// draws the marks into it.
 @MainActor
 final class NotebookScreenCropMaker: NSObject {
-    static let longestSideInPixels = 960
-    static let jpegCompressionFactor = 0.7
+    /// The window shows the crop at most about 410 points wide and the PDF
+    /// about 280, so 1600 pixels keeps two pixels to a point on a Retina
+    /// display even for a tall crop. The smallest region the marks get (520
+    /// by 300 of the model's pixels, about 1230 by 710 of a MacBook's) stays
+    /// at the display's own pixels.
+    static let longestSideInPixels = 1600
+    static let jpegCompressionFactor = 0.8
 
     struct Crop {
         let jpegData: Data
@@ -97,13 +110,17 @@ final class NotebookScreenCropMaker: NSObject {
     private var webView: WKWebView?
     private var pageLoadContinuation: CheckedContinuation<Void, Never>?
 
-    func makeCrop(screenshotJPEGData: Data, canvasSize: CGSize, screenMarks: NotebookDrawingSnapshot.ScreenMarks) async -> Crop? {
+    /// `fullResolutionScreenshot` is the display at its own pixels, captured
+    /// with the model's screenshot. Without it the crop is cut from
+    /// `screenshotJPEGData`, the model's screenshot, as before.
+    func makeCrop(screenshotJPEGData: Data, fullResolutionScreenshot: CGImage?, canvasSize: CGSize,
+                  screenMarks: NotebookDrawingSnapshot.ScreenMarks) async -> Crop? {
         guard canvasSize.width > 0,
-              let imageSource = CGImageSourceCreateWithData(screenshotJPEGData as CFData, nil),
-              let screenshot = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else { return nil }
+              let screenshot = fullResolutionScreenshot ?? Self.decodedImage(fromJPEGData: screenshotJPEGData)
+        else { return nil }
 
-        // The canvas is the screenshot's own pixels; scaled anyway in case a
-        // caller ever hands over a screenshot of another size.
+        // The marks are placed in the canvas's pixels (the model's
+        // screenshot); the full capture is the same screen at more pixels.
         let pixelsPerCanvasPixel = Double(screenshot.width) / canvasSize.width
         let region = screenMarks.regionInCanvasPixels
         let cropRectangle = CGRect(
@@ -111,21 +128,53 @@ final class NotebookScreenCropMaker: NSObject {
             width: region.width * pixelsPerCanvasPixel, height: region.height * pixelsPerCanvasPixel
         ).integral.intersection(CGRect(x: 0, y: 0, width: screenshot.width, height: screenshot.height))
         guard cropRectangle.width >= 8, cropRectangle.height >= 8,
-              let croppedScreenshot = screenshot.cropping(to: cropRectangle),
-              let croppedPNGData = NSBitmapImageRep(cgImage: croppedScreenshot).representation(using: .png, properties: [:])
-        else { return nil }
+              let croppedScreenshot = screenshot.cropping(to: cropRectangle) else { return nil }
 
         let downscale = min(1, Double(Self.longestSideInPixels) / max(cropRectangle.width, cropRectangle.height))
         let outputWidth = max(1, Int((cropRectangle.width * downscale).rounded()))
         let outputHeight = max(1, Int((cropRectangle.height * downscale).rounded()))
 
+        // Drawn in the screenshot's own colour space, so the page shows the
+        // colours the screen did.
+        let screenshotColorSpace = croppedScreenshot.colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
+        guard let colorSpace = screenshotColorSpace ?? CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: outputWidth, height: outputHeight, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: colorSpace,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        let outputRectangle = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+        context.interpolationQuality = .high
+        context.draw(croppedScreenshot, in: outputRectangle)
+
+        guard let marksImage = await renderMarks(svgText: screenMarks.svgText,
+                                                 widthInPixels: outputWidth, heightInPixels: outputHeight)
+        else { return nil }
+        context.draw(marksImage, in: outputRectangle)
+
+        guard let croppedImageWithMarks = context.makeImage(),
+              let jpegData = NSBitmapImageRep(cgImage: croppedImageWithMarks).representation(
+                using: .jpeg, properties: [.compressionFactor: Self.jpegCompressionFactor])
+        else { return nil }
+        return Crop(jpegData: jpegData, widthInPixels: outputWidth, heightInPixels: outputHeight)
+    }
+
+    private static func decodedImage(fromJPEGData jpegData: Data) -> CGImage? {
+        guard let imageSource = CGImageSourceCreateWithData(jpegData as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
+    }
+
+    /// The marks alone, on a page that is clear wherever nothing is drawn.
+    /// The page is laid out one CSS pixel to each pixel of the crop and the
+    /// snapshot comes back at the screen's scale, so on a Retina Mac the
+    /// marks are drawn at twice the crop's pixels and scaled down onto it,
+    /// which smooths their edges.
+    private func renderMarks(svgText: String, widthInPixels: Int, heightInPixels: Int) async -> CGImage? {
         let html = """
         <!doctype html><html><head><meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
-        <style>html,body{margin:0;padding:0;background:#000;overflow:hidden}
-        img{position:absolute;left:0;top:0;width:\(outputWidth)px;height:\(outputHeight)px}</style></head>
-        <body><img src="data:image/png;base64,\(croppedPNGData.base64EncodedString())">
-        <img src="data:image/svg+xml;base64,\(Data(screenMarks.svgText.utf8).base64EncodedString())"></body></html>
+        <style>html,body{margin:0;padding:0;background:transparent;overflow:hidden}
+        img{position:absolute;left:0;top:0;width:\(widthInPixels)px;height:\(heightInPixels)px}</style></head>
+        <body><img src="data:image/svg+xml;base64,\(Data(svgText.utf8).base64EncodedString())"></body></html>
         """
 
         let configuration = WKWebViewConfiguration()
@@ -133,7 +182,8 @@ final class NotebookScreenCropMaker: NSObject {
         // The marks are shown as an image, which runs nothing; the page
         // itself needs no scripts either.
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight), configuration: configuration)
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: widthInPixels, height: heightInPixels), configuration: configuration)
+        webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = self
         self.webView = webView
         defer { self.webView = nil }
@@ -142,30 +192,13 @@ final class NotebookScreenCropMaker: NSObject {
             pageLoadContinuation = continuation
             webView.loadHTMLString(html, baseURL: nil)
         }
-        // Decoding the two images can trail the load event by a frame.
+        // Decoding the image can trail the load event by a frame.
         try? await Task.sleep(nanoseconds: 150_000_000)
 
         let snapshotConfiguration = WKSnapshotConfiguration()
-        snapshotConfiguration.rect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+        snapshotConfiguration.rect = CGRect(x: 0, y: 0, width: widthInPixels, height: heightInPixels)
         guard let renderedImage = try? await webView.takeSnapshot(configuration: snapshotConfiguration) else { return nil }
-        return Self.jpeg(of: renderedImage, widthInPixels: outputWidth, heightInPixels: outputHeight)
-    }
-
-    /// Draws the snapshot (made at the screen's scale) into exactly the
-    /// pixels wanted and compresses it.
-    private static func jpeg(of image: NSImage, widthInPixels: Int, heightInPixels: Int) -> Crop? {
-        guard let bitmap = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: widthInPixels, pixelsHigh: heightInPixels,
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return nil }
-        bitmap.size = NSSize(width: widthInPixels, height: heightInPixels)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
-        NSGraphicsContext.current?.imageInterpolation = .high
-        image.draw(in: NSRect(x: 0, y: 0, width: widthInPixels, height: heightInPixels))
-        NSGraphicsContext.restoreGraphicsState()
-        guard let jpegData = bitmap.representation(using: .jpeg, properties: [.compressionFactor: jpegCompressionFactor]) else { return nil }
-        return Crop(jpegData: jpegData, widthInPixels: widthInPixels, heightInPixels: heightInPixels)
+        return renderedImage.cgImage(forProposedRect: nil, context: nil, hints: nil)
     }
 }
 
