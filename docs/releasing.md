@@ -21,7 +21,7 @@ flowchart TD
 3. Update `docs/release-notes.md`.
 4. Run the `gh release create` command the script prints. Every copy from 1.2 on finds it within a day and offers it in the notch; the updater relies on `Buddy.dmg` and `Buddy.dmg.sha256` both being attached, which the printed command does. The file name never changes, so the README's Download button, which points at the latest release's `Buddy.dmg`, always gets the newest one.
 
-5. Update the Homebrew cask in [projects-hacks/homebrew-tap](https://github.com/projects-hacks/homebrew-tap): set `version` and `sha256` in `Casks/buddy.rb` to the new release and its `Buddy.dmg.sha256`. Copies installed with Homebrew update themselves either way; this keeps fresh `brew install`s on the newest version.
+5. Commit `Casks/buddy.rb`, the Homebrew cask in this repository. The release script has already set its `version` and `sha256` to the new image; commit it once the release is published, since Homebrew downloads from the release. Copies installed with Homebrew update themselves either way; this keeps fresh `brew install`s on the newest version.
 
 **Why the same certificate every time.** macOS ties Microphone, Screen Recording and Accessibility to the app's signature. A release signed with the same certificate keeps everyone's permissions; a new certificate would make everyone grant them again. Keep the certificate backed up: Keychain Access, right-click it, Export.
 

@@ -244,9 +244,10 @@
         <a class="button" href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg">Download for Mac</a>
       </div>
       <div class="panel" id="tab-brew" role="tabpanel" aria-labelledby="t-brew" hidden>
-        <p>In Terminal. Homebrew asks you to trust a tap once before installing from it.</p>
-        <div class="code"><code>brew trust projects-hacks/tap
-brew install --cask projects-hacks/tap/buddy</code><button type="button" data-copy="brew trust projects-hacks/tap && brew install --cask projects-hacks/tap/buddy">Copy</button></div>
+        <p>In Terminal. Homebrew adds Buddy's repository as a tap and asks you to trust it once.</p>
+        <div class="code"><code>brew tap projects-hacks/buddy https://github.com/projects-hacks/buddy
+brew trust projects-hacks/buddy
+brew install --cask projects-hacks/buddy/buddy</code><button type="button" data-copy="brew tap projects-hacks/buddy https://github.com/projects-hacks/buddy && brew trust projects-hacks/buddy && brew install --cask projects-hacks/buddy/buddy">Copy</button></div>
         <p>The first time it opens, macOS asks once: click <b>Done</b>, then <b>Open Anyway</b> in System Settings, Privacy &amp; Security. No <code>brew upgrade</code> needed: Buddy updates itself.</p>
       </div>
     </div>

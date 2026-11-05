@@ -91,7 +91,9 @@ The download window shows these same steps. macOS asks for **Open Anyway** once,
 Or with Homebrew:
 
 ```bash
-brew trust projects-hacks/tap && brew install --cask projects-hacks/tap/buddy
+brew tap projects-hacks/buddy https://github.com/projects-hacks/buddy
+brew trust projects-hacks/buddy
+brew install --cask projects-hacks/buddy/buddy
 ```
 
 Step by step, with troubleshooting: [docs/install.md](docs/install.md).

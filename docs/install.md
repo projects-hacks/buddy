@@ -30,10 +30,12 @@ Yellow is you, grey is macOS, blue is Buddy's own setup.
 **Or with Homebrew**, in Terminal:
 
 ```bash
-brew trust projects-hacks/tap && brew install --cask projects-hacks/tap/buddy
+brew tap projects-hacks/buddy https://github.com/projects-hacks/buddy
+brew trust projects-hacks/buddy
+brew install --cask projects-hacks/buddy/buddy
 ```
 
-Homebrew asks to trust a tap before installing from it. Buddy updates itself afterwards, so `brew upgrade` is not needed.
+Homebrew adds Buddy's repository as a tap, then asks you to trust it before installing from it. Buddy updates itself afterwards, so `brew upgrade` is not needed.
 
 ## 2. Open it the first time
 

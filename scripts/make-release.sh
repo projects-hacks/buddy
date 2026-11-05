@@ -144,6 +144,8 @@ hdiutil convert "$WRITABLE" -format UDZO -ov -o "$DMG" >/dev/null
 rm -f "$WRITABLE"
 CHECKSUM="$(shasum -a 256 "$DMG" | cut -d' ' -f1)"
 echo "$CHECKSUM  Buddy.dmg" > "$DMG.sha256"
+# The Homebrew cask in this repository installs exactly this image.
+sed -i '' -e "s/^  version \".*\"/  version \"$VERSION\"/" -e "s/^  sha256 \".*\"/  sha256 \"$CHECKSUM\"/" Casks/buddy.rb
 # Unregistered before deleting: a registered copy that no longer exists is
 # where System Settings can go on finding an old name for the app.
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$STAGING/Buddy.app" "$BUILT_APP" 2>/dev/null || true
@@ -151,6 +153,8 @@ rm -rf "$STAGING" "$DERIVED"
 
 echo ""
 echo "made $DMG ($(du -h "$DMG" | cut -f1)), sha256 $CHECKSUM"
+echo ""
+echo "Casks/buddy.rb now names $VERSION and this checksum; commit it after publishing the release."
 echo ""
 echo "to publish it:"
 echo "  gh release create v$VERSION \"$DMG\" \"$DMG.sha256\" --repo projects-hacks/buddy --title \"Buddy $VERSION\" --notes-file docs/release-notes.md"
