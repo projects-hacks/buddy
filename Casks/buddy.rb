@@ -1,6 +1,6 @@
 cask "buddy" do
-  version "1.4"
-  sha256 "3aa6d60c97c24bfc83f62acfde0beb321fe39a411c09a9c5bdb6a8287d2b77f1"
+  version "1.5"
+  sha256 "0276e8b00cb1fd81a16f7b94ef00e359f883113851e846f67dfeaa01e2cfd223"
 
   url "https://github.com/projects-hacks/buddy/releases/download/v#{version}/Buddy.dmg"
   name "Buddy"
