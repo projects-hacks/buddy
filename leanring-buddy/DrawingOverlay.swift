@@ -116,6 +116,15 @@ final class DrawingOverlay: NSObject {
         }
     }
 
+    // Notebook hook: reads the board for a notebook page (NotebookRecorder).
+    // Run in the client's own content world, so nothing the lesson's
+    // program defined in the page can change what the script does.
+    func evaluateInIsolatedWorld(script: String) async -> Any? {
+        await whenPageReady()
+        guard let webView else { return nil }
+        return try? await webView.evaluateJavaScript(script, in: nil, contentWorld: .defaultClient)
+    }
+
     func playLine(_ lineIndex: Int, seconds: TimeInterval) {
         callEngine("playLine", argumentsJSON: "\(lineIndex), \(seconds)")
     }

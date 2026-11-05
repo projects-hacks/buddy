@@ -141,6 +141,7 @@ The model answers with a short drawing program, and the first sentence is spoken
 | **Lectures** | When you ask while a video is in front, the minute before the playback time is read from the page's transcript or YouTube's captions (only the video's id goes to YouTube). Where there is none, and once you allow System Audio Recording, the last 90 seconds of the front app's own sound are kept in memory while it plays, never on disk, emptied when you switch apps, and its newest 65 seconds transcribed only when you ask about the video, meaning a player's time is on screen or you ask what was said (by Deepgram with a key, on the Mac without). For a browser that is all its tabs. Never the microphone; never calls, meetings or music apps, and any app using a microphone counts as a call |
 | **Sent** | The screenshot and question, to the model that answers, with the lecture's last minute when there is one |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
+| **Notebook** | Each finished lesson as a page in `~/Library/Application Support/Buddy/Notebook`: the question, what was said, the cards drawn, and a small JPEG of only the part of the screen that was marked, cut from that question's screenshot (never the whole screen). About 40 to 80 KB a page, under 2 KB for an answer without a drawing. A cancelled question keeps nothing. Never uploaded; the Notebook window shows each page's size, deletes a page, a day or everything, and can stop keeping new lessons |
 | **Analytics** | None |
 
 <details>

@@ -539,6 +539,7 @@ final class CompanionManager: ObservableObject {
         bindMarkLifetime()
         InterfaceSounds.shared.prepare()
         configureLearningMemory()
+        connectNotebook(recorder: notebookRecorder) // Notebook hook
         #if DEBUG
         qaHooks.start()
         #endif
@@ -1422,6 +1423,8 @@ final class CompanionManager: ObservableObject {
 
     /// Where drawing programs are drawn, who speaks them, and what ties the two.
     private lazy var drawingOverlay = DrawingOverlay()
+    // Notebook hook: keeps each finished lesson as a notebook page.
+    private lazy var notebookRecorder = NotebookRecorder(drawingOverlay: drawingOverlay)
     private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
     private lazy var lessonPlayer: LessonProgramPlayer = {
         let player = LessonProgramPlayer(overlay: drawingOverlay, voice: narrationVoice, bar: controlBar.model)
@@ -1458,6 +1461,8 @@ final class CompanionManager: ObservableObject {
         let isGuideContinuation = guideStep != nil
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
+        // Notebook hook: the answer just cancelled leaves no page.
+        notebookRecorder.newQuestionStarted()
         cancelSpeechAndClearQueue()
 
         if isGuideContinuation {
@@ -1846,6 +1851,12 @@ final class CompanionManager: ObservableObject {
                     // "Click Export" is not something learned. Memory is for
                     // ideas, so guide steps are not filed.
                     if nextGuideStep == nil && !isGuideContinuation {
+                        // Notebook hook: held now, while the board holds the
+                        // whole drawing; written only if the answer finishes.
+                        notebookRecorder.holdDrawnLesson(
+                            question: transcript, lessonTitle: lessonPlayer.lessonTitle, program: fullResponseText,
+                            screenshotJPEGData: primaryCapture.imageData, canvasSize: canvasSize,
+                            answeredBy: lastAnsweringBrainName)
                         fileLessonInMemory(question: transcript, lessonTitle: lessonPlayer.lessonTitle,
                                            spokenAnswer: Self.spokenSentences(inProgram: fullResponseText),
                                            questionKind: questionKind)
@@ -1896,6 +1907,11 @@ final class CompanionManager: ObservableObject {
                     }
                 }
                 rememberExchange(question: transcript, answer: spokenOnlyText)
+                // Notebook hook: an answer without a drawing is a page of words.
+                if !isGuideContinuation {
+                    notebookRecorder.holdTextLesson(question: transcript, spokenAnswer: spokenOnlyText,
+                                                    answeredBy: lastAnsweringBrainName)
+                }
                 fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
                                    questionKind: questionKind)
 
@@ -1934,6 +1950,8 @@ final class CompanionManager: ObservableObject {
                     scheduleMarkDismissal()
                 }
                 scheduleTransientHideIfNeeded()
+                // Notebook hook: finished and not cancelled, so it is kept.
+                if !Task.isCancelled { notebookRecorder.keepHeldLesson() }
             }
         }
     }
@@ -3362,6 +3380,9 @@ final class CompanionManager: ObservableObject {
     /// new question stay silent.
     @discardableResult
     func clearAnnotations() -> Bool {
+        // Notebook hook: clearing a lesson while it is still being spoken
+        // (Esc, Clear) stops it, so it is not kept.
+        if lessonPlayer.isSpeaking { notebookRecorder.answerWasDismissed() }
         let lessonHadDrawing = lessonPlayer.hasDrawing
         lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty

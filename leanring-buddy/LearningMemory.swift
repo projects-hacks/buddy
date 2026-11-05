@@ -82,6 +82,9 @@ final class LearningMemory {
     /// Picks, from a shortlist, the ideas a question is about, as positions.
     /// Nil result means it could not answer.
     var choose: ((String, String?, [RememberedConcept]) async -> [Int]?)?
+    // Notebook hook: told the ideas each lesson was filed under, so its
+    // notebook page can list them with when to review them.
+    var onLessonFiled: ((LessonToRemember, [RememberedConcept]) -> Void)?
 
     private(set) var index: ConceptIndex = {
         var index = ConceptIndex()
@@ -355,6 +358,7 @@ final class LearningMemory {
             markLost(filedIDs)
         }
         _ = sweepStaleConcepts(now: lesson.date)
+        onLessonFiled?(lesson, filedIDs.compactMap { id in index.index(of: id).map { index.concepts[$0] } })
         TutorDebugLog.write("🧠 memory: filed \(extracted.prefix(3).map(\.name).joined(separator: ", ")) (\(index.count) ideas known)")
         save()
     }

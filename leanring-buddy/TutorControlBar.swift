@@ -1020,6 +1020,8 @@ struct TutorNotchView: View {
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.orange.opacity(0.18)))
                 .padding(.horizontal, 18)
             }
+            // Notebook hook: an export's result, when notifications are off.
+            NotebookNotchExportNotice()
             // The welcome is for an empty notch. Once something has been
             // asked, the space goes to the lesson.
             if model.transcript.isEmpty {
@@ -1055,6 +1057,8 @@ struct TutorNotchView: View {
             .padding(.horizontal, 18)
 
             HStack(spacing: 8) {
+                // Notebook hook: every lesson kept as a page, in its own window.
+                NotebookNotchButton()
                 if !model.transcript.isEmpty {
                     NotchButton(systemImage: "doc.on.doc", title: "Copy", action: onCopyTranscript)
                     NotchButton(systemImage: "doc.text", title: "Open full transcript") {
