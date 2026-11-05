@@ -10,6 +10,7 @@
 | `study_modes/` | Hint ladder and diagram review, checked on Sonnet and Argon |
 | `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/RouteTable.json`) |
 | `lesson_race/` | The teaching-lesson race the routing table's teach row comes from |
+| `draw_judgement/` | Whether answers draw a card, marks or nothing only when that helps |
 | `question_sorting/` | The question sorter's calibration and its blind spoken test |
 | `sounds/make_sounds.py` | Buddy's interface sounds |
 | `draw_icon.py` | Buddy's app icon |
