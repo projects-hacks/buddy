@@ -205,20 +205,101 @@ final class CompanionManager: ObservableObject {
 
     // MARK: - Map of what you know (KnowledgeMapWindow.swift)
 
-    private lazy var knowledgeMapWindow = KnowledgeMapWindowController(
-        learningMemory: learningMemory,
-        askQuestion: { [weak self] question in self?.askTypedQuestion(question) },
-        relationPassReply: { [claudeBrain = self.claudeBrain] message in
-            guard APIKeyStore.hasKey(for: .anthropic) else { return nil }
-            return await claudeBrain.conceptRelationPassReply(message: message)
+    private lazy var knowledgeMapWindow: KnowledgeMapWindowController = {
+        let controller = KnowledgeMapWindowController(
+            learningMemory: learningMemory,
+            askQuestion: { [weak self] question in self?.askTypedQuestion(question) },
+            relationPassReply: { [claudeBrain = self.claudeBrain] message in
+                guard APIKeyStore.hasKey(for: .anthropic) else { return nil }
+                return await claudeBrain.conceptRelationPassReply(message: message)
+            }
+        )
+        controller.onTeachBack = { [weak self] concept in self?.putTeachBackInChatBox(ideaName: concept.name) }
+        // Notebook hook: a lesson in the Map's inspector opens its page.
+        controller.onOpenLesson = { lessonTitle in
+            NotebookWindowController.shared.show(pageTitled: lessonTitle)
         }
-    )
+        return controller
+    }()
 
-    /// Opened from the notch and from the menu bar panel. The open notch
-    /// sits above every window, so it is put away first.
-    func openKnowledgeMap() {
+    /// Opened from the notch, Settings and a lesson's Builds on chip, on that
+    /// idea when one is named. The open notch sits above every window, so it
+    /// is put away first.
+    func openKnowledgeMap(focusingIdeaNamed ideaName: String? = nil) {
         controlBar.putAway()
-        knowledgeMapWindow.show()
+        knowledgeMapWindow.show(focusingIdeaNamed: ideaName)
+    }
+
+    /// The Map's Teach it back. Teach-back itself is built later; for now
+    /// the words go in the chat box for the student to send.
+    func putTeachBackInChatBox(ideaName: String) {
+        controlBar.openChat(withDraft: "let me explain \(ideaName) to you")
+    }
+
+    /// What a Notebook page's buttons do. Notebook hook.
+    private func connectNotebookWindowButtons() {
+        let notebookModel = NotebookWindowController.shared.model
+        // Only the last lesson can be drawn again: its voice and drawing are
+        // kept in memory; older pages are kept as words and pictures only.
+        notebookModel.canReplay = { [weak self, weak notebookModel] storedPage in
+            guard let self, let notebookModel else { return false }
+            return self.controlBar.model.canReplayLastAnswer && storedPage.id == notebookModel.newestPage?.id
+        }
+        notebookModel.onReplay = { [weak self] _ in
+            guard let self else { return }
+            // The window steps aside while the lesson plays on the real
+            // screen, and comes back once it has been said.
+            NotebookWindowController.shared.stepAsideForReplay()
+            guard self.replayLastAnswer(startedBy: "Replay in the Notebook") else { return }
+            let replayTask = self.currentResponseTask
+            Task { @MainActor in
+                await replayTask?.value
+                NotebookWindowController.shared.show()
+            }
+        }
+        notebookModel.onTeachBack = { [weak self] storedPage in
+            self?.controlBar.openChat(withDraft: "let me explain \(storedPage.page.displayTitle) back to you")
+        }
+        notebookModel.onAskFollowUp = { [weak self] storedPage in
+            self?.controlBar.openChat(withDraft: "About \u{201C}\(storedPage.page.displayTitle)\u{201D}: ")
+        }
+        notebookModel.onOpenIdea = { [weak self] ideaName in self?.openKnowledgeMap(focusingIdeaNamed: ideaName) }
+        notebookModel.onShowTranscripts = { [weak self] in self?.openTranscriptsFolder() }
+    }
+
+    /// The empty day's start tiles, from memory and the Notebook, read each
+    /// time the notch opens so they are never stale.
+    private func refreshNotchHomeSuggestions() {
+        let model = controlBar.model
+        model.isKeepingLessonsInNotebook = NotebookRecorder.keepsLessons
+        guard model.transcript.isEmpty else { return }
+        if let fadingConcept = learningMemory.ideaFadingMost() {
+            let lastExplainedAt = fadingConcept.lastExplainedAt
+            let isWithinTheWeek = Date().timeIntervalSince(lastExplainedAt) < 6 * 86_400
+            let learnedDay = Calendar.current.isDateInYesterday(lastExplainedAt) ? "yesterday"
+                : (isWithinTheWeek ? lastExplainedAt.formatted(.dateTime.weekday(.wide))
+                                   : "on " + lastExplainedAt.formatted(.dateTime.day().month(.wide)))
+            model.homeSuggestions.fadingIdea = .init(name: fadingConcept.name,
+                                                     learnedText: "Learned \(learnedDay), fading")
+        } else {
+            model.homeSuggestions.fadingIdea = nil
+        }
+        Task { @MainActor in
+            let days = await NotebookWindowController.shared.store.loadDays()
+            let earlierDay = days.first { !Calendar.current.isDateInToday($0.date) && !$0.pages.isEmpty }
+            guard let earlierDay else {
+                model.homeSuggestions.lastStudyDay = nil
+                return
+            }
+            let title = Calendar.current.isDateInYesterday(earlierDay.date)
+                ? "Yesterday's lessons"
+                : "\(earlierDay.date.formatted(.dateTime.weekday(.wide)))'s lessons"
+            // Pages are kept newest last within a day; the day reads from its first.
+            let firstPage = earlierDay.pages.min { $0.page.createdAt < $1.page.createdAt }
+            model.homeSuggestions.lastStudyDay = .init(
+                dayIdentifier: earlierDay.id, title: title, pageCount: earlierDay.pages.count,
+                firstLessonTitle: firstPage?.page.displayTitle ?? "your first lesson")
+        }
     }
 
     var needsSetup: Bool {
@@ -248,8 +329,10 @@ final class CompanionManager: ObservableObject {
     private func reportKeyProblem(_ problem: (service: APIKeyStore.Service, message: String), answerFailed: Bool) {
         TutorDebugLog.write("🔑 \(problem.service.humanReadableName) key problem: \(problem.message)")
         keyProblem = problem
-        let label = problem.service == .gemini && usesVertexForArgon ? "Google Cloud" : "\(problem.service.humanReadableName) key"
-        controlBar.model.keyProblemMessage = "\(label): \(problem.message)"
+        let label = problem.service == .gemini && usesVertexForArgon ? "Google Cloud project" : "\(problem.service.humanReadableName) key"
+        // The first sentence is the news, shown bold in the alert row; the
+        // checker's own sentence after it says what is wrong and the fix.
+        controlBar.model.keyProblemMessage = "Your \(label) stopped working. \(problem.message)"
         if answerFailed { setupWindow.show(startingAt: .keys) }
     }
 
@@ -519,12 +602,8 @@ final class CompanionManager: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "hasCompletedOnboarding") }
     }
 
-    /// Lessons from today's conversation, newest first, for the menu panel.
-    var recentLessonTitles: [String] {
-        controlBar.model.transcript.compactMap(\.lessonTitle).reversed().prefix(4).map { $0 }
-    }
-
-    /// Opens the folder holding each day's saved transcript.
+    /// Opens the folder holding each day's saved transcript, from the
+    /// Notebook's More menu.
     func openTranscriptsFolder() {
         let folder = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/\(AppIdentity.dataName)/Transcripts")
@@ -564,8 +643,23 @@ final class CompanionManager: ObservableObject {
         qaHooks.start()
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        controlBar.model.onAllowPermission = { [weak self] in self?.setupWindow.show(startingAt: .permissions) }
         controlBar.model.onReplayLastAnswer = { [weak self] in _ = self?.replayLastAnswer(startedBy: "Replay in the notch") }
-        controlBar.model.onOpenKnowledgeMap = { [weak self] in self?.openKnowledgeMap() }
+        controlBar.model.onOpenKnowledgeMap = { [weak self] ideaName in self?.openKnowledgeMap(focusingIdeaNamed: ideaName) }
+        // Notebook hook: the tab row's Notebook, the card's Open in Notebook
+        // and the start tile for the last study day.
+        controlBar.model.onOpenNotebook = { dayIdentifier in
+            NotebookWindowController.shared.show(dayIdentifier: dayIdentifier)
+        }
+        connectNotebookWindowButtons()
+        controlBar.model.onRefreshHomeSuggestions = { [weak self] in self?.refreshNotchHomeSuggestions() }
+        controlBar.model.onExplainError = { [weak self] in self?.errorOffer.studentChoseExplain() }
+        controlBar.model.onDismissError = { [weak self] in self?.errorOffer.studentChoseNotNow() }
+        // Lecture mode hook: the notch shows whenever the front app's sound
+        // is being kept.
+        LectureMode.shared.onKeepingSoundChanged = { [weak self] isKeeping in
+            self?.controlBar.model.isKeepingLectureSound = isKeeping
+        }
         bindUpdater()
         errorOffer.start() // Hook for ErrorOffer.swift.
         if needsSetup {
@@ -871,7 +965,7 @@ final class CompanionManager: ObservableObject {
                 // Re-probe far less often than permissions. This exists so the
                 // "Ollama is not running" warning clears on its own once the
                 // user starts it, instead of needing an app restart.
-                self.keepSettingsOpenWhileSetupIsNeeded()
+                self.updateNotchNeeds()
 
                 // Test triggers read from files in ~/Library/Logs. Debug builds
                 // only: any program on the Mac can write those files, and one
@@ -1047,6 +1141,16 @@ final class CompanionManager: ObservableObject {
     }
 
     private func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
+        // Setup's last step checks the shortcut and the microphone for real.
+        // The keys go to that check alone, so nothing is sent to a model.
+        if setupWindow.isTryingTheShortcut {
+            switch transition {
+            case .pressed: setupWindow.shortcutTrial.keysPressed()
+            case .released: setupWindow.shortcutTrial.keysReleased()
+            case .none: break
+            }
+            return
+        }
         switch transition {
         case .pressed:
             guard !buddyDictationManager.isDictationInProgress else { return }
@@ -1095,6 +1199,17 @@ final class CompanionManager: ObservableObject {
         let listener = TalkOverListener()
         listener.recentlySpokenSentences = { [weak self] in self?.lessonPlayer.recentlySpokenSentences ?? [] }
         listener.onRequest = { [weak self] request in self?.handleTalkOver(request) }
+        listener.onListeningChanged = { [weak self] isListening in
+            guard let model = self?.controlBar.model else { return }
+            model.isListeningWhileExplaining = isListening
+            if !isListening {
+                model.talkOverPause = nil
+                model.talkOverHeardWords = ""
+            }
+        }
+        listener.onWordsHeardWhileCuttingIn = { [weak self] words in
+            self?.controlBar.model.talkOverHeardWords = words
+        }
         return listener
     }()
     /// Paused by "hold on", as against paused while a question is heard.
@@ -1454,30 +1569,35 @@ final class CompanionManager: ObservableObject {
         }
     )
 
-    /// The notch is the only window the app has, so setup happens there:
-    /// while a permission is missing, it stays open on its settings tab.
-    func keepSettingsOpenWhileSetupIsNeeded() {
+    /// What only the student can fix, for the notch's needs-you state and
+    /// its alert row: a missing permission, and an expired Google Cloud
+    /// sign-in. The notch is never pinned open for these any more (the
+    /// setup window walks through permissions, and a pinned notch could be
+    /// trapped open after "Skip for now"); it says so closed, in amber, and
+    /// Allow opens setup on the step. Runs every permission poll, and clears
+    /// itself once fixed.
+    func updateNotchNeeds() {
         let model = controlBar.model
-        // The setup window walks through permissions; pinning the notch open
-        // as well would put it over the window, and after "Skip for now" it
-        // would hold the notch open with no way to close it.
-        let setupHandlesPermissions = setupWindow.isVisible || UserDefaults.standard.bool(forKey: "hasFinishedSetup")
-        if !allPermissionsGranted && !setupHandlesPermissions {
-            guard !notchIsPinnedForSetup else { return }
-            notchIsPinnedForSetup = true
-            model.selectedTab = .settings
-            model.isPinnedOpen = true
-            model.isExpanded = true
-        } else if notchIsPinnedForSetup, allPermissionsGranted || setupHandlesPermissions {
-            // Only undoes its own pin: this runs every couple of seconds, and
-            // must not close the notch when something else opened it.
-            notchIsPinnedForSetup = false
-            model.isPinnedOpen = false
-            model.isExpanded = false
-            model.selectedTab = .lesson
+        let missingPermission: NotchMissingPermission?
+        if !hasScreenRecordingPermission {
+            missingPermission = .screenRecording
+        } else if !hasMicrophonePermission {
+            missingPermission = .microphone
+        } else if !hasAccessibilityPermission {
+            missingPermission = .accessibility
+        } else if !hasScreenContentPermission {
+            missingPermission = .screenContent
+        } else {
+            missingPermission = nil
         }
+        // While the setup window is up it is the one asking.
+        let shownPermission = setupWindow.isVisible ? nil : missingPermission
+        if model.missingPermission != shownPermission { model.missingPermission = shownPermission }
+
+        let signInExpired = !isLocalModelReachable && usesVertexForArgon && brainKind == .hosted
+        let signInMessage = signInExpired ? "Your Google Cloud sign-in expired. Sign in again in Terminal." : nil
+        if model.signInProblemMessage != signInMessage { model.signInProblemMessage = signInMessage }
     }
-    private var notchIsPinnedForSetup = false
     /// The latest Dock-click opening; a newer click restarts its clock.
     private var briefOpenTask: Task<Void, Never>?
 
@@ -1491,7 +1611,7 @@ final class CompanionManager: ObservableObject {
         briefOpenTask?.cancel()
         briefOpenTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 8_000_000_000)
-            guard !Task.isCancelled, !self.notchIsPinnedForSetup else { return }
+            guard !Task.isCancelled else { return }
             model.isPinnedOpen = false
             model.isExpanded = false
         }
@@ -1688,6 +1808,13 @@ final class CompanionManager: ObservableObject {
             TutorDebugLog.write("🎙️ asked: \(transcript)")
             controlBar.model.recordStudent(transcript)
             controlBar.model.heardWords = transcript
+            // For the lesson card's eyebrow, and cleared for this answer's
+            // own lecture label.
+            controlBar.model.lectureSourceLabel = nil
+            if let front = NSWorkspace.shared.frontmostApplication,
+               front.bundleIdentifier != Bundle.main.bundleIdentifier {
+                controlBar.model.lastLessonApplicationName = front.localizedName
+            }
             // Letting go of the keys mid-thought and pressing them again sends
             // the rest as a new question, which cancels the first before a word
             // of it is answered. Both halves go to the model as one question;
@@ -1936,6 +2063,8 @@ final class CompanionManager: ObservableObject {
                     for: lectureGatheringTask, question: transcript, screenListing: screenListing,
                     waitingUntil: answerStartedAt.addingTimeInterval(LectureMode.longestWaitAfterQuestionSeconds)) {
                     studyNotes.append(lectureNote)
+                    // Lecture mode hook: the notch says where this answer's words came from.
+                    controlBar.model.lectureSourceLabel = LectureMode.shared.lastNoteSourceLabel
                 }
                 guard !Task.isCancelled else { return }
 
@@ -2079,6 +2208,7 @@ final class CompanionManager: ObservableObject {
                         TutorDebugLog.write("📘 lesson: \(lessonTitle)")
                         controlBar.model.recordLessonTitle(lessonTitle)
                     }
+                    controlBar.model.lastAnswerOffersGoDeeper = questionKind == .teach || questionKind == .normal
                     if let problem = currentPracticeProblem,
                        let levelGiven = PracticeHints.levelGiven(inProgram: fullResponseText) {
                         practiceHintLadder.record(level: levelGiven, for: problem)
@@ -2275,15 +2405,27 @@ final class CompanionManager: ObservableObject {
 
     /// What the student said over the answer, without the keys.
     private func handleTalkOver(_ request: TalkOverListener.Request) {
+        let model = controlBar.model
+        // The notch shows "Buddy paused" while the student cuts in or holds
+        // the answer, and goes back to explaining when it carries on.
+        func showExplainingAgain() {
+            model.talkOverPause = isHeldByTalkOver ? .held : nil
+            model.talkOverHeardWords = ""
+        }
         switch request {
         case .yield:
             lessonPlayer.pauseVoice()
+            model.talkOverPause = .cuttingIn
         case .endYield:
             if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+            showExplainingAgain()
         case .hold:
             lessonPlayer.pauseVoice()
             isHeldByTalkOver = true
-            controlBar.model.caption = "Paused. Say \u{201C}go on\u{201D} to continue."
+            model.talkOverPause = .held
+            model.talkOverHeardWords = ""
+            // "Buddy paused" is on the right; the line under says how to go on.
+            model.caption = "Say \u{201C}go on\u{201D} to carry on."
             talkOverHoldTimeout?.cancel()
             talkOverHoldTimeout = Task { @MainActor [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(Self.talkOverHoldLimitSeconds * 1_000_000_000))
@@ -2293,17 +2435,24 @@ final class CompanionManager: ObservableObject {
             }
         case .resume:
             releaseTalkOverHold()
+            showExplainingAgain()
             lessonPlayer.resumeVoice()
             if let currentSentence = lessonPlayer.currentSentence { controlBar.model.caption = currentSentence }
         case .slower:
             lessonPlayer.slowDown()
             if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+            showExplainingAgain()
         case .repeatPreviousSentence:
             releaseTalkOverHold()
+            showExplainingAgain()
             lessonPlayer.repeatPreviousSentence()
         case .replayAnswer:
+            showExplainingAgain()
             _ = replayLastAnswer(startedBy: "said over the answer")
         case .question(let question):
+            // The new question replaces the answer, which clears any hold.
+            model.talkOverPause = nil
+            model.talkOverHeardWords = ""
             // Cut off and answered with what was heard of this answer, which
             // is not in the conversation until an answer finishes.
             let note = TutorProgramPrompt.interruptionNote(
@@ -2389,6 +2538,8 @@ final class CompanionManager: ObservableObject {
     private func endTalkOver() {
         talkOverListener.stop()
         releaseTalkOverHold()
+        controlBar.model.talkOverPause = nil
+        controlBar.model.talkOverHeardWords = ""
     }
 
     /// Stop on the bar: stops talking and the answer being written, and
@@ -2634,6 +2785,8 @@ final class CompanionManager: ObservableObject {
         }
         offer.isDictationInProgress = { [weak self] in self?.buddyDictationManager.isDictationInProgress ?? false }
         offer.notchShapeSize = { [weak self] in self?.controlBar.model.laidOutShapeSize ?? .zero }
+        offer.isNotchOpen = { [weak self] in self?.controlBar.model.isExpanded ?? false }
+        offer.onOfferChanged = { [weak self] notchOffer in self?.controlBar.model.errorOffer = notchOffer }
         offer.onExplainRequested = { [weak self] question in self?.askTypedQuestion(question) }
         return offer
     }()
@@ -2813,7 +2966,7 @@ final class CompanionManager: ObservableObject {
                 guard let self else { return }
                 let version = self.appUpdater.availableRelease?.version ?? ""
                 switch state {
-                case .available: model.updateBanner = .init(text: "Buddy \(version) is ready.", isWorking: false, canInstall: true)
+                case .available: model.updateBanner = .init(text: "Buddy \(version) is ready. Updating restarts Buddy.", isWorking: false, canInstall: true)
                 case .downloading: model.updateBanner = .init(text: "Downloading Buddy \(version)...", isWorking: true, canInstall: false)
                 case .installing: model.updateBanner = .init(text: "Checking and installing Buddy \(version)...", isWorking: true, canInstall: false)
                 case .failed(let message) where self.appUpdater.availableRelease != nil:
@@ -2869,7 +3022,8 @@ final class CompanionManager: ObservableObject {
     func qaHoldTalkKeys(down: Bool) { down ? beginTalking() : finishTalking() }
     func qaOpenChat() { openChatForTyping() }
     func qaSetNotchTab(_ name: String) {
-        controlBar.model.selectedTab = name == "settings" ? .settings : (name == "transcript" ? .transcript : .lesson)
+        // "chat" is the tab's name now; "transcript" still works for older scripts.
+        controlBar.model.selectedTab = name == "settings" ? .settings : (name == "transcript" || name == "chat" ? .transcript : .lesson)
     }
     func qaSetChatDraft(_ text: String) { controlBar.model.chatDraft = text }
     func qaSendChat() { controlBar.qaSendDraft() }

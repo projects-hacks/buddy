@@ -2,8 +2,8 @@
 //  NotebookDocumentHTML.swift
 //  leanring-buddy
 //
-//  The notebook's pages as HTML, twice over: for the Notebook window (a
-//  day's pages, as paper on the window's dark background) and for the PDF
+//  The notebook's pages as HTML, twice over: for the Notebook window (one
+//  lesson as a page of paper on the window's dark background) and for the PDF
 //  (cover, contents, one lesson per printed page, laid out for A4 or US
 //  Letter). Both are rendered by WebKit, which is what draws the cards in
 //  the first place, so a card looks the same in the notebook, in the PDF
@@ -141,45 +141,116 @@ enum NotebookDocumentHTML {
 
     // MARK: - Notebook window
 
-    /// One day's pages for the Notebook window. No scripts: deleting is a
-    /// link the window intercepts.
-    static func dayPagesHTML(day: NotebookDay) -> String {
-        let pagesHTML = day.pages.reversed().map { storedPage -> String in
-            let deleteLink = "\(actionScheme)://delete-page/\(storedPage.page.id.uuidString)"
-            return """
-            <article class="page">
-            \(lessonBlocks(storedPage, lessonNumber: nil, screenAfterWords: false))
-            <footer class="page-footer">
-              <span>\(escaped(lessonTimeText(storedPage.page.createdAt))) · \(escaped(sizeText(storedPage.sizeInBytes))) on this Mac</span>
-              <a class="delete" href="\(deleteLink)">Delete page</a>
-            </footer>
-            </article>
+    /// One lesson as a page of paper for the Notebook window: the eyebrow,
+    /// the title, the ideas it taught (each opens the Map), the question,
+    /// the drawing on a lighter panel, what was said, and the page's own
+    /// buttons. No scripts: every button is a link the window intercepts.
+    static func windowPageHTML(storedPage: NotebookStoredPage, pageNumber: Int, pageCount: Int,
+                               dayName: String, canReplay: Bool) -> String {
+        let page = storedPage.page
+        let eyebrow = page.createdAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+            + " \u{00B7} " + lessonTimeText(page.createdAt)
+
+        var ideasHTML = ""
+        if !page.ideas.isEmpty {
+            let chips = page.ideas.map { idea -> String in
+                let name = idea.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                return "<a class=\"idea-chip\" href=\"\(actionScheme)://open-idea?name=\(name)\" title=\"\(escaped(idea.summary))\">\(linkGlyph)\(escaped(idea.name))</a>"
+            }.joined(separator: " ")
+            ideasHTML = "<div class=\"ideas-row\">\(chips)</div>"
+        }
+
+        var drawingHTML = ""
+        if !page.cards.isEmpty || page.screenCrop != nil {
+            var figures = ""
+            for card in page.cards {
+                let source = fileURLString(for: storedPage, fileName: card.fileName)
+                figures += "<img class=\"card\" src=\"\(source)\" width=\"\(Int(card.widthInPixels))\" height=\"\(Int(card.heightInPixels))\" alt=\"\(escaped(card.title ?? "Card"))\">"
+            }
+            if let screenCrop = page.screenCrop {
+                let source = fileURLString(for: storedPage, fileName: screenCrop.fileName)
+                figures += "<img class=\"screen\" src=\"\(source)\" width=\"\(screenCrop.widthInPixels)\" height=\"\(screenCrop.heightInPixels)\" alt=\"Marked part of the screen\">"
+            }
+            let caption = canReplay
+                ? "The drawing from this lesson. Replay draws it again on your screen."
+                : "The drawing from this lesson."
+            drawingHTML = """
+            <div class="drawing">\(figures)<div class="drawing-caption">\(pencilGlyph)\(caption)</div></div>
             """
-        }.joined(separator: "\n")
+        }
+
+        let paragraphsHTML = page.paragraphs.map { "<p class=\"said\">\(escaped($0))</p>" }.joined()
+        var reviewHTML = ""
+        if let reviewAgainAround = page.reviewAgainAround {
+            reviewHTML = "<div class=\"review\">Review again around <strong>\(escaped(reviewDateText(reviewAgainAround)))</strong></div>"
+        }
+
         return """
         <!doctype html>
         <html><head><meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src \(fileScheme):; style-src 'unsafe-inline'">
         <style>
-        \(sharedStyles)
+        * { box-sizing: border-box; }
         html { background: #101211; }
-        body { padding: 22px 28px 40px; }
-        .page { max-width: 760px; margin: 0 auto 22px; background: #F7F2E3; border-radius: 16px; padding: 26px 30px 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
-        .page > .block { margin-bottom: 16px; }
-        .page > p.said { margin-bottom: 9px; }
-        .page > .section-heading { margin: 22px 0 8px; }
-        figure.screen { max-width: 62%; }
-        /* A tall card would fill the window on its own; capped, a page can be taken in at a glance. */
-        figure.card img { width: auto; height: auto; max-width: 100%; max-height: 520px; }
-        .page-footer { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #E6DFCB; padding-top: 11px; margin-top: 6px; font: 500 11px/1.2 -apple-system, sans-serif; color: #8C8676; }
-        a.delete { color: #B4453F; text-decoration: none; padding: 5px 10px; border-radius: 999px; cursor: pointer; }
-        a.delete:hover { background: rgba(229,72,77,0.12); }
+        body { margin: 0; padding: 44px 32px 56px; -webkit-font-smoothing: antialiased; font-family: -apple-system, sans-serif; }
+        .page { width: 700px; max-width: 100%; margin: 0 auto; background-color: #F7F2E3;
+                background-image: radial-gradient(rgba(0,0,0,0.09) 0.9px, transparent 1.1px); background-size: 16px 16px;
+                border-radius: 6px; padding: 34px 40px 30px; box-shadow: 0 18px 48px rgba(0,0,0,0.45); color: #2B2D33; }
+        .eyebrow { font: 700 11px/1.3 -apple-system, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(0,0,0,0.56); }
+        h1 { font: 700 26px/1.2 ui-rounded, -apple-system, sans-serif; margin: 10px 0 12px; letter-spacing: -0.01em; color: #2B2D33; }
+        .ideas-row { margin-bottom: 8px; }
+        a.idea-chip { display: inline-flex; align-items: center; gap: 6px; font: 600 12.5px/1 -apple-system, sans-serif; color: #5C459E;
+                      background: rgba(220,209,247,0.9); padding: 7px 12px; border-radius: 999px; text-decoration: none; margin: 0 4px 4px 0; cursor: pointer; }
+        a.idea-chip:hover { background: rgba(205,190,245,1); }
+        .question { font: 500 13px/1.45 -apple-system, sans-serif; color: #5E626B; margin: 4px 0 16px; }
+        .drawing { background: rgba(255,255,255,0.55); border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; padding: 16px 16px 12px; margin: 0 0 20px; }
+        .drawing img { display: block; max-width: 100%; height: auto; margin: 0 auto 10px; }
+        .drawing img.card { max-height: 520px; width: auto; }
+        .drawing img.screen { max-width: 70%; border-radius: 8px; border: 1px solid #D8DADF; }
+        .drawing-caption { display: flex; align-items: center; gap: 7px; font: 500 11.5px/1.3 -apple-system, sans-serif; color: rgba(0,0,0,0.56); }
+        p.said { font: 400 14px/21px -apple-system, sans-serif; color: #2B2D33; margin: 0 0 14px; }
+        .review { font: 500 12px/1.4 -apple-system, sans-serif; color: #3D5A99; margin: 4px 0 0; }
+        .footer { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+        .footer .spacer { flex: 1; }
+        a.gel { display: inline-flex; align-items: center; gap: 7px; font: 600 13.5px/1 -apple-system, sans-serif; color: #2B2D33;
+                background: rgba(255,255,255,0.55); border: 1px solid rgba(0,0,0,0.1); padding: 10px 16px; border-radius: 999px; text-decoration: none; cursor: pointer; }
+        a.gel:hover { background: rgba(255,255,255,0.78); }
+        .page-count { font: 500 12px/1 -apple-system, sans-serif; color: rgba(0,0,0,0.56); }
+        svg.glyph { width: 13px; height: 13px; flex: none; }
         </style></head>
         <body>
-        \(pagesHTML)
+        <article class="page">
+          <div class="eyebrow">\(escaped(eyebrow))</div>
+          <h1>\(escaped(page.displayTitle))</h1>
+          \(ideasHTML)
+          \(page.lessonTitle != nil ? "<div class=\"question\">You asked: \u{201C}\(escaped(page.question))\u{201D}</div>" : "")
+          \(drawingHTML)
+          \(paragraphsHTML)
+          \(reviewHTML)
+          <div class="footer">
+            <a class="gel" href="\(actionScheme)://teach-back/\(page.id.uuidString)">\(teachBackGlyph)Teach it back</a>
+            <a class="gel" href="\(actionScheme)://follow-up/\(page.id.uuidString)">\(followUpGlyph)Ask a follow-up</a>
+            <span class="spacer"></span>
+            <span class="page-count">Page \(pageNumber) of \(pageCount) \(escaped(dayName))</span>
+          </div>
+        </article>
         </body></html>
         """
     }
+
+    // Small line glyphs drawn inline, since the page loads nothing else.
+    private static let linkGlyph = """
+    <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6.5 9.5l3-3M7 4.5l1-1a2.8 2.8 0 014 4l-1 1M9 11.5l-1 1a2.8 2.8 0 01-4-4l1-1"/></svg>
+    """
+    private static let pencilGlyph = """
+    <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3L6 13H3v-3z"/></svg>
+    """
+    private static let teachBackGlyph = """
+    <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="6" cy="5" r="2.5"/><path d="M1.5 13.5c.6-2.6 2.3-4 4.5-4s3.9 1.4 4.5 4M11.5 4.5c1 .8 1 2.7 0 3.5M13.3 3c1.9 1.6 1.9 4.9 0 6.5"/></svg>
+    """
+    private static let followUpGlyph = """
+    <svg class="glyph" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5.5a2 2 0 002 2h8M10 7.5l3 3-3 3"/></svg>
+    """
 
     // MARK: - PDF
 

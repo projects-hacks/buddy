@@ -72,8 +72,15 @@ final class TalkOverListener {
     var onRequest: (Request) -> Void = { _ in }
     /// The sentence being said and the two before it, for the echo guard.
     var recentlySpokenSentences: () -> [SpokenSentence] = { [] }
+    /// Told when the microphone opens and closes, for the notch's mic glyph:
+    /// the student should always be able to see that Buddy can hear them.
+    var onListeningChanged: (Bool) -> Void = { _ in }
+    /// The words of a student cutting in, live, for the notch's second line.
+    var onWordsHeardWhileCuttingIn: (String) -> Void = { _ in }
 
-    private(set) var isListening = false
+    private(set) var isListening = false {
+        didSet { if isListening != oldValue { onListeningChanged(isListening) } }
+    }
     private var audioEngine: AVAudioEngine?
     private var configurationChangeObserver: NSObjectProtocol?
     private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?

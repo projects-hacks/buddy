@@ -60,7 +60,15 @@ final class LectureAudioBuffer {
     private let ringBuffer = LectureAudioRingBuffer(sampleRate: LectureAudioBuffer.sampleRate,
                                                     capacitySeconds: LectureAudioBuffer.keptSeconds)
     private var watchTimer: Timer?
-    private var activeTap: LectureProcessTap?
+    private var activeTap: LectureProcessTap? {
+        didSet {
+            let isTapping = activeTap != nil
+            if isTapping != (oldValue != nil) { onTappingChanged(isTapping) }
+        }
+    }
+    /// Told when a tap starts or stops, so the notch can show that the
+    /// front app's sound is being kept, the way macOS shows the microphone.
+    var onTappingChanged: (Bool) -> Void = { _ in }
     /// The app whose sound is in the ring. Any other app in front empties it.
     private var bufferOwnerProcessIdentifier: pid_t?
     private var bufferOwnerName = ""
