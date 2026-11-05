@@ -31,7 +31,9 @@ final class LessonProgramPlayer {
 
     var isSpeaking: Bool { voice.isSpeaking }
 
-    /// For the stage timings: the moment the student starts hearing the answer.
+    /// For the stage timings: the moment the first sentence has closed and
+    /// goes to the voice, and the moment the student starts hearing it.
+    var onFirstSentenceReady: (() -> Void)?
     var onFirstSentenceHeard: (() -> Void)?
 
     init(overlay: DrawingOverlay, voice: NarrationVoice, bar: TutorControlBarModel) {
@@ -130,7 +132,7 @@ final class LessonProgramPlayer {
         for sentence in update.newSentences {
             sentences.append(sentence)
             voice.enqueue(sentence)
-            if sentences.count == 1 { TutorDebugLog.write("🗣️ first sentence ready") }
+            if sentences.count == 1 { onFirstSentenceReady?() }
         }
         guard !update.newPieces.isEmpty else { return }
         pendingPieces.append(contentsOf: update.newPieces)

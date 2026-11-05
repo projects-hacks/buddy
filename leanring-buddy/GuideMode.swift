@@ -211,7 +211,7 @@ final class GuideWatcher {
 
     /// How many cells changed, and the box around them. Row 0 of the
     /// thumbnail is the top of the screen.
-    private static func changes(_ first: [UInt8], _ second: [UInt8]) -> (count: Int, region: CGRect) {
+    static func changes(_ first: [UInt8], _ second: [UInt8]) -> (count: Int, region: CGRect) {
         guard first.count == second.count else { return (0, .zero) }
         var count = 0
         var minColumn = gridWidth, maxColumn = -1, minRow = gridHeight, maxRow = -1
@@ -231,8 +231,10 @@ final class GuideWatcher {
     }
 
     // MARK: Thumbnails
+    // Also used by EarlyScreenCapture to tell whether the screen read at
+    // key-down is still the screen at release.
 
-    private static func thumbnail(fromImageData data: Data) -> [UInt8]? {
+    static func thumbnail(fromImageData data: Data) -> [UInt8]? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         return thumbnail(of: image)
@@ -255,7 +257,7 @@ final class GuideWatcher {
 
     /// A small capture of one display, Buddy's own windows and the pointer
     /// left out, so the drawing and the notch never count as a change.
-    private static func captureThumbnail(of displayFrame: CGRect) async -> [UInt8]? {
+    static func captureThumbnail(of displayFrame: CGRect) async -> [UInt8]? {
         guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true) else {
             return nil
         }
