@@ -26,6 +26,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 # -I leaves the script's folder off the path; calibrate.py is a sibling.
 sys.path.insert(0, str(HERE))
 import calibrate as sorter  # noqa: E402  runs the on-device variants and their choice
+from sorting_message import sorting_message  # noqa: E402
 
 KINDS = sorter.KINDS
 DEFINITIONS = json.loads((HERE / "phrasings.json").read_text())["kinds"]
@@ -40,12 +41,10 @@ SYSTEM = (HERE.parents[1] / "leanring-buddy/Answering/QuestionSorterPrompt.txt")
 
 
 def haiku(question: str, after_answer: bool) -> tuple[str, float]:
-    situation = ("the helper has already answered something in this conversation."
-                 if after_answer else "this is the first thing the student has asked; nothing has been explained yet.")
     start = time.monotonic()
     response = claude.messages.create(
         model="claude-haiku-5-5", max_tokens=8, system=SYSTEM, thinking={"type": "disabled"},
-        messages=[{"role": "user", "content": f"{situation}\n\nthe student said: {question}"}])
+        messages=[{"role": "user", "content": sorting_message(question, after_answer)}])
     elapsed = (time.monotonic() - start) * 1000
     word = "".join(b.text for b in response.content if b.type == "text").strip().lower()
     return next((kind for kind in KINDS if kind in word), "normal"), elapsed

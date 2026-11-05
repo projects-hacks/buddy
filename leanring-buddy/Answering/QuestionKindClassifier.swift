@@ -28,20 +28,36 @@ extension ClaudeVisionProvider {
         .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
 
     /// The kind of question by Haiku's reading, or nil if it could not say.
-    func classifyQuestion(_ transcript: String, hasPreviousAnswer: Bool) async -> QuestionKind? {
+    /// What Haiku is shown: the exchange before, when there is one, so it
+    /// can tell a new question from "that did not land", and the message.
+    /// The same text the grader sends (scripts/question_sorting/).
+    static func sortingMessage(_ transcript: String, previousExchange: (question: String, spokenAnswer: String)?) -> String {
+        let before: String
+        if let previousExchange {
+            before = """
+            <previous_exchange>
+            <student_asked>\(previousExchange.question)</student_asked>
+            <buddy_said>\(String(previousExchange.spokenAnswer.prefix(400)))</buddy_said>
+            </previous_exchange>
+            """
+        } else {
+            before = "<previous_exchange>none: this is the first thing they have said</previous_exchange>"
+        }
+        return before + "\n<message>\(transcript)</message>"
+    }
+
+    func classifyQuestion(_ transcript: String,
+                          previousExchange: (question: String, spokenAnswer: String)?) async -> QuestionKind? {
         guard let apiKey = APIKeyStore.key(for: .anthropic),
               let systemPrompt = Self.questionSorterPrompt,
               let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
 
-        let situation = hasPreviousAnswer
-            ? "the helper has already answered something in this conversation."
-            : "this is the first thing the student has asked; nothing has been explained yet."
         let body: [String: Any] = [
             "model": "claude-haiku-5-5",
             "max_tokens": 8,
             "system": systemPrompt,
             "thinking": ["type": "disabled"],
-            "messages": [["role": "user", "content": "\(situation)\n\nthe student said: \(transcript)"]]
+            "messages": [["role": "user", "content": Self.sortingMessage(transcript, previousExchange: previousExchange)]]
         ]
 
         var request = URLRequest(url: url)

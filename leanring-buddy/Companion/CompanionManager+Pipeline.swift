@@ -312,10 +312,13 @@ extension CompanionManager {
         let lectureGatheringTask = isGuideContinuation || howToTakeover != nil
             ? nil : LectureMode.shared.beginGathering(question: transcript)
 
+        let previousExchangeForSorting = conversation.exchanges.last.map { exchange in
+            (question: exchange.userTranscript, spokenAnswer: Self.spokenSentences(inProgram: exchange.assistantResponse))
+        }
         let classifierTask: Task<QuestionKind?, Never>? =
             localConfidence < QuestionSorter.confidentEnough && APIKeyStore.hasKey(for: .anthropic)
             ? Task { [claudeBrain] in
-                await claudeBrain.classifyQuestion(transcript, hasPreviousAnswer: hasPreviousAnswer)
+                await claudeBrain.classifyQuestion(transcript, previousExchange: previousExchangeForSorting)
             }
             : nil
 

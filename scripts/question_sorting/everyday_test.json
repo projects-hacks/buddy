@@ -1,0 +1,355 @@
+{
+ "_why": "Everything people say to Buddy, not only study questions: greetings, thanks, questions about Buddy itself, one-line facts, tasks in apps, follow-ups, being taught, not following, and choices between options. Labelled by the answer that serves the student best. Graded by haiku_prompt_test.py; the blind spoken set is graded beside it.",
+ "items": [
+  {
+   "question": "hello buddy",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "hey",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "hi there",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "good morning buddy",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "hey buddy how are you doing",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "thanks",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "thank you so much, that helped",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "thanks, that makes sense now",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "ok cool",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "nice",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "perfect, got it",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "you're awesome",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "bye buddy",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "good night",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "lol that's funny",
+   "kind": "quick",
+   "after_answer": true
+  },
+  {
+   "question": "I'm tired today",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "are you there",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what all can you do?",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what can you help me with",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "who are you",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "how do I use you",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "can you see my screen",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what's the time complexity of binary search?",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what does this line do",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what is two to the power ten",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what does qps stand for",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "who invented python",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "is this o of n squared",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what's the default port for postgres",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what does this button do",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "how do you pronounce nginx",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "is that a typo on line four",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "what time is it in tokyo right now",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "spell idempotent",
+   "kind": "quick",
+   "after_answer": false
+  },
+  {
+   "question": "why does this loop never end",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "why is this query slow",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "what's wrong with my code",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "how does this function handle the empty list",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "explain this error",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "how do I export this as a PDF",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "where do I turn on dark mode in this app",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "what am I missing in this diagram",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "how does the cache get invalidated here",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "why does high start at the length of the list",
+   "kind": "normal",
+   "after_answer": true
+  },
+  {
+   "question": "but why does it need a lock there",
+   "kind": "normal",
+   "after_answer": true
+  },
+  {
+   "question": "thanks, but why is the second loop needed",
+   "kind": "normal",
+   "after_answer": true
+  },
+  {
+   "question": "hey buddy, why does this crash on the last element",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "give me a hint",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "I'm stuck on this one",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "can you check if my approach is right",
+   "kind": "normal",
+   "after_answer": false
+  },
+  {
+   "question": "teach me tcp from scratch",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "explain dynamic programming from the beginning",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "walk me through how consistent hashing works properly",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "I don't understand recursion at all",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "can you give me a deep dive on how raft elects a leader",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "explain the whole flow of this system design",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "teach me how this page's react code works, step by step",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "I have an exam on graphs tomorrow, teach me dijkstra",
+   "kind": "teach",
+   "after_answer": false
+  },
+  {
+   "question": "I didn't get that",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "can you explain that more simply",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "still confused",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "that went over my head, try another way",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "wait I'm lost, say it differently",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "huh? I don't follow",
+   "kind": "reexplain",
+   "after_answer": true
+  },
+  {
+   "question": "should I use kafka or a queue here",
+   "kind": "tradeoff",
+   "after_answer": false
+  },
+  {
+   "question": "is redis worth it for this",
+   "kind": "tradeoff",
+   "after_answer": false
+  },
+  {
+   "question": "which is better here, a hash map or a sorted array",
+   "kind": "tradeoff",
+   "after_answer": false
+  },
+  {
+   "question": "why postgres and not mongo for this",
+   "kind": "tradeoff",
+   "after_answer": false
+  },
+  {
+   "question": "is it ok to use recursion here or should I loop",
+   "kind": "tradeoff",
+   "after_answer": false
+  },
+  {
+   "question": "monolith or microservices for my project",
+   "kind": "tradeoff",
+   "after_answer": false
+  }
+ ]
+}
