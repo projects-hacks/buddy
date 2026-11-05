@@ -24,10 +24,11 @@ struct CompanionScreenCapture {
 @MainActor
 enum CompanionScreenCaptureUtility {
 
-    /// Captures all connected displays as JPEG data, labeling each with
-    /// whether the user's cursor is on that screen. This gives the AI
-    /// full context across multiple monitors.
-    static func captureAllScreensAsJPEG() async throws -> [CompanionScreenCapture] {
+    /// Captures the display holding the cursor as JPEG data, labelled as
+    /// such. Every caller uses only that screen (its screenshot is the
+    /// canvas the answer draws on), so the other displays are not captured
+    /// and encoded for nothing; `cursorScreenOnly: false` captures them all.
+    static func captureAllScreensAsJPEG(cursorScreenOnly: Bool = true) async throws -> [CompanionScreenCapture] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
         guard !content.displays.isEmpty else {
@@ -69,7 +70,9 @@ enum CompanionScreenCaptureUtility {
 
         var capturedScreens: [CompanionScreenCapture] = []
 
-        for (displayIndex, display) in sortedDisplays.enumerated() {
+        // The cursor's display is first after sorting.
+        let displaysToCapture = cursorScreenOnly ? Array(sortedDisplays.prefix(1)) : sortedDisplays
+        for (displayIndex, display) in displaysToCapture.enumerated() {
             // Use NSScreen.frame (AppKit coordinates, bottom-left origin) so
             // displayFrame is in the same coordinate system as NSEvent.mouseLocation
             // and the overlay window's screenFrame in BlueCursorView.
@@ -96,8 +99,12 @@ enum CompanionScreenCaptureUtility {
                 configuration: configuration
             )
 
-            guard let jpegData = NSBitmapImageRep(cgImage: cgImage)
-                    .representation(using: .jpeg, properties: [.compressionFactor: 0.8]) else {
+            // Encoded off the main thread: a full display is tens of
+            // milliseconds of work the notch and the voice would wait for.
+            let jpegData = await Task.detached(priority: .userInitiated) {
+                NSBitmapImageRep(cgImage: cgImage).representation(using: .jpeg, properties: [.compressionFactor: 0.8])
+            }.value
+            guard let jpegData else {
                 continue
             }
 

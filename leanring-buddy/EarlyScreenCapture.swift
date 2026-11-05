@@ -187,6 +187,8 @@ final class EarlyScreenCapture {
             return FrontWindow(processIdentifier: nil, windowTitle: nil, windowFrame: nil)
         }
         let applicationElement = AXUIElementCreateApplication(application.processIdentifier)
+        // Read on the main thread at release: a busy app must not hold it.
+        AXUIElementSetMessagingTimeout(applicationElement, 0.25)
         var windowValue: CFTypeRef?
         guard AXUIElementCopyAttributeValue(applicationElement, kAXFocusedWindowAttribute as CFString, &windowValue) == .success,
               let windowValue, CFGetTypeID(windowValue) == AXUIElementGetTypeID() else {

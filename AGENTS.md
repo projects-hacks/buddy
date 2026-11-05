@@ -146,6 +146,7 @@ raw model response.
 | `APIKeyChecker.swift` | ~200 | Tests a key with the smallest real request each service accepts and turns failures (wrong key, no credit, wrong field, quota, network) into one sentence with the fix. The same reading flags keys that stop working mid-use. |
 | `AppUpdater.swift` | ~300 | Daily check of GitHub's latest release, always (there is no switch); on Update downloads the disk image, verifies its published checksum and that the app inside satisfies this app's own designated requirement (same identifier, same certificate), then a shell helper swaps it in after quit and relaunches. Never automatic on a debug build. |
 | `AppIdentity.swift` | ~40 | Where Buddy keeps its things (Keychain names, data folder, log), derived from the bundle identifier, so a copy under another identifier starts empty and never touches Buddy's own. |
+| `SystemEventsObserver.swift` | ~40 | Sleep, wake and display changes in one observer, handed to `CompanionManager`: sleep stops the answer and listening, wake rebuilds the output audio engines and the key taps and probes the brain again, a display change rebuilds the cursor overlay and ends a guide or marks on a display that is gone. |
 | `QAHooks.swift` | ~170 | Debug builds only, off unless switched on: a control channel for scripted end-to-end tests (ask, snapshot, state, fake key, setup steps), driven by `scripts/qa/`. |
 | `kokoro_speech_server.py` | ~120 | The Local voice's helper, shipped inside the app and run with uv, so it is found on any Mac. Overridable with the `kokoroHelperScriptPath` default. |
 | `OllamaVisionProvider.swift` | ~250 | Local vision chat client. Mirrors `ClaudeAPI`'s method surface so the two are swappable. Parses newline-delimited JSON, not SSE. Handles server probing and model preload. |
@@ -169,7 +170,7 @@ Build only through these scripts. They run `xcodebuild` with the `Clicky Local D
 
 Known non-blocking warnings: Swift 6 concurrency warnings, the deprecated onChange in OverlayWindow.swift. Do not try to fix these.
 
-**Testing.** `scripts/` holds every test and measurement, each with its own readme: memory, routing, question sorting, hints and diagram review, plus `scripts/qa/` for end-to-end runs of the real app through the debug-only QA channel (`QAHooks.swift`).
+**Testing.** `zsh scripts/test.sh` runs the unit tests (`leanring-buddyTests`, Swift Testing, the shared `leanring-buddy` scheme): pure logic such as version comparison, program stream cutting, speech hints, history shortening, spending arithmetic, key errors, routing and benching, utterance joining, talk-over hearing, error recognition and board layout, plus the drawing engine's time limit in a hidden page. It builds into `~/Library/Caches/Buddy-unit-tests`, signs ad hoc and never touches `/Applications/Buddy.app`; under the tests the app starts nothing and logs to `Buddy-unit-tests.log`. `scripts/` holds every other test and measurement, each with its own readme: memory, routing, question sorting, hints and diagram review, plus `scripts/qa/` for end-to-end runs of the real app through the debug-only QA channel (`QAHooks.swift`).
 
 ## Code Style & Conventions
 

@@ -13,7 +13,8 @@ import Combine
 import Foundation
 import Speech
 
-enum BuddyPushToTalkShortcut {
+/// Pure, and read on the event taps' own thread as well as the main one.
+nonisolated enum BuddyPushToTalkShortcut {
     enum ShortcutOption {
         case shiftFunction
         case controlOption
@@ -109,6 +110,20 @@ enum BuddyPushToTalkShortcut {
             modifierFlags: event.modifierFlags.intersection(.deviceIndependentFlagsMask),
             wasShortcutPreviouslyPressed: wasShortcutPreviouslyPressed
         )
+    }
+
+    /// Whether the shortcut is held right now, from the keyboard's real
+    /// state rather than the events seen. A release can be lost (the tap
+    /// paused by macOS, a password field's secure input), and this is how
+    /// a recording that missed it still ends.
+    static func isShortcutHeld(modifierFlagsRawValue: UInt64, isSpaceKeyDown: Bool) -> Bool {
+        let modifierFlags = NSEvent.ModifierFlags(rawValue: UInt(modifierFlagsRawValue))
+            .intersection(.deviceIndependentFlagsMask)
+        if let modifierOnlyFlags = currentShortcutOption.modifierOnlyFlags {
+            return modifierFlags.contains(modifierOnlyFlags)
+        }
+        guard let pushToTalkModifierFlags = currentShortcutOption.spaceShortcutModifierFlags else { return false }
+        return isSpaceKeyDown && modifierFlags.isSuperset(of: pushToTalkModifierFlags)
     }
 
     static func shortcutTransition(

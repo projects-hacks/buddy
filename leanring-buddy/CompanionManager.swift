@@ -416,6 +416,25 @@ final class CompanionManager: ObservableObject {
     /// Which voice is in use this session, decided once at startup.
     private enum VoiceEngine { case deepgram, kokoro, system }
     private var voiceEngine: VoiceEngine = .system
+    /// The prose path's Deepgram voice, benched for five minutes after a
+    /// failure and then tried again, instead of the system voice for good.
+    private var deepgramProseVoiceBenchedUntil = Date.distantPast
+    private var deepgramKeyRefusedObserver: NSObjectProtocol?
+
+    /// Deepgram refused the key, while speaking or while listening: said in
+    /// the notch's banner like any other key, without opening setup mid-answer.
+    private func reportDeepgramKeyProblem(_ error: Error) {
+        guard let problem = APIKeyChecker.problem(in: error), problem.service == .deepgram,
+              keyProblem?.service != .deepgram else { return }
+        reportKeyProblem(problem, answerFailed: false)
+    }
+
+    /// A Deepgram request worked, so a banner about its key can go.
+    private func clearDeepgramKeyProblemIfReported() {
+        guard keyProblem?.service == .deepgram else { return }
+        keyProblem = nil
+        controlBar.model.keyProblemMessage = nil
+    }
 
     private lazy var kokoroClient = KokoroSpeechClient(
         helperScriptPath: Self.kokoroHelperScriptPath
@@ -479,7 +498,13 @@ final class CompanionManager: ObservableObject {
 
     /// Whether the local model server was reachable at last check, so the
     /// panel can say "start Ollama" instead of failing mid-question.
-    @Published private(set) var isLocalModelReachable = true
+    @Published private(set) var isLocalModelReachable = true {
+        didSet { if !isLocalModelReachable { brainKindKnownReachable = nil } }
+    }
+    /// The brain a probe last found answering, so the periodic probe stops
+    /// once it is known and starts again when the brain changes or fails.
+    private var brainKindKnownReachable: TutorBrainKind?
+    private var isProbingBrain = false
 
     /// Conversation history so Claude remembers prior exchanges within a session.
     /// Each entry is the user's transcript and Claude's response.
@@ -488,31 +513,42 @@ final class CompanionManager: ObservableObject {
     /// drawn or explain it differently. Older ones keep only what was said,
     /// about a tenth of the size, so a long session stays in view without
     /// paying for every old drawing again.
-    private static let wholeAnswersKept = 10
-    private static let exchangesKept = 40
+    static let wholeAnswersKept = 10
+    static let exchangesKept = 40
     /// Older answers are shortened, and the oldest dropped, several at a
     /// time rather than one per question: the cached history then stays the
     /// same for several questions in a row instead of changing every time.
-    private static let historyTrimBatch = 6
+    static let historyTrimBatch = 6
 
     private func rememberExchange(question: String, answer: String) {
-        conversationHistory.append((userTranscript: question, assistantResponse: answer))
-        let wholeAnswerCount = conversationHistory.filter { !$0.assistantResponse.hasPrefix(Self.spokenOnlyMarker) }.count
-        if wholeAnswerCount > Self.wholeAnswersKept {
+        conversationHistory = Self.history(conversationHistory, remembering: question, answer: answer)
+    }
+
+    /// The history with one more exchange, shortened and trimmed as above.
+    /// Pure, so the unit tests check it.
+    static func history(
+        _ earlierHistory: [(userTranscript: String, assistantResponse: String)],
+        remembering question: String, answer: String
+    ) -> [(userTranscript: String, assistantResponse: String)] {
+        var history = earlierHistory
+        history.append((userTranscript: question, assistantResponse: answer))
+        let wholeAnswerCount = history.filter { !$0.assistantResponse.hasPrefix(spokenOnlyMarker) }.count
+        if wholeAnswerCount > wholeAnswersKept {
             var shortened = 0
-            for position in conversationHistory.indices where shortened < Self.historyTrimBatch {
-                let entry = conversationHistory[position]
-                guard !entry.assistantResponse.hasPrefix(Self.spokenOnlyMarker) else { continue }
-                conversationHistory[position].assistantResponse = Self.spokenPart(of: entry.assistantResponse)
+            for position in history.indices where shortened < historyTrimBatch {
+                let entry = history[position]
+                guard !entry.assistantResponse.hasPrefix(spokenOnlyMarker) else { continue }
+                history[position].assistantResponse = spokenPart(of: entry.assistantResponse)
                 shortened += 1
             }
         }
-        if conversationHistory.count > Self.exchangesKept {
-            conversationHistory.removeFirst(min(conversationHistory.count, Self.historyTrimBatch))
+        if history.count > exchangesKept {
+            history.removeFirst(min(history.count, historyTrimBatch))
         }
+        return history
     }
 
-    private static let spokenOnlyMarker = "(An earlier answer, only what was said; its drawing is left out.)"
+    static let spokenOnlyMarker = "(An earlier answer, only what was said; its drawing is left out.)"
 
     /// The sentences of a drawing program, in order. A prose answer has no
     /// say() lines and is kept as it is, cut to a length that still reads.
@@ -530,6 +566,26 @@ final class CompanionManager: ObservableObject {
     /// The currently running AI response task, if any. Cancelled when the user
     /// speaks again so a new response can begin immediately.
     private var currentResponseTask: Task<Void, Never>?
+    /// Which question is being answered. Bumped whenever the answer is
+    /// cancelled or replaced, and checked by the answer after every wait, so
+    /// an answer that was replaced never writes history, memory, how-tos,
+    /// guide steps or notebook pages for a question nobody is asking now.
+    private var currentQuestionTicket = 0
+
+    private func cancelCurrentResponseTask() {
+        currentQuestionTicket += 1
+        currentResponseTask?.cancel()
+    }
+
+    /// A cancelled request, however it reports it: Swift's own error, or
+    /// URLSession's `URLError(.cancelled)`, which is what its async calls
+    /// throw when their task is cancelled. Never a failure to explain.
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
 
     private var shortcutTransitionCancellable: AnyCancellable?
     private var typeQuestionCancellable: AnyCancellable?
@@ -636,6 +692,13 @@ final class CompanionManager: ObservableObject {
         bindAudioPowerLevel()
         bindShortcutTransitions()
         bindMarkLifetime()
+        observeSystemEvents()
+        deepgramKeyRefusedObserver = NotificationCenter.default.addObserver(
+            forName: .deepgramKeyRefused, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let error = notification.object as? Error else { return }
+            MainActor.assumeIsolated { self?.reportDeepgramKeyProblem(error) }
+        }
         InterfaceSounds.shared.prepare()
         configureLearningMemory()
         connectNotebook(recorder: notebookRecorder) // Notebook hook
@@ -826,6 +889,7 @@ final class CompanionManager: ObservableObject {
     }
 
     func stop() {
+        systemEventsObserver?.stopObserving()
         kokoroClient.shutDown()
         deepgramClient.shutDown()
         globalPushToTalkShortcutMonitor.stop()
@@ -833,7 +897,7 @@ final class CompanionManager: ObservableObject {
         overlayWindowManager.hideOverlay()
         transientHideTask?.cancel()
 
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         currentResponseTask = nil
         shortcutTransitionCancellable?.cancel()
         typeQuestionCancellable?.cancel()
@@ -1011,8 +1075,18 @@ final class CompanionManager: ObservableObject {
 
                 #endif
 
-                if shouldProbeModelServer {
+                // Only until the brain is known to answer: probing a reachable
+                // brain all day costs a request every twelve seconds (a real
+                // model listing for an AI Studio key). A failed answer marks
+                // it unreachable, and waking re-probes, which starts this again.
+                // Never two probes at once, however slow one is.
+                let brainNeedsProbing = !self.isLocalModelReachable || self.brainKindKnownReachable != self.brainKind
+                if shouldProbeModelServer, brainNeedsProbing, !self.isProbingBrain {
+                    self.isProbingBrain = true
+                    defer { self.isProbingBrain = false }
+                    let brainKindProbed = self.brainKind
                     let (isReachable, _) = await self.tutorBrain.probeServer()
+                    self.brainKindKnownReachable = isReachable ? brainKindProbed : nil
                     if isReachable != self.isLocalModelReachable {
                         self.isLocalModelReachable = isReachable
                         if isReachable {
@@ -1359,7 +1433,7 @@ final class CompanionManager: ObservableObject {
             NotificationCenter.default.post(name: .clickyDismissPanel, object: nil)
 
             // Cancel any in-progress response and TTS from a previous utterance
-            currentResponseTask?.cancel()
+            cancelCurrentResponseTask()
             markDismissalTask?.cancel()
             markDismissalTask = nil
             diagramTask?.cancel()
@@ -1547,6 +1621,10 @@ final class CompanionManager: ObservableObject {
 
     /// Consumer draining `pendingSpeechSegments`, nil when nothing is speaking.
     private var speechConsumerTask: Task<Void, Never>?
+    /// Which consumer the handle above belongs to. A cancelled consumer can
+    /// still be unwinding when the next one starts, and when it ends it must
+    /// clear only its own handle, never the new consumer's.
+    private var currentSpeechConsumerIdentifier: UUID?
 
     /// The display the current answer is marking up.
     private var displayFrameForCurrentAnswer: CGRect = .zero
@@ -1639,7 +1717,12 @@ final class CompanionManager: ObservableObject {
     private lazy var drawingOverlay = DrawingOverlay()
     // Notebook hook: keeps each finished lesson as a notebook page.
     private lazy var notebookRecorder = NotebookRecorder(drawingOverlay: drawingOverlay)
-    private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
+    private lazy var narrationVoice: NarrationVoice = {
+        let voice = NarrationVoice(fallbackVoice: speechClient)
+        voice.onDeepgramKeyProblem = { [weak self] error in self?.reportDeepgramKeyProblem(error) }
+        voice.onDeepgramWorked = { [weak self] in self?.clearDeepgramKeyProblemIfReported() }
+        return voice
+    }()
     /// Keeps an answer's marks on the things they mark as windows move and
     /// pages scroll (MarkFollower.swift).
     private lazy var markFollower: MarkFollower = {
@@ -1793,7 +1876,7 @@ final class CompanionManager: ObservableObject {
             earlyScreen?.cancel()
             return
         }
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         // Notebook hook: the answer just cancelled leaves no page.
         notebookRecorder.newQuestionStarted()
         cancelSpeechAndClearQueue()
@@ -1888,7 +1971,18 @@ final class CompanionManager: ObservableObject {
             }
             : nil
 
+        let questionTicket = currentQuestionTicket
         currentResponseTask = Task {
+            @MainActor func isStillTheCurrentQuestion() -> Bool {
+                questionTicket == currentQuestionTicket && !Task.isCancelled
+            }
+            // The side calls end with their answer, so a question cut short
+            // does not go on spending on a classifier, recall or a lecture.
+            defer {
+                classifierTask?.cancel()
+                recallTask.cancel()
+                lectureGatheringTask?.cancel()
+            }
             voiceState = .processing
             controlBar.model.waitingStage = "reading your screen"
             clearAnnotations()
@@ -1900,16 +1994,16 @@ final class CompanionManager: ObservableObject {
                 let screenCaptures: [CompanionScreenCapture]
                 let primaryCapture: CompanionScreenCapture
                 var screenWasReadWhileTheyTalked = false
-                if let preparedScreen = await earlyScreen?.value, !Task.isCancelled {
+                if let preparedScreen = await earlyScreen?.value, isStillTheCurrentQuestion() {
                     screenWasReadWhileTheyTalked = true
                     screenCaptures = preparedScreen.screenCaptures
                     primaryCapture = preparedScreen.primaryCapture
                     screenIndex = preparedScreen.screenIndex
                     logStage("screen read while they talked, still current")
                 } else {
-                    guard !Task.isCancelled else { return }
+                    guard isStillTheCurrentQuestion() else { return }
                     screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
-                    guard !Task.isCancelled, !screenCaptures.isEmpty else { return }
+                    guard isStillTheCurrentQuestion(), !screenCaptures.isEmpty else { return }
                     logStage("screen captured")
 
                     // Index only the screen holding the cursor. Indexing every
@@ -1926,7 +2020,7 @@ final class CompanionManager: ObservableObject {
                             height: primaryCapture.displayHeightInPoints
                         )
                     )
-                    guard !Task.isCancelled else { return }
+                    guard isStillTheCurrentQuestion() else { return }
                 }
                 displayFrameForCurrentAnswer = primaryCapture.displayFrame
                 logStage("screen captured and read")
@@ -1939,7 +2033,7 @@ final class CompanionManager: ObservableObject {
                     localProbabilities: localProbabilities,
                     classifierTask: classifierTask
                 )
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
                 logStage("question kind settled")
 
                 // Counted before the answer is built, so the instruction
@@ -2008,7 +2102,7 @@ final class CompanionManager: ObservableObject {
                     // is worth a fraction of a second more.
                     deadline: max(screenReadAt.addingTimeInterval(Self.classifierGraceSeconds),
                                   answerStartedAt.addingTimeInterval(Self.memoryChooserFloorSeconds)))
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
                 logStage("memory settled")
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
@@ -2066,7 +2160,7 @@ final class CompanionManager: ObservableObject {
                     // Lecture mode hook: the notch says where this answer's words came from.
                     controlBar.model.lectureSourceLabel = LectureMode.shared.lastNoteSourceLabel
                 }
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
 
                 // The pointer's rests are places on the screen as it was while
                 // they talked. Read again because it moved, the screen no
@@ -2121,6 +2215,7 @@ final class CompanionManager: ObservableObject {
                 // because starting again would repeat what was already heard.
                 var attempt = 0
                 var answer: (text: String, duration: TimeInterval)?
+                var hasRetriedBusyBrain = false
                 while answer == nil {
                     if attempt < routing.count { activate(routing[attempt]) }
                     let brainForAttempt = tutorBrain
@@ -2132,21 +2227,33 @@ final class CompanionManager: ObservableObject {
                         ? modelRouter.firstWordsDeadline(for: routing[attempt], probabilities: kindProbabilities)
                         : nil
                     do {
-                        answer = try await withFirstWordsDeadline(deadline) {
-                            try await brainForAttempt.analyzeImageStreaming(
-                                images: imagesForModel,
-                                systemPrompt: TutorProgramPrompt.system,
-                                conversationHistory: historyForModel,
-                                userPrompt: turnPrompt,
-                                onTextChunk: { [weak self] accumulatedText in
-                                    guard let self, self.currentAnswerAttempt == thisAttempt else { return }
-                                    self.routeStreamedText(accumulatedText)
-                                }
-                            )
+                        answer = try await withStallDetection {
+                            try await self.withFirstWordsDeadline(deadline) {
+                                try await brainForAttempt.analyzeImageStreaming(
+                                    images: imagesForModel,
+                                    systemPrompt: TutorProgramPrompt.system,
+                                    conversationHistory: historyForModel,
+                                    userPrompt: turnPrompt,
+                                    onTextChunk: { [weak self] accumulatedText in
+                                        guard let self, self.currentAnswerAttempt == thisAttempt else { return }
+                                        self.lastStreamedTextAt = Date()
+                                        self.routeStreamedText(accumulatedText)
+                                    }
+                                )
+                            }
                         }
                     } catch {
-                        guard !Task.isCancelled,
-                              error is FirstWordsDeadlineMissed || !(error is CancellationError),
+                        // Busy, with nobody to hand over to and nothing said
+                        // yet: asked once more after a short, random pause.
+                        if !hasRetriedBusyBrain, attempt + 1 >= routing.count, currentAnswerFormat == .undecided,
+                           isStillTheCurrentQuestion(), Self.isBusyRefusal(error) {
+                            hasRetriedBusyBrain = true
+                            TutorDebugLog.write("↻ the brain is busy (\(error.localizedDescription.prefix(80))), asking once more")
+                            try await Task.sleep(nanoseconds: UInt64(Double.random(in: 0.5...1.5) * 1_000_000_000))
+                            continue
+                        }
+                        guard isStillTheCurrentQuestion(),
+                              error is FirstWordsDeadlineMissed || !Self.isCancellation(error),
                               currentAnswerFormat == .undecided,
                               attempt + 1 < routing.count else { throw error }
                         let failedBrain = routing[attempt]
@@ -2190,7 +2297,7 @@ final class CompanionManager: ObservableObject {
                     }
                 }
 
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
 
                 // The raw response, verbatim. When no marks appear this is the
                 // only way to tell the two causes apart: the model emitting no
@@ -2204,6 +2311,7 @@ final class CompanionManager: ObservableObject {
 
                 if currentAnswerFormat == .program {
                     await lessonPlayer.finish(fullText: fullResponseText)
+                    guard isStillTheCurrentQuestion() else { return }
                     if let lessonTitle = lessonPlayer.lessonTitle {
                         TutorDebugLog.write("📘 lesson: \(lessonTitle)")
                         controlBar.model.recordLessonTitle(lessonTitle)
@@ -2296,7 +2404,7 @@ final class CompanionManager: ObservableObject {
                             forExplanation: explanationForDrawing,
                             screenIndexListing: indexForDrawing
                         ) else { return }
-                        guard !Task.isCancelled else { return }
+                        guard isStillTheCurrentQuestion() else { return }
                         self.apply(
                             directive: TeacherDirective(
                                 action: .drawDiagram(shape: shape),
@@ -2317,15 +2425,16 @@ final class CompanionManager: ObservableObject {
                 print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
                 }
 
-            } catch is CancellationError {
+            } catch let error where Self.isCancellation(error) || !isStillTheCurrentQuestion() {
                 // User spoke again; the previous answer was abandoned on purpose.
+                TutorDebugLog.write("🛑 answer cancelled (\(error.localizedDescription))")
             } catch {
                 print("⚠️ Tutor response error: \(error.localizedDescription)")
                 TutorDebugLog.write("⚠️ answer failed: \(error.localizedDescription)")
-                await speakLocalErrorFallback(for: error)
+                await speakLocalErrorFallback(for: error, answerHadStarted: currentAnswerFormat != .undecided)
             }
 
-            if !Task.isCancelled {
+            if isStillTheCurrentQuestion() {
                 // Hold .responding while speech drains, so the overlay does not
                 // drop back to idle while the tutor is still talking.
                 while speechConsumerTask != nil || isAnyVoicePlaying {
@@ -2341,7 +2450,7 @@ final class CompanionManager: ObservableObject {
                     await lessonPlayer.waitUntilSpoken()
                     talkOverListener.stop()
                     controlBar.model.caption = ""
-                    if let currentGuideStep, let guideBaseline, !Task.isCancelled {
+                    if let currentGuideStep, let guideBaseline, isStillTheCurrentQuestion() {
                         guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
                                            displayFrame: guideBaseline.displayFrame,
                                            guidedApplication: guidedApplication)
@@ -2351,7 +2460,7 @@ final class CompanionManager: ObservableObject {
                 }
                 scheduleTransientHideIfNeeded()
                 // Notebook hook: finished and not cancelled, so it is kept.
-                if !Task.isCancelled { notebookRecorder.keepHeldLesson() }
+                if isStillTheCurrentQuestion() { notebookRecorder.keepHeldLesson() }
             }
         }
     }
@@ -2481,7 +2590,7 @@ final class CompanionManager: ObservableObject {
         TutorDebugLog.write("🔁 replaying the last answer (\(trigger)): \(recording.sentences.count) sentences, no model")
         stopGuide(reason: "replaying the last answer")
         questionAwaitingAnswer = nil
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         transientHideTask?.cancel()
         transientHideTask = nil
@@ -2547,10 +2656,70 @@ final class CompanionManager: ObservableObject {
     private func stopAnswering() {
         stopGuide(reason: "Stop")
         questionAwaitingAnswer = nil
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         voiceState = .idle
         controlBar.model.caption = ""
+    }
+
+    // MARK: - Sleep, wake and displays (SystemEventsObserver.swift)
+
+    private var systemEventsObserver: SystemEventsObserver?
+
+    private func observeSystemEvents() {
+        systemEventsObserver = SystemEventsObserver(
+            willSleep: { [weak self] in self?.systemWillSleep() },
+            didWake: { [weak self] in self?.systemDidWake() },
+            screensChanged: { [weak self] in self?.screensChanged() })
+    }
+
+    /// Sleep drops every stream mid-answer and stops the audio engines, so
+    /// the answer is stopped cleanly first rather than failing on waking.
+    private func systemWillSleep() {
+        TutorDebugLog.write("💤 the Mac is going to sleep: answer stopped, listening cancelled")
+        stopAnswering()
+        pendingTalkStart?.cancel()
+        pendingTalkStart = nil
+        buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
+        talkOverListener.stop()
+    }
+
+    /// The audio output may be another device now, the key taps may have
+    /// been switched off, and the brain may have been unreachable while asleep.
+    private func systemDidWake() {
+        TutorDebugLog.write("☀️ the Mac woke: audio engines and key taps rebuilt")
+        narrationVoice.prepareAfterWake()
+        deepgramClient.prepareAfterWake()
+        deepgramProseVoiceBenchedUntil = .distantPast
+        globalPushToTalkShortcutMonitor.stop()
+        if hasAccessibilityPermission { globalPushToTalkShortcutMonitor.start() }
+        Task { [weak self] in
+            guard let self, !self.isProbingBrain else { return }
+            self.isProbingBrain = true
+            defer { self.isProbingBrain = false }
+            let brainKindProbed = self.brainKind
+            let (isReachable, _) = await self.tutorBrain.probeServer()
+            self.isLocalModelReachable = isReachable
+            self.brainKindKnownReachable = isReachable ? brainKindProbed : nil
+            TutorDebugLog.write("☀️ after waking, the brain is \(isReachable ? "reachable" : "UNREACHABLE")")
+        }
+    }
+
+    /// A display came or went: the cursor overlay is one window per screen
+    /// and is built again; marks and a guide on a display that is gone end.
+    private func screensChanged() {
+        let screenFrames = NSScreen.screens.map(\.frame)
+        TutorDebugLog.write("🖥️ displays changed: \(screenFrames.count) now")
+        if isOverlayVisible {
+            overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+        }
+        if let guideBaseline, !screenFrames.contains(guideBaseline.displayFrame) {
+            stopGuide(reason: "its display is gone")
+        }
+        if lessonPlayer.hasDrawing, !screenFrames.contains(drawingOverlay.screenFrame) {
+            markFollower.stop()
+            lessonPlayer.clear()
+        }
     }
 
     /// How many times running the student has said they still do not follow.
@@ -2621,6 +2790,74 @@ final class CompanionManager: ObservableObject {
             }
             throw CancellationError()
         }
+    }
+
+    /// When the answer's stream last delivered text, for noticing a stream
+    /// that stopped partway: nil until its first words.
+    private var lastStreamedTextAt: Date?
+    private static let longestSilenceInAStreamSeconds: TimeInterval = 20
+
+    struct AnswerStreamStalled: LocalizedError {
+        var errorDescription: String? { "the answer stopped arriving partway" }
+    }
+
+    /// Runs one attempt at an answer, and ends it once its stream has gone
+    /// quiet for `longestSilenceInAStreamSeconds` after its first words: a
+    /// connection lost mid-answer otherwise leaves the student with half an
+    /// answer and a long silence. Before the first words the request's own
+    /// idle timeout is what notices.
+    private func withStallDetection<Answer: Sendable>(
+        _ work: @escaping @MainActor () async throws -> Answer
+    ) async throws -> Answer {
+        lastStreamedTextAt = nil
+        return try await withThrowingTaskGroup(of: Answer?.self) { group in
+            group.addTask { @MainActor in try await work() }
+            group.addTask { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    if let lastStreamedTextAt = self?.lastStreamedTextAt,
+                       Date().timeIntervalSince(lastStreamedTextAt) > Self.longestSilenceInAStreamSeconds {
+                        throw AnswerStreamStalled()
+                    }
+                }
+                return nil
+            }
+            defer { group.cancelAll() }
+            while let finished = try await group.next() {
+                if let answer = finished { return answer }
+            }
+            throw CancellationError()
+        }
+    }
+
+    /// A network that went away, as opposed to a brain that refused.
+    static func isLostConnection(_ error: Error) -> Bool {
+        if error is AnswerStreamStalled { return true }
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed, .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The brain is busy rather than broken: Anthropic's 429 and 529 (or an
+    /// overloaded error mid-stream) and Gemini's 429 or 503. Worth one more
+    /// try when nobody else can answer.
+    static func isBusyRefusal(_ error: Error) -> Bool {
+        if let claudeError = error as? ClaudeError {
+            switch claudeError {
+            case .httpStatus(let code, _): return code == 429 || code == 529
+            case .streamError(let message): return message.lowercased().contains("overloaded")
+            default: return false
+            }
+        }
+        if let geminiError = error as? GeminiError, case .httpStatus(let code, _) = geminiError {
+            return code == 429 || code == 503
+        }
+        return false
     }
 
     /// Who answered the last question, for the push-back log line.
@@ -2863,6 +3100,9 @@ final class CompanionManager: ObservableObject {
         voiceState = .responding
         lessonPlayer.feed(accumulatedText: program)
         await lessonPlayer.finish(fullText: program)
+        // Replaced while it played: the step is not kept or watched. True,
+        // so the caller does not hand a cancelled step to the model either.
+        guard !Task.isCancelled else { return true }
         rememberExchange(question: question, answer: program)
 
         let isLastStep = stepIndex + 1 >= howTo.steps.count || step.instruction == nil
@@ -2904,7 +3144,7 @@ final class CompanionManager: ObservableObject {
         shortcutReleasedAt = nil
         answerStartedAt = Date()
         SpendingMeter.shared.countQuestion(isGuideStep: true)
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         let question = GuideMode.continuationQuestion(after: step)
         let application = guidedApplication
@@ -3288,8 +3528,16 @@ final class CompanionManager: ObservableObject {
     private func startSpeechConsumerIfIdle() {
         guard speechConsumerTask == nil else { return }
 
+        let consumerIdentifier = UUID()
+        currentSpeechConsumerIdentifier = consumerIdentifier
         speechConsumerTask = Task { [weak self] in
             guard let self else { return }
+            defer {
+                if self.currentSpeechConsumerIdentifier == consumerIdentifier {
+                    self.speechConsumerTask = nil
+                    self.currentSpeechConsumerIdentifier = nil
+                }
+            }
 
             // Audio for the sentence after the current one, rendered while the
             // current one plays. Without this the speech stopped for a second
@@ -3299,7 +3547,7 @@ final class CompanionManager: ObservableObject {
             var prefetchedClipTask: Task<KokoroSpeechClient.GeneratedClip, Error>?
 
             while !self.pendingSpeechSegments.isEmpty {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled, self.currentSpeechConsumerIdentifier == consumerIdentifier else { break }
 
                 let segment = self.pendingSpeechSegments.removeFirst()
                 if !segment.spokenText.isEmpty {
@@ -3347,13 +3595,29 @@ final class CompanionManager: ObservableObject {
 
                 if finishedSpeaking == nil {
                     TutorDebugLog.write("⚠️ sentence never finished speaking, abandoning the rest")
-                    self.cancelSpeechAndClearQueue()
+                    // Only the speech: the stream's place is kept, so the
+                    // sentences still to come are spoken, not the answer again
+                    // from its start.
+                    self.abandonQueuedSpeech()
                     break
                 }
             }
-
-            self.speechConsumerTask = nil
         }
+    }
+
+    /// Stops every voice and drops the sentences waiting, but keeps how far
+    /// the answer's stream has been read and what format it is.
+    private func abandonQueuedSpeech() {
+        speechConsumerTask?.cancel()
+        speechConsumerTask = nil
+        currentSpeechConsumerIdentifier = nil
+        pendingSpeechSegments.removeAll()
+        speechClient.onWillSpeakRange = nil
+        speechClient.stopPlayback()
+        kokoroClient.onSpokenProgress = nil
+        kokoroClient.stopPlayback()
+        deepgramClient.onSpokenProgress = nil
+        deepgramClient.stopPlayback()
     }
 
     /// Speaks one segment, drawing its marks as the words carrying them are said.
@@ -3405,7 +3669,8 @@ final class CompanionManager: ObservableObject {
             return
         }
 
-        switch voiceEngine {
+        let isDeepgramBenched = Date() < deepgramProseVoiceBenchedUntil
+        switch voiceEngine == .deepgram && isDeepgramBenched ? .system : voiceEngine {
         case .deepgram:
             deepgramClient.onSpokenProgress = { reachedOffset in
                 drawMarksReached(upToCharacterOffset: reachedOffset)
@@ -3416,9 +3681,11 @@ final class CompanionManager: ObservableObject {
                 // a sixth of a second rather than the second and a half that
                 // made rendering ahead worth the complexity for Kokoro.
                 try await deepgramClient.speakText(segment.spokenText)
+                clearDeepgramKeyProblemIfReported()
             } catch {
-                TutorDebugLog.write("⚠️ Deepgram failed: \(error.localizedDescription). system voice from here.")
-                voiceEngine = .system
+                TutorDebugLog.write("⚠️ Deepgram failed: \(error.localizedDescription). system voice for \(Int(NarrationVoice.deepgramBenchSeconds / 60)) minutes.")
+                deepgramProseVoiceBenchedUntil = Date().addingTimeInterval(NarrationVoice.deepgramBenchSeconds)
+                reportDeepgramKeyProblem(error)
                 deepgramClient.onSpokenProgress = nil
                 speechClient.onWillSpeakRange = { spokenRange, _ in
                     drawMarksReached(upToCharacterOffset: spokenRange.location + spokenRange.length)
@@ -3471,16 +3738,8 @@ final class CompanionManager: ObservableObject {
 
     private func cancelSpeechAndClearQueue() {
         endTalkOver()
-        speechConsumerTask?.cancel()
-        speechConsumerTask = nil
-        pendingSpeechSegments.removeAll()
+        abandonQueuedSpeech()
         streamedCharactersAlreadyQueued = 0
-        speechClient.onWillSpeakRange = nil
-        speechClient.stopPlayback()
-        kokoroClient.onSpokenProgress = nil
-        kokoroClient.stopPlayback()
-        deepgramClient.onSpokenProgress = nil
-        deepgramClient.stopPlayback()
         lessonPlayer.stop()
         currentAnswerFormat = .undecided
     }
@@ -4047,7 +4306,19 @@ final class CompanionManager: ObservableObject {
     ///
     /// The common cause is the local server not running, which has a specific
     /// and actionable fix, so it gets its own message.
-    private func speakLocalErrorFallback(for error: Error) async {
+    private func speakLocalErrorFallback(for error: Error, answerHadStarted: Bool = false) async {
+        guard !Task.isCancelled, !Self.isCancellation(error) else { return }
+        // Cut off partway: what was already said finishes, then one sentence
+        // says why it stopped, instead of a probe and a guess at the cause.
+        if answerHadStarted, Self.isLostConnection(error) {
+            while speechConsumerTask != nil || isAnyVoicePlaying {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled else { return }
+            }
+            InterfaceSounds.shared.play(.error)
+            await speakFailure("i lost the connection partway through that answer, so ask me again in a moment.")
+            return
+        }
         InterfaceSounds.shared.play(.error)
         // Skipped in setup: say so plainly and reopen the permission steps,
         // rather than a generic failure the student cannot act on.

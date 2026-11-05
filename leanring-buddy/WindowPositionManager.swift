@@ -202,6 +202,8 @@ class WindowPositionManager {
         }
 
         let appElement = AXUIElementCreateApplication(frontApp.processIdentifier)
+        // Read on the main thread: a busy app must not hold it.
+        AXUIElementSetMessagingTimeout(appElement, 0.25)
 
         // Get the focused window of the front app
         var focusedWindowValue: AnyObject?

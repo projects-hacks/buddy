@@ -207,6 +207,8 @@ enum TutorProgramPrompt {
             return (nil, nil)
         }
         let appElement = AXUIElementCreateApplication(application.processIdentifier)
+        // Read on the main thread for every question: a busy app must not hold it.
+        AXUIElementSetMessagingTimeout(appElement, 0.25)
         var windowValue: CFTypeRef?
         var title: String?
         if AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowValue) == .success,

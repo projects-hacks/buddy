@@ -105,7 +105,10 @@ final class ModelRouter {
 
     /// Long enough to ride out a short outage, short enough that a brain
     /// that recovered is back within a few questions.
-    private static let benchSeconds: TimeInterval = 300
+    static let benchSeconds: TimeInterval = 300
+
+    /// The clock benching is measured on; the unit tests move it forward.
+    var currentDate: () -> Date = { Date() }
 
     init() {
         if let url = Bundle.main.url(forResource: "RouteTable", withExtension: "json"),
@@ -121,7 +124,7 @@ final class ModelRouter {
     /// Ranks the allowed brains for a question whose kind is known only as
     /// probabilities.
     func choose(probabilities: [QuestionKind: Double], allowed: Set<RoutedBrain>) -> Choice {
-        let now = Date()
+        let now = currentDate()
         let healthy = allowed.filter { (benchedUntil[$0] ?? .distantPast) <= now }
         // If every allowed brain is benched, trying one beats not answering.
         let candidates = healthy.isEmpty ? allowed : healthy
@@ -180,7 +183,7 @@ final class ModelRouter {
     /// Takes a brain out of the running for a while after it failed, or
     /// said nothing within its patience window.
     func bench(_ brain: RoutedBrain, because reason: String) {
-        benchedUntil[brain] = Date().addingTimeInterval(Self.benchSeconds)
+        benchedUntil[brain] = currentDate().addingTimeInterval(Self.benchSeconds)
         TutorDebugLog.write("🪑 router: \(brain.rawValue) benched for \(Int(Self.benchSeconds))s, \(reason)")
     }
 

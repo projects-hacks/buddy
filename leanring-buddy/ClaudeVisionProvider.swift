@@ -66,13 +66,20 @@ final class ClaudeVisionProvider: TutorBrain {
         thinkingTokenHeadroom = profile.thinkingTokenHeadroom
     }
 
+    /// How long a request may go with no bytes at all. Anthropic's stream
+    /// opens with `message_start` and sends `ping`s while it works, so a
+    /// silence this long is a lost connection, not a slow answer.
+    static let answerIdleTimeoutSeconds: TimeInterval = 20
+
     init(model: String = "claude-sonnet-5-5") {
         self.model = model
 
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 120
+        configuration.timeoutIntervalForRequest = Self.answerIdleTimeoutSeconds
         configuration.timeoutIntervalForResource = 300
-        configuration.waitsForConnectivity = true
+        // Offline, a question fails at once and is said to have failed,
+        // rather than waiting minutes on "thinking" for a network to appear.
+        configuration.waitsForConnectivity = false
         configuration.urlCache = nil
         configuration.httpCookieStorage = nil
         self.session = URLSession(configuration: configuration)
@@ -281,7 +288,7 @@ final class ClaudeVisionProvider: TutorBrain {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue(Self.apiVersion, forHTTPHeaderField: "anthropic-version")
-        request.timeoutInterval = 120
+        request.timeoutInterval = Self.answerIdleTimeoutSeconds
 
         // The conversation so far is identical from one turn to the next
         // apart from the newest exchange, so a cache point after the last

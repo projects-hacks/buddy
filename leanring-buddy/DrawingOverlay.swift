@@ -48,7 +48,23 @@ final class DrawingOverlay: NSObject {
     private var localMouseMonitor: Any?
     private var pageIsReady = false
     private var callsWaitingForPage: [() -> Void] = []
+    /// Waiters for the page, each resumed with whether it became ready.
+    private var pageReadyWaiters: [UUID: CheckedContinuation<Bool, Never>] = [:]
     private(set) var screenFrame: CGRect = .zero
+    /// The last answer's setup, sent again to a rebuilt page so the rest of
+    /// the answer still draws in the right place.
+    private var lastSetupArgumentsJSON: String?
+    private var recentRebuildTimes: [Date] = []
+
+    /// A piece of the model's program runs in milliseconds; one that runs
+    /// for seconds is stuck in a loop and holds the page's only thread.
+    private static let longestPieceRunSeconds: TimeInterval = 3
+    /// The page is built from strings in the bundle and loads in well under
+    /// a second; this long means it never will.
+    private static let longestPageLoadSeconds: TimeInterval = 10
+    /// Engine calls queued while the page loads are few; a long queue means
+    /// the page is not coming, and the oldest calls are dropped.
+    private static let mostCallsWaitingForPage = 200
 
     /// Brings the overlay up over `screen`, sized to it, with the page loaded.
     func show(on screen: NSScreen) {
@@ -85,20 +101,32 @@ final class DrawingOverlay: NSObject {
             "unitsPerPoint": unitsPerPoint,
             "screenMarksHidden": screenMarksHidden
         ]
-        callEngine("setup", argumentsJSON: Self.json(options))
+        let setupArgumentsJSON = Self.json(options)
+        lastSetupArgumentsJSON = setupArgumentsJSON
+        callEngine("setup", argumentsJSON: setupArgumentsJSON)
     }
 
     /// Runs one piece of the program and reports the sentences, buttons and
-    /// errors it produced.
+    /// errors it produced. A piece that runs too long (a loop the model got
+    /// wrong) is abandoned and the page rebuilt, so the answer goes on.
     func run(programPiece: String) async -> RunResult {
-        await whenPageReady()
-        guard let webView else { return RunResult() }
-        do {
-            let value = try await webView.callAsyncJavaScript(
+        guard await whenPageReady(), let webView else {
+            return RunResult(errors: ["the drawing page was not ready"])
+        }
+        let outcome = await Self.withTimeout(seconds: Self.longestPieceRunSeconds) { finish in
+            webView.callAsyncJavaScript(
                 "return JSON.stringify(BuddyEngine.run(code));",
                 arguments: ["code": programPiece],
-                contentWorld: .page
-            )
+                in: nil,
+                in: .page
+            ) { result in finish(result) }
+        }
+        guard let outcome else {
+            rebuildPage(because: "a piece of the program ran longer than \(Int(Self.longestPieceRunSeconds))s")
+            return RunResult(errors: ["a piece ran longer than \(Int(Self.longestPieceRunSeconds))s and was stopped"])
+        }
+        do {
+            let value = try outcome.get()
             guard let jsonText = value as? String,
                   let data = jsonText.data(using: .utf8),
                   let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -128,9 +156,35 @@ final class DrawingOverlay: NSObject {
     // Run in the client's own content world, so nothing the lesson's
     // program defined in the page can change what the script does.
     func evaluateInIsolatedWorld(script: String) async -> Any? {
-        await whenPageReady()
-        guard let webView else { return nil }
-        return try? await webView.evaluateJavaScript(script, in: nil, contentWorld: .defaultClient)
+        guard await whenPageReady(), let webView else { return nil }
+        let outcome = await Self.withTimeout(seconds: Self.longestPieceRunSeconds) { finish in
+            webView.evaluateJavaScript(script, in: nil, in: .defaultClient) { result in finish(result) }
+        }
+        guard let outcome else {
+            rebuildPage(because: "reading the board for the notebook took too long")
+            return nil
+        }
+        return try? outcome.get()
+    }
+
+    /// Runs a WebKit call that reports through a completion handler, and
+    /// gives up after `seconds`. WebKit's calls cannot be cancelled, and a
+    /// page stuck in a loop never answers, so this is what keeps an answer
+    /// from waiting on it forever. Nil means it timed out.
+    private static func withTimeout(
+        seconds: TimeInterval,
+        _ start: (@escaping (Result<Any, Error>) -> Void) -> Void
+    ) async -> Result<Any, Error>? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Result<Any, Error>?, Never>) in
+            let resumeOnce = DrawingResumeOnce()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                if resumeOnce.claim() { continuation.resume(returning: nil) }
+            }
+            start { result in
+                if resumeOnce.claim() { continuation.resume(returning: result) }
+            }
+        }
     }
 
     func playLine(_ lineIndex: Int, seconds: TimeInterval) {
@@ -173,7 +227,7 @@ final class DrawingOverlay: NSObject {
                 }
             }
         }
-        if pageIsReady { call() } else { callsWaitingForPage.append(call) }
+        if pageIsReady { call() } else { queueUntilPageIsReady(call) }
     }
 
     func clearAll() {
@@ -233,6 +287,11 @@ final class DrawingOverlay: NSObject {
         self.panel = panel
         self.webView = webView
         watchMouseOverCards()
+        // A page built again mid-answer (the last one hung, died or failed
+        // to load) is set up as the answer's was, so its later pieces draw.
+        if let lastSetupArgumentsJSON {
+            callEngine("setup", argumentsJSON: lastSetupArgumentsJSON)
+        }
 
         WKContentRuleListStore.default().compileContentRuleList(
             forIdentifier: "clicky-drawing-no-network",
@@ -264,10 +323,29 @@ final class DrawingOverlay: NSObject {
         return bundled("draw-page", "html").replacingOccurrences(of: "<!--SCRIPTS-->", with: scripts)
     }
 
-    private func whenPageReady() async {
-        if pageIsReady { return }
-        await withCheckedContinuation { continuation in
-            callsWaitingForPage.append { continuation.resume() }
+    /// Waits for the page, at most `longestPageLoadSeconds`. False when it
+    /// did not become ready: a page that never loads must not hold an answer.
+    private func whenPageReady() async -> Bool {
+        if pageIsReady { return true }
+        // Nothing builds the page until the overlay is shown; build it now
+        // so the wait has something to wait for.
+        if webView == nil { buildPanel() }
+        let waiterIdentifier = UUID()
+        return await withCheckedContinuation { continuation in
+            pageReadyWaiters[waiterIdentifier] = continuation
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.longestPageLoadSeconds * 1_000_000_000))
+                guard let self, let waiter = self.pageReadyWaiters.removeValue(forKey: waiterIdentifier) else { return }
+                TutorDebugLog.write("⚠️ drawing page not ready after \(Int(Self.longestPageLoadSeconds))s")
+                waiter.resume(returning: false)
+            }
+        }
+    }
+
+    private func queueUntilPageIsReady(_ call: @escaping () -> Void) {
+        callsWaitingForPage.append(call)
+        if callsWaitingForPage.count > Self.mostCallsWaitingForPage {
+            callsWaitingForPage.removeFirst(callsWaitingForPage.count - Self.mostCallsWaitingForPage)
         }
     }
 
@@ -280,7 +358,59 @@ final class DrawingOverlay: NSObject {
                 }
             }
         }
-        if pageIsReady { call() } else { callsWaitingForPage.append(call) }
+        if pageIsReady { call() } else { queueUntilPageIsReady(call) }
+    }
+
+    // MARK: - Recovery
+
+    /// Throws the page away and builds a new one: the page is stuck in the
+    /// model's code, its web content process died, or it failed to load.
+    /// Whatever was drawn is lost, but the answer goes on and later pieces
+    /// draw on the new page, set up as the last answer's was.
+    private func rebuildPage(because reason: String) {
+        TutorDebugLog.write("⚠️ drawing page rebuilt: \(reason)")
+        let wasShowing = panel?.isVisible == true
+        let frameShownOn = screenFrame
+        tearDownPage()
+        // A page that fails every time would otherwise be rebuilt in a loop;
+        // past three in a minute it waits for the next answer to show it.
+        let now = Date()
+        recentRebuildTimes = recentRebuildTimes.filter { now.timeIntervalSince($0) < 60 } + [now]
+        guard wasShowing, recentRebuildTimes.count <= 3 else { return }
+        buildPanel()
+        guard let panel else { return }
+        panel.setFrame(frameShownOn, display: true)
+        panel.orderFrontRegardless()
+    }
+
+    private func tearDownPage() {
+        if let webView {
+            // A page stuck in a loop keeps its process spinning a core even
+            // after its view is released (seen in the unit test: 99% for
+            // minutes). WebKit's own call for ending it is not public API;
+            // it is asked for only if it is there, which it has been on
+            // every macOS this app supports.
+            let endWebContentProcess = NSSelectorFromString("_killWebContentProcess")
+            if webView.responds(to: endWebContentProcess) { webView.perform(endWebContentProcess) }
+            webView.navigationDelegate = nil
+            webView.configuration.userContentController.removeScriptMessageHandler(forName: "clicky")
+            webView.stopLoading()
+            webView.removeFromSuperview()
+        }
+        webView = nil
+        panel?.orderOut(nil)
+        panel = nil
+        pageIsReady = false
+        cardRectsOnScreen = []
+        if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
+        if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
+        globalMouseMonitor = nil
+        localMouseMonitor = nil
+        // Calls meant for the old page mean nothing on the new one.
+        callsWaitingForPage.removeAll()
+        let waiters = pageReadyWaiters.values
+        pageReadyWaiters.removeAll()
+        waiters.forEach { $0.resume(returning: false) }
     }
 
     private static func json(_ object: Any) -> String {
@@ -337,7 +467,20 @@ final class DrawingOverlay: NSObject {
         let waiting = callsWaitingForPage
         callsWaitingForPage.removeAll()
         waiting.forEach { $0() }
+        let waiters = pageReadyWaiters.values
+        pageReadyWaiters.removeAll()
+        waiters.forEach { $0.resume(returning: true) }
         TutorDebugLog.write("🖌️ drawing engine loaded")
+    }
+}
+
+/// One-shot latch, so a timeout racing a WebKit reply resumes only once.
+private final class DrawingResumeOnce {
+    private var hasFired = false
+    func claim() -> Bool {
+        if hasFired { return false }
+        hasFired = true
+        return true
     }
 }
 
@@ -354,7 +497,23 @@ extension DrawingOverlay: WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        guard webView === self.webView else { return }
         pageDidFinishLoading()
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        guard webView === self.webView, !pageIsReady else { return }
+        rebuildPage(because: "the page failed to load (\(error.localizedDescription))")
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        guard webView === self.webView, !pageIsReady else { return }
+        rebuildPage(because: "the page failed to load (\(error.localizedDescription))")
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard webView === self.webView else { return }
+        rebuildPage(because: "its web content process ended")
     }
 }
 

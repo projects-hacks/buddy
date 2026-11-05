@@ -28,15 +28,34 @@ struct leanring_buddyApp: App {
 /// the companion voice pipeline on launch.
 @MainActor
 final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
-    private let companionManager = CompanionManager()
+    /// Lazy, so a unit test run never builds it: its parts read the
+    /// Keychain and the student's data as they are made.
+    private lazy var companionManager = CompanionManager()
+
+    /// The unit tests run inside this app. Under them it starts nothing: no
+    /// key taps, overlay, network, keychain, log or setup window, so a test
+    /// run never touches the student's Buddy, its log or its data.
+    static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningUnitTests else { return }
+        // Writing to a pipe whose reader has gone (a helper process that
+        // died) sends SIGPIPE, which quits the app by default. Ignored, the
+        // write fails with an error instead, and that is handled.
+        signal(SIGPIPE, SIG_IGN)
         print("🎯 Buddy: Starting...")
         print("🎯 Buddy: Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
 
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
 
         TutorDebugLog.beginSession()
+        UncaughtExceptionLogger.install()
+        MainThreadWatchdog.start()
+        // Every accessibility call waits on the app it asks, six seconds by
+        // default. Set on the system-wide element this is the ceiling for
+        // every element Buddy reads, including children read off a tree
+        // whose own timeout was never set.
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 0.5)
         ClickyAnalytics.configure()
         ClickyAnalytics.trackAppOpened()
 
@@ -51,13 +70,16 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     /// Clicking Buddy in the Dock opens the notch, its only window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !Self.isRunningUnitTests else { return false }
         companionManager.openNotchBriefly(on: .lesson)
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        guard !Self.isRunningUnitTests else { return }
         companionManager.stop()
         SpendingMeter.shared.saveNow()
+        TutorDebugLog.endSession()
     }
 
     /// Keeps the login item matching the student's choice. Nothing is

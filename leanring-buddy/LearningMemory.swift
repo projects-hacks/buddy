@@ -602,10 +602,16 @@ final class LearningMemory {
             line.append(0x0A)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let file = folder.appendingPathComponent("lessons.jsonl")
+            // The throwing calls: the older `write(_:)` raises an exception
+            // on a full disk, which Swift cannot catch.
             if let handle = try? FileHandle(forWritingTo: file) {
-                handle.seekToEndOfFile()
-                handle.write(line)
-                try? handle.close()
+                defer { try? handle.close() }
+                do {
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: line)
+                } catch {
+                    TutorDebugLog.write("⚠️ lesson log not saved: \(error.localizedDescription)")
+                }
             } else {
                 try? line.write(to: file)
             }

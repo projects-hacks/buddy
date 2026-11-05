@@ -70,16 +70,6 @@ final class ScreenIndex {
     /// Ordered targets from the most recent build, for prompt rendering.
     private(set) var orderedTargets: [ScreenTarget] = []
 
-    /// Upper bound on accessibility traversal depth.
-    ///
-    /// Browsers and Electron apps nest extremely deeply, and an unbounded walk
-    /// stalls the voice loop. Twelve levels reaches real controls in practice.
-    private static let maximumAccessibilityDepth = 12
-
-    /// Upper bound on indexed accessibility elements, bounding both the walk
-    /// and the prompt it feeds.
-    private static let maximumAccessibilityElements = 250
-
     /// Text shorter than this is dropped, since stray single glyphs are
     /// recogniser noise rather than something a learner would ask about.
     private static let minimumRecognizedTextLength = 2
@@ -101,14 +91,26 @@ final class ScreenIndex {
         var collectedTargets: [ScreenTarget] = []
         var nextIdentifierNumber = 1
 
+        // Read at the same time as recognition, and off the main thread: the
+        // accessibility calls wait on the front app, however busy it is.
+        let frontmostProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let accessibilityReadingTask: Task<AccessibilityScreenReading?, Never> = Task.detached(priority: .userInitiated) {
+            guard let frontmostProcessIdentifier, AXIsProcessTrusted() else { return nil }
+            return ScreenIndexAccessibilityReader.read(
+                processIdentifier: frontmostProcessIdentifier,
+                includeLabelledElements: includeAccessibilityElements,
+                displayBoundsInPoints: displayBoundsInPoints)
+        }
+
         let recognizedLines = await Self.performTextRecognition(onScreenshotData: screenshotData)
+        let accessibilityReading = await accessibilityReadingTask.value
 
         // Recognition covers the whole screen, so the lesson arrives mixed in
         // with tabs, bookmarks and toolbars. Restricting to the content area
         // is what stops the model marking a bookmark when asked about the page.
-        let contentRegion = contentRegionInDisplayPoints(
-            displayBoundsInPoints: displayBoundsInPoints
-        )
+        let contentRegion = accessibilityReading?.contentFrameInGlobalPoints.map { frame in
+            convertGlobalFrameToDisplayLocalPoints(frame, displayBoundsInPoints: displayBoundsInPoints)
+        }
 
         // Vision reports a normalised rectangle with a bottom-left origin,
         // which already matches AppKit, so this is a scale with no flip.
@@ -139,13 +141,21 @@ final class ScreenIndex {
             nextIdentifierNumber += 1
         }
 
-        if includeAccessibilityElements, AXIsProcessTrusted() {
-            let accessibilityTargets = accessibilityTargetsForFrontmostApplication(
-                displayIndex: displayIndex,
-                displayBoundsInPoints: displayBoundsInPoints,
-                startingIdentifierNumber: &nextIdentifierNumber
+        for labelledElement in accessibilityReading?.labelledElements ?? [] {
+            collectedTargets.append(
+                ScreenTarget(
+                    id: "a\(nextIdentifierNumber)",
+                    displayedText: labelledElement.label,
+                    boundsInDisplayPoints: convertGlobalFrameToDisplayLocalPoints(
+                        labelledElement.frameInGlobalPoints,
+                        displayBoundsInPoints: displayBoundsInPoints
+                    ),
+                    displayIndex: displayIndex,
+                    locationSource: .accessibilityElement,
+                    confidence: 1.0
+                )
             )
-            collectedTargets.append(contentsOf: accessibilityTargets)
+            nextIdentifierNumber += 1
         }
 
         // Applied after building rather than during, so a region that turns out
@@ -159,7 +169,11 @@ final class ScreenIndex {
             // The menu bar and an open menu are kept too: they are chrome for
             // a question about a page, but they are exactly where a step goes
             // when the student is being guided through an app.
-            let keptRegions = [contentRegion] + menuRegionsInDisplayPoints(displayBoundsInPoints: displayBoundsInPoints)
+            let openMenuRegions = (accessibilityReading?.openMenuFramesInGlobalPoints ?? []).map { frame in
+                convertGlobalFrameToDisplayLocalPoints(frame, displayBoundsInPoints: displayBoundsInPoints)
+            }
+            let keptRegions = [contentRegion, menuBarRegionInDisplayPoints(displayBoundsInPoints: displayBoundsInPoints)]
+                + openMenuRegions
             let insideContent = collectedTargets.filter { target in
                 keptRegions.contains { region in region.intersects(target.boundsInDisplayPoints) }
             }
@@ -292,277 +306,14 @@ final class ScreenIndex {
 
     // MARK: - Content region
 
-    /// The part of the screen holding what the user is actually working on,
-    /// in display-local AppKit points. Nil when it cannot be determined.
-    ///
-    /// Why this is needed: text recognition reads the entire screen, which on
-    /// a browser means the tab strip, every bookmark, the toolbar and the menu
-    /// bar land in the listing beside the lesson. Asked about Snowflake
-    /// internals, the model circled a bookmark titled "Hive (DM)", which was a
-    /// perfectly reasonable pick from a listing that gives no hint which lines
-    /// are furniture. Nothing in the text distinguishes them, but their
-    /// position does.
-    ///
-    /// Taken from the accessibility tree rather than guessed: a browser
-    /// exposes its page as an `AXWebArea`, which is exactly the content area
-    /// with the chrome excluded. Other apps fall back to the focused window,
-    /// which still drops the menu bar, the dock and anything behind.
-    private func contentRegionInDisplayPoints(displayBoundsInPoints: CGSize) -> CGRect? {
-        guard AXIsProcessTrusted(),
-              let frontmostApplication = NSWorkspace.shared.frontmostApplication else {
-            return nil
-        }
-
-        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
-
-        var focusedWindowValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            applicationElement,
-            kAXFocusedWindowAttribute as CFString,
-            &focusedWindowValue
-        ) == .success,
-              let focusedWindowValue,
-              CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        let focusedWindow = focusedWindowValue as! AXUIElement
-
-        // Prefer the web area when there is one, since that is the page
-        // itself. Depth is bounded because the search runs on every question.
-        if let webAreaFrame = findWebAreaFrame(under: focusedWindow, depth: 0) {
-            return convertGlobalFrameToDisplayLocalPoints(
-                webAreaFrame,
-                displayBoundsInPoints: displayBoundsInPoints
-            )
-        }
-
-        guard let windowFrame = accessibilityFrame(for: focusedWindow) else { return nil }
-        return convertGlobalFrameToDisplayLocalPoints(
-            windowFrame,
-            displayBoundsInPoints: displayBoundsInPoints
-        )
-    }
-
-    /// The menu bar strip, and the frame of any menu the front app has open.
-    private func menuRegionsInDisplayPoints(displayBoundsInPoints: CGSize) -> [CGRect] {
+    /// The menu bar strip in display-local points, which is kept with the
+    /// content region: it is chrome for a question about a page, but it is
+    /// exactly where a step goes when the student is being guided.
+    private func menuBarRegionInDisplayPoints(displayBoundsInPoints: CGSize) -> CGRect {
         let menuBarHeight = max(NSStatusBar.system.thickness, NSScreen.main?.safeAreaInsets.top ?? 0) + 2
         // Display-local points start at the bottom left, as Vision's do.
-        var regions = [CGRect(x: 0, y: displayBoundsInPoints.height - menuBarHeight,
-                              width: displayBoundsInPoints.width, height: menuBarHeight)]
-        guard AXIsProcessTrusted(), let frontmostApplication = NSWorkspace.shared.frontmostApplication else {
-            return regions
-        }
-        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
-        var menuBarValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(applicationElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
-              let menuBarValue, CFGetTypeID(menuBarValue) == AXUIElementGetTypeID() else { return regions }
-        let menuBar = menuBarValue as! AXUIElement
-        var titlesValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &titlesValue) == .success,
-              let titles = titlesValue as? [AXUIElement] else { return regions }
-        for title in titles {
-            var selectedValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(title, kAXSelectedAttribute as CFString, &selectedValue) == .success,
-                  (selectedValue as? Bool) == true else { continue }
-            var menusValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(title, kAXChildrenAttribute as CFString, &menusValue) == .success,
-                  let menus = menusValue as? [AXUIElement] else { continue }
-            for menu in menus {
-                if let frame = accessibilityFrame(for: menu) {
-                    regions.append(convertGlobalFrameToDisplayLocalPoints(frame, displayBoundsInPoints: displayBoundsInPoints))
-                }
-            }
-        }
-        return regions
-    }
-
-    /// Searches for the first `AXWebArea` beneath an element.
-    private func findWebAreaFrame(under element: AXUIElement, depth: Int) -> CGRect? {
-        guard depth <= 6 else { return nil }
-
-        var roleValue: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
-           let role = roleValue as? String,
-           role == "AXWebArea" {
-            return accessibilityFrame(for: element)
-        }
-
-        var childrenValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            element,
-            kAXChildrenAttribute as CFString,
-            &childrenValue
-        ) == .success, let children = childrenValue as? [AXUIElement] else {
-            return nil
-        }
-
-        for child in children {
-            if let found = findWebAreaFrame(under: child, depth: depth + 1) {
-                return found
-            }
-        }
-        return nil
-    }
-
-    // MARK: - Accessibility tree
-
-    /// Walks the frontmost application's accessibility tree for labelled controls.
-    ///
-    /// Requires Accessibility permission. Without it this returns nothing and
-    /// the index falls back to recognised text, which still covers study content.
-    private func accessibilityTargetsForFrontmostApplication(
-        displayIndex: Int,
-        displayBoundsInPoints: CGSize,
-        startingIdentifierNumber: inout Int
-    ) -> [ScreenTarget] {
-        guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return [] }
-
-        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
-        var collectedTargets: [ScreenTarget] = []
-
-        appendAccessibilityTargets(
-            from: applicationElement,
-            currentDepth: 0,
-            displayIndex: displayIndex,
-            displayBoundsInPoints: displayBoundsInPoints,
-            startingIdentifierNumber: &startingIdentifierNumber,
-            into: &collectedTargets
-        )
-
-        return collectedTargets
-    }
-
-    private func appendAccessibilityTargets(
-        from element: AXUIElement,
-        currentDepth: Int,
-        displayIndex: Int,
-        displayBoundsInPoints: CGSize,
-        startingIdentifierNumber: inout Int,
-        into collectedTargets: inout [ScreenTarget]
-    ) {
-        guard currentDepth <= Self.maximumAccessibilityDepth,
-              collectedTargets.count < Self.maximumAccessibilityElements else {
-            return
-        }
-
-        if let label = accessibilityLabel(for: element),
-           let frameInGlobalPoints = accessibilityFrame(for: element) {
-            // Zero-sized and full-window frames are container artifacts rather
-            // than things a learner can usefully be shown.
-            let isPointableSize = frameInGlobalPoints.width >= 8
-                && frameInGlobalPoints.height >= 8
-                && frameInGlobalPoints.width <= displayBoundsInPoints.width
-                && frameInGlobalPoints.height <= displayBoundsInPoints.height
-
-            if isPointableSize {
-                collectedTargets.append(
-                    ScreenTarget(
-                        id: "a\(startingIdentifierNumber)",
-                        displayedText: label,
-                        boundsInDisplayPoints: convertGlobalFrameToDisplayLocalPoints(
-                            frameInGlobalPoints,
-                            displayBoundsInPoints: displayBoundsInPoints
-                        ),
-                        displayIndex: displayIndex,
-                        locationSource: .accessibilityElement,
-                        confidence: 1.0
-                    )
-                )
-                startingIdentifierNumber += 1
-            }
-        }
-
-        var childrenValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            element,
-            kAXChildrenAttribute as CFString,
-            &childrenValue
-        ) == .success, let children = childrenValue as? [AXUIElement] else {
-            return
-        }
-
-        for childElement in children {
-            appendAccessibilityTargets(
-                from: childElement,
-                currentDepth: currentDepth + 1,
-                displayIndex: displayIndex,
-                displayBoundsInPoints: displayBoundsInPoints,
-                startingIdentifierNumber: &startingIdentifierNumber,
-                into: &collectedTargets
-            )
-        }
-    }
-
-    /// Picks the most human-meaningful label available on an element.
-    private func accessibilityLabel(for element: AXUIElement) -> String? {
-        let preferredAttributes = [
-            kAXTitleAttribute,
-            kAXDescriptionAttribute,
-            kAXValueAttribute
-        ]
-
-        for attributeName in preferredAttributes {
-            var attributeValue: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(
-                element,
-                attributeName as CFString,
-                &attributeValue
-            ) == .success else { continue }
-
-            guard let stringValue = attributeValue as? String else { continue }
-
-            let trimmedValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            // Long values are document bodies rather than labels and would
-            // swamp the prompt. Recognised text already covers that content.
-            if trimmedValue.count >= 2 && trimmedValue.count <= 120 {
-                return trimmedValue
-            }
-        }
-
-        return nil
-    }
-
-    /// Reads an element's on-screen frame in global, top-left-origin points.
-    private func accessibilityFrame(for element: AXUIElement) -> CGRect? {
-        var positionValue: CFTypeRef?
-        var sizeValue: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(
-            element,
-            kAXPositionAttribute as CFString,
-            &positionValue
-        ) == .success,
-              AXUIElementCopyAttributeValue(
-            element,
-            kAXSizeAttribute as CFString,
-            &sizeValue
-        ) == .success else {
-            return nil
-        }
-
-        var elementOrigin = CGPoint.zero
-        var elementSize = CGSize.zero
-
-        // A conditional cast to a CoreFoundation type always succeeds, so the
-        // type has to be verified by its CFTypeID before the cast. An element
-        // can legitimately return a non-AXValue here, and force-casting that
-        // without the check would crash rather than skip the element.
-        guard let positionValue, let sizeValue,
-              CFGetTypeID(positionValue) == AXValueGetTypeID(),
-              CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
-            return nil
-        }
-
-        let positionAXValue = positionValue as! AXValue
-        let sizeAXValue = sizeValue as! AXValue
-
-        guard AXValueGetValue(positionAXValue, .cgPoint, &elementOrigin),
-              AXValueGetValue(sizeAXValue, .cgSize, &elementSize) else {
-            return nil
-        }
-
-        return CGRect(origin: elementOrigin, size: elementSize)
+        return CGRect(x: 0, y: displayBoundsInPoints.height - menuBarHeight,
+                      width: displayBoundsInPoints.width, height: menuBarHeight)
     }
 
     /// Flips an accessibility frame from global top-left origin into
@@ -751,5 +502,297 @@ final class ScreenIndex {
     func clear() {
         orderedTargets = []
         targetsByIdentifier = [:]
+    }
+}
+
+// MARK: - Accessibility reading, off the main thread
+
+/// What the accessibility tree said about the front app, in global
+/// top-left-origin points, read away from the main thread.
+nonisolated struct AccessibilityScreenReading: Sendable {
+    struct LabelledElement: Sendable {
+        let label: String
+        let frameInGlobalPoints: CGRect
+    }
+
+    /// The page (a browser's `AXWebArea`) or else the focused window.
+    var contentFrameInGlobalPoints: CGRect?
+    /// Any menu the front app has open.
+    var openMenuFramesInGlobalPoints: [CGRect] = []
+    var labelledElements: [LabelledElement] = []
+}
+
+/// Every accessibility call is a message to another app, answered when that
+/// app gets round to it. A busy or hung app (a browser on a heavy page, an
+/// app stuck on a dialog) can take seconds per call, and a web area can hold
+/// thousands of elements. So the walk runs off the main thread, each call
+/// gives up after a quarter of a second, and the walk stops after a fixed
+/// number of elements or a fixed time, whichever comes first.
+nonisolated enum ScreenIndexAccessibilityReader {
+    /// Upper bound on accessibility traversal depth.
+    ///
+    /// Browsers and Electron apps nest extremely deeply, and an unbounded walk
+    /// stalls the voice loop. Twelve levels reaches real controls in practice.
+    static let maximumAccessibilityDepth = 12
+
+    /// Upper bound on indexed accessibility elements, bounding the prompt it feeds.
+    static let maximumAccessibilityElements = 250
+
+    /// Upper bounds on the walk itself: elements visited, not only kept.
+    static let maximumElementsVisited = 2_000
+    static let maximumSecondsSpentWalking: TimeInterval = 0.3
+
+    /// How long one call to the front app may take.
+    static let messagingTimeoutSeconds: Float = 0.25
+
+    private struct Walk {
+        let startedAt: Date
+        var elementsVisited = 0
+        var isOverBudget: Bool {
+            elementsVisited >= ScreenIndexAccessibilityReader.maximumElementsVisited
+                || Date().timeIntervalSince(startedAt) >= ScreenIndexAccessibilityReader.maximumSecondsSpentWalking
+        }
+    }
+
+    static func read(
+        processIdentifier: pid_t,
+        includeLabelledElements: Bool,
+        displayBoundsInPoints: CGSize
+    ) -> AccessibilityScreenReading {
+        var reading = AccessibilityScreenReading()
+        guard AXIsProcessTrusted() else { return reading }
+        let applicationElement = AXUIElementCreateApplication(processIdentifier)
+        AXUIElementSetMessagingTimeout(applicationElement, messagingTimeoutSeconds)
+
+        reading.contentFrameInGlobalPoints = contentFrame(of: applicationElement)
+        reading.openMenuFramesInGlobalPoints = openMenuFrames(of: applicationElement)
+
+        if includeLabelledElements {
+            var walk = Walk(startedAt: Date())
+            appendLabelledElements(from: applicationElement, currentDepth: 0,
+                                   displayBoundsInPoints: displayBoundsInPoints,
+                                   walk: &walk, into: &reading.labelledElements)
+            if walk.isOverBudget {
+                TutorDebugLog.write("🗂️ ScreenIndex: accessibility walk stopped at \(walk.elementsVisited) elements, \(String(format: "%.2f", Date().timeIntervalSince(walk.startedAt)))s")
+            }
+        }
+        return reading
+    }
+
+    /// The part of the screen holding what the user is actually working on,
+    /// in global points. Nil when it cannot be determined.
+    ///
+    /// Why this is needed: text recognition reads the entire screen, which on
+    /// a browser means the tab strip, every bookmark, the toolbar and the menu
+    /// bar land in the listing beside the lesson. Asked about Snowflake
+    /// internals, the model circled a bookmark titled "Hive (DM)", which was a
+    /// perfectly reasonable pick from a listing that gives no hint which lines
+    /// are furniture. Nothing in the text distinguishes them, but their
+    /// position does.
+    ///
+    /// Taken from the accessibility tree rather than guessed: a browser
+    /// exposes its page as an `AXWebArea`, which is exactly the content area
+    /// with the chrome excluded. Other apps fall back to the focused window,
+    /// which still drops the menu bar, the dock and anything behind.
+    private static func contentFrame(of applicationElement: AXUIElement) -> CGRect? {
+        var focusedWindowValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            applicationElement,
+            kAXFocusedWindowAttribute as CFString,
+            &focusedWindowValue
+        ) == .success,
+              let focusedWindowValue,
+              CFGetTypeID(focusedWindowValue) == AXUIElementGetTypeID() else {
+            return nil
+        }
+
+        // The force cast is checked by the type id above.
+        let focusedWindow = focusedWindowValue as! AXUIElement
+        AXUIElementSetMessagingTimeout(focusedWindow, messagingTimeoutSeconds)
+
+        // Depth is bounded because the search runs on every question.
+        var walk = Walk(startedAt: Date())
+        if let webAreaFrame = findWebAreaFrame(under: focusedWindow, depth: 0, walk: &walk) {
+            return webAreaFrame
+        }
+        return accessibilityFrame(for: focusedWindow)
+    }
+
+    private static func openMenuFrames(of applicationElement: AXUIElement) -> [CGRect] {
+        var frames: [CGRect] = []
+        var menuBarValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(applicationElement, kAXMenuBarAttribute as CFString, &menuBarValue) == .success,
+              let menuBarValue, CFGetTypeID(menuBarValue) == AXUIElementGetTypeID() else { return frames }
+        let menuBar = menuBarValue as! AXUIElement
+        AXUIElementSetMessagingTimeout(menuBar, messagingTimeoutSeconds)
+        var titlesValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(menuBar, kAXChildrenAttribute as CFString, &titlesValue) == .success,
+              let titles = titlesValue as? [AXUIElement] else { return frames }
+        for title in titles {
+            AXUIElementSetMessagingTimeout(title, messagingTimeoutSeconds)
+            var selectedValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(title, kAXSelectedAttribute as CFString, &selectedValue) == .success,
+                  (selectedValue as? Bool) == true else { continue }
+            var menusValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(title, kAXChildrenAttribute as CFString, &menusValue) == .success,
+                  let menus = menusValue as? [AXUIElement] else { continue }
+            for menu in menus {
+                AXUIElementSetMessagingTimeout(menu, messagingTimeoutSeconds)
+                if let frame = accessibilityFrame(for: menu) { frames.append(frame) }
+            }
+        }
+        return frames
+    }
+
+    /// Searches for the first `AXWebArea` beneath an element.
+    private static func findWebAreaFrame(under element: AXUIElement, depth: Int, walk: inout Walk) -> CGRect? {
+        guard depth <= 6, !walk.isOverBudget else { return nil }
+        walk.elementsVisited += 1
+        AXUIElementSetMessagingTimeout(element, messagingTimeoutSeconds)
+
+        var roleValue: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue) == .success,
+           let role = roleValue as? String,
+           role == "AXWebArea" {
+            return accessibilityFrame(for: element)
+        }
+
+        var childrenValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXChildrenAttribute as CFString,
+            &childrenValue
+        ) == .success, let children = childrenValue as? [AXUIElement] else {
+            return nil
+        }
+
+        for child in children {
+            if let found = findWebAreaFrame(under: child, depth: depth + 1, walk: &walk) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private static func appendLabelledElements(
+        from element: AXUIElement,
+        currentDepth: Int,
+        displayBoundsInPoints: CGSize,
+        walk: inout Walk,
+        into labelledElements: inout [AccessibilityScreenReading.LabelledElement]
+    ) {
+        guard currentDepth <= maximumAccessibilityDepth,
+              labelledElements.count < maximumAccessibilityElements,
+              !walk.isOverBudget else {
+            return
+        }
+        walk.elementsVisited += 1
+        // Set per element: a timeout set on the app's element covers only
+        // that element, not the ones read from it.
+        AXUIElementSetMessagingTimeout(element, messagingTimeoutSeconds)
+
+        if let label = accessibilityLabel(for: element),
+           let frameInGlobalPoints = accessibilityFrame(for: element) {
+            // Zero-sized and full-window frames are container artifacts rather
+            // than things a learner can usefully be shown.
+            let isPointableSize = frameInGlobalPoints.width >= 8
+                && frameInGlobalPoints.height >= 8
+                && frameInGlobalPoints.width <= displayBoundsInPoints.width
+                && frameInGlobalPoints.height <= displayBoundsInPoints.height
+
+            if isPointableSize {
+                labelledElements.append(.init(label: label, frameInGlobalPoints: frameInGlobalPoints))
+            }
+        }
+
+        var childrenValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXChildrenAttribute as CFString,
+            &childrenValue
+        ) == .success, let children = childrenValue as? [AXUIElement] else {
+            return
+        }
+
+        for childElement in children {
+            appendLabelledElements(
+                from: childElement,
+                currentDepth: currentDepth + 1,
+                displayBoundsInPoints: displayBoundsInPoints,
+                walk: &walk,
+                into: &labelledElements
+            )
+        }
+    }
+
+    /// Picks the most human-meaningful label available on an element.
+    private static func accessibilityLabel(for element: AXUIElement) -> String? {
+        let preferredAttributes = [
+            kAXTitleAttribute,
+            kAXDescriptionAttribute,
+            kAXValueAttribute
+        ]
+
+        for attributeName in preferredAttributes {
+            var attributeValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(
+                element,
+                attributeName as CFString,
+                &attributeValue
+            ) == .success else { continue }
+
+            guard let stringValue = attributeValue as? String else { continue }
+
+            let trimmedValue = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            // Long values are document bodies rather than labels and would
+            // swamp the prompt. Recognised text already covers that content.
+            if trimmedValue.count >= 2 && trimmedValue.count <= 120 {
+                return trimmedValue
+            }
+        }
+
+        return nil
+    }
+
+    /// Reads an element's on-screen frame in global, top-left-origin points.
+    private static func accessibilityFrame(for element: AXUIElement) -> CGRect? {
+        var positionValue: CFTypeRef?
+        var sizeValue: CFTypeRef?
+
+        guard AXUIElementCopyAttributeValue(
+            element,
+            kAXPositionAttribute as CFString,
+            &positionValue
+        ) == .success,
+              AXUIElementCopyAttributeValue(
+            element,
+            kAXSizeAttribute as CFString,
+            &sizeValue
+        ) == .success else {
+            return nil
+        }
+
+        var elementOrigin = CGPoint.zero
+        var elementSize = CGSize.zero
+
+        // A conditional cast to a CoreFoundation type always succeeds, so the
+        // type has to be verified by its CFTypeID before the cast. An element
+        // can legitimately return a non-AXValue here, and force-casting that
+        // without the check would crash rather than skip the element.
+        guard let positionValue, let sizeValue,
+              CFGetTypeID(positionValue) == AXValueGetTypeID(),
+              CFGetTypeID(sizeValue) == AXValueGetTypeID() else {
+            return nil
+        }
+
+        let positionAXValue = positionValue as! AXValue
+        let sizeAXValue = sizeValue as! AXValue
+
+        guard AXValueGetValue(positionAXValue, .cgPoint, &elementOrigin),
+              AXValueGetValue(sizeAXValue, .cgSize, &elementSize) else {
+            return nil
+        }
+
+        return CGRect(origin: elementOrigin, size: elementSize)
     }
 }

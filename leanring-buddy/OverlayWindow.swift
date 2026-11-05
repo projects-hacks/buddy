@@ -123,7 +123,11 @@ struct BlueCursorView: View {
         _cursorPosition = State(initialValue: CGPoint(x: localX + 35, y: localY + 25))
         _isCursorOnThisScreen = State(initialValue: screenFrame.contains(mouseLocation))
     }
-    @State private var timer: Timer?
+    /// The pointer's own move events drive the buddy, not a timer: a 60 Hz
+    /// timer per screen ran for as long as the overlay was up, which is
+    /// always, re-rendering a full-screen view with nothing moving.
+    @State private var globalMouseMoveMonitor: Any?
+    @State private var localMouseMoveMonitor: Any?
     @State private var welcomeText: String = ""
     @State private var showWelcome: Bool = true
     @State private var bubbleSize: CGSize = .zero
@@ -393,7 +397,7 @@ struct BlueCursorView: View {
             }
         }
         .onDisappear {
-            timer?.invalidate()
+            stopTrackingCursor()
             navigationAnimationTimer?.invalidate()
             companionManager.tearDownOnboardingVideo()
         }
@@ -438,37 +442,58 @@ struct BlueCursorView: View {
     // MARK: - Cursor Tracking
 
     private func startTrackingCursor() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
-            let mouseLocation = NSEvent.mouseLocation
-            self.isCursorOnThisScreen = self.screenFrame.contains(mouseLocation)
-
-            // During forward flight or pointing, the buddy is NOT interrupted by
-            // mouse movement, it completes its full animation and return flight.
-            // Only during the RETURN flight do we allow cursor movement to cancel
-            // (so the buddy snaps to following if the user moves while it's flying back).
-            if self.buddyNavigationMode == .navigatingToTarget && self.isReturningToCursor {
-                let currentMouseInSwiftUI = self.convertScreenPointToSwiftUICoordinates(mouseLocation)
-                let distanceFromNavigationStart = hypot(
-                    currentMouseInSwiftUI.x - self.cursorPositionWhenNavigationStarted.x,
-                    currentMouseInSwiftUI.y - self.cursorPositionWhenNavigationStarted.y
-                )
-                if distanceFromNavigationStart > 100 {
-                    cancelNavigationAndResumeFollowing()
-                }
-                return
-            }
-
-            // During forward navigation or pointing, just skip cursor tracking
-            if self.buddyNavigationMode != .followingCursor {
-                return
-            }
-
-            // Normal cursor following
-            let swiftUIPosition = self.convertScreenPointToSwiftUICoordinates(mouseLocation)
-            let buddyX = swiftUIPosition.x + 35
-            let buddyY = swiftUIPosition.y + 25
-            self.cursorPosition = CGPoint(x: buddyX, y: buddyY)
+        stopTrackingCursor()
+        let movementEvents: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
+        globalMouseMoveMonitor = NSEvent.addGlobalMonitorForEvents(matching: movementEvents) { _ in
+            self.followPointer()
         }
+        localMouseMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: movementEvents) { event in
+            self.followPointer()
+            return event
+        }
+    }
+
+    private func stopTrackingCursor() {
+        if let globalMouseMoveMonitor { NSEvent.removeMonitor(globalMouseMoveMonitor) }
+        if let localMouseMoveMonitor { NSEvent.removeMonitor(localMouseMoveMonitor) }
+        globalMouseMoveMonitor = nil
+        localMouseMoveMonitor = nil
+    }
+
+    /// Runs on each pointer movement.
+    private func followPointer() {
+        let mouseLocation = NSEvent.mouseLocation
+        let isOnThisScreen = self.screenFrame.contains(mouseLocation)
+        if self.isCursorOnThisScreen != isOnThisScreen { self.isCursorOnThisScreen = isOnThisScreen }
+
+        // During forward flight or pointing, the buddy is NOT interrupted by
+        // mouse movement, it completes its full animation and return flight.
+        // Only during the RETURN flight do we allow cursor movement to cancel
+        // (so the buddy snaps to following if the user moves while it's flying back).
+        if self.buddyNavigationMode == .navigatingToTarget && self.isReturningToCursor {
+            let currentMouseInSwiftUI = self.convertScreenPointToSwiftUICoordinates(mouseLocation)
+            let distanceFromNavigationStart = hypot(
+                currentMouseInSwiftUI.x - self.cursorPositionWhenNavigationStarted.x,
+                currentMouseInSwiftUI.y - self.cursorPositionWhenNavigationStarted.y
+            )
+            if distanceFromNavigationStart > 100 {
+                cancelNavigationAndResumeFollowing()
+            }
+            return
+        }
+
+        // During forward navigation or pointing, just skip cursor tracking
+        if self.buddyNavigationMode != .followingCursor {
+            return
+        }
+
+        // Normal cursor following, only where the buddy is shown: the
+        // other screens' views are not re-rendered for nothing.
+        guard isOnThisScreen else { return }
+        let swiftUIPosition = self.convertScreenPointToSwiftUICoordinates(mouseLocation)
+        let buddyX = swiftUIPosition.x + 35
+        let buddyY = swiftUIPosition.y + 25
+        self.cursorPosition = CGPoint(x: buddyX, y: buddyY)
     }
 
     /// Converts a macOS screen point (AppKit, bottom-left origin) to SwiftUI

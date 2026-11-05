@@ -165,6 +165,13 @@ enum APIKeyChecker {
                 break
             }
         }
+        // A missing Deepgram key is not a problem: the Mac's own voice and
+        // Apple Speech are the design without one. A key Deepgram refuses is.
+        if let deepgramError = error as? DeepgramError, case .httpStatus(let status) = deepgramError,
+           status == 401 || status == 402 || status == 403,
+           case .rejected(let reason) = interpret(status: status, body: "", service: .deepgram) {
+            return (.deepgram, reason)
+        }
         if let geminiError = error as? GeminiError {
             switch geminiError {
             case .missingKey:

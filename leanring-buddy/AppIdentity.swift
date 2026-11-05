@@ -16,7 +16,7 @@
 
 import Foundation
 
-enum AppIdentity {
+nonisolated enum AppIdentity {
     static let standardBundleIdentifier = "com.maverickrajeev.clicky-local"
 
     static var bundleIdentifier: String {

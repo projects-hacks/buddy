@@ -561,11 +561,12 @@ private final class AccessibilityTerminalText {
     init?(processIdentifier: pid_t) {
         let applicationElement = AXUIElementCreateApplication(processIdentifier)
         AXUIElementSetMessagingTimeout(applicationElement, 0.25)
+        var elementsVisited = 0
         if let focused = copyElementAttribute(applicationElement, kAXFocusedUIElementAttribute),
            (copyAttribute(focused, kAXRoleAttribute) as? String) == (kAXTextAreaRole as String) {
             textArea = focused
         } else if let window = copyElementAttribute(applicationElement, kAXFocusedWindowAttribute),
-                  let found = Self.findTextArea(under: window, depth: 0) {
+                  let found = Self.findTextArea(under: window, depth: 0, startedAt: Date(), elementsVisited: &elementsVisited) {
             textArea = found
         } else {
             return nil
@@ -574,12 +575,23 @@ private final class AccessibilityTerminalText {
         guard state() != nil else { return nil }
     }
 
-    private static func findTextArea(under element: AXUIElement, depth: Int) -> AXUIElement? {
-        guard depth < 8 else { return nil }
+    /// The search runs on the main thread, so it stops after a fixed number
+    /// of elements or a fixed time, however deep and wide the window is.
+    private static let maximumElementsVisitedSearchingForTextArea = 400
+    private static let maximumSecondsSearchingForTextArea: TimeInterval = 0.2
+
+    private static func findTextArea(under element: AXUIElement, depth: Int, startedAt: Date,
+                                     elementsVisited: inout Int) -> AXUIElement? {
+        guard depth < 8, elementsVisited < maximumElementsVisitedSearchingForTextArea,
+              Date().timeIntervalSince(startedAt) < maximumSecondsSearchingForTextArea else { return nil }
+        elementsVisited += 1
+        AXUIElementSetMessagingTimeout(element, 0.2)
         if (copyAttribute(element, kAXRoleAttribute) as? String) == (kAXTextAreaRole as String) { return element }
         guard let children = copyAttribute(element, kAXChildrenAttribute) as? [AXUIElement] else { return nil }
         for child in children.prefix(40) {
-            if let found = findTextArea(under: child, depth: depth + 1) { return found }
+            if let found = findTextArea(under: child, depth: depth + 1, startedAt: startedAt, elementsVisited: &elementsVisited) {
+                return found
+            }
         }
         return nil
     }

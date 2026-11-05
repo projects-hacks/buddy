@@ -155,6 +155,132 @@
 
   // ------------------------------------------------------- running a program
 
+  // A piece runs in milliseconds. One the model wrote with a loop that never
+  // ends would hold the page's only thread for good, so every `while` and
+  // `for` condition is made to ask the clock first, and past this a piece
+  // stops with an error instead. The app gives up on a piece a little later
+  // (DrawingOverlay.longestPieceRunSeconds) for whatever this cannot catch.
+  const PIECE_TIME_LIMIT_MS = 2500;
+  state.pieceDeadline = Infinity;
+  window.__buddyStillInTime = function () {
+    if (Date.now() > state.pieceDeadline) {
+      throw new Error('this piece ran longer than ' + (PIECE_TIME_LIMIT_MS / 1000) + 's and was stopped');
+    }
+    return true;
+  };
+
+  // Puts the clock check into each loop's condition: `while (c)` becomes
+  // `while (__buddyStillInTime() && (c))`, and the condition of
+  // `for (a; c; b)` likewise (an empty one becomes the check alone). A
+  // `for (x of list)` walks something finite and is left alone. Strings,
+  // template literals and comments are skipped, so words in them are not
+  // read as loops.
+  function guardLoops(source) {
+    const check = '__buddyStillInTime()';
+    let output = '';
+    let index = 0;
+    const length = source.length;
+    const isIdentifierCharacter = (character) => /[A-Za-z0-9_$]/.test(character || '');
+
+    function skipQuoted(start) {
+      const quote = source[start];
+      let position = start + 1;
+      while (position < length && source[position] !== quote) {
+        position += source[position] === '\\' ? 2 : 1;
+      }
+      return position + 1;
+    }
+
+    function skipComment(start) {
+      if (source[start + 1] === '/') {
+        const end = source.indexOf('\n', start);
+        return end === -1 ? length : end;
+      }
+      const end = source.indexOf('*/', start + 2);
+      return end === -1 ? length : end + 2;
+    }
+
+    // The index just past the `)` matching the `(` at `open`, skipping
+    // strings and comments inside; -1 when it never closes.
+    function matchingParenthesis(open) {
+      let depth = 0;
+      let position = open;
+      while (position < length) {
+        const character = source[position];
+        if (character === '"' || character === "'" || character === '`') { position = skipQuoted(position); continue; }
+        if (character === '/' && (source[position + 1] === '/' || source[position + 1] === '*')) { position = skipComment(position); continue; }
+        if (character === '(') depth += 1;
+        if (character === ')') { depth -= 1; if (depth === 0) return position + 1; }
+        position += 1;
+      }
+      return -1;
+    }
+
+    // Splits a `for` header at its top-level semicolons.
+    function topLevelSemicolons(header) {
+      const positions = [];
+      let depth = 0;
+      for (let position = 0; position < header.length; position += 1) {
+        const character = header[position];
+        if (character === '"' || character === "'" || character === '`') {
+          const quote = character;
+          position += 1;
+          while (position < header.length && header[position] !== quote) position += header[position] === '\\' ? 2 : 1;
+          continue;
+        }
+        if (character === '(' || character === '[' || character === '{') depth += 1;
+        if (character === ')' || character === ']' || character === '}') depth -= 1;
+        if (character === ';' && depth === 0) positions.push(position);
+      }
+      return positions;
+    }
+
+    while (index < length) {
+      const character = source[index];
+      if (character === '"' || character === "'" || character === '`') {
+        const end = skipQuoted(index);
+        output += source.slice(index, end);
+        index = end;
+        continue;
+      }
+      if (character === '/' && (source[index + 1] === '/' || source[index + 1] === '*')) {
+        const end = skipComment(index);
+        output += source.slice(index, end);
+        index = end;
+        continue;
+      }
+      const keyword = source.startsWith('while', index) ? 'while' : (source.startsWith('for', index) ? 'for' : null);
+      if (keyword && !isIdentifierCharacter(source[index - 1]) && !isIdentifierCharacter(source[index + keyword.length])) {
+        let open = index + keyword.length;
+        while (open < length && /\s/.test(source[open])) open += 1;
+        const close = source[open] === '(' ? matchingParenthesis(open) : -1;
+        if (close !== -1) {
+          const header = source.slice(open + 1, close - 1);
+          let guardedHeader = null;
+          if (keyword === 'while') {
+            guardedHeader = check + ' && (' + header + ')';
+          } else {
+            const semicolons = topLevelSemicolons(header);
+            if (semicolons.length === 2) {
+              const condition = header.slice(semicolons[0] + 1, semicolons[1]);
+              const guardedCondition = condition.trim() === '' ? ' ' + check : ' ' + check + ' && (' + condition + ')';
+              guardedHeader = header.slice(0, semicolons[0] + 1) + guardedCondition + header.slice(semicolons[1]);
+            }
+          }
+          if (guardedHeader !== null) {
+            // The header itself may hold loops (a function in a condition).
+            output += source.slice(index, open) + '(' + guardLoops(guardedHeader) + ')';
+            index = close;
+            continue;
+          }
+        }
+      }
+      output += character;
+      index += 1;
+    }
+    return output;
+  }
+
   // Runs one piece of the answer as it streams in. `const` and `let` become
   // `var` so a card declared in one piece can be used by the next, and so a
   // later answer can reuse a name without a redeclaration error.
@@ -163,12 +289,14 @@
     const buttonsBefore = state.buttons.length;
     const errorsBefore = state.errors.length;
     const marksBefore = state.markCount;
-    const source = String(code).replace(/\b(const|let)\s+/g, 'var ');
+    const source = guardLoops(String(code).replace(/\b(const|let)\s+/g, 'var '));
+    state.pieceDeadline = Date.now() + PIECE_TIME_LIMIT_MS;
     try {
       (0, eval)(source);
     } catch (error) {
       state.errors.push(String(error && error.message || error));
     }
+    state.pieceDeadline = Infinity;
     keepCardsOffMarkedItems();
     return {
       newLines: state.lines.slice(linesBefore).map(line => ({ id: line.id, text: line.text })),

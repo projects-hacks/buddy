@@ -107,7 +107,17 @@ final class NarrationVoice {
 
     /// Spoken through instead when Deepgram has no key or fails.
     private let fallbackVoice: LocalSpeechSynthesisClient
-    private var deepgramUnavailable = false
+    /// A failure benches Deepgram for a while rather than for good: a Wi-Fi
+    /// blip or a sleep mid-sentence should not mean the system voice until
+    /// Buddy is restarted.
+    private var deepgramBenchedUntil = Date.distantPast
+    private var isDeepgramBenched: Bool { Date() < deepgramBenchedUntil }
+    static let deepgramBenchSeconds: TimeInterval = 5 * 60
+
+    /// A download failed in a way only the student can fix (a revoked key,
+    /// no credit), or worked again after that; for the notch's key banner.
+    var onDeepgramKeyProblem: ((Error) -> Void)?
+    var onDeepgramWorked: (() -> Void)?
 
     init(fallbackVoice: LocalSpeechSynthesisClient) {
         self.fallbackVoice = fallbackVoice
@@ -129,9 +139,22 @@ final class NarrationVoice {
                 guard let self else { return }
                 TutorDebugLog.write("🔈 narration: audio device changed, restarting the voice")
                 self.isEngineRunning = false
+                // The engine has already stopped; its player node is told so,
+                // and every buffer it held is gone, so nothing may wait on them.
+                if self.playerNode.isPlaying { self.playerNode.stop() }
                 self.cutCurrentLine()
             }
         }
+    }
+
+    /// After the Mac wakes: the engine is started afresh on the next
+    /// sentence, on whatever output exists now, and a failure from while it
+    /// slept does not keep Deepgram benched.
+    func prepareAfterWake() {
+        if playerNode.isPlaying { playerNode.stop() }
+        audioEngine.stop()
+        isEngineRunning = false
+        deepgramBenchedUntil = .distantPast
     }
 
     /// Opens the connection to Deepgram while the student is still talking.
@@ -304,7 +327,7 @@ final class NarrationVoice {
     private func startDownload(_ line: Line) {
         // A replayed sentence already has its audio, or speaks locally.
         guard line.downloadTask == nil, !line.isDownloaded, !line.downloadFailed else { return }
-        guard !deepgramUnavailable, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
+        guard !isDeepgramBenched, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
             line.downloadFailed = true
             wake(line)
             startNextDownload(after: line)
@@ -349,6 +372,7 @@ final class NarrationVoice {
                 }
                 line.downloadedAtSpeed = speed
                 SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram)
+                self.onDeepgramWorked?()
 
                 // About a fifth of a second per chunk: small enough that the
                 // first one plays almost at once, large enough not to swamp
@@ -373,8 +397,9 @@ final class NarrationVoice {
                 line.isDownloaded = true
             } catch {
                 guard generationAtStart == self.generation, !Task.isCancelled else { return }
-                TutorDebugLog.write("⚠️ narration download failed: \(error.localizedDescription). system voice from here.")
-                self.deepgramUnavailable = true
+                TutorDebugLog.write("⚠️ narration download failed: \(error.localizedDescription). system voice for \(Int(Self.deepgramBenchSeconds / 60)) minutes.")
+                self.deepgramBenchedUntil = Date().addingTimeInterval(Self.deepgramBenchSeconds)
+                if APIKeyChecker.problem(in: error)?.service == .deepgram { self.onDeepgramKeyProblem?(error) }
                 line.downloadFailed = true
             }
             guard generationAtStart == self.generation else { return }
@@ -438,7 +463,11 @@ final class NarrationVoice {
         // Nothing has arrived yet: wait for the first audio or a failure.
         if line.chunks.isEmpty, !line.isDownloaded, !line.downloadFailed {
             if line.downloadTask == nil { startDownload(line) }
-            await withCheckedContinuation { line.waitingForAudio = $0 }
+            // Starting the download can fail at once (no key, Deepgram
+            // benched), which wakes nobody: waiting then would never end.
+            if line.chunks.isEmpty, !line.isDownloaded, !line.downloadFailed, !currentLineIsBeingCut {
+                await withCheckedContinuation { line.waitingForAudio = $0 }
+            }
         }
 
         if currentLineIsBeingCut { return }
@@ -449,7 +478,18 @@ final class NarrationVoice {
             return
         }
 
-        do { try startEngineIfNeeded() } catch {
+        // Playing into a stopped engine raises an exception nothing can
+        // catch, so a start that leaves it stopped speaks locally instead.
+        let engineIsRunning: Bool
+        do {
+            try startEngineIfNeeded()
+            engineIsRunning = audioEngine.isRunning
+        } catch {
+            TutorDebugLog.write("⚠️ narration: the audio engine would not start (\(error.localizedDescription))")
+            engineIsRunning = false
+        }
+        guard engineIsRunning else {
+            isEngineRunning = false
             onLineStarted?(line.index, estimatedSeconds(for: line.text))
             try? await fallbackVoice.speakText(line.text)
             return
@@ -481,10 +521,48 @@ final class NarrationVoice {
         }
 
         // Wait for the last buffer of this sentence to finish playing.
-        if framesPlayedForCurrentLine < framesScheduledForCurrentLine {
-            await withCheckedContinuation { currentLineDrained = $0 }
-        }
+        await waitForCurrentLineToDrain(line)
     }
+
+    /// Waits for the sentence's last buffer, but never longer than what is
+    /// left of it plus a margin. A device that stops rendering without
+    /// telling the engine leaves buffer completions unfired, and without
+    /// this the answer would wait on that sentence forever.
+    private func waitForCurrentLineToDrain(_ line: Line) async {
+        guard framesPlayedForCurrentLine < framesScheduledForCurrentLine else { return }
+        let playTokenAtWait = playToken
+        let rate = timeStretch.bypass ? 1 : Double(timeStretch.rate)
+        let secondsOfAudioLeft = seconds(framesScheduledForCurrentLine - framesPlayedForCurrentLine) / max(0.1, rate)
+        let watchdog = Task { [weak self] in
+            var secondsLeftBeforeGivingUp = secondsOfAudioLeft + Self.drainMarginSeconds
+            while secondsLeftBeforeGivingUp > 0 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled, let self else { return }
+                // A pause holds the sentence on purpose; its time does not count.
+                if !self.isPaused { secondsLeftBeforeGivingUp -= 0.5 }
+            }
+            guard let self, self.playToken == playTokenAtWait, let drained = self.currentLineDrained else { return }
+            TutorDebugLog.write("⚠️ narration: sentence \(line.index + 1) never finished playing, moving on")
+            self.currentLineDrained = nil
+            // Late completions from this sentence must not count toward the next.
+            self.playToken += 1
+            if self.playerNode.isPlaying { self.playerNode.stop() }
+            // Started again for the next sentence, in case the output is stuck.
+            self.audioEngine.stop()
+            self.isEngineRunning = false
+            drained.resume()
+        }
+        await withCheckedContinuation { continuation in
+            // Never overwritten without being resumed: a waiter left behind
+            // would hold its task forever.
+            currentLineDrained?.resume()
+            currentLineDrained = continuation
+        }
+        watchdog.cancel()
+    }
+
+    /// How much longer than its audio a sentence may take before it is ended.
+    private static let drainMarginSeconds: TimeInterval = 5
 
     private func schedule(_ chunk: Data) {
         let frameCount = AVAudioFrameCount(chunk.count / 2)

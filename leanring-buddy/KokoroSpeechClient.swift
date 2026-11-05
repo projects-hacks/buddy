@@ -95,8 +95,9 @@ final class KokoroSpeechClient: NSObject {
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         // Kept separate so dependency resolution chatter cannot be mistaken
-        // for a protocol response on stdout.
-        process.standardError = Pipe()
+        // for a protocol response on stdout, and thrown away: a pipe nobody
+        // reads fills after 64 KB of warnings and the helper then blocks.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
@@ -126,7 +127,13 @@ final class KokoroSpeechClient: NSObject {
 
     func shutDown() {
         stopPlayback()
-        helperInput?.closeFile()
+        stopHelperProcess()
+    }
+
+    /// Ends the helper but lets a clip already rendered finish playing:
+    /// the next sentence is rendered while the current one plays.
+    private func stopHelperProcess() {
+        try? helperInput?.close()
         helperProcess?.terminate()
         helperProcess = nil
         helperInput = nil
@@ -177,7 +184,11 @@ final class KokoroSpeechClient: NSObject {
     private func renderClip(for text: String) async throws -> GeneratedClip {
         let spokenText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !spokenText.isEmpty else { throw KokoroError.badRequest }
-        guard isReady, let helperInput else { throw KokoroError.notRunning }
+        guard isReady, let helperInput, helperProcess?.isRunning == true else {
+            if isReady { TutorDebugLog.write("⚠️ Kokoro helper is no longer running") }
+            stopHelperProcess()
+            throw KokoroError.notRunning
+        }
 
         let request: [String: Any] = [
             "text": spokenText,
@@ -188,10 +199,21 @@ final class KokoroSpeechClient: NSObject {
             throw KokoroError.badRequest
         }
 
-        helperInput.write(requestData)
-        helperInput.write(Data("\n".utf8))
+        // The throwing write: the older `write(_:)` raises an exception on a
+        // helper that has exited, which Swift cannot catch.
+        do {
+            try helperInput.write(contentsOf: requestData + Data("\n".utf8))
+        } catch {
+            TutorDebugLog.write("⚠️ Kokoro helper did not take the sentence: \(error.localizedDescription)")
+            stopHelperProcess()
+            throw KokoroError.notRunning
+        }
 
         guard let response = await readResponseLine(timeoutSeconds: 60) else {
+            // The reader is still waiting on the pipe and would take the next
+            // reply as this one's, so the helper is not asked again.
+            TutorDebugLog.write("⚠️ Kokoro helper did not answer in time, stopping it")
+            stopHelperProcess()
             throw KokoroError.timedOut
         }
         guard response["ok"] as? Bool == true,
@@ -222,12 +244,35 @@ final class KokoroSpeechClient: NSObject {
         let totalCharacters = text.count
         let totalDuration = player.duration
 
-        player.play()
+        // A player that will not start never calls its delegate, so waiting
+        // for the end would wait forever.
+        guard player.play() else {
+            audioPlayer = nil
+            try? FileManager.default.removeItem(at: clipURL)
+            throw KokoroError.playbackFailed
+        }
         startProgressTimer(totalCharacters: totalCharacters, totalDuration: totalDuration)
+
+        // Never longer than the clip plus a margin, in case the output stops
+        // without the player noticing.
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64((max(0, totalDuration) + 5) * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.audioPlayer === player,
+                  self.activePlaybackContinuation != nil else { return }
+            TutorDebugLog.write("⚠️ Kokoro voice: a clip never finished playing, moving on")
+            self.stopPlayback()
+        }
+        defer { watchdog.cancel() }
 
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                activePlaybackContinuation = continuation
+                // Finished, or stopped, before the wait began.
+                if audioPlayer !== player {
+                    continuation.resume()
+                } else {
+                    resumePlaybackContinuation()
+                    activePlaybackContinuation = continuation
+                }
             }
         } onCancel: {
             Task { @MainActor in self.stopPlayback() }
@@ -326,11 +371,23 @@ final class KokoroSpeechClient: NSObject {
 extension KokoroSpeechClient: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            // A clip that was replaced finishing late is not the current one.
+            guard audioPlayer === player else { return }
             progressTimer?.invalidate()
             progressTimer = nil
+            audioPlayer = nil
             // Report the end of the text so any mark attached past the last
             // sampled position still fires.
             resumePlaybackContinuation()
+        }
+    }
+
+    /// A clip that cannot be decoded never finishes either.
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in
+            guard audioPlayer === player else { return }
+            TutorDebugLog.write("⚠️ Kokoro voice: clip could not be decoded (\(error?.localizedDescription ?? "unknown"))")
+            stopPlayback()
         }
     }
 }
@@ -356,9 +413,11 @@ enum KokoroError: LocalizedError {
     case badRequest
     case timedOut
     case generationFailed(String)
+    case playbackFailed
 
     var errorDescription: String? {
         switch self {
+        case .playbackFailed: return "The rendered clip would not play."
         case .notRunning: return "Kokoro helper is not running."
         case .badRequest: return "Could not encode the speech request."
         case .timedOut: return "Kokoro did not respond in time."

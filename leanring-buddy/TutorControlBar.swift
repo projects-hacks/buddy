@@ -435,11 +435,17 @@ private final class TranscriptStore {
         }
     }
 
+    /// The throwing calls, not the older `write(_:)`: that one raises an
+    /// exception on a full disk, which Swift cannot catch, and quits Buddy.
     private static func append(_ data: Data, to file: URL) {
         if let handle = try? FileHandle(forWritingTo: file) {
-            handle.seekToEndOfFile()
-            handle.write(data)
-            try? handle.close()
+            defer { try? handle.close() }
+            do {
+                try handle.seekToEnd()
+                try handle.write(contentsOf: data)
+            } catch {
+                TutorDebugLog.write("⚠️ transcript not saved: \(error.localizedDescription)")
+            }
         } else {
             try? data.write(to: file)
         }

@@ -176,4 +176,10 @@ extension NotebookScreenCropMaker: WKNavigationDelegate {
         pageLoadContinuation?.resume()
         pageLoadContinuation = nil
     }
+
+    /// A page whose process died reports neither a finish nor a failure.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        pageLoadContinuation?.resume()
+        pageLoadContinuation = nil
+    }
 }
