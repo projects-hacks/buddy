@@ -41,6 +41,8 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 0])
 
         TutorDebugLog.beginSession()
+        UncaughtExceptionLogger.install()
+        MainThreadWatchdog.start()
         // Every accessibility call waits on the app it asks, six seconds by
         // default. Set on the system-wide element this is the ceiling for
         // every element Buddy reads, including children read off a tree
@@ -67,6 +69,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         companionManager.stop()
         SpendingMeter.shared.saveNow()
+        TutorDebugLog.endSession()
     }
 
     /// Keeps the login item matching the student's choice. Nothing is
