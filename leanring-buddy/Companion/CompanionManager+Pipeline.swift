@@ -224,7 +224,7 @@ extension CompanionManager {
         cancelSpeechAndClearQueue()
 
         if isGuideContinuation {
-            guideWatcher.stop()
+            guide.watcher.stop()
             TutorDebugLog.write("🧭 guide: \(transcript)")
         } else if howToTakeover != nil {
             TutorDebugLog.write("📒 replay handed to the model: \(transcript)")
@@ -452,8 +452,8 @@ extension CompanionManager {
                 if let interruptedAnswerNote { studyNotes.append(interruptedAnswerNote) }
                 if let guideStep {
                     studyNotes.append(GuideMode.continuationNote(
-                        after: guideStep, stepNumber: guideStepsGiven,
-                        changedRegion: guideChangedRegion, canvasSize: canvasSize))
+                        after: guideStep, stepNumber: guide.stepsGiven,
+                        changedRegion: guide.changedRegion, canvasSize: canvasSize))
                 }
                 // Hook for ErrorOffer.swift: the error's lines and the ids to ring.
                 if let errorAskedAbout {
@@ -682,15 +682,8 @@ extension CompanionManager {
                             howToMemory.abandonRecording()
                         }
                     }
-                    if let nextGuideStep, guideStepsGiven < GuideMode.maximumSteps {
-                        currentGuideStep = nextGuideStep
-                        guideStepsGiven += 1
-                        guideBaseline = captureForGuide
-                        if guidedApplication == nil, applicationInFront?.bundleIdentifier != Bundle.main.bundleIdentifier {
-                            guidedApplication = applicationInFront
-                        }
-                        controlBar.model.guideInstruction = nextGuideStep.instruction
-                        TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) is \(nextGuideStep.instruction)")
+                    if let nextGuideStep, guide.hasRoomForAnotherStep {
+                        guide.takeStep(nextGuideStep, baseline: captureForGuide, applicationInFront: applicationInFront)
                     } else if isGuideContinuation || nextGuideStep != nil {
                         stopGuide(reason: nextGuideStep == nil ? "task finished" : "too many steps")
                     }
@@ -789,10 +782,8 @@ extension CompanionManager {
                     await lessonPlayer.waitUntilSpoken()
                     talkOverListener.stop()
                     controlBar.model.caption = ""
-                    if let currentGuideStep, let guideBaseline, isStillTheCurrentQuestion() {
-                        guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
-                                           displayFrame: guideBaseline.displayFrame,
-                                           guidedApplication: guidedApplication)
+                    if guide.currentStep != nil, guide.baseline != nil, isStillTheCurrentQuestion() {
+                        guide.watchCurrentStep()
                     }
                 } else {
                     marks.scheduleDismissal()

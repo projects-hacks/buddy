@@ -9,32 +9,22 @@ import AppKit
 import Foundation
 
 extension CompanionManager {
+    var howToMemory: HowToMemory { guide.howToMemory }
     var howToCount: Int { howToMemory.count }
+    var currentGuideStep: GuideStep? { guide.currentStep }
 
-    func stopGuide(reason: String) {
-        if reason != "task finished" { howToMemory.abandonRecording() }
-        currentReplay = nil
-        guard currentGuideStep != nil || guideWatcher.isWatching else { return }
-        TutorDebugLog.write("🧭 guide stopped: \(reason)")
-        guideWatcher.stop()
-        currentGuideStep = nil
-        guideStepsGiven = 0
-        guideBaseline = nil
-        guidedApplication = nil
-        guideChangedRegion = nil
-        controlBar.model.guideInstruction = nil
-    }
+    func stopGuide(reason: String) { guide.stop(reason: reason) }
 
     /// The student did something and the screen changed: look again, as if
     /// they had asked what next.
     func continueGuide(changedRegion: CGRect) {
         guard let step = currentGuideStep else { return }
-        guideChangedRegion = changedRegion
-        if let replay = currentReplay {
+        guide.changedRegion = changedRegion
+        if let replay = guide.currentReplay {
             continueReplay(replay, after: step)
             return
         }
-        TutorDebugLog.write("🧭 guide: step \(guideStepsGiven) looks done, looking again")
+        TutorDebugLog.write("🧭 guide: step \(guide.stepsGiven) looks done, looking again")
         shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: GuideMode.continuationQuestion(after: step), guideStep: step)
     }
@@ -90,12 +80,10 @@ extension CompanionManager {
             controlBar.model.recordLessonTitle(howTo.title)
             stopGuide(reason: "task finished")
         } else if let instruction = step.instruction {
-            currentReplay = (howTo, stepIndex + 1, originalQuestion)
-            currentGuideStep = GuideStep(instruction: instruction, doneWhen: step.doneWhen ?? "")
-            guideStepsGiven = stepIndex + 1
-            guideBaseline = (screen.capture.imageData, screen.capture.displayFrame)
-            guidedApplication = application
-            controlBar.model.guideInstruction = instruction
+            guide.takeReplayedStep(GuideStep(instruction: instruction, doneWhen: step.doneWhen ?? ""),
+                                   replay: (howTo, stepIndex + 1, originalQuestion),
+                                   baseline: (screen.capture.imageData, screen.capture.displayFrame),
+                                   application: application)
         }
 
         // As after a model's answer: the status holds until the voice ends,
@@ -108,9 +96,8 @@ extension CompanionManager {
         await lessonPlayer.waitUntilSpoken()
         talkOverListener.stop()
         controlBar.model.caption = ""
-        if !isLastStep, !Task.isCancelled, let currentGuideStep, let guideBaseline {
-            guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
-                               displayFrame: guideBaseline.displayFrame, guidedApplication: guidedApplication)
+        if !isLastStep, !Task.isCancelled {
+            guide.watchCurrentStep()
         }
         return true
     }
@@ -126,7 +113,7 @@ extension CompanionManager {
         cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         let question = GuideMode.continuationQuestion(after: step)
-        let application = guidedApplication
+        let application = guide.guidedApplication
         currentResponseTask = Task { [weak self] in
             guard let self else { return }
             let replayed = await self.replayHowToStep(replay.howTo, stepIndex: replay.nextStepIndex, question: question,
@@ -136,7 +123,7 @@ extension CompanionManager {
             self.howToMemory.startRecording(question: replay.question, application: application,
                                             seededWith: Array(replay.howTo.steps.prefix(replay.nextStepIndex)),
                                             replacing: replay.howTo.id)
-            self.currentReplay = nil
+            self.guide.currentReplay = nil
             self.sendTranscriptToTutorWithScreenshot(transcript: question, guideStep: step,
                                                      howToTakeover: (replay.howTo, replay.nextStepIndex))
         }

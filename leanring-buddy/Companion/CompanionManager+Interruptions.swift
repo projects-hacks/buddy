@@ -57,7 +57,7 @@ extension CompanionManager {
         if isOverlayVisible {
             overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
         }
-        if let guideBaseline, !screenFrames.contains(guideBaseline.displayFrame) {
+        if let guideBaseline = guide.baseline, !screenFrames.contains(guideBaseline.displayFrame) {
             stopGuide(reason: "its display is gone")
         }
         if lessonPlayer.hasDrawing, !screenFrames.contains(drawingOverlay.screenFrame) {

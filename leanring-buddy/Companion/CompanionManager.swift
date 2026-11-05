@@ -434,26 +434,13 @@ final class CompanionManager: ObservableObject {
 
     var currentPracticeProblem: PracticeProblem?
 
-    // Guide mode (GuideMode.swift): a task in an app, one step at a time.
-    var currentGuideStep: GuideStep?
-    var guideStepsGiven = 0
-    /// The screen the current step was given against, for the watcher.
-    var guideBaseline: (imageData: Data, displayFrame: CGRect)?
-    /// The app the guide started in, kept for the whole task.
-    var guidedApplication: NSRunningApplication?
-    /// Where the screen changed when the last step looked done.
-    var guideChangedRegion: CGRect?
-    lazy var guideWatcher: GuideWatcher = {
-        let watcher = GuideWatcher()
-        watcher.onStepLooksDone = { [weak self] changedRegion in self?.continueGuide(changedRegion: changedRegion) }
-        return watcher
-    }()
-
-    // How-tos (HowToMemory.swift): finished guides, replayed with no model.
-    lazy var howToMemory: HowToMemory = {
-        let memory = HowToMemory()
-        memory.writeCues = { [weak self] howTo in await self?.claudeBrain.howToCues(howTo) }
-        return memory
+    /// Guide mode (GuideMode.swift): a task in an app, one step at a time,
+    /// and the how-tos kept from finished ones (GuideCoordinator.swift).
+    lazy var guide: GuideCoordinator = {
+        let guide = GuideCoordinator(writeHowToCues: { [weak self] howTo in await self?.claudeBrain.howToCues(howTo) })
+        guide.onStepLooksDone = { [weak self] changedRegion in self?.continueGuide(changedRegion: changedRegion) }
+        guide.onInstructionChanged = { [weak self] instruction in self?.controlBar.model.guideInstruction = instruction }
+        return guide
     }()
 
     // Hook for ErrorOffer.swift ("explain this error?"): offers to explain an
@@ -465,7 +452,7 @@ final class CompanionManager: ObservableObject {
             guard let self else { return true }
             return self.voiceState != .idle || self.controlBar.model.activity != .ready
                 || self.buddyDictationManager.isDictationInProgress || self.isAnyVoicePlaying
-                || self.currentGuideStep != nil || self.guideWatcher.isWatching || self.currentReplay != nil
+                || self.guide.isGuiding
         }
         offer.isDictationInProgress = { [weak self] in self?.buddyDictationManager.isDictationInProgress ?? false }
         offer.notchShapeSize = { [weak self] in self?.controlBar.model.laidOutShapeSize ?? .zero }
@@ -474,10 +461,6 @@ final class CompanionManager: ObservableObject {
         offer.onExplainRequested = { [weak self] question in self?.askTypedQuestion(question) }
         return offer
     }()
-
-    /// A saved how-to being replayed: which step comes next, and the
-    /// question that started it.
-    var currentReplay: (howTo: HowTo, nextStepIndex: Int, question: String)?
 
     /// Which try at the current answer is live. A brain given up on at its
     /// deadline may still deliver words while it unwinds; they are dropped.
