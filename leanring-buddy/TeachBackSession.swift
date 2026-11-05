@@ -11,7 +11,7 @@
 //  owns the paper, the voice and the brains:
 //
 //  1. Listening, hands free (TeachBackListener): the board is titled
-//     "Teach me {topic}" with the invitation under it and a bar with the
+//     "You explain: {topic}" with the invitation under it and a bar with the
 //     live red meter, Listening, I'm done and Cancel. The notch says
 //     "you're teaching" with the words as they are heard.
 //  2. Their version: one call (TeachBackPrompt.drawingSystem) turns what
@@ -160,7 +160,7 @@ final class TeachBackSession {
         guard let drawn = await host.playBoardAnswer(
             systemPrompt: TeachBackPrompt.drawingSystem, history: [], turnNote: drawingNote,
             maximumTokens: TeachBackPrompt.drawingMaximumTokens, ink: .student,
-            commandsWithFirstSentence: rubbedOutMarks, keepsOnlyTheFirstBlock: true) else {
+            commandsWithFirstSentence: rubbedOutMarks, keepsOnlyTheFirstBlock: true, drawsAsOneBeat: true) else {
             showResult()
             return
         }

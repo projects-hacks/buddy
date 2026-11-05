@@ -618,9 +618,10 @@
     const svgElement = kit().svgElement;
     const TONES = kit().TONES;
     // Teach it back: what the student said, outlined in their purple on a
-    // light wash; a part they left out, as a dashed red outline on paper.
+    // light wash, solid like every box so an arrow goes behind it and never
+    // across their words; a part they left out, as a dashed red outline on paper.
     if (ink === 'student' && (kind === 'box' || kind === 'circle')) {
-      const options = kit().roughOptions({ tone: 'purple', fill: 'purple', fillAlpha: 0.14, size: 2.4 });
+      const options = kit().roughOptions({ tone: 'purple', fill: '#ECE5F6', fillAlpha: 1, size: 2.4 });
       const node = kind === 'box'
         ? rough.rectangle(frame.x, frame.y, frame.width, frame.height, options)
         : rough.circle(frame.x + frame.width / 2, frame.y + frame.height / 2, Math.min(frame.width, frame.height), options);

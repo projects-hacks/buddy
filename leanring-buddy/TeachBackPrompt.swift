@@ -17,6 +17,15 @@
 import Foundation
 
 enum TeachBackPrompt {
+    /// The board's title while the student explains, the Notebook page's
+    /// too: the student is the one explaining, so never "Teach me".
+    static func boardTitle(topic: String) -> String {
+        "You explain: \(topic)"
+    }
+
+    /// Under the title, from the approved design, in Buddy's third person.
+    static let invitation = "Explain it like you would to a friend. Buddy draws what you say."
+
     static let drawingSystem = """
     you are buddy, a study helper. the student has just explained a topic to you out loud, to find out whether they really understand it. now you draw THEIR explanation on the whiteboard, exactly as they gave it, so they can see what they said. you are a faithful scribe, not a teacher: you draw what they said, not what is true. a separate check marks the gaps afterwards; that is not your job.
 
@@ -101,7 +110,8 @@ enum TeachBackPrompt {
     - at most four gaps, most important first. a wrong claim about how it works comes before a missing part, and a missing part the idea cannot work without comes before a detail. a missing part and the missing link that attaches it are one gap.
     - only real gaps: something the idea needs at the level they explained it, or something they said that is false. never mark a word choice, a different but correct way of saying it, or a detail beyond what a student at their level needs.
     - depth they did not attempt is not a gap. a student who explained what it does and how need not also explain why it is fast, when it slows down, its edge cases or its history. if you would not stop them mid-lesson to correct it, leave it.
-    - one misunderstanding, one mark: the same wrong idea showing in several places of their drawing (a formula and what they concluded from it) is marked once, where they first stated it, and the sentence can name what follows from it.
+    - one misunderstanding, one mark: the same wrong idea showing in several places of their drawing (a formula and what they concluded from it, two directions swapped, a claim and its mirror image) is marked once, where they first stated it, and its sentence names the rest.
+    - count misunderstandings, not places: before writing, decide which few ideas they got wrong or left out, then give each one mark.
     - most explanations have one to three real gaps and a good one has none. never look for something to mark so the board is not bare.
     - read the whole explanation, not only the drawing: they may have said something the drawing shows in fewer words.
     - when their explanation is right and complete, say so in one sentence, mark nothing, and give the verdict.
@@ -158,6 +168,25 @@ enum TeachBackPrompt {
         guard let lineEnd = text[opening.upperBound...].firstIndex(of: "\n"),
               let closing = text.range(of: "```", range: lineEnd..<text.endIndex) else { return text }
         return String(text[..<closing.upperBound])
+    }
+
+    /// The drawing as one beat: its one sentence and every board call after
+    /// it, with any later step(n) lines taken out. The board places a part
+    /// beside what the same beat links it to and leaves room for the
+    /// arrow's words (BoardProgramTranslator), which only works when the
+    /// parts and their arrows arrive together.
+    static func drawingAsOneBeat(_ text: String) -> String {
+        var seenFirstStep = false
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        return lines.enumerated().filter { index, line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            // While streaming, the last line may be a step(2) still being
+            // written; it goes too, so it never cuts the beat for a moment.
+            let isUnfinishedStep = index == lines.count - 1 && trimmed.hasPrefix("step(")
+            guard isUnfinishedStep || trimmed.range(of: #"^step\(\s*\d+\s*\);?$"#, options: .regularExpression) != nil else { return true }
+            defer { seenFirstStep = true }
+            return !seenFirstStep
+        }.map(\.element).joined(separator: "\n")
     }
 
     /// A program piece with `statement` right after its first say(...)

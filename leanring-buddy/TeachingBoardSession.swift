@@ -268,7 +268,8 @@ final class TeachingBoardSession {
         let boardHasContent = !(board?.state.isEmpty ?? true)
         if !keepsNothing, boardHasContent {
             if let endingTeachBack {
-                hooks.keepBoardInNotebook(openingQuestion, "You taught: \(endingTeachBack.topic)", endingTeachBack.notebookParagraphs)
+                hooks.keepBoardInNotebook(openingQuestion, TeachBackPrompt.boardTitle(topic: endingTeachBack.topic),
+                                          endingTeachBack.notebookParagraphs)
             } else if !everySentenceSaid.isEmpty {
                 hooks.keepBoardInNotebook(openingQuestion, lessonTitle ?? board?.state.title, everySentenceSaid)
             }
@@ -345,7 +346,7 @@ final class TeachingBoardSession {
         overlay.callBoard("open", argumentsJSON: surface.openArgumentsJSON)
         boardIsOnScreen = true
         board.beginTurn()
-        let title = "Teach me \(topic)"
+        let title = TeachBackPrompt.boardTitle(topic: topic)
         _ = board.apply(.setTitle(title))
         lessonTitle = title
         overlay.onTeachBackAction = { [weak self] action in self?.teachBackBarWasClicked(action) }
@@ -369,8 +370,8 @@ final class TeachingBoardSession {
     func showTeachBackPhase(_ phase: String) {
         guard let teachBack else { return }
         let payload: [String: Any] = [
-            "title": "Teach me \(teachBack.topic)",
-            "subtitle": "Explain it like you would to a friend. I\u{2019}ll draw what you say.",
+            "title": TeachBackPrompt.boardTitle(topic: teachBack.topic),
+            "subtitle": TeachBackPrompt.invitation,
             "phase": phase
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
@@ -464,7 +465,8 @@ final class TeachingBoardSession {
     func playBoardAnswer(systemPrompt: String, history: [(userPlaceholder: String, assistantResponse: String)],
                          turnNote: String, maximumTokens: Int, ink: BoardInk?,
                          commandsWithFirstSentence: [BoardDrawCommand] = [],
-                         keepsOnlyTheFirstBlock: Bool = false) async -> PlayedBoardAnswer? {
+                         keepsOnlyTheFirstBlock: Bool = false,
+                         drawsAsOneBeat: Bool = false) async -> PlayedBoardAnswer? {
         guard let board, let surface, let screenForBoard else { return nil }
         let answerIdentifier = currentTurnIdentifier
         hooks.setVoiceState(.processing)
@@ -492,8 +494,10 @@ final class TeachingBoardSession {
         let progress = BoardTurnProgress()
         // Teach it back runs only its first block: a model that writes a
         // corrected second one would otherwise draw the student's words twice.
+        // Its drawing is one beat, so each part lands beside what it links to.
         func usable(_ text: String) -> String {
-            keepsOnlyTheFirstBlock ? TeachBackPrompt.firstProgramBlock(of: text) : text
+            let firstBlock = keepsOnlyTheFirstBlock ? TeachBackPrompt.firstProgramBlock(of: text) : text
+            return drawsAsOneBeat ? TeachBackPrompt.drawingAsOneBeat(firstBlock) : firstBlock
         }
         do {
             let fullText = usable(try await hooks.answer(systemPrompt, history, turnNote, maximumTokens, progress) { [weak self] accumulatedText in

@@ -80,6 +80,7 @@ struct FixtureResult: Codable {
     var round: String
     var studentElements: [String] = []
     var studentArrows: [String] = []
+    var studentLabelsNotWhole: [String] = []
     var invented: [String] = []
     var saidPartsDrawn = 0
     var saidPartsTotal = 0
@@ -151,10 +152,10 @@ struct TeachBackFaithfulness {
             let board = TeachingBoard(layout: surface.layout)
             try await renderer.openBoard(surface: surface)
             board.beginTurn()
-            _ = board.apply(.setTitle("Teach me \(fixture.topic)"))
+            _ = board.apply(.setTitle(TeachBackPrompt.boardTitle(topic: fixture.topic)))
             // The calm listening state, before anything is drawn, with the
             // meter at a speaking level.
-            try await renderer.setTeachBack(phase: "listening", title: "Teach me \(fixture.topic)")
+            try await renderer.setTeachBack(phase: "listening", title: TeachBackPrompt.boardTitle(topic: fixture.topic))
             try await renderer.setLevel(0.7)
             try await renderer.snapshot(to: directory.appendingPathComponent("listening.png"))
             try await renderer.setTeachBack(phase: "drawing")
@@ -202,6 +203,7 @@ struct TeachBackFaithfulness {
         print("wrong claims drawn as stated: \(first.reduce(0) { $0 + $1.wrongClaimsKept }) of \(first.reduce(0) { $0 + $1.wrongClaimsTotal })")
         print("gaps found: \(first.reduce(0) { $0 + $1.gapsFound }) of \(first.reduce(0) { $0 + $1.gapsExpected }), marks made \(first.reduce(0) { $0 + $1.marksMade })")
         print("student elements changed by the check: \(results.reduce(0) { $0 + $1.studentElementsTouchedByCheck })")
+        print("student arrow labels shortened or left off on the paper: \(results.reduce(0) { $0 + $1.studentLabelsNotWhole.count }) of \(results.reduce(0) { $0 + $1.studentArrows.count })")
         print(String(format: "cost of this run: $%.3f", dollars))
     }
 
@@ -235,7 +237,8 @@ struct TeachBackFaithfulness {
             }
             result.drawing = reply.usage
         }
-        let drawingRun = try await runProgram(drawingProgram, on: board, renderer: renderer,
+        // As the app plays it: one beat, so parts land beside what they link to.
+        let drawingRun = try await runProgram(TeachBackPrompt.drawingAsOneBeat(drawingProgram), on: board, renderer: renderer,
                                               commandsWithFirstSentence: rubbedOutMarks)
         result.problems += drawingRun.problems
         result.engineErrors += drawingRun.engineErrors
@@ -330,6 +333,13 @@ struct TeachBackFaithfulness {
         }
         let studentTexts = studentElements.map(textOf) + studentConnectors.map { $0.label.lowercased() }
         result.studentElements = studentElements.map { "\($0.identifier): \(textOf($0))" }
+        // Words in the state but not on the paper: an arrow label the layout
+        // had to shorten or leave off.
+        result.studentLabelsNotWhole = studentConnectors.filter { connector in
+            guard !connector.label.isEmpty else { return false }
+            let shown = (connector.drawnLabelLines ?? []).map(\.text).joined(separator: " ")
+            return connector.labelFrame == nil || shown.contains("\u{2026}")
+        }.map { "\($0.identifier) \"\($0.label)\" shown as \"\(($0.drawnLabelLines ?? []).map(\.text).joined(separator: " "))\"" }
         result.studentArrows = studentConnectors.map { "\($0.identifier) \"\($0.label)\"" }
 
         // Invented: an element whose content words are nowhere in what was
@@ -464,6 +474,7 @@ struct TeachBackFaithfulness {
                      result.wrongClaimsKept, result.wrongClaimsTotal, result.gapsFound, result.gapsExpected, result.marksMade,
                      result.problems.count, result.engineErrors.count, result.drawing.dollars + result.check.dollars))
         for invented in result.invented { print("    invented: \(invented)") }
+        for label in result.studentLabelsNotWhole { print("    student words cut: \(label)") }
         for corrected in result.wrongClaimsCorrectedInPurple { print("    wrong claim not as stated: \(corrected)") }
         for missed in result.gapsMissed { print("    gap missed: \(missed)") }
         for problem in result.problems { print("    board: \(problem)") }
@@ -592,7 +603,8 @@ final class BoardRenderer: NSObject, WKNavigationDelegate {
 
     func setTeachBack(phase: String, title: String? = nil) async throws {
         let titlePart = title.map { ", title: \(BoardProgramTranslator.javaScriptStringLiteral($0))" } ?? ""
-        _ = try await evaluate("BuddyBoard.setTeachBack({subtitle: 'Explain it like you would to a friend. I\\u2019ll draw what you say.', phase: '\(phase)'\(titlePart)});")
+        let subtitle = BoardProgramTranslator.javaScriptStringLiteral(TeachBackPrompt.invitation)
+        _ = try await evaluate("BuddyBoard.setTeachBack({subtitle: \(subtitle), phase: '\(phase)'\(titlePart)});")
     }
 
     func setLevel(_ level: Double) async throws {

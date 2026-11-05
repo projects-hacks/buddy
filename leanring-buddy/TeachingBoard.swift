@@ -315,6 +315,9 @@ final class TeachingBoard {
                 }
             }
         }
+        // Teach it back: labels moved out of a new arrow's way.
+        commands += labelRedrawsWaiting
+        labelRedrawsWaiting = []
         return commands
     }
 
@@ -514,10 +517,30 @@ final class TeachingBoard {
             if state.element(correctionIdentifier) != nil {
                 return apply(.update(identifier: correctionIdentifier, value: .text(correction)))
             }
-            let (addCommands, placedFrame) = add(kind: .label, identifier: correctionIdentifier, text: correction,
+            // The correction touches its ring, on whichever side has room,
+            // so it reads as said about that claim and nothing else.
+            var correctionElement = BoardElement(identifier: correctionIdentifier, kind: .label, text: correction,
+                                                 groupIdentifier: nil, tone: nil,
+                                                 frame: BoardRect(x: 0, y: 0, width: 0, height: 0),
+                                                 addedInTurn: state.currentTurn, lastChangedInTurn: state.currentTurn,
+                                                 ink: .gap, correctsIdentifier: identifier)
+            let size = layout.naturalSize(of: correctionElement)
+            let ringFrame = targetFrame.insetBy(-Self.ringReach)
+            let addCommands: [BoardDrawCommand]
+            let placedFrame: BoardRect
+            if let besideRing = spotTouching(ringFrame, width: size.width, height: size.height,
+                                             ignoring: state.element(identifier) != nil ? [identifier] : [])
+                ?? layout.spotCloseBeside(ringFrame, width: size.width, height: size.height, in: state, farthestExtraDistance: 240) {
+                correctionElement.frame = besideRing
+                state.insert(correctionElement)
+                addCommands = [drawCommand(for: correctionElement, keepsShape: false)]
+                placedFrame = besideRing
+            } else {
+                (addCommands, placedFrame) = add(kind: .label, identifier: correctionIdentifier, text: correction,
                                                  listItems: [], tableRows: [],
                                                  placement: BoardPlacementHint(nearIdentifier: nearIdentifier, side: nil, groupIdentifier: nil),
                                                  tone: nil, ink: .gap, correctsIdentifier: identifier)
+            }
             commands.append(BoardDrawCommand(action: .ring, identifier: "ring:\(correctionIdentifier)", frame: targetFrame,
                                              ink: BoardInk.gap.rawValue))
             commands += addCommands
@@ -588,6 +611,12 @@ final class TeachingBoard {
         if let nearIdentifier = placement.nearIdentifier, let nearElement = state.element(nearIdentifier) {
             // Beside a group's member from outside the group means beside the group.
             let anchorFrame = nearElement.groupIdentifier.flatMap { state.element($0)?.frame } ?? nearElement.frame
+            // Teach it back: a missing part sits next to the part of their
+            // drawing it belongs to whenever there is room that close.
+            if inkForNewMarks == .gap,
+               let close = layout.spotCloseBeside(anchorFrame, width: width, height: height, in: state) {
+                return close
+            }
             return layout.findFreeSpot(width: width, height: height, in: state, near: anchorFrame,
                                        preferredSide: placement.side,
                                        extraSpacing: placement.leavesRoomForArrow ? 110 : 0)
@@ -724,12 +753,21 @@ final class TeachingBoard {
             return BoardDrawCommand(action: .unlink, identifier: connector.identifier)
         }
         let endGroups = Set([fromElement.groupIdentifier, toElement.groupIdentifier].compactMap { $0 })
+        // Teach it back: no arrow there crosses a part (see below). The
+        // student's own arrows move other labels out of their way instead
+        // of counting them as walls, so a short link between neighbours is
+        // drawn straight rather than as two stubs; a gap's arrow goes round
+        // their labels, so the check never moves the student's words.
+        let isTeachBackArrow = connector.ink != nil || fromElement.ink != nil || toElement.ink != nil
+        let movesOtherLabels = connector.ink == .student
+        let otherLabelFrames = movesOtherLabels ? []
+            : state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
         let obstacles = state.elements.filter { element in
             element.kind != .group
                 && element.identifier != fromElement.identifier
                 && element.identifier != toElement.identifier
                 && !endGroups.contains(element.identifier)
-        }.map(\.frame) + state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
+        }.map(\.frame) + otherLabelFrames
             + state.connectors.filter { $0.identifier != connector.identifier }.flatMap { $0.stubTagFrames ?? [] }
             // A group's title is words too, even the group an end sits in.
             + state.elements.filter { $0.kind == .group }.map { group in
@@ -744,7 +782,10 @@ final class TeachingBoard {
         connector.drawnLabelLines = nil
         // A line across the board, or through more than one thing, reads as
         // clutter: two short stubs with the same number say the same.
-        if route.crossings > 1 || route.length > layout.longestArrow {
+        // Teach it back: an arrow passing behind one of the student's parts
+        // reads as crossing their words, so there it never crosses anything.
+        let crossingsAllowed = isTeachBackArrow ? 0 : 1
+        func drawAsStubs(_ connector: inout BoardConnector) {
             state.replace(BoardConnector(fromIdentifier: connector.fromIdentifier, toIdentifier: connector.toIdentifier,
                                          label: connector.label, isDashed: connector.isDashed, tone: connector.tone,
                                          routePoints: [], labelFrame: nil, addedInTurn: connector.addedInTurn))
@@ -754,23 +795,90 @@ final class TeachingBoard {
             connector.routePoints = stubs.leaving
             connector.targetStubPoints = stubs.arriving
             connector.stubTagFrames = [stubs.leavingTag, stubs.arrivingTag]
-        } else {
+        }
+        func drawStraight(_ connector: inout BoardConnector) {
             connector.routePoints = route.points
             connector.stubTag = nil
             connector.targetStubPoints = nil
             connector.stubTagFrames = nil
         }
-        state.replace(connector)
-        // A stub whose start became a corner badge has no line there; its
-        // label goes by the arriving stub instead.
-        let labelRoute = connector.routePoints.count >= 2 ? connector.routePoints : (connector.targetStubPoints ?? [])
-        let placedLabel = layout.placeArrowLabel(connector.label, along: labelRoute, in: state,
-                                                 ignoringConnector: connector.identifier,
-                                                 alsoAvoiding: connector.stubTagFrames ?? [])
-        connector.labelFrame = placedLabel?.frame
-        connector.drawnLabelLines = placedLabel?.lines
-        state.replace(connector)
+        func placeLabel(_ connector: inout BoardConnector) {
+            state.replace(connector)
+            // A stub whose start became a corner badge has no line there; its
+            // label goes by the arriving stub instead.
+            let labelRoute = connector.routePoints.count >= 2 ? connector.routePoints : (connector.targetStubPoints ?? [])
+            let placedLabel = layout.placeArrowLabel(connector.label, along: labelRoute, in: state,
+                                                     ignoringConnector: connector.identifier,
+                                                     alsoAvoiding: connector.stubTagFrames ?? [])
+            connector.labelFrame = placedLabel?.frame
+            connector.drawnLabelLines = placedLabel?.lines
+            state.replace(connector)
+        }
+        let drawnAsStubs = route.crossings > crossingsAllowed || route.length > layout.longestArrow
+        if drawnAsStubs { drawAsStubs(&connector) } else { drawStraight(&connector) }
+        placeLabel(&connector)
+        // Teach it back: the words on an arrow are what the student said,
+        // or what a gap explains, and cut to "goes to the..." a wrong claim
+        // no longer says what was wrong. An arrow with no clear place for
+        // all of them is drawn as two stubs, whose arriving end usually has
+        // room, and kept that way if more of its words fit.
+        func wordsShown(_ connector: BoardConnector) -> Int {
+            guard connector.labelFrame != nil, let lines = connector.drawnLabelLines else { return 0 }
+            return lines.map(\.text).joined(separator: " ").replacingOccurrences(of: "\u{2026}", with: "")
+                .split(separator: " ").count
+        }
+        let allWords = connector.label.split(separator: " ").count
+        if connector.ink != nil, allWords > 0, wordsShown(connector) < allWords, !drawnAsStubs {
+            let straightWords = wordsShown(connector)
+            drawAsStubs(&connector)
+            placeLabel(&connector)
+            if wordsShown(connector) <= straightWords {
+                drawStraight(&connector)
+                placeLabel(&connector)
+            }
+        }
+        if movesOtherLabels, !movesLabelsOffTheWay(of: connector), connector.stubTag == nil {
+            // A label that had nowhere else to go stays, and this arrow is
+            // drawn as two stubs round it instead.
+            drawAsStubs(&connector)
+            placeLabel(&connector)
+            _ = movesLabelsOffTheWay(of: connector)
+        }
         return linkCommand(for: connector)
+    }
+
+    /// Redraws of arrows whose labels had to move, sent with the change
+    /// that moved them (apply adds them at the end).
+    private var labelRedrawsWaiting: [BoardDrawCommand] = []
+
+    /// Teach it back: any other arrow's label the new arrow passes through
+    /// is placed again, clear of everything, as placeArrowLabel always
+    /// places one. A label with no other clear place is put back where it
+    /// was, and false is returned, so the new arrow can go round it.
+    private func movesLabelsOffTheWay(of newConnector: BoardConnector) -> Bool {
+        let drawnPath = BoardLayout.sampledPoints(of: newConnector.routePoints) + (newConnector.targetStubPoints ?? [])
+        var everyLabelMoved = true
+        for var other in state.connectors where other.identifier != newConnector.identifier {
+            guard let labelFrame = other.labelFrame, BoardLayout.route(drawnPath, crosses: labelFrame.insetBy(-2)) else { continue }
+            let previousLines = other.drawnLabelLines
+            other.labelFrame = nil
+            other.drawnLabelLines = nil
+            state.replace(other)
+            let route = other.routePoints.count >= 2 ? other.routePoints : (other.targetStubPoints ?? [])
+            guard let placed = layout.placeArrowLabel(other.label, along: route, in: state, ignoringConnector: other.identifier,
+                                                      alsoAvoiding: other.stubTagFrames ?? []) else {
+                other.labelFrame = labelFrame
+                other.drawnLabelLines = previousLines
+                state.replace(other)
+                everyLabelMoved = false
+                continue
+            }
+            other.labelFrame = placed.frame
+            other.drawnLabelLines = placed.lines
+            state.replace(other)
+            labelRedrawsWaiting.append(linkCommand(for: other))
+        }
+        return everyLabelMoved
     }
 
     private func nextStubTag() -> Int {
@@ -851,6 +959,40 @@ final class TeachingBoard {
     private var gapIdentifierReplacements: [String: String] = [:]
     private var gapMarksThisTurn = 0
     static let maximumGapMarks = 4
+    /// How far the red ring reaches past what it circles (draw-board.js
+    /// draws it 18 wide and 16 tall past the frame; the larger is used).
+    static let ringReach = 18.0
+
+    /// A spot for a correction that touches `ringFrame` from outside, on
+    /// the side where it fits closest: right, below, above, then left as
+    /// the order between sides that fit equally well. Nil when no side has
+    /// room near the ring.
+    private func spotTouching(_ ringFrame: BoardRect, width: Double, height: Double,
+                              ignoring ignoredIdentifiers: Set<String>) -> BoardRect? {
+        for distance in [6.0, 18, 36, 60, 100] {
+            for side in [BoardSide.right, .below, .above, .left] {
+                let candidates: [BoardRect]
+                switch side {
+                case .right, .left:
+                    let x = side == .right ? ringFrame.maxX + distance : ringFrame.minX - distance - width
+                    candidates = [ringFrame.midY - height / 2, ringFrame.minY, ringFrame.maxY - height]
+                        .map { BoardRect(x: x, y: $0, width: width, height: height) }
+                case .below, .above:
+                    let y = side == .below ? ringFrame.maxY + distance : ringFrame.minY - distance - height
+                    candidates = [ringFrame.midX - width / 2, ringFrame.minX, ringFrame.maxX - width]
+                        .map { BoardRect(x: $0, y: y, width: width, height: height) }
+                }
+                for candidate in candidates where !candidate.intersects(ringFrame)
+                    && layout.isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: true, gap: 14) {
+                    // Clear of the ignored element too, which the ring hugs.
+                    let clearOfTarget = ignoredIdentifiers.compactMap { state.element($0)?.frame }
+                        .allSatisfy { !candidate.intersects($0.insetBy(-Self.ringReach)) }
+                    if clearOfTarget { return candidate }
+                }
+            }
+        }
+        return nil
+    }
 
     /// While the gap check draws, only marks are made: what the student
     /// said is never updated, rubbed out, unlinked or moved. A new mark

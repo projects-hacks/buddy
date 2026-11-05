@@ -392,6 +392,26 @@ struct BoardLayout {
                          width: width, height: height)
     }
 
+    /// Teach it back: a spot close beside `anchor` only, within a short
+    /// reach, letting the board zoom out to its smallest if that is what
+    /// keeps a missing part next to what it belongs to. Nil when there is
+    /// no room that close, and the usual search takes over.
+    func spotCloseBeside(_ anchor: BoardRect, width: Double, height: Double, in state: BoardState,
+                         farthestExtraDistance: Double = 120) -> BoardRect? {
+        let reachableRoom = roomTiers(for: state)[1]
+        for extraDistance in [0.0, 30, 60, 90, 120, 180, 240] where extraDistance <= farthestExtraDistance {
+            for side in [BoardSide.right, .below, .left, .above] {
+                for candidate in Self.candidates(beside: anchor, side: side, width: width, height: height,
+                                                 distance: Self.gapBetweenElements * 0.6 + extraDistance)
+                where reachableRoom.contains(candidate)
+                    && isFree(candidate, in: state, ignoring: [], avoidingArrows: true, gap: Self.gapBetweenElements * 0.6) {
+                    return candidate
+                }
+            }
+        }
+        return nil
+    }
+
     /// Positions on one side of `anchor`: aligned with its top or left edge,
     /// centred on it, then sliding along that side.
     private static func candidates(beside anchor: BoardRect, side: BoardSide, width: Double, height: Double,
@@ -554,8 +574,11 @@ struct BoardLayout {
         let inside = candidates.filter { candidate in
             Self.sampledPoints(of: candidate.route).allSatisfy { isInsideDrawingArea($0) }
         }
+        // Counted on the path as the pen draws it: a bowed curve bulges past
+        // the straight lines through its three points.
         func crossingCount(_ route: [BoardPoint]) -> Int {
-            obstacles.filter { Self.route(route, crosses: $0.insetBy(-10)) }.count
+            let drawnPath = Self.sampledPoints(of: route)
+            return obstacles.filter { Self.route(drawnPath, crosses: $0.insetBy(-10)) }.count
         }
         func length(_ route: [BoardPoint]) -> Double {
             var pathLength = 0.0

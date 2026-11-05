@@ -44,7 +44,7 @@ Three scripted five-turn conversations (consistent hashing, binary search, the T
 
 `replay` redraws the programs of an earlier run through the current layout with no model call. The model never sees a coordinate, so a replay is exactly what the same answers look like with the new layout.
 
-`overlap_check.py` reads every saved board and lists every arrow label or stub tag that touches an element, a group's title or border, another label or another tag, and every two elements that touch. It should print 0.
+`overlap_check.py` reads every saved board and lists every arrow label or stub tag that touches an element, a group's title or border, another label or another tag, every two elements that touch, and every arrow drawn through a label's words or another arrow's label (on a teach-back board, through any element). It should print 0.
 
 ### Results, November 2026
 

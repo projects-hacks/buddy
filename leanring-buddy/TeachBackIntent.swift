@@ -33,7 +33,10 @@ enum TeachBackIntent {
     /// `fallbackTopic` is what "teach it back" or "let me explain it" is
     /// about: the lesson just given, or the board's title. Without one, a
     /// request with no topic stays a normal question.
-    static func decide(_ transcript: String, fallbackTopic: String?) -> Decision {
+    static func decide(_ spokenTranscript: String, fallbackTopic: String?) -> Decision {
+        // A teach-back's own Notebook page is titled "You explain: X", and
+        // its Teach it back button asks about that title.
+        let transcript = spokenTranscript.replacingOccurrences(of: #"(?i)\byou explain:\s*"#, with: "", options: .regularExpression)
         let words = spokenWords(transcript)
         guard !words.isEmpty else { return .staysNormal(reason: "nothing said") }
 

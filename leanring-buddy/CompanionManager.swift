@@ -230,8 +230,8 @@ final class CompanionManager: ObservableObject {
         knowledgeMapWindow.show(focusingIdeaNamed: ideaName)
     }
 
-    /// The Map's Teach it back. Teach-back itself is built later; for now
-    /// the words go in the chat box for the student to send.
+    /// The Map's Teach it back: the words go in the chat box for the
+    /// student to send, and TeachBackIntent starts teach-back from them.
     func putTeachBackInChatBox(ideaName: String) {
         controlBar.openChat(withDraft: "let me explain \(ideaName) to you")
     }
@@ -1739,7 +1739,7 @@ final class CompanionManager: ObservableObject {
         hooks.recordTeachBack = { [weak self] record in
             guard let self, self.learningMemory.isEnabled else { return }
             let lesson = LessonToRemember(
-                question: record.openingQuestion, lessonTitle: "You taught: \(record.topic)",
+                question: record.openingQuestion, lessonTitle: TeachBackPrompt.boardTitle(topic: record.topic),
                 spokenAnswer: record.spokenAnswer, questionKind: "teach-back",
                 answeredBy: self.lastAnsweringBrainName, date: Date())
             Task { [learningMemory] in

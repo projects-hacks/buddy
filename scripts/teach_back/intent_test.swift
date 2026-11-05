@@ -36,6 +36,8 @@ struct TeachBackIntentTest {
                     grade(setName: "\(setName) (\(path))", shouldOpen: set["opens"] ?? [], shouldStayNormal: set["stays_normal"] ?? [])
                 }
                 if let retry = object["retry"] as? [String: [String]] { gradeRetry(retry) }
+                if let interface = object["from_the_interface"] as? [String: Any],
+                   let starts = interface["starts"] as? [[String]] { gradeInterface(starts) }
             } else if let opens = object["opens"] as? [String], let staysNormal = object["stays_normal"] as? [String] {
                 grade(setName: "blind (\(path))", shouldOpen: opens, shouldStayNormal: staysNormal)
             } else if let ends = object["ends"] as? [[String]], let keeps = object["keeps_listening"] as? [String] {
@@ -103,6 +105,23 @@ struct TeachBackIntentTest {
             if !TeachBackIntent.asksToExplainAgain(phrase) { correct += 1 } else { print("  wrongly listened  \"\(phrase)\"") }
         }
         print("  \(correct) of \(count) right")
+    }
+
+    /// What the interface's buttons ask must start teach-back on the right
+    /// topic, whatever lesson or page title fills it in.
+    static func gradeInterface(_ starts: [[String]]) {
+        print("\n== from the interface (chip, start tile, Map, Notebook)")
+        var correct = 0
+        for entry in starts where entry.count == 2 {
+            let decision = TeachBackIntent.decide(entry[0], fallbackTopic: nil)
+            if decision.topic == entry[1] {
+                correct += 1
+            } else {
+                print("  wrong  \"\(entry[0])\" gave \(decision), wanted topic \"\(entry[1])\"")
+            }
+            if BoardIntent.opensBoard(entry[0]) { print("    ALSO OPENS THE BOARD") }
+        }
+        print("  \(correct) of \(starts.count) start teach-back on the right topic")
     }
 
     /// Each "ends" entry is [what was heard, what the explanation should be].

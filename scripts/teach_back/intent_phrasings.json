@@ -120,5 +120,22 @@
       "can you try that again",
       "say that again"
     ]
+  },
+  "from_the_interface": {
+    "about": "What the notch's Teach it back chip, its start tile, the Map's inspector and a Notebook page put in the chat box, with the topic each must start teach-back on. Lesson and page titles are the kind the board and lessons give.",
+    "starts": [
+      ["let me explain consistent hashing back to you", "consistent hashing"],
+      ["let me explain servers on a ring back to you", "servers on a ring"],
+      ["let me explain When a server leaves back to you", "when a server leaves"],
+      ["let me explain TCP three way handshake back to you", "tcp three way handshake"],
+      ["let me explain Binary search, step by step back to you", "binary search step by step"],
+      ["let me explain consistent hashing to you", "consistent hashing"],
+      ["let me explain async await to you", "async await"],
+      ["let me explain the CAP theorem to you", "cap theorem"],
+      ["let me explain LRU cache to you", "lru cache"],
+      ["let me explain You explain: consistent hashing back to you", "consistent hashing"],
+      ["let me explain You explain: the TCP three way handshake back to you", "tcp three way handshake"],
+      ["let me explain Why is quicksort fast? back to you", "why is quicksort fast"]
+    ]
   }
 }
