@@ -93,11 +93,6 @@ echo "architectures: $(lipo -archs "$STAGING/Buddy.app/Contents/MacOS/"*)"
 # is in the release's title and the app itself.
 DMG="$OUT/Buddy.dmg"
 
-# A shortcut straight to the pane with Open Anyway, for the one step of a
-# first install that people otherwise cannot find. A link to the pane itself:
-# a web-location file pointing at Settings is refused by Finder ("could not
-# be opened"), while opening the pane is like opening any setting.
-ln -s /System/Library/PreferencePanes/Security.prefPane "$STAGING/Open Privacy & Security"
 mkdir -p "$STAGING/.background"
 cp "scripts/dmg/background.tiff" "$STAGING/.background/background.tiff"
 
@@ -111,7 +106,7 @@ hdiutil create -volname "$VOLUME" -srcfolder "$STAGING" -ov -format UDRW "$WRITA
 MOUNTED="$(hdiutil attach "$WRITABLE" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*' | head -1)"
 # Window points; the background is drawn for this size (scripts/dmg/), plus
 # the title bar.
-WINDOW_BOUNDS="{200, 100, 960, 772}"
+WINDOW_BOUNDS="{200, 100, 960, 712}"
 if osascript <<APPLESCRIPT >/dev/null 2>&1
 tell application "Finder"
   tell disk "$VOLUME"
@@ -127,7 +122,6 @@ tell application "Finder"
     set background picture of viewOptions to file ".background:background.tiff"
     set position of item "Buddy.app" of container window to {210, 130}
     set position of item "Applications" of container window to {550, 130}
-    set position of item "Open Privacy & Security" of container window to {555, 556}
     close
     open
     -- Set again once reopened: the first size is not always the one saved.

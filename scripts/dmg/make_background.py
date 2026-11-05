@@ -3,7 +3,9 @@
 People open the disk image; few read the README. So the window shows the
 drag to Applications, then the two things macOS shows the first time an app
 that is not notarized is opened, each drawn with the button to press ringed
-and a pointer on it. A link in the window opens Privacy & Security.
+and a pointer on it. There is no shortcut to the Settings page: Finder
+refuses a web-location file that points at Settings, and a link to the pane
+opens Settings wherever it was last. So the picture spells out the route.
 Positions match the icon positions make-release.sh gives Finder (WINDOW and
 the *_AT values below).
 
@@ -18,12 +20,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 HERE = pathlib.Path(__file__).resolve().parent
 ICON = HERE.parents[1] / "leanring-buddy/Assets.xcassets/AppIcon.appiconset/256-mac.png"
-WIDTH, HEIGHT = 760, 640
+WIDTH, HEIGHT = 760, 580
 FONT = "/System/Library/Fonts/SFNS.ttf"
 INK, SOFT, FAINT = (30, 30, 34), (98, 98, 106), (150, 150, 158)
 ACCENT, PAPER, CARD, LINE = (37, 99, 235), (247, 245, 240), (255, 255, 255), (222, 218, 208)
 # Where make-release.sh puts the icons, in window points (icon centres).
-BUDDY_AT, APPLICATIONS_AT, SHORTCUT_AT = (210, 130), (550, 130), (555, 556)
+BUDDY_AT, APPLICATIONS_AT = (210, 130), (550, 130)
 
 
 def font(size, scale, weight=None):
@@ -92,8 +94,8 @@ def draw(scale):
     pen.text((s(442), s(331)), "In Settings, click Open Anyway", fill=INK, font=font(13.5, scale, "Semibold"), anchor="lm")
     pane = box(410, 352, 700, 508)
     pen.rounded_rectangle(pane, radius=s(12), fill=(242, 242, 245), outline=(214, 214, 220), width=s(1))
-    pen.text((s(424), s(372)), "Privacy & Security", fill=INK, font=font(12.5, scale, "Bold"), anchor="lm")
-    pen.text((s(424), s(394)), "scroll down to Security", fill=FAINT, font=font(10, scale), anchor="lm")
+    pen.text((s(424), s(372)), "System Settings  \u203a  Privacy & Security", fill=INK, font=font(12, scale, "Bold"), anchor="lm")
+    pen.text((s(424), s(394)), "scroll all the way down", fill=FAINT, font=font(10, scale), anchor="lm")
     pen.rounded_rectangle(box(420, 410, 690, 496), radius=s(9), fill=CARD)
     pen.text((s(432), s(430)), "“Buddy” was blocked to", fill=INK, font=font(10.5, scale), anchor="lm")
     pen.text((s(432), s(446)), "protect your Mac.", fill=INK, font=font(10.5, scale), anchor="lm")
@@ -102,8 +104,6 @@ def draw(scale):
     pointer(650, 440)
     pen.text((s(432), s(476)), "then your Mac password, and Open", fill=FAINT, font=font(9.5, scale), anchor="lm")
 
-    # The shortcut's label is drawn by Finder under its icon; this says why it is there.
-    pen.text((s(474), s(SHORTCUT_AT[1] - 6)), "Shortcut to that page:", fill=SOFT, font=font(12, scale), anchor="rm")
     pen.text((s(40), s(HEIGHT - 26)), "After that Buddy opens like any app, and updates itself.",
              fill=SOFT, font=font(12, scale), anchor="lm")
     return image
