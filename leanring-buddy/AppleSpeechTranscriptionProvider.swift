@@ -35,6 +35,7 @@ final class AppleSpeechTranscriptionProvider: BuddyTranscriptionProvider {
 
         return try AppleSpeechTranscriptionSession(
             speechRecognizer: speechRecognizer,
+            keyterms: keyterms,
             onTranscriptUpdate: onTranscriptUpdate,
             onFinalTranscriptReady: onFinalTranscriptReady,
             onError: onError
@@ -67,11 +68,16 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
     private let onError: (Error) -> Void
 
     private var latestRecognizedText = ""
+    /// Everything said before the last pause. After a pause the recognizer
+    /// starts a new utterance and reports only the words since, so without
+    /// this a long explanation reached Buddy as its last sentence alone.
+    private var utterances = SpokenUtterances()
     private var hasRequestedFinalTranscript = false
     private var hasDeliveredFinalTranscript = false
 
     init(
         speechRecognizer: SFSpeechRecognizer,
+        keyterms: [String],
         onTranscriptUpdate: @escaping (String) -> Void,
         onFinalTranscriptReady: @escaping (String) -> Void,
         onError: @escaping (Error) -> Void
@@ -86,6 +92,9 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
         recognitionRequest.shouldReportPartialResults = true
         recognitionRequest.taskHint = .dictation
         recognitionRequest.addsPunctuation = true
+        // Words from the screen ("Wallet DB", "idempotency") so they are heard
+        // as written rather than as the nearest everyday words.
+        recognitionRequest.contextualStrings = Array(keyterms.prefix(100))
 
         if speechRecognizer.supportsOnDeviceRecognition {
             recognitionRequest.requiresOnDeviceRecognition = true
@@ -117,7 +126,9 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
         error: Error?
     ) {
         if let result {
-            latestRecognizedText = result.bestTranscription.formattedString
+            utterances.update(with: result.bestTranscription.formattedString,
+                              utteranceEnded: result.speechRecognitionMetadata != nil && !result.isFinal)
+            latestRecognizedText = utterances.fullText
             onTranscriptUpdate(latestRecognizedText)
 
             if result.isFinal {
@@ -143,5 +154,42 @@ private final class AppleSpeechTranscriptionSession: NSObject, BuddyStreamingTra
 
     deinit {
         cancel()
+    }
+}
+
+/// Joins the utterances of one hold of the keys into one question.
+struct SpokenUtterances {
+    private(set) var finishedText = ""
+    private(set) var currentText = ""
+
+    var fullText: String {
+        [finishedText, currentText].filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    /// `utteranceEnded` is the recognizer saying an utterance is complete.
+    /// Some versions start the next one without saying so; that shows as text
+    /// that suddenly starts with a different word and is shorter than before,
+    /// which a revision of the same words never is.
+    mutating func update(with text: String, utteranceEnded: Bool) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !currentText.isEmpty, !trimmed.isEmpty,
+           Self.firstWord(of: trimmed) != Self.firstWord(of: currentText),
+           trimmed.count < currentText.count {
+            finish()
+        }
+        currentText = trimmed
+        if utteranceEnded { finish() }
+    }
+
+    private mutating func finish() {
+        guard !currentText.isEmpty else { return }
+        finishedText = finishedText.isEmpty ? currentText : finishedText + " " + currentText
+        currentText = ""
+    }
+
+    private static func firstWord(of text: String) -> String {
+        text.split(whereSeparator: { $0 == " " }).first.map {
+            $0.lowercased().trimmingCharacters(in: .punctuationCharacters)
+        } ?? ""
     }
 }

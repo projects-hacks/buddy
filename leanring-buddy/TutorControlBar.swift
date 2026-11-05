@@ -1468,6 +1468,25 @@ private struct TranscriptRow: View {
     private static let foldAfterCharacters = 360
 
     private var isLong: Bool { entry.text.count > Self.foldAfterCharacters }
+    private var isFolded: Bool { isLong && !isShowingAll }
+
+    /// Selectable text on macOS draws every line whatever its line limit, so
+    /// a folded answer painted its whole length over the turns below it.
+    /// Folded, it is plain text clipped to six lines; shown in full, it can
+    /// be selected and copied.
+    @ViewBuilder
+    private var entryText: some View {
+        if isFolded {
+            Text(entry.text)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
+                .clipped()
+        } else {
+            Text(entry.text)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
     private var isStudent: Bool { entry.speaker == .student }
 
     private var timeText: String {
@@ -1506,13 +1525,10 @@ private struct TranscriptRow: View {
                 }
             }
 
-            Text(entry.text)
+            entryText
                 .font(.system(size: 13))
                 .lineSpacing(3)
                 .foregroundStyle(.white.opacity(isStudent ? 0.95 : 0.86))
-                .textSelection(.enabled)
-                .lineLimit(isLong && !isShowingAll ? 6 : nil)
-                .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, isStudent ? 11 : 0)
                 .padding(.vertical, isStudent ? 7 : 0)
                 .background(

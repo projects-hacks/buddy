@@ -991,8 +991,37 @@ final class CompanionManager: ObservableObject {
     private var pendingTalkStart: Task<Void, Never>?
     private static let talkStartDelaySeconds: TimeInterval = 0.2
 
+    /// Words the recognizer should expect: the short labels and technical
+    /// terms from the last screen Buddy read ("Wallet DB", "Kafka", "O(n)").
+    /// It is usually the same screen, since questions follow each other there.
+    static func speechHints(from screenLabels: [String]) -> [String] {
+        var hints: [String] = []
+        var seen = Set<String>()
+        func add(_ hint: String) {
+            let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            guard trimmed.count >= 2, trimmed.count <= 40, seen.insert(trimmed.lowercased()).inserted else { return }
+            hints.append(trimmed)
+        }
+        for label in screenLabels {
+            let words = label.split(separator: " ")
+            // A short label is usually a name: a box, a button, a heading.
+            if words.count <= 4 { add(label) }
+            // Inside longer text, keep the words a recognizer would not guess:
+            // capitals after the first letter, digits, acronyms.
+            for word in words where word.count >= 3 {
+                let text = String(word)
+                let hasInnerCapital = text.dropFirst().contains(where: \.isUppercase)
+                let hasDigit = text.contains(where: \.isNumber)
+                if hasInnerCapital || hasDigit { add(text) }
+            }
+            if hints.count >= 100 { break }
+        }
+        return Array(hints.prefix(100))
+    }
+
     private func beginTalking() {
             guard !buddyDictationManager.isDictationInProgress else { return }
+            buddyDictationManager.updateContextualKeyterms(Self.speechHints(from: Array(screenIndex.lastListedLabels.values)))
             stopGuide(reason: "the student is talking")
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.

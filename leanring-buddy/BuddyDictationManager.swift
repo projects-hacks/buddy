@@ -656,19 +656,8 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     }
 
     private func buildTranscriptionKeyterms() -> [String] {
-        let baseKeyterms = [
-            "makesomething",
-            "Learning Buddy",
-            "Codex",
-            "Claude",
-            "Anthropic",
-            "OpenAI",
-            "SwiftUI",
-            "Xcode",
-            "Vercel",
-            "Next.js",
-            "localhost"
-        ]
+        // The screen's own words are added per question (contextualKeyterms).
+        let baseKeyterms = ["Buddy"]
 
         let combinedKeyterms = baseKeyterms + contextualKeyterms
         var uniqueNormalizedKeyterms = Set<String>()
