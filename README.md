@@ -84,6 +84,12 @@ The download window shows these same steps. macOS asks for **Open Anyway** once,
   <a href="https://console.deepgram.com/"><img alt="Deepgram key: optional, for a natural voice" src="https://img.shields.io/badge/Deepgram-optional%2C%20natural%20voice-13EF93?labelColor=111111"></a>
 </p>
 
+Or with Homebrew:
+
+```bash
+brew trust projects-hacks/tap && brew install --cask projects-hacks/tap/buddy
+```
+
 Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 
 ## Using it

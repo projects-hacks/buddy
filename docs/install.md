@@ -27,6 +27,14 @@ Yellow is you, grey is macOS, blue is Buddy's own setup.
 2. Open it and drag **Buddy** onto **Applications**. The window that opens shows all three steps as pictures.
 3. Eject the disk image.
 
+**Or with Homebrew**, in Terminal:
+
+```bash
+brew trust projects-hacks/tap && brew install --cask projects-hacks/tap/buddy
+```
+
+Homebrew asks to trust a tap before installing from it. Buddy updates itself afterwards, so `brew upgrade` is not needed.
+
 ## 2. Open it the first time
 
 Buddy is signed, but not notarized by Apple, so macOS asks once before opening it.

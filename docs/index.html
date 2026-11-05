@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buddy: a study helper for your Mac's notch</title>
+<meta name="description" content="Buddy is a free, open-source Mac study helper that lives in the notch. Ask about what is on your screen, out loud or typed, and it explains out loud while drawing on it. Hints for LeetCode, reviews of your system design diagrams, and step-by-step help in any app.">
+<link rel="canonical" href="https://projects-hacks.github.io/buddy/">
+<link rel="icon" type="image/png" href="images/buddy-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Buddy: a study helper for your Mac's notch">
+<meta property="og:description" content="Ask about what is on your screen. Buddy explains it out loud and draws on it while it talks.">
+<meta property="og:image" content="https://projects-hacks.github.io/buddy/images/social-preview.png">
+<meta property="og:url" content="https://projects-hacks.github.io/buddy/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #ffffff; --surface: #f5f5f7; --text: #1d1d1f; --soft: #6e6e73; --line: #e5e5ea;
+    --accent: #2563eb; --accent-text: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1013; --surface: #1a1b20; --text: #f5f5f7; --soft: #a1a1a6; --line: #2c2c31; --accent: #3b82f6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 17px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  header { text-align: center; padding: 64px 0 28px; }
+  header img.icon { width: 96px; height: 96px; }
+  h1 { font-size: clamp(40px, 7vw, 64px); line-height: 1.05; margin: 16px 0 10px; letter-spacing: -0.02em; }
+  .lede { font-size: clamp(18px, 2.4vw, 22px); color: var(--soft); max-width: 640px; margin: 0 auto 28px; }
+  .button { display: inline-block; background: var(--accent); color: var(--accent-text); text-decoration: none;
+            font-weight: 600; padding: 14px 26px; border-radius: 999px; font-size: 17px; }
+  .button:hover { filter: brightness(1.08); }
+  .small { color: var(--soft); font-size: 14px; margin-top: 12px; }
+  .small a { color: var(--soft); }
+  .demo { margin: 36px auto 8px; display: block; width: 100%; max-width: 980px; border-radius: 14px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+  .caption { text-align: center; color: var(--soft); font-size: 14px; margin-bottom: 56px; }
+  h2 { font-size: 30px; letter-spacing: -0.01em; margin: 0 0 20px; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 64px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px 22px; }
+  .card b { display: block; font-size: 18px; margin-bottom: 4px; }
+  .card span { color: var(--soft); font-size: 15px; }
+  kbd { font: 600 13px/1 -apple-system, sans-serif; background: var(--bg); border: 1px solid var(--line);
+        border-bottom-width: 2px; border-radius: 6px; padding: 3px 7px; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 64px; }
+  .shots figure { margin: 0; }
+  .shots img { width: 100%; border-radius: 12px; border: 1px solid var(--line); }
+  .shots figcaption { color: var(--soft); font-size: 14px; text-align: center; margin-top: 6px; }
+  .install { text-align: center; margin-bottom: 64px; }
+  .install img { width: 100%; max-width: 720px; border-radius: 14px; border: 1px solid var(--line); }
+  .install p { color: var(--soft); max-width: 640px; margin: 16px auto; }
+  code { font: 14px ui-monospace, "SF Mono", Menlo, monospace; background: var(--surface); padding: 2px 6px; border-radius: 6px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--soft); font-size: 14px; text-align: center; }
+  footer a { color: var(--soft); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img class="icon" src="images/buddy-icon.png" alt="">
+    <h1>Buddy</h1>
+    <p class="lede">A study helper in your Mac's notch. Ask about what is on your screen, out loud or typed, and Buddy explains it out loud while drawing on it.</p>
+    <a class="button" href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg">Download for Mac</a>
+    <p class="small">Free and open source (MIT). macOS 14.2 or later, Apple silicon or Intel. Runs on your own API keys, about one to six cents a question. <a href="https://github.com/projects-hacks/buddy">Source on GitHub</a></p>
+  </header>
+
+  <img class="demo" src="images/demo.gif" alt="Asked why a binary search crashes, Buddy rings each line in turn while it talks, and draws a trace of the list 3, 7, 9 on a card beside the code, pass by pass">
+  <p class="caption">A real answer, sped up. The words under the notch are what Buddy is saying.</p>
+
+  <h2>What it does</h2>
+  <div class="grid">
+    <div class="card"><b>Explains and draws</b><span>Each sentence arrives with its marks: rings on your code, and hand-drawn cards for anything the screen does not show.</span></div>
+    <div class="card"><b>Talk or type</b><span>Hold <kbd>⌃</kbd> <kbd>⌥</kbd> and speak, or press <kbd>⌃</kbd> <kbd>⌥</kbd> <kbd>T</kbd> and type in the notch.</span></div>
+    <div class="card"><b>Walks you through apps</b><span>"How do I export this?" One step at a time, pointing at each button. Ask again later and it replays from memory.</span></div>
+    <div class="card"><b>Remembers what you learn</b><span>New answers build on earlier lessons, stored only on your Mac.</span></div>
+    <div class="card"><b>Hints before answers</b><span>On LeetCode and similar sites: a nudge, then the approach, then the code only when you ask.</span></div>
+    <div class="card"><b>Reviews your diagrams</b><span>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</span></div>
+  </div>
+
+  <div class="shots">
+    <figure><img src="images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint, without the solution"><figcaption>A first hint, no solution</figcaption></figure>
+    <figure><img src="images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw, proposing a cache and a read replica in dashed purple"><figcaption>A review of your own design</figcaption></figure>
+    <figure><img src="images/lesson-card.png" alt="The open notch showing a lesson that builds on an earlier one, beside a hand-drawn walk through"><figcaption>A lesson that builds on an earlier one</figcaption></figure>
+  </div>
+
+  <div class="install">
+    <h2>Install in three steps</h2>
+    <img src="images/install-steps.png" alt="Drag Buddy onto Applications; open it and click Done when macOS says it cannot check it; then in System Settings, Privacy and Security, click Open Anyway">
+    <p>macOS asks for Open Anyway once, because Buddy is not notarized. Setup then asks for your name and keys, and Buddy updates itself from then on.</p>
+    <p>Prefer Homebrew? <code>brew trust projects-hacks/tap</code> then <code>brew install --cask projects-hacks/tap/buddy</code></p>
+    <a class="button" href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg">Download for Mac</a>
+  </div>
+</div>
+<footer>
+  <div class="wrap">
+    <a href="https://github.com/projects-hacks/buddy">GitHub</a> ·
+    <a href="https://github.com/projects-hacks/buddy/blob/main/docs/using-buddy.md">Using Buddy</a> ·
+    <a href="https://github.com/projects-hacks/buddy/blob/main/docs/install.md">Install help</a> ·
+    <a href="https://github.com/projects-hacks/buddy/issues">Feedback</a>
+    <p>Open source under the MIT license. Started as a fork of Clicky by Farza.</p>
+  </div>
+</footer>
+</body>
+</html>
