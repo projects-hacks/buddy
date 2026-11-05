@@ -44,25 +44,12 @@ final class CompanionManager: ObservableObject {
     let buddyDictationManager = BuddyDictationManager()
     let globalPushToTalkShortcutMonitor = GlobalPushToTalkShortcutMonitor()
     let overlayWindowManager = OverlayWindowManager()
-    /// Which brain answers. Persisted so the choice survives a restart.
-    ///
-    /// Defaults to Auto, which picks among Sonnet, Opus and Argon per
-    /// question (ModelRouter). Local stays out of the default: it reasons
-    /// well about what is on screen and invents technical facts that are not,
-    /// naming three different wrong inventors for quicksort across three runs.
-    @Published var brainKind: TutorBrainKind = TutorBrainKind(
-        rawValue: UserDefaults.standard.string(forKey: "tutorBrainKind") ?? ""
-    ) ?? .auto
-
-    lazy var localBrain = OllamaVisionProvider(model: selectedModel)
-
-    var hostedBrain = CompanionManager.makeHostedBrain()
+    /// The Brain setting, the brains, routing and key problems (BrainLineup.swift).
+    let brains = BrainLineup()
+    var brainLineupCancellable: AnyCancellable?
 
     /// What the student is called, asked once in setup.
     @Published var studentName: String = UserDefaults.standard.string(forKey: "studentName") ?? ""
-
-    /// A key that stopped working mid-use, shown in the notch until fixed.
-    @Published var keyProblem: (service: APIKeyStore.Service, message: String)?
 
     /// The first-run setup, also opened from Settings and when a key fails.
     lazy var setupWindow = SetupWindowController(companionManager: self)
@@ -86,8 +73,6 @@ final class CompanionManager: ObservableObject {
         return controller
     }()
 
-    lazy var claudeBrain = ClaudeVisionProvider(model: "claude-sonnet-5-5")
-
     /// Sorts each question by meaning into the kind that decides who answers.
     let questionSorter = QuestionSorter()
     /// What the student has learned with Buddy across sessions.
@@ -97,13 +82,6 @@ final class CompanionManager: ObservableObject {
     var updaterStateCancellable: AnyCancellable?
     /// How far up the hint ladder they are on each practice problem.
     let practiceHintLadder = PracticeHintLadder()
-
-    /// Picks Sonnet, Opus or Argon per question under Auto, and Sonnet or
-    /// Opus under Claude.
-    let modelRouter = ModelRouter()
-
-    /// The brain Auto picked for the answer in progress.
-    var autoAnsweringBrain: RoutedBrain = .argon
 
     lazy var speechClient = LocalSpeechSynthesisClient()
 
@@ -138,7 +116,7 @@ final class CompanionManager: ObservableObject {
     /// Only the older prose path uses it, and only on Vertex; with no
     /// project it simply draws nothing.
     lazy var diagramComposer = DiagramComposer(
-        projectIdentifier: Self.hostedProjectIdentifier ?? ""
+        projectIdentifier: BrainLineup.hostedProjectIdentifier ?? ""
     )
 
     /// The in-flight drawing pass, cancelled when a new question arrives.
@@ -176,16 +154,6 @@ final class CompanionManager: ObservableObject {
     /// speaks, so the picture assembles in the order it is described.
     @Published var whiteboard = TutorWhiteboard()
 
-    /// Whether the local model server was reachable at last check, so the
-    /// panel can say "start Ollama" instead of failing mid-question.
-    @Published var isLocalModelReachable = true {
-        didSet { if !isLocalModelReachable { brainKindKnownReachable = nil } }
-    }
-    /// The brain a probe last found answering, so the periodic probe stops
-    /// once it is known and starts again when the brain changes or fails.
-    var brainKindKnownReachable: TutorBrainKind?
-    var isProbingBrain = false
-
     /// What was asked and answered this session, and how often running the
     /// student has said an answer did not land (ConversationHistory.swift).
     var conversation = ConversationHistory()
@@ -212,15 +180,6 @@ final class CompanionManager: ObservableObject {
     /// Used by the panel to show accurate status text ("Active" vs "Ready").
     @Published var isOverlayVisible: Bool = false
 
-    /// Local model used for voice responses. Persisted to UserDefaults.
-    ///
-    /// Defaults to the 4B after measuring all three candidates on this class of
-    /// machine. It is the only one that generates faster than speech plays back,
-    /// which is what keeps the voice loop from stalling mid-sentence, and the
-    /// only one that stays resident on 16 GB without forcing the system to swap.
-    /// See docs/model-choice.md for the numbers.
-    @Published var selectedModel: String = UserDefaults.standard.string(forKey: "selectedLocalModel") ?? "qwen3.5:4b"
-
     /// User preference for whether the Clicky cursor should be shown.
     /// When toggled off, the overlay is hidden and push-to-talk is disabled.
     /// Persisted to UserDefaults so the choice survives app restarts.
@@ -229,6 +188,7 @@ final class CompanionManager: ObservableObject {
         : UserDefaults.standard.bool(forKey: "isClickyCursorEnabled")
 
     func start() {
+        connectBrainLineup()
         connectPermissionMonitor()
         refreshAllPermissions()
         TutorDebugLog.write("🔑 at launch, accessibility: \(hasAccessibilityPermission), screen: \(hasScreenRecordingPermission), mic: \(hasMicrophonePermission), screenContent: \(hasScreenContentPermission)")
@@ -560,9 +520,6 @@ final class CompanionManager: ObservableObject {
     /// When the answer's stream last delivered text, for noticing a stream
     /// that stopped partway: nil until its first words.
     var lastStreamedTextAt: Date?
-
-    /// Who answered the last question, for the push-back log line.
-    var lastAnsweringBrainName = "nobody"
 
     var currentPracticeProblem: PracticeProblem?
 

@@ -61,25 +61,6 @@ extension CompanionManager {
         await runDebugFileTriggers()
         #endif
 
-        // Only until the brain is known to answer: probing a reachable
-        // brain all day costs a request every twelve seconds (a real
-        // model listing for an AI Studio key). A failed answer marks
-        // it unreachable, and waking re-probes, which starts this again.
-        // Never two probes at once, however slow one is.
-        let brainNeedsProbing = !isLocalModelReachable || brainKindKnownReachable != brainKind
-        if shouldProbeModelServer, brainNeedsProbing, !isProbingBrain {
-            isProbingBrain = true
-            defer { isProbingBrain = false }
-            let brainKindProbed = brainKind
-            let (isReachable, _) = await tutorBrain.probeServer()
-            brainKindKnownReachable = isReachable ? brainKindProbed : nil
-            if isReachable != isLocalModelReachable {
-                isLocalModelReachable = isReachable
-                if isReachable {
-                    print("🦙 Ollama came back, preloading \(selectedModel)")
-                    await tutorBrain.preloadModel()
-                }
-            }
-        }
+        await brains.probeIfStillUnknown(shouldProbeModelServer: shouldProbeModelServer)
     }
 }

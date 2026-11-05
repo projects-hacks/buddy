@@ -48,16 +48,7 @@ extension CompanionManager {
         deepgramProseVoiceBenchedUntil = .distantPast
         globalPushToTalkShortcutMonitor.stop()
         if hasAccessibilityPermission { globalPushToTalkShortcutMonitor.start() }
-        Task { [weak self] in
-            guard let self, !self.isProbingBrain else { return }
-            self.isProbingBrain = true
-            defer { self.isProbingBrain = false }
-            let brainKindProbed = self.brainKind
-            let (isReachable, _) = await self.tutorBrain.probeServer()
-            self.isLocalModelReachable = isReachable
-            self.brainKindKnownReachable = isReachable ? brainKindProbed : nil
-            TutorDebugLog.write("☀️ after waking, the brain is \(isReachable ? "reachable" : "UNREACHABLE")")
-        }
+        brains.probeAfterWake()
     }
 
     /// A display came or went: the cursor overlay is one window per screen

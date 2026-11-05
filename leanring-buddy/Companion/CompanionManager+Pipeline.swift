@@ -634,8 +634,7 @@ extension CompanionManager {
                 if let problem = keyProblem, attempt < routing.count {
                     let answeredWith: APIKeyStore.Service = routing[attempt] == .argon ? .gemini : .anthropic
                     if answeredWith == problem.service {
-                        keyProblem = nil
-                        controlBar.model.keyProblemMessage = nil
+                        clearKeyProblem()
                     }
                 }
 
