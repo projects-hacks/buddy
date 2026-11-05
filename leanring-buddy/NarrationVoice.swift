@@ -147,6 +147,16 @@ final class NarrationVoice {
         }
     }
 
+    /// After the Mac wakes: the engine is started afresh on the next
+    /// sentence, on whatever output exists now, and a failure from while it
+    /// slept does not keep Deepgram benched.
+    func prepareAfterWake() {
+        if playerNode.isPlaying { playerNode.stop() }
+        audioEngine.stop()
+        isEngineRunning = false
+        deepgramBenchedUntil = .distantPast
+    }
+
     /// Opens the connection to Deepgram while the student is still talking.
     func prewarmConnection() {
         guard let url = URL(string: "https://api.deepgram.com/v1/projects") ,

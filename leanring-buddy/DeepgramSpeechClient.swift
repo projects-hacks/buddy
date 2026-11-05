@@ -306,6 +306,14 @@ final class DeepgramSpeechClient {
         resumePlaybackContinuation()
     }
 
+    /// After the Mac wakes: the engine is started afresh on the next
+    /// sentence, on whatever output exists now.
+    func prepareAfterWake() {
+        stopPlayback()
+        audioEngine.stop()
+        isEngineRunning = false
+    }
+
     func shutDown() {
         stopPlayback()
         if isEngineRunning {
