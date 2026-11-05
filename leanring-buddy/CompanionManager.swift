@@ -989,6 +989,10 @@ final class CompanionManager: ObservableObject {
     }
 
     private var pendingTalkStart: Task<Void, Never>?
+    /// The last question, until its answer starts to be heard. A question
+    /// asked before then continues it rather than replacing it.
+    private var questionAwaitingAnswer: (text: String, askedAt: Date)?
+    private static let joinUnansweredQuestionWithinSeconds: TimeInterval = 90
     private static let talkStartDelaySeconds: TimeInterval = 0.2
 
     /// Words the recognizer should expect: the short labels and technical
@@ -1320,7 +1324,10 @@ final class CompanionManager: ObservableObject {
     private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
     private lazy var lessonPlayer: LessonProgramPlayer = {
         let player = LessonProgramPlayer(overlay: drawingOverlay, voice: narrationVoice, bar: controlBar.model)
-        player.onFirstSentenceHeard = { [weak self] in self?.logStage("first sentence heard") }
+        player.onFirstSentenceHeard = { [weak self] in
+            self?.logStage("first sentence heard")
+            self?.questionAwaitingAnswer = nil
+        }
         return player
     }()
 
@@ -1348,7 +1355,7 @@ final class CompanionManager: ObservableObject {
     private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
                                                      howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil) {
         let isGuideContinuation = guideStep != nil
-        let transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
+        var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
@@ -1362,6 +1369,16 @@ final class CompanionManager: ObservableObject {
             TutorDebugLog.write("🎙️ asked: \(transcript)")
             controlBar.model.recordStudent(transcript)
             controlBar.model.heardWords = transcript
+            // Letting go of the keys mid-thought and pressing them again sends
+            // the rest as a new question, which cancels the first before a word
+            // of it is answered. Both halves go to the model as one question;
+            // the chat already shows the first, so it shows only the new words.
+            if let unanswered = questionAwaitingAnswer,
+               Date().timeIntervalSince(unanswered.askedAt) < Self.joinUnansweredQuestionWithinSeconds {
+                transcript = unanswered.text + " " + transcript
+                TutorDebugLog.write("🎙️ joined with the unanswered question before it: \(transcript)")
+            }
+            questionAwaitingAnswer = (transcript, Date())
         }
         answerStartedAt = Date()
         if howToTakeover == nil { SpendingMeter.shared.countQuestion(isGuideStep: isGuideContinuation) }
@@ -1799,6 +1816,7 @@ final class CompanionManager: ObservableObject {
                     if Task.isCancelled { break }
                 }
                 voiceState = .idle
+                questionAwaitingAnswer = nil
                 if currentAnswerFormat == .program {
                     // A drawing stays until the next question, Clear, Esc, or
                     // the content under it changing: it is the part worth
@@ -1857,6 +1875,8 @@ final class CompanionManager: ObservableObject {
     /// A follow-up the tutor offered, asked as if the student had said it.
     private func askFollowUp(_ question: String) {
         TutorDebugLog.write("👆 follow-up tapped: \(question)")
+        // A tapped follow-up is a whole question of its own.
+        questionAwaitingAnswer = nil
         shortcutReleasedAt = nil
         sendTranscriptToTutorWithScreenshot(transcript: question)
     }
@@ -1865,6 +1885,7 @@ final class CompanionManager: ObservableObject {
     /// leaves what is drawn.
     private func stopAnswering() {
         stopGuide(reason: "Stop")
+        questionAwaitingAnswer = nil
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
         voiceState = .idle
