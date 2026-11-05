@@ -6,28 +6,36 @@
 2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
 3. Follow the setup window: your name, your keys, three permissions.
 
-Already have Buddy 1.2 or 1.3? It offers this update in the notch by itself: click **Update**. On 1.0 or 1.1, download it once and drag it onto Applications, choosing **Replace**. Your keys, memory and permissions stay.
+Already have Buddy 1.2 or later? It offers this update in the notch by itself: click **Update**. On 1.0 or 1.1, download it once and drag it onto Applications, choosing **Replace**. Your keys, memory and permissions stay.
 
-## What's new in 1.4
+Or with Homebrew:
 
-**Repeat tasks, answered from memory**
+```bash
+brew tap projects-hacks/buddy https://github.com/projects-hacks/buddy
+brew trust projects-hacks/buddy
+brew install --cask projects-hacks/buddy/buddy
+```
 
-When Buddy walks you through something in an app and you reach the end, it now keeps the steps. Ask for the same thing again, in whatever words, "how do I get a PDF of this" after "how do I save this as a PDF", and Buddy walks you through from memory: the same steps, pointing at the same buttons, without asking a model at all, so it is quicker and costs only the voice. It replays only when the request is plainly the same task; something that just sounds like it, "save as PNG" after "save as PDF", gets a fresh answer. If the app has changed since, Buddy notices the missing button and works out that step afresh. The notch says **from memory** while it replays.
+## What's new in 1.5
 
-**See what you've spent**
+**Buddy hears you better**
 
-Settings now shows **Spent today**, with this month's total and how many questions Buddy answered. It is worked out from what each reply says it used, at the providers' published prices, so there are no surprises on your bill.
+With a Deepgram key, Buddy now uses Deepgram to hear your questions as well as to speak its answers. It gets technical words right far more often: "Kafka" and "idempotent" where the Mac's own recognizer heard "Kakkar" and "Eden potent". Before you speak, Buddy tells it which words to expect: the labels on your screen, the terms on the cards it just drew, and the ideas you have been learning, so jargon is expected even when it is not on screen. Hearing costs about a third of a cent for a 20 second question and shows in Spent today. Without a Deepgram key, Buddy uses the Mac's recognizer as before; with one, the Mac's recognizer still listens alongside as a backup in case the connection drops.
 
-**Easier first install**
+**Take your time**
 
-The download window now shows the three install steps as pictures: drag Buddy to Applications, click **Done** when macOS says it can't check Buddy, then **Open Anyway** in Privacy & Security. No need to find the instructions anywhere else.
+Pausing to think while you hold the keys no longer loses what you said before the pause. And if you let go mid-thought and press again within a minute and a half, before the answer has started, Buddy joins the two halves into one question.
+
+**Long sessions stay in view**
+
+Buddy now remembers the last 40 questions of a session instead of the last 10. Recent answers are kept whole, with their drawings; older ones keep what was said, which keeps long sessions cheap.
 
 **Also in this release**
 
-- **Control + Option + T** has its own sound, three soft key taps, and no longer turns the microphone on or stops an answer that is playing before the chat box opens.
-- Buddy points at the right button even when it names it instead of using its place on screen, so fewer arrows go missing.
-- A smaller, tighter app: an unused analytics package from the project Buddy grew out of is gone, along with the two permissions it needed, one of them the camera, which Buddy never used.
-- Buddy's files on your Mac now live in a folder named Buddy, moved there for you on first launch.
+- Fixed: Buddy could stop responding when the microphone changed under it, for example AirPods connecting or another app taking the mic for a call. It now picks up the new format and keeps listening.
+- Spent today now counts answers you cut off with a new question or Esc, and never loses the last few cents of the day when Buddy quits.
+- When a word is misheard anyway, Buddy answers what you meant instead of what it heard.
+- Long answers folded in the chat no longer draw over the messages below them.
 
 Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/buddy/blob/main/docs/install.md).
 
