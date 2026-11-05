@@ -24,13 +24,14 @@ FONT = "/System/Library/Fonts/SFNS.ttf"
 MONO = "/System/Library/Fonts/SFNSMono.ttf"
 
 BANNER = {
-    "version": "1.5",
-    "headline": "Hears you better",
-    "subline": "Technical words, long pauses and half-finished questions come through whole.",
-    "before_label": "The Mac's recognizer heard",
-    "before": [("does ", None), ("posters", "wrong"), (" keep the outbox round until ", None), ("Kath", "wrong"), (" acknowledges it?", None)],
-    "after_label": "Buddy 1.5 heard",
-    "after": [("does ", None), ("Postgres", "right"), (" keep the outbox round till ", None), ("Kafka", "right"), (" acknowledges it?", None)],
+    "version": "2.0",
+    "headline": "Your screen, explained.",
+    "subline": "Talk over it, learn on a whiteboard, teach it back, and keep every lesson.",
+    "card_label": "ASKING WHILE BUDDY IS STILL TALKING",
+    "before_label": "Buddy 1.5",
+    "before": [("Hold Control + Option again, ", None), ("which stops the answer", "wrong")],
+    "after_label": "Buddy 2.0, heard in the live test",
+    "after": [("Just say: ", None), ("\u201cWait, why does high start at the length of the list?\u201d", "right")],
 }
 
 THEMES = {
@@ -109,7 +110,7 @@ def banner(theme_name):
     left, top, right, bottom = 540, 70, 1216, 330
     pen.rounded_rectangle([(s(left), s(top)), (s(right), s(bottom))], radius=s(18),
                           fill=theme["card"], outline=theme["line"], width=s(1.5))
-    pen.text((s(left + 32), s(top + 44)), "SAME QUESTION, SAME MICROPHONE", fill=theme["faint"],
+    pen.text((s(left + 32), s(top + 44)), BANNER["card_label"], fill=theme["faint"],
              font=font(12.5, "Semibold"), anchor="ls")
     pen.text((s(left + 32), s(top + 92)), BANNER["before_label"], fill=theme["soft"], font=font(14), anchor="ls")
     draw_spans(pen, left + 32, top + 124, BANNER["before"], theme, 19)
