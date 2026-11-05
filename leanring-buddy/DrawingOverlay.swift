@@ -67,7 +67,10 @@ final class DrawingOverlay: NSObject {
     /// Prepares the page for a new answer drawn over a screenshot of
     /// `canvasSize` pixels. `targets` maps listing ids to boxes in the same
     /// pixels, so the program can mark a line by id.
-    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], targetLabels: [String: String] = [:], screenInkHex: String) {
+    /// `screenMarksHidden` is for a replay over a screen that has changed:
+    /// its cards are drawn, its marks on the screen's content are not.
+    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], targetLabels: [String: String] = [:], screenInkHex: String,
+                     screenMarksHidden: Bool = false) {
         canvasSizeForCurrentAnswer = canvasSize
         let unitsPerPoint = screenFrame.width > 0 ? canvasSize.width / screenFrame.width : 1
         let options: [String: Any] = [
@@ -76,7 +79,8 @@ final class DrawingOverlay: NSObject {
             "targets": targets,
             "targetLabels": targetLabels,
             "screenInk": screenInkHex,
-            "unitsPerPoint": unitsPerPoint
+            "unitsPerPoint": unitsPerPoint,
+            "screenMarksHidden": screenMarksHidden
         ]
         callEngine("setup", argumentsJSON: Self.json(options))
     }

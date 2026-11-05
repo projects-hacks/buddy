@@ -49,7 +49,7 @@ final class EarlyScreenCapture {
     /// mode. A smaller change still counts: a capture thrown away costs a
     /// few hundred milliseconds, an answer about the wrong screen costs the
     /// answer.
-    private static let changedCellsMeaningTheScreenMoved = 9
+    static let changedCellsMeaningTheScreenMoved = 9
 
     private var captureTask: Task<PreparedScreen?, Never>?
     private var freshnessCheckTask: Task<PreparedScreen?, Never>?

@@ -87,6 +87,9 @@
     state.defs = svg.querySelector('defs');
     state.screenLayer = document.getElementById('screen-layer');
     state.cardLayer = document.getElementById('card-layer');
+    // A replay over a screen that changed draws its cards but not its
+    // marks: what they pointed at is no longer where it was.
+    state.screenLayer.style.display = options.screenMarksHidden ? 'none' : '';
     state.roughSvg = rough.svg(svg);
     // Programs refer to the canvas size by name, as numbers.
     window.W = state.canvasWidth;

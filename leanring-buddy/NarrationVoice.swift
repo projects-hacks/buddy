@@ -25,6 +25,16 @@
 import AVFoundation
 import Foundation
 
+/// One sentence as it was heard: its audio, kept in memory so the answer
+/// can be played again without asking Deepgram a second time.
+struct RecordedSentence {
+    let text: String
+    let audioChunks: [Data]
+    let totalFrames: AVAudioFramePosition
+    /// Spoken by the system voice the first time, which a replay does again.
+    let usedSystemVoice: Bool
+}
+
 @MainActor
 final class NarrationVoice {
     var onLineStarted: ((Int, TimeInterval) -> Void)?
@@ -148,6 +158,37 @@ final class NarrationVoice {
         if playerTask == nil { startPlayer() }
     }
 
+    /// Plays a sentence from an earlier answer's audio: no request is made.
+    func enqueueRecorded(_ sentence: RecordedSentence) {
+        let line = Line(index: lines.count, text: sentence.text)
+        line.chunks = sentence.audioChunks
+        line.totalFrames = sentence.totalFrames
+        line.isDownloaded = !sentence.usedSystemVoice
+        line.downloadFailed = sentence.usedSystemVoice
+        lines.append(line)
+        if playerTask == nil { startPlayer() }
+    }
+
+    /// The sentences of this answer whose audio is complete, in order, up
+    /// to the first that is not: what can be played again exactly as heard.
+    /// Empty until a sentence has started, so an answer cut off before a
+    /// word of it was heard never replaces the one before it.
+    func recordedSentences() -> [RecordedSentence] {
+        guard currentLineIndex != nil || nextLineToPlay > 0 else { return [] }
+        var recorded: [RecordedSentence] = []
+        for line in lines {
+            if line.isDownloaded {
+                recorded.append(RecordedSentence(text: line.text, audioChunks: line.chunks,
+                                                 totalFrames: line.totalFrames, usedSystemVoice: false))
+            } else if line.downloadFailed && line.chunks.isEmpty {
+                recorded.append(RecordedSentence(text: line.text, audioChunks: [], totalFrames: 0, usedSystemVoice: true))
+            } else {
+                break
+            }
+        }
+        return recorded
+    }
+
     /// Stops speaking and forgets every sentence.
     func stop() {
         generation += 1
@@ -261,7 +302,8 @@ final class NarrationVoice {
     // MARK: - Downloading
 
     private func startDownload(_ line: Line) {
-        guard line.downloadTask == nil else { return }
+        // A replayed sentence already has its audio, or speaks locally.
+        guard line.downloadTask == nil, !line.isDownloaded, !line.downloadFailed else { return }
         guard !deepgramUnavailable, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
             line.downloadFailed = true
             wake(line)

@@ -42,6 +42,7 @@ enum TalkOverHearing {
         case resume
         case slower
         case repeatPreviousSentence
+        case replayAnswer
         case question(String)
     }
 
@@ -73,6 +74,7 @@ enum TalkOverHearing {
     private static let holdPhrases: Set<String> = ["wait", "hold on", "hang on", "one sec", "one second", "pause", "wait a second", "wait a sec", "hold on a second", "just a second", "wait wait"]
     private static let resumePhrases: Set<String> = ["go on", "continue", "keep going", "carry on", "go ahead", "resume", "ok go on", "okay go on", "ok continue", "okay continue", "yes go on", "yeah go on", "go on please", "please continue"]
     private static let slowerPhrases: Set<String> = ["slower", "slow down", "more slowly", "a bit slower", "a little slower", "slower please", "slow down please", "can you slow down", "could you slow down", "talk slower", "speak slower"]
+    private static let replayPhrases: Set<String> = ["say that again", "say it again", "can you say that again", "could you say that again", "say all that again", "repeat the answer", "repeat your answer", "repeat the whole thing", "one more time", "from the top", "start again", "play that again"]
     private static let repeatPhrases: Set<String> = ["go back", "go back one", "back", "repeat that", "repeat", "repeat that sentence", "say that sentence again", "what was that", "come again"]
 
     /// The whole of something heard, once its speaker paused.
@@ -86,6 +88,7 @@ enum TalkOverHearing {
         if resumePhrases.contains(phrase) { return .resume }
         if slowerPhrases.contains(phrase) { return .slower }
         if repeatPhrases.contains(phrase) { return .repeatPreviousSentence }
+        if replayPhrases.contains(phrase) { return .replayAnswer }
 
         let realWords = words.filter { !fillerWords.contains($0) }
         if echoShare(of: realWords, recentlySpoken: recentlySpoken) >= echoShareThreshold {
@@ -101,6 +104,12 @@ enum TalkOverHearing {
             return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return .ignore(reason: "not addressed to Buddy")
+    }
+
+    /// Whether a question asked the usual way is only asking to hear the
+    /// last answer again, which is replayed rather than answered.
+    static func isReplayRequest(_ question: String) -> Bool {
+        replayPhrases.contains(commandPhrase(from: words(of: question)))
     }
 
     /// While the student is still speaking: whether to stop talking at once,
@@ -171,6 +180,7 @@ final class TalkOverListener {
         case resume
         case slower
         case repeatPreviousSentence
+        case replayAnswer
         case question(String)
     }
 
@@ -417,6 +427,9 @@ final class TalkOverListener {
             TutorDebugLog.write("👂 talk-over: go back")
             if wasYielding { onRequest(.endYield) }
             onRequest(.repeatPreviousSentence)
+        case .replayAnswer:
+            TutorDebugLog.write("👂 talk-over: say that again")
+            onRequest(.replayAnswer)
         case .question(let question):
             TutorDebugLog.write("👂 talk-over: a question cut in")
             onRequest(.question(question))

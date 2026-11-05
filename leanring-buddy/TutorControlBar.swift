@@ -91,6 +91,10 @@ final class TutorControlBarModel: ObservableObject {
     @Published var keyProblemMessage: String?
     /// Opens setup on the keys, for the key problem banner.
     var onFixKeys: () -> Void = {}
+    /// Whether there is an answer to play again, and how, for Replay on the
+    /// last lesson.
+    @Published var canReplayLastAnswer = false
+    var onReplayLastAnswer: () -> Void = {}
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -1187,6 +1191,7 @@ private struct LessonCard: View {
     let onAsk: (String) -> Void
     let onCopy: (TutorFollowUpButton) -> Void
     @State private var isShowingWholeAnswer = false
+    @State private var isHoveringReplay = false
 
     /// Past this, the answer is folded to a few lines with a way to open it.
     private static let foldAfterCharacters = 420
@@ -1210,6 +1215,24 @@ private struct LessonCard: View {
                     .foregroundStyle(Color.black.opacity(model.isSpeaking ? 0.55 : 0.4))
                     .contentTransition(.opacity)
                 Spacer()
+                // Plays the last answer again, voice and drawing, with no
+                // new request. Not while it is being said.
+                if model.canReplayLastAnswer && !model.isSpeaking {
+                    Button(action: model.onReplayLastAnswer) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 9.5, weight: .bold))
+                            Text("Replay")
+                                .font(.system(size: 11.5, weight: .semibold))
+                        }
+                        .foregroundStyle(Color(red: 0.16, green: 0.36, blue: 0.85).opacity(isHoveringReplay ? 1 : 0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .onHover { hovering in isHoveringReplay = hovering }
+                    .help("Hear and see the last answer again")
+                    .transition(.opacity)
+                }
             }
 
             if let lastTutorTurn {

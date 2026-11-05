@@ -545,6 +545,7 @@ final class CompanionManager: ObservableObject {
         qaHooks.start()
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        controlBar.model.onReplayLastAnswer = { [weak self] in _ = self?.replayLastAnswer(startedBy: "Replay in the notch") }
         bindUpdater()
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
@@ -1500,6 +1501,7 @@ final class CompanionManager: ObservableObject {
             self?.questionAwaitingAnswer = nil
             // Only while an answer plays, and never while the keys are held.
             if self?.buddyDictationManager.isDictationInProgress == false { self?.talkOverListener.start() }
+            self?.controlBar.model.canReplayLastAnswer = true
         }
         return player
     }()
@@ -1535,6 +1537,13 @@ final class CompanionManager: ObservableObject {
                                                      interruptedAnswerNote: String? = nil) {
         let isGuideContinuation = guideStep != nil
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
+        // "Say that again" is not a question: the last answer is played
+        // again as it was, with no model, and is not counted or filed.
+        if !isGuideContinuation, howToTakeover == nil, TalkOverHearing.isReplayRequest(transcript),
+           replayLastAnswer(startedBy: "asked") {
+            earlyScreen?.cancel()
+            return
+        }
         currentResponseTask?.cancel()
         cancelSpeechAndClearQueue()
 
@@ -1805,7 +1814,10 @@ final class CompanionManager: ObservableObject {
                         canvasSize: canvasSize,
                         targets: screenBoxes,
                         targetLabels: screenIndex.lastListedLabels,
-                        screenInkHex: "#3380FF"
+                        screenInkHex: "#3380FF",
+                        // Kept with the answer, so a replay can tell whether
+                        // the screen under its marks has changed since.
+                        screenThumbnail: GuideWatcher.thumbnail(fromImageData: primaryCapture.imageData)
                     )
                 }
                 currentAnswerFormat = .undecided
@@ -2111,6 +2123,8 @@ final class CompanionManager: ObservableObject {
         case .repeatPreviousSentence:
             releaseTalkOverHold()
             lessonPlayer.repeatPreviousSentence()
+        case .replayAnswer:
+            _ = replayLastAnswer(startedBy: "said over the answer")
         case .question(let question):
             // Cut off and answered with what was heard of this answer, which
             // is not in the conversation until an answer finishes.
@@ -2125,6 +2139,59 @@ final class CompanionManager: ObservableObject {
                 studentPointing: StudentPointingClues(selection: SelectedTextReader.selectionInFrontApp()),
                 interruptedAnswerNote: note)
         }
+    }
+
+    /// Plays the last answer again: the same audio and the same drawing, no
+    /// model and no speech request. When the screen has changed since, the
+    /// marks pinned to its content are left out and the cards are kept. Not
+    /// a lesson: nothing is filed, counted or added to the conversation.
+    /// False when there is no answer to replay.
+    private func replayLastAnswer(startedBy trigger: String) -> Bool {
+        guard let recording = lessonPlayer.recordingOfLastAnswer() else {
+            TutorDebugLog.write("🔁 replay (\(trigger)): no answer to play again yet")
+            return false
+        }
+        TutorDebugLog.write("🔁 replaying the last answer (\(trigger)): \(recording.sentences.count) sentences, no model")
+        stopGuide(reason: "replaying the last answer")
+        questionAwaitingAnswer = nil
+        currentResponseTask?.cancel()
+        cancelSpeechAndClearQueue()
+        transientHideTask?.cancel()
+        transientHideTask = nil
+        if !isOverlayVisible {
+            overlayWindowManager.hasShownOverlayBefore = true
+            overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+            isOverlayVisible = true
+        }
+        currentResponseTask = Task { [weak self] in
+            guard let self else { return }
+            self.voiceState = .responding
+            let screenOfTheAnswer = NSScreen.screens.first { screen in screen.frame == recording.displayFrame }
+            var includeScreenMarks = false
+            if screenOfTheAnswer != nil, let thumbnailThen = recording.screenThumbnail,
+               let thumbnailNow = await GuideWatcher.captureThumbnail(of: recording.displayFrame) {
+                let (changedCells, _) = GuideWatcher.changes(thumbnailThen, thumbnailNow)
+                includeScreenMarks = changedCells < EarlyScreenCapture.changedCellsMeaningTheScreenMoved
+                TutorDebugLog.write("🔁 replay: \(changedCells) cells changed since, \(includeScreenMarks ? "marks kept" : "marks left out")")
+            }
+            guard !Task.isCancelled, let screenForReplay = screenOfTheAnswer ?? NSScreen.main else {
+                self.voiceState = .idle
+                return
+            }
+            self.currentAnswerFormat = .program
+            await self.lessonPlayer.replay(recording, on: screenForReplay, includeScreenMarks: includeScreenMarks)
+            while self.speechConsumerTask != nil || self.isAnyVoicePlaying {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                if Task.isCancelled { break }
+            }
+            guard !Task.isCancelled else { return }
+            self.voiceState = .idle
+            await self.lessonPlayer.waitUntilSpoken()
+            self.talkOverListener.stop()
+            self.controlBar.model.caption = ""
+            self.scheduleTransientHideIfNeeded()
+        }
+        return true
     }
 
     private func releaseTalkOverHold() {
@@ -2430,7 +2497,8 @@ final class CompanionManager: ObservableObject {
         clearAnnotations()
         if let screenForDrawing = screen.screen {
             lessonPlayer.begin(on: screenForDrawing, canvasSize: screen.canvasSize, targets: screen.boxes,
-                               targetLabels: screen.labels, screenInkHex: "#3380FF")
+                               targetLabels: screen.labels, screenInkHex: "#3380FF",
+                               screenThumbnail: GuideWatcher.thumbnail(fromImageData: screen.capture.imageData))
         }
         currentAnswerFormat = .program
         controlBar.model.answeredBy = "from memory"
