@@ -2,10 +2,12 @@
 //  SetupWindow.swift
 //  leanring-buddy
 //
-//  First-run setup, for anyone who downloads Buddy: their name, their own
-//  API keys, the three macOS permissions, and how to ask a first question.
-//  Opened again from Settings to change keys, and on its own when a key
-//  stops working mid-use, on the step that fixes it.
+//  First-run setup, for anyone who downloads Buddy, in four steps: Welcome
+//  (their name), Keys (their own API keys), Permissions (the three macOS
+//  permissions) and Try it (a real hold of Control + Option, heard on the
+//  Mac and never sent to a model). Opened again from Settings to change
+//  keys, from the notch's alert row for a missing permission, and on its
+//  own when a key stops working mid-use, on the step that fixes it.
 //
 //  A real window rather than the notch, because typing needs a window that
 //  can take the keyboard, and the notch is built never to take focus from
@@ -18,7 +20,9 @@
 //
 
 import AppKit
+import AVFoundation
 import Combine
+import Speech
 import SwiftUI
 
 enum SetupStep: Int, CaseIterable {
@@ -64,6 +68,8 @@ final class SetupWindowController {
     private var window: NSWindow?
     private let model = SetupModel()
     private unowned let companionManager: CompanionManager
+    /// The last step's real check of the shortcut and the microphone.
+    let shortcutTrial = SetupShortcutTrial()
 
     init(companionManager: CompanionManager) {
         self.companionManager = companionManager
@@ -94,8 +100,13 @@ final class SetupWindowController {
 
     var isVisible: Bool { window?.isVisible ?? false }
 
+    /// While the Try it step is on screen, Control + Option belongs to its
+    /// check, and no question is asked.
+    var isTryingTheShortcut: Bool { isVisible && model.step == .done }
+
     func close() {
         window?.orderOut(nil)
+        shortcutTrial.reset()
         // A pasted key that was never saved does not outlive the window.
         model.entered = [:]
     }
@@ -113,12 +124,14 @@ final class SetupWindowController {
         window.level = .floating
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        window.title = "Set up Buddy"
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.backgroundColor = NSColor(white: 0.07, alpha: 1)
         window.contentView = NSHostingView(rootView: SetupView(
             model: model,
             companionManager: companionManager,
+            shortcutTrial: shortcutTrial,
             onFinish: { [weak self] in
                 self?.companionManager.finishSetup()
                 self?.close()
@@ -133,98 +146,94 @@ final class SetupWindowController {
 struct SetupView: View {
     @ObservedObject var model: SetupModel
     @ObservedObject var companionManager: CompanionManager
+    @ObservedObject var shortcutTrial: SetupShortcutTrial
     let onFinish: () -> Void
     @State private var opensAtLogin = true
 
     var body: some View {
         VStack(spacing: 0) {
             stepDots
-                .padding(.top, 34)
+                .padding(.top, 30)
             Group {
                 switch model.step {
                 case .welcome: welcome
                 case .keys: keys
                 case .permissions: permissions
-                case .done: done
+                case .done: tryIt
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.horizontal, 36)
-            .padding(.top, 22)
+            .padding(.top, 26)
             .transition(.opacity)
             .id(model.step)
         }
         .frame(width: 580, height: 640)
         .background(Color(white: 0.07))
         .animation(.smooth(duration: 0.25), value: model.step)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Set up Buddy, step \(model.step.rawValue + 1) of \(SetupStep.allCases.count)")
     }
 
+    /// The one progress indicator: a dot per step, the current one long.
     private var stepDots: some View {
         HStack(spacing: 8) {
             ForEach(SetupStep.allCases, id: \.rawValue) { step in
                 Capsule()
-                    .fill(step == model.step ? Color.white : Color.white.opacity(step.rawValue < model.step.rawValue ? 0.5 : 0.18))
+                    .fill(step == model.step ? Color.white : Color.white.opacity(step.rawValue < model.step.rawValue ? 0.5 : 0.22))
                     .frame(width: step == model.step ? 22 : 8, height: 8)
             }
         }
+        .accessibilityHidden(true)
     }
 
     // MARK: Welcome
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: 18) {
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .frame(width: 64, height: 64)
                     .shadow(color: Color(red: 0.35, green: 0.55, blue: 1.0).opacity(0.45), radius: 18)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Hi, this is Buddy.")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
-                    Text("A study helper that sees your screen, explains it out loud, and walks you through any app.")
+                        .accessibilityAddTraits(.isHeader)
+                    Text("Ask about anything on your screen. Buddy explains it out loud and draws on it as it talks.")
                         .font(.system(size: 13.5))
                         .foregroundStyle(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                FeatureTile(symbol: "waveform", tint: Color(red: 0.45, green: 0.7, blue: 1.0),
-                            title: "Talk or type", detail: "Hold Control + Option and ask, or press Control + Option + T to type.")
-                FeatureTile(symbol: "pencil.tip.crop.circle", tint: Color(red: 0.55, green: 0.85, blue: 0.6),
-                            title: "Draws as it talks", detail: "Circles, arrows and sketches on what you're looking at.")
-                FeatureTile(symbol: "brain.head.profile", tint: Color(red: 0.78, green: 0.62, blue: 1.0),
-                            title: "Remembers what you learn", detail: "New answers build on earlier lessons.")
-                FeatureTile(symbol: "hand.point.up.left", tint: Color(red: 1.0, green: 0.78, blue: 0.4),
-                            title: "Guides you through apps", detail: "Points at each step, then waits for you to do it.")
-            }
-            .padding(.top, 26)
+            SetupWelcomeScene()
+                .frame(height: 150)
+                .padding(.top, 24)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 14) {
+                SetupFact(symbol: "keyboard", text: "Hold Control + Option to ask, or type.")
+                SetupFact(symbol: "rectangle.and.pencil.and.ellipsis", text: "Teaches new topics on a board.")
+                SetupFact(symbol: "point.3.connected.trianglepath.dotted", text: "Remembers what you learn, on this Mac.")
+            }
+            .padding(.top, 20)
+
+            VStack(alignment: .leading, spacing: 9) {
                 Text("What should Buddy call you?")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                HStack(spacing: 10) {
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.white.opacity(0.4))
-                    TextField("Your first name", text: $model.name)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 15))
-                        .foregroundStyle(.white)
-                        .onSubmit(continueFromWelcome)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 11)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.07)))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .foregroundStyle(.white.opacity(0.88))
+                SetupNameField(name: $model.name, onSubmit: continueFromWelcome)
             }
-            .padding(.top, 28)
+            .padding(.top, 24)
 
             Spacer(minLength: 16)
-            SetupFooter(step: .welcome) {
-                EmptyView()
+            SetupFooter {
+                Text("About 2 minutes: your name, a key, three permissions.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DS.Colors.textTertiary)
             } trailing: {
                 SetupPrimaryButton(title: "Continue", isEnabled: !model.name.trimmingCharacters(in: .whitespaces).isEmpty,
                                    action: continueFromWelcome)
@@ -249,6 +258,7 @@ struct SetupView: View {
             Text("Your keys")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
+                .accessibilityAddTraits(.isHeader)
             Text("Buddy runs on your own accounts, so you only pay for what you use: about one to six cents a question. Keys stay in this Mac's Keychain and go only to the service they belong to.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.white.opacity(0.62))
@@ -266,13 +276,13 @@ struct SetupView: View {
                 }
             }
 
-            SetupFooter(step: .keys) {
-                SetupSecondaryButton(title: "Back") { model.step = .welcome }
+            SetupFooter {
+                SetupBackButton { model.step = .welcome }
             } trailing: {
                 if !hasSomethingToThinkWith {
                     Text("Add an Anthropic or a Gemini key to continue.")
                         .font(.system(size: 11.5))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(DS.Colors.textTertiary)
                 }
                 SetupPrimaryButton(title: "Continue", isEnabled: hasSomethingToThinkWith) {
                     companionManager.keysDidChange()
@@ -289,18 +299,18 @@ struct SetupView: View {
             Text("Three permissions")
                 .font(.system(size: 24, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            Text("The microphone hears your question, Screen Recording lets Buddy see what you are asking about, and Accessibility catches its shortcuts from any app and finds the exact button to point at. The screen is only captured when you ask, by voice or typing, and at each step while Buddy guides you through a task.")
+                .accessibilityAddTraits(.isHeader)
+            Text("Buddy only looks at your screen when you ask.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.white.opacity(0.62))
-                .fixedSize(horizontal: false, vertical: true)
 
             ScrollView {
                 CompanionPanelView(companionManager: companionManager, isEmbedded: true, showsOnlyPermissions: true)
                     .padding(.vertical, 6)
             }
 
-            SetupFooter(step: .permissions) {
-                SetupSecondaryButton(title: "Back") { model.step = .keys }
+            SetupFooter {
+                SetupBackButton { model.step = .keys }
             } trailing: {
                 SetupPrimaryButton(title: companionManager.allPermissionsGranted ? "Continue" : "Skip for now", isEnabled: true) {
                     model.step = .done
@@ -309,46 +319,63 @@ struct SetupView: View {
         }
     }
 
-    // MARK: Done
+    // MARK: Try it
 
-    private var done: some View {
-        VStack(alignment: .leading, spacing: 18) {
+    private var tryIt: some View {
+        VStack(alignment: .leading, spacing: 0) {
             Text("You're set, \(companionManager.studentName.isEmpty ? "friend" : companionManager.studentName).")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            VStack(alignment: .leading, spacing: 14) {
-                HowToRow(symbol: "keyboard", title: "Hold Control + Option and ask",
-                         detail: "About anything on your screen. Let go when you're done; your words show under the notch as you speak. Rather type? Press Control + Option + T.")
-                HowToRow(symbol: "pencil.and.scribble", title: "Watch it explain",
-                         detail: "Buddy talks and draws at the same time. Esc clears the drawing.")
-                HowToRow(symbol: "hand.point.up.left", title: "New to an app? Ask how",
-                         detail: "\"How do I export this?\" Buddy points at each step and says the next one once you've done it. Esc stops it.")
-                HowToRow(symbol: "rectangle.topthird.inset.filled", title: "Hover the notch",
-                         detail: "For the last lesson, the chat with the whole day's conversation, and Settings, where your keys and name can be changed.")
-                HowToRow(symbol: "lightbulb", title: "On LeetCode, it hints first",
-                         detail: "Say \"show me the code\" whenever you want the full answer.")
-            }
-            .padding(.top, 6)
+                .accessibilityAddTraits(.isHeader)
 
-            Toggle(isOn: $opensAtLogin) {
+            SetupTryCard(trial: shortcutTrial, hasAccessibilityPermission: companionManager.hasAccessibilityPermission)
+                .padding(.top, 20)
+
+            Text("Three more ways in")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .padding(.top, 24)
+                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 12) {
+                SetupWayIn(symbol: "keyboard", title: "Control + Option + T to type",
+                           detail: "For code, error messages, or a quiet library.")
+                SetupWayIn(symbol: "rectangle.and.pencil.and.ellipsis", title: "\u{201C}Teach me \u{2026} from scratch\u{201D}",
+                           detail: "Opens a board for a new topic. Esc leaves it.")
+                SetupWayIn(symbol: "book.closed", title: "Hover the notch",
+                           detail: "Your last lesson, the day's chat, the Notebook, the Map and Settings.")
+            }
+            .padding(.top, 12)
+
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Open Buddy when you log in")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
-                    Text("So it is in the notch whenever you sit down to study. Change it any time in Settings.")
+                    Text("Change it any time in Settings.")
                         .font(.system(size: 11.5))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(DS.Colors.textTertiary)
                 }
+                Spacer()
+                Toggle("", isOn: $opensAtLogin)
+                    .toggleStyle(NotchSwitchStyle())
+                    .labelsHidden()
+                    .allowsHitTesting(false)
             }
-            .toggleStyle(.switch)
-            .pointerCursor()
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.05)))
-            .padding(.top, 10)
+            .contentShape(Rectangle())
+            .onTapGesture { opensAtLogin.toggle() }
+            .pointerCursor()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Open Buddy when you log in")
+            .accessibilityValue(opensAtLogin ? "on" : "off")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { opensAtLogin.toggle() }
+            .padding(.top, 18)
 
-            Spacer()
-            SetupFooter(step: .done) {
-                SetupSecondaryButton(title: "Back") { model.step = .keys }
+            Spacer(minLength: 12)
+            SetupFooter {
+                SetupBackButton { model.step = .keys }
             } trailing: {
                 SetupPrimaryButton(title: "Start using Buddy", isEnabled: true) {
                     LoginItem.setChosen(opensAtLogin)
@@ -356,8 +383,441 @@ struct SetupView: View {
                 }
             }
         }
+        .onDisappear { shortcutTrial.reset() }
     }
 }
+
+// MARK: - Welcome pieces
+
+/// Where Buddy lives, drawn small and not interactive: the notch saying
+/// "explaining" over a ringed line of code, and a paper card beside it.
+private struct SetupWelcomeScene: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 0.2, green: 0.24, blue: 0.36), Color(red: 0.14, green: 0.15, blue: 0.22)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+
+            // The code being studied, one line ringed.
+            VStack(alignment: .leading, spacing: 6) {
+                Text("for i in range(len(nums)):")
+                Text("for j in range(len(nums)):")
+                    .padding(.horizontal, 4)
+                    .overlay(Capsule().stroke(Color(hex: "#3B82F6"), lineWidth: 2).padding(-3))
+                    .padding(.leading, 12)
+                Text("if nums[i] + nums[j] == t:")
+                    .padding(.leading, 28)
+            }
+            .font(.system(size: 12, design: .monospaced))
+            .foregroundStyle(Color(hex: "#9DC2FF"))
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(white: 0.13)))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 36)
+            .padding(.top, 62)
+
+            // The paper card, written by hand.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("i = 0, j = 0")
+                    .foregroundStyle(DS.Paper.ink)
+                Text("pairs 3 with itself")
+                    .foregroundStyle(Color(hex: "#D9363E"))
+            }
+            .font(.custom("Noteworthy", size: 17))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(width: 168, height: 82, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(DS.Paper.board))
+            .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
+            .rotationEffect(.degrees(-1.5))
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 30)
+            .padding(.top, 50)
+
+            // The notch, explaining.
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Circle().fill(DS.Notch.dotSpeaking).frame(width: 7, height: 7)
+                    Text("explaining")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                Text("This loop starts at zero, so it pairs a number with itself.")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.94))
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+            .background(UnevenRoundedRectangle(bottomLeadingRadius: 14, bottomTrailingRadius: 14).fill(Color.black))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+private struct SetupFact: View {
+    let symbol: String
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(DS.Colors.accentText)
+                .frame(width: 18)
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.white.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The name field, with a focus ring in the accent colour.
+private struct SetupNameField: View {
+    @Binding var name: String
+    let onSubmit: () -> Void
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: "person")
+                .font(.system(size: 15))
+                .foregroundStyle(.white.opacity(0.45))
+            TextField("Your first name", text: $name)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
+                .foregroundStyle(.white)
+                .focused($isFocused)
+                .onSubmit(onSubmit)
+                .accessibilityLabel("What should Buddy call you?")
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(isFocused ? DS.Colors.accentText.opacity(0.6) : Color.white.opacity(0.1), lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .stroke(DS.Colors.accent.opacity(isFocused ? 0.25 : 0), lineWidth: 3)
+            .padding(-1.5))
+        .overlay(IBeamCursorView())
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .onAppear { isFocused = true }
+    }
+}
+
+// MARK: - Try it
+
+/// Hold Control + Option and say hello: the shortcut and the microphone,
+/// checked for real. What is heard is recognised on the Mac (Apple Speech)
+/// and shown, and nothing is sent anywhere, to a model or otherwise.
+@MainActor
+final class SetupShortcutTrial: ObservableObject {
+    enum Outcome: Equatable {
+        case waiting
+        case listening
+        case heard
+        case nothingHeard
+    }
+
+    // Set only by the trial itself in the app; left settable inside the
+    // module so a render of the step can show each state.
+    @Published var areKeysHeld = false
+    @Published var heardWords = ""
+    @Published var outcome: Outcome = .waiting
+
+    private var audioEngine: AVAudioEngine?
+    private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?
+    private let speechRecognizer = AppleSpeechTranscriptionProvider()
+    private var loudestDecibels: Float = -120
+    private var nothingHeardTimer: Task<Void, Never>?
+    private var sessionGeneration = 0
+
+    /// A voice at the Mac, well above a quiet room, as the talk-over
+    /// listener measures it.
+    private static let loudEnoughDecibels: Float = -40
+
+    func keysPressed() {
+        guard !areKeysHeld else { return }
+        areKeysHeld = true
+        heardWords = ""
+        loudestDecibels = -120
+        outcome = .listening
+        sessionGeneration += 1
+        let generation = sessionGeneration
+        Task { @MainActor in
+            await startListening(generation: generation)
+        }
+        // Nothing in three seconds, while still held: say so, and keep listening.
+        nothingHeardTimer?.cancel()
+        nothingHeardTimer = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard let self, !Task.isCancelled, self.areKeysHeld, !self.hasHeardAnything else { return }
+            self.outcome = .nothingHeard
+        }
+    }
+
+    func keysReleased() {
+        guard areKeysHeld else { return }
+        areKeysHeld = false
+        nothingHeardTimer?.cancel()
+        transcriptionSession?.requestFinalTranscript()
+        let generation = sessionGeneration
+        // The last words land a moment after the keys come up.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard let self, self.sessionGeneration == generation else { return }
+            self.stopListening()
+            self.outcome = self.hasHeardAnything ? .heard : .nothingHeard
+            if self.outcome == .heard {
+                NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested, userInfo: [
+                    .announcement: "Buddy heard you.",
+                    .priority: NSAccessibilityPriorityLevel.high.rawValue
+                ])
+            }
+        }
+    }
+
+    func reset() {
+        sessionGeneration += 1
+        nothingHeardTimer?.cancel()
+        stopListening()
+        areKeysHeld = false
+        heardWords = ""
+        outcome = .waiting
+    }
+
+    private var hasHeardAnything: Bool {
+        !heardWords.trimmingCharacters(in: .whitespaces).isEmpty || loudestDecibels >= Self.loudEnoughDecibels
+    }
+
+    private func startListening(generation: Int) async {
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
+        // Words need speech recognition; without it the check still knows
+        // the microphone heard a voice, from how loud it was.
+        if SFSpeechRecognizer.authorizationStatus() == .notDetermined {
+            await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { _ in continuation.resume() }
+            }
+        }
+        guard sessionGeneration == generation, areKeysHeld else { return }
+        if SFSpeechRecognizer.authorizationStatus() == .authorized {
+            transcriptionSession = try? await speechRecognizer.startStreamingSession(
+                keyterms: ["Buddy"],
+                onTranscriptUpdate: { [weak self] text in
+                    Task { @MainActor in
+                        guard let self, self.sessionGeneration == generation else { return }
+                        self.heardWords = text
+                        if self.outcome == .nothingHeard { self.outcome = .listening }
+                    }
+                },
+                onFinalTranscriptReady: { [weak self] text in
+                    Task { @MainActor in
+                        guard let self, self.sessionGeneration == generation, !text.isEmpty else { return }
+                        self.heardWords = text
+                    }
+                },
+                onError: { _ in })
+        }
+        guard sessionGeneration == generation, areKeysHeld else {
+            stopListening()
+            return
+        }
+        let engine = AVAudioEngine()
+        let inputNode = engine.inputNode
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else { return }
+        let session = transcriptionSession
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+            session?.appendAudioBuffer(buffer)
+            let decibels = Self.decibels(of: buffer)
+            DispatchQueue.main.async {
+                guard let self, self.sessionGeneration == generation else { return }
+                self.loudestDecibels = max(self.loudestDecibels, decibels)
+            }
+        }
+        engine.prepare()
+        do {
+            try engine.start()
+            audioEngine = engine
+        } catch {
+            inputNode.removeTap(onBus: 0)
+        }
+    }
+
+    private func stopListening() {
+        if let audioEngine {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
+        audioEngine = nil
+        transcriptionSession?.cancel()
+        transcriptionSession = nil
+    }
+
+    private nonisolated static func decibels(of buffer: AVAudioPCMBuffer) -> Float {
+        guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return -120 }
+        var sumOfSquares: Float = 0
+        for index in 0..<Int(buffer.frameLength) { sumOfSquares += samples[index] * samples[index] }
+        let rootMeanSquare = sqrt(sumOfSquares / Float(buffer.frameLength))
+        return rootMeanSquare > 0 ? 20 * log10(rootMeanSquare) : -120
+    }
+}
+
+/// The green card on the last step: large keycaps that light while held,
+/// the words heard, and what that means.
+private struct SetupTryCard: View {
+    @ObservedObject var trial: SetupShortcutTrial
+    let hasAccessibilityPermission: Bool
+
+    private static let tint = DS.Colors.success
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("TRY IT NOW")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(Self.tint)
+            HStack(spacing: 12) {
+                Text("Hold")
+                SetupBigKeycap(symbol: "\u{2303}", name: "Control", isHeld: trial.areKeysHeld)
+                SetupBigKeycap(symbol: "\u{2325}", name: "Option", isHeld: trial.areKeysHeld)
+                Text("and say hello.")
+            }
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.white)
+
+            if !trial.heardWords.isEmpty || trial.areKeysHeld {
+                HStack(spacing: 10) {
+                    Image(systemName: "waveform")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                    Text(trial.heardWords.isEmpty ? "Listening\u{2026}" : trial.heardWords)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white.opacity(trial.heardWords.isEmpty ? 0.55 : 0.92))
+                        .lineLimit(2)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.08)))
+                }
+                .transition(.opacity)
+            }
+
+            resultLine
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Self.tint.opacity(0.07)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Self.tint.opacity(0.4), lineWidth: 1))
+        .animation(.easeOut(duration: 0.15), value: trial.areKeysHeld)
+        .animation(.easeOut(duration: 0.2), value: trial.outcome)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var resultLine: some View {
+        if !hasAccessibilityPermission {
+            SetupTrialProblem(text: "The shortcut isn't reaching Buddy. Allow Accessibility.") {
+                WindowPositionManager.openAccessibilitySettings()
+            }
+        } else {
+            switch trial.outcome {
+            case .heard:
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Buddy heard you. The microphone and the shortcut both work.")
+                        .font(.system(size: 13.5, weight: .semibold))
+                }
+                .foregroundStyle(Self.tint)
+            case .nothingHeard:
+                SetupTrialProblem(text: "Nothing heard. Check the microphone in System Settings.") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            case .waiting, .listening:
+                Text("Nothing you say here is sent anywhere. You can also skip this.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DS.Colors.textTertiary)
+            }
+        }
+    }
+}
+
+private struct SetupTrialProblem: View {
+    let text: String
+    let openSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DS.Colors.warning)
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.88))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button("Open", action: openSettings)
+                .buttonStyle(SetupSmallButtonStyle())
+                .pointerCursor()
+                .accessibilityLabel("Open System Settings")
+        }
+    }
+}
+
+/// A key, large, lit green while it is held down.
+private struct SetupBigKeycap: View {
+    let symbol: String
+    let name: String
+    let isHeld: Bool
+
+    var body: some View {
+        Text(symbol)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 40)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(isHeld ? DS.Colors.success.opacity(0.25) : Color.white.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(isHeld ? DS.Colors.success.opacity(0.7) : Color.white.opacity(0.2), lineWidth: 1))
+            .offset(y: isHeld ? 1 : 0)
+            .accessibilityLabel(name + (isHeld ? ", held" : ""))
+    }
+}
+
+private struct SetupWayIn: View {
+    let symbol: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(DS.Colors.accentText)
+                .frame(width: 32, height: 32)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.white.opacity(0.06)))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text(detail)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Keys
 
 /// One service's key: saved, being typed, being tested, or what went wrong.
 private struct KeyCard: View {
@@ -365,6 +825,36 @@ private struct KeyCard: View {
     let title: String
     let badge: String
     let detail: String
+    @ObservedObject var model: SetupModel
+    let companionManager: CompanionManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                SetupBadge(text: badge)
+                Spacer()
+                SetupLink(title: "Get a key", destination: APIKeyChecker.signUpLink(for: service))
+            }
+            Text(detail)
+                .font(.system(size: 11.5))
+                .foregroundStyle(.white.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            KeyFieldAndStatus(service: service, model: model, companionManager: companionManager)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .strokeBorder(KeyFieldAndStatus.borderColour(for: model.states[service] ?? .empty), lineWidth: 1))
+    }
+}
+
+/// The key field, its Test and save, and what came of it. Shared by the
+/// plain cards and the Gemini card, which has a choice above it.
+private struct KeyFieldAndStatus: View {
+    let service: APIKeyStore.Service
     @ObservedObject var model: SetupModel
     let companionManager: CompanionManager
 
@@ -378,59 +868,42 @@ private struct KeyCard: View {
         Binding(get: { model.entered[service] ?? "" }, set: { model.entered[service] = $0 })
     }
 
+    static func borderColour(for state: SetupModel.KeyState) -> Color {
+        switch state {
+        case .result(let result) where !result.isUsable: return DS.Colors.warning.opacity(0.55)
+        case .saved, .result: return DS.Colors.success.opacity(0.35)
+        default: return Color.white.opacity(0.08)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text(badge.uppercased())
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(badge == "Recommended" ? Color(red: 0.55, green: 0.78, blue: 1.0) : .white.opacity(0.45))
-                Spacer()
-                Link("Get a key", destination: APIKeyChecker.signUpLink(for: service))
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .pointerCursor()
-            }
-            Text(detail)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.white.opacity(0.55))
-                .fixedSize(horizontal: false, vertical: true)
-
             if isEditing {
                 HStack(spacing: 8) {
                     SecureField("Paste your \(service.humanReadableName) key", text: entered)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13, design: .monospaced))
                         .padding(9)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.08)))
                         .foregroundStyle(.white)
+                        .overlay(IBeamCursorView())
                         .onSubmit(testAndSave)
-                    SetupSmallButton(title: state == .checking ? "Testing" : "Test and save",
-                                     isEnabled: state != .checking && !(model.entered[service] ?? "").isEmpty,
-                                     action: testAndSave)
+                        .accessibilityLabel("\(service.humanReadableName) key")
+                    Button(state == .checking ? "Testing" : "Test and save", action: testAndSave)
+                        .buttonStyle(SetupSmallButtonStyle())
+                        .disabled(state == .checking || (model.entered[service] ?? "").isEmpty)
+                        .pointerCursor(isEnabled: state != .checking && !(model.entered[service] ?? "").isEmpty)
                     if model.editing.contains(service), APIKeyStore.hasKey(for: service) {
-                        SetupSmallButton(title: "Cancel", isEnabled: true) {
+                        Button("Cancel") {
                             model.editing.remove(service)
                             model.reload(from: companionManager)
                         }
+                        .buttonStyle(SetupSmallButtonStyle())
+                        .pointerCursor()
                     }
                 }
             }
-
             statusLine
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(borderColour, lineWidth: 1))
-    }
-
-    private var borderColour: Color {
-        switch state {
-        case .result(let result) where !result.isUsable: return Color.orange.opacity(0.55)
-        case .saved, .result: return Color.green.opacity(0.35)
-        default: return Color.white.opacity(0.08)
         }
     }
 
@@ -448,34 +921,39 @@ private struct KeyCard: View {
             }
         case .saved(let lastFour):
             HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.Colors.success)
                 Text("Saved, ending in \(lastFour)")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(0.8))
                 Spacer()
                 if !isEditing {
-                    SetupSmallButton(title: "Change", isEnabled: true) { model.editing.insert(service) }
-                    SetupSmallButton(title: "Remove", isEnabled: true) {
+                    Button("Change") { model.editing.insert(service) }
+                        .buttonStyle(SetupSmallButtonStyle())
+                        .pointerCursor()
+                    Button("Remove") {
                         APIKeyStore.deleteKey(for: service)
                         model.states[service] = .empty
                         model.entered[service] = ""
                         companionManager.keysDidChange()
                     }
+                    .buttonStyle(SetupSmallButtonStyle())
+                    .pointerCursor()
                 }
             }
         case .result(let result):
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: result.isUsable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                    .foregroundStyle(result.isUsable ? .green : .orange)
+                    .foregroundStyle(result.isUsable ? DS.Colors.success : DS.Colors.warning)
                 Text(result.isUsable ? "Saved. \(result.message == "Works." ? "" : result.message)" : result.message)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 4)
                 if case .couldNotCheck = result {
-                    SetupSmallButton(title: "Save anyway", isEnabled: !(model.entered[service] ?? "").isEmpty) {
-                        save(model.entered[service] ?? "", note: nil)
-                    }
+                    Button("Save anyway") { save(model.entered[service] ?? "", note: nil) }
+                        .buttonStyle(SetupSmallButtonStyle())
+                        .disabled((model.entered[service] ?? "").isEmpty)
+                        .pointerCursor(isEnabled: !(model.entered[service] ?? "").isEmpty)
                 }
             }
         }
@@ -516,7 +994,8 @@ private struct KeyCard: View {
 
 /// Gemini 4 Argon, reached either way: a key from AI Studio, which anyone can
 /// make in a minute, or a Google Cloud project through gcloud, which bills
-/// that project and can draw on its credits.
+/// that project and can draw on its credits. One card: the choice sits in
+/// its header and the field below changes with it.
 private struct GeminiCard: View {
     @ObservedObject var model: SetupModel
     @ObservedObject var companionManager: CompanionManager
@@ -524,13 +1003,25 @@ private struct GeminiCard: View {
     @State private var cloudCheck: KeyCheckResult?
     @State private var isCheckingCloud = false
 
+    private var usesGoogleCloud: Bool { companionManager.argonSource == .googleCloud }
+
+    private var borderColour: Color {
+        if usesGoogleCloud {
+            if cloudCheck.map({ !$0.isUsable }) ?? false { return DS.Colors.warning.opacity(0.55) }
+            return companionManager.usesVertexForArgon ? DS.Colors.success.opacity(0.35) : Color.white.opacity(0.08)
+        }
+        return KeyFieldAndStatus.borderColour(for: model.states[.gemini] ?? .empty)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Gemini comes from")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-                Picker("", selection: Binding(
+            HStack(spacing: 8) {
+                Text("Google Gemini")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                SetupBadge(text: usesGoogleCloud ? "Advanced" : "Optional")
+                Spacer()
+                Picker("Gemini comes from", selection: Binding(
                     get: { companionManager.argonSource },
                     set: { companionManager.setArgonSource($0) }
                 )) {
@@ -539,19 +1030,26 @@ private struct GeminiCard: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 230)
+                .frame(width: 200)
                 .pointerCursor()
-                Spacer()
             }
-
-            if companionManager.argonSource == .apiKey {
-                KeyCard(service: .gemini, title: "Google Gemini", badge: "Optional",
-                        detail: "Adds Gemini 4 Argon, which answers most explanations under Auto. Make the key in Google AI Studio.",
-                        model: model, companionManager: companionManager)
-            } else {
+            if usesGoogleCloud {
                 googleCloud
+            } else {
+                HStack {
+                    Text("Adds Gemini 4 Argon, which answers most explanations under Auto. Make the key in Google AI Studio.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    SetupLink(title: "Get a key", destination: APIKeyChecker.signUpLink(for: .gemini))
+                }
+                KeyFieldAndStatus(service: .gemini, model: model, companionManager: companionManager)
             }
         }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(borderColour, lineWidth: 1))
         .onAppear {
             projectIdentifier = companionManager.vertexProjectIdentifier
             if let problem = companionManager.keyProblem, problem.service == .gemini, companionManager.argonSource == .googleCloud {
@@ -560,62 +1058,49 @@ private struct GeminiCard: View {
         }
     }
 
+    @ViewBuilder
     private var googleCloud: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text("Google Cloud project")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text("ADVANCED")
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundStyle(.white.opacity(0.45))
-                Spacer()
-                Link("Install gcloud", destination: URL(string: "https://cloud.google.com/sdk/docs/install")!)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .pointerCursor()
-            }
+        HStack {
             Text("Argon runs through Vertex on your own project, signed in with gcloud. No key is stored; usage bills the project, and its credits.")
                 .font(.system(size: 11.5))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                TextField("project-id", text: $projectIdentifier)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13, design: .monospaced))
-                    .padding(9)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
-                    .foregroundStyle(.white)
-                    .onSubmit(checkAndSave)
-                SetupSmallButton(title: isCheckingCloud ? "Testing" : "Test and save",
-                                 isEnabled: !isCheckingCloud && !projectIdentifier.trimmingCharacters(in: .whitespaces).isEmpty,
-                                 action: checkAndSave)
+            Spacer(minLength: 8)
+            SetupLink(title: "Install gcloud", destination: URL(string: "https://cloud.google.com/sdk/docs/install")!)
+        }
+        HStack(spacing: 8) {
+            TextField("project-id", text: $projectIdentifier)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, design: .monospaced))
+                .padding(9)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.08)))
+                .foregroundStyle(.white)
+                .overlay(IBeamCursorView())
+                .onSubmit(checkAndSave)
+                .accessibilityLabel("Google Cloud project")
+            Button(isCheckingCloud ? "Testing" : "Test and save", action: checkAndSave)
+                .buttonStyle(SetupSmallButtonStyle())
+                .disabled(isCheckingCloud || projectIdentifier.trimmingCharacters(in: .whitespaces).isEmpty)
+                .pointerCursor(isEnabled: !isCheckingCloud && !projectIdentifier.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        if let cloudCheck {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: cloudCheck.isUsable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(cloudCheck.isUsable ? DS.Colors.success : DS.Colors.warning)
+                Text(cloudCheck.message)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
-            if let cloudCheck {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: cloudCheck.isUsable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .foregroundStyle(cloudCheck.isUsable ? .green : .orange)
-                    Text(cloudCheck.message)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .textSelection(.enabled)
-                }
-            } else if companionManager.usesVertexForArgon {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text("Using \(companionManager.vertexProjectIdentifier)")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.8))
-                }
+        } else if companionManager.usesVertexForArgon {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(DS.Colors.success)
+                Text("Using \(companionManager.vertexProjectIdentifier)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.8))
             }
         }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(0.05)))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(
-            (cloudCheck.map { !$0.isUsable } ?? false) ? Color.orange.opacity(0.55)
-                : (companionManager.usesVertexForArgon ? Color.green.opacity(0.35) : Color.white.opacity(0.08)),
-            lineWidth: 1))
     }
 
     private func checkAndSave() {
@@ -632,136 +1117,107 @@ private struct GeminiCard: View {
     }
 }
 
-private struct HowToRow: View {
-    let symbol: String
-    let title: String
-    let detail: String
+/// "Recommended", "Optional", "Advanced": sentence case, readable size.
+private struct SetupBadge: View {
+    let text: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color(red: 0.55, green: 0.78, blue: 1.0))
-                .frame(width: 26)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                Text(detail)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.white.opacity(0.6))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(text == "Recommended" ? DS.Colors.accentText : DS.Colors.textTertiary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(text == "Recommended" ? DS.Colors.accentText.opacity(0.14) : Color.white.opacity(0.06)))
     }
 }
 
+private struct SetupLink: View {
+    let title: String
+    let destination: URL
+    @State private var isHovering = false
+
+    var body: some View {
+        Link(destination: destination) {
+            Text(title)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(DS.Colors.accentText.opacity(isHovering ? 1 : 0.85))
+                .underline(isHovering)
+        }
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
+        }
+        .accessibilityLabel("\(title), opens in your browser")
+    }
+}
+
+// MARK: - Buttons
+
+/// The app's one primary style, the accent capsule, sized for a window
+/// footer. Disabled, it dims and keeps the arrow cursor.
 private struct SetupPrimaryButton: View {
     let title: String
     let isEnabled: Bool
     let action: () -> Void
-    @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13.5, weight: .semibold))
-                .foregroundStyle(isEnabled ? Color.black : Color.white.opacity(0.4))
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(isEnabled ? Color.white.opacity(isHovering ? 1 : 0.9) : Color.white.opacity(0.1)))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(DSPrimaryButtonStyle(isFullWidth: false))
         .disabled(!isEnabled)
-        .pointerCursor(isEnabled: isEnabled)
-        .onHover { isHovering = $0 }
+        .opacity(isEnabled ? 1 : 0.45)
+        .allowsHitTesting(isEnabled)
     }
 }
 
-private struct SetupSecondaryButton: View {
-    let title: String
+/// Back: the text style, secondary until hovered.
+private struct SetupBackButton: View {
     let action: () -> Void
-    @State private var isHovering = false
 
     var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(isHovering ? 0.95 : 0.65))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .onHover { isHovering = $0 }
+        Button("Back", action: action)
+            .buttonStyle(DSTextButtonStyle(fontSize: 13.5))
+            .padding(.horizontal, 8)
     }
 }
 
-private struct SetupSmallButton: View {
-    let title: String
-    let isEnabled: Bool
-    let action: () -> Void
-    @State private var isHovering = false
+private struct SetupSmallButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
 
-    var body: some View {
-        Button(action: action) {
-            Text(title)
+    func makeBody(configuration: Configuration) -> some View {
+        SmallButtonBody(configuration: configuration, isEnabled: isEnabled)
+    }
+
+    private struct SmallButtonBody: View {
+        let configuration: ButtonStyleConfiguration
+        let isEnabled: Bool
+        @State private var isHovering = false
+
+        var body: some View {
+            configuration.label
                 .font(.system(size: 11.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(isEnabled ? 0.9 : 0.35))
                 .padding(.horizontal, 11)
                 .padding(.vertical, 7)
-                .background(Capsule().fill(Color.white.opacity(isEnabled ? (isHovering ? 0.2 : 0.12) : 0.05)))
+                .background(Capsule().fill(Color.white.opacity(isEnabled ? (isHovering || configuration.isPressed ? 0.2 : 0.12) : 0.05)))
+                .onHover { hovering in
+                    withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering && isEnabled }
+                }
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .pointerCursor(isEnabled: isEnabled)
-        .onHover { isHovering = $0 }
     }
 }
 
-/// One thing Buddy does, on the welcome step.
-private struct FeatureTile: View {
-    let symbol: String
-    let tint: Color
-    let title: String
-    let detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 32, height: 32)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(tint.opacity(0.14)))
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-            Text(detail)
-                .font(.system(size: 11.5))
-                .foregroundStyle(.white.opacity(0.55))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.045)))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 1))
-    }
-}
-
-/// The bar every step ends with: where you are, back, and the next step.
+/// The bar every step ends with: back or a note, and the next step.
 private struct SetupFooter<Leading: View, Trailing: View>: View {
-    let step: SetupStep
     @ViewBuilder let leading: () -> Leading
     @ViewBuilder let trailing: () -> Trailing
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 16) {
             Rectangle().fill(Color.white.opacity(0.07)).frame(height: 1)
             HStack(spacing: 10) {
                 leading()
-                Text("Step \(step.rawValue + 1) of \(SetupStep.allCases.count)")
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
                 Spacer()
                 trailing()
             }
