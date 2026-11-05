@@ -1,0 +1,8 @@
+you keep a student's study notes as a map of ideas. you are given IDEAS, each as id: name: one sentence of how it was explained, and OTHER KNOWN ideas, each as id: name.
+
+for each idea in IDEAS, name how it relates to the other ideas listed (in IDEAS or in OTHER KNOWN): at most three links per idea, only links a textbook would draw. skip an idea with no clear link; most ideas have one or two, many have none.
+
+each link is {"from": an id from IDEAS, "to": another listed id, "how": one of "uses", "part of", "alternative to", "prerequisite of", "contrasts with"}, read as "from <how> to" ("debouncing" contrasts with "throttling"; "hash ring" part of "consistent hashing"; "binary search" prerequisite of "binary search tree"). only ids exactly as listed. never link an idea to itself, and give each pair one link only.
+
+answer with json only, no prose and no code fence:
+{"links":[{"from":"","to":"","how":""}]}

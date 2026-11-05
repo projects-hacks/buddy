@@ -2,17 +2,21 @@
 // Claude Haiku calls through the prompts that ship. Nothing is spoken or
 // drawn. Checks filing, merging the same idea under another wording, spaced
 // strengthening, getting lost, saving and reloading, archiving stale ideas,
-// recall through the cascade and by name, and the note the tutor gets.
+// recall through the cascade and by name, the note the tutor gets, and the
+// relations filing gives the map of what the student knows.
 //
 // build and run (from the repository root), key on stdin, never printed:
 //   cp scripts/learning_memory/memory_flow_test.swift /tmp/flow/main.swift
-//   xcrun swiftc -O -o /tmp/flow/test leanring-buddy/ConceptIndex.swift leanring-buddy/LearningMemory.swift /tmp/flow/main.swift
+//   xcrun swiftc -O -o /tmp/flow/test leanring-buddy/ConceptIndex.swift leanring-buddy/LearningMemory.swift \
+//     leanring-buddy/KnowledgeMapRelations.swift /tmp/flow/main.swift
 //   security find-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -w | /tmp/flow/test /tmp/flow/store
 
 import Foundation
 import NaturalLanguage
 
 enum TutorDebugLog { static func write(_ line: String) { print("   log:", line) } }
+// LearningMemory's default folder names it; every store here is a scratch one.
+enum AppIdentity { static let dataName = "Buddy-flow-test" }
 
 let apiKey = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 let storeFolder = URL(fileURLWithPath: CommandLine.arguments[1])
@@ -66,7 +70,7 @@ func haiku(_ system: String, _ message: String, _ maximumTokens: Int) async -> S
             return "\(short): \(concept.name)"
         }
         let message = "KNOWN:\n\(knownLines.isEmpty ? "(none)" : knownLines.joined(separator: "\n"))\n\nTHE STUDENT ASKED: \(lesson.question)\nLESSON TITLE: \(lesson.lessonTitle ?? "(none)")\nTHE EXPLANATION: \(lesson.spokenAnswer)"
-        guard let reply = await haiku(lessonPrompt, message, 700),
+        guard let reply = await haiku(lessonPrompt, message, 1_600),
               let start = reply.firstIndex(of: "{"), let end = reply.lastIndex(of: "}"),
               let json = try? JSONSerialization.jsonObject(with: Data(String(reply[start...end]).utf8)) as? [String: Any],
               let concepts = json["concepts"] as? [[String: Any]] else { return nil }
@@ -74,7 +78,10 @@ func haiku(_ system: String, _ message: String, _ maximumTokens: Int) async -> S
             guard let name = entry["name"] as? String else { return nil }
             return ExtractedConcept(name: name, sameAsID: (entry["same_as"] as? String).flatMap { ids[$0.lowercased()] },
                                     aliases: entry["aliases"] as? [String] ?? [], cues: entry["cues"] as? [String] ?? [],
-                                    summary: entry["summary"] as? String ?? "", angle: entry["angle"] as? String)
+                                    summary: entry["summary"] as? String ?? "", angle: entry["angle"] as? String,
+                                    relations: ConceptRelationReading.filingRelations(
+                                        in: entry["related"], idsByShortID: ids,
+                                        sameAsID: (entry["same_as"] as? String).flatMap { ids[$0.lowercased()] }))
         }
     }
     memory.choose = { question, window, candidates in
@@ -188,7 +195,22 @@ let result: Int = await Task { @MainActor in
     index.upsert(second, vector: [Float](repeating: 0.1, count: 3))
     check(index.vector(at: 1) != nil, "a vector of the wrong length is ignored, the old one kept")
 
-    print("\n8. forgetting everything")
+    print("\n8. relations for the map, from the same filing call")
+    await reloaded.remember(LessonToRemember(
+        question: "why does each server get lots of spots on the hash ring", lessonTitle: "Virtual Nodes",
+        spokenAnswer: "with one spot each, an unlucky server can own a huge arc of the ring. virtual nodes give every server many spots, so each one's share of the keys evens out, and a server leaving spreads its keys across all the others.",
+        questionKind: "normal", answeredBy: "sonnet", date: Date()))
+    let knownIDs = Set(reloaded.index.concepts.map(\.id))
+    let hashingID = reloaded.index.concepts.first { $0.name.contains("consistent hashing") }?.id
+    let virtualNodes = reloaded.index.concepts.first { $0.name.contains("virtual node") }
+    print("   virtual nodes relations:", (virtualNodes?.relations ?? []).map { relation in
+        "\(relation.kind) \(reloaded.index.concepts.first { $0.id == relation.targetID }?.name ?? "?")" })
+    check(virtualNodes?.relations?.contains { $0.targetID == hashingID && ["part of", "uses"].contains($0.kind) } == true,
+          "a new idea is linked to the known idea it belongs to")
+    check(reloaded.index.concepts.allSatisfy { ($0.relations ?? []).allSatisfy { knownIDs.contains($0.targetID) } },
+          "every relation points at a known idea")
+
+    print("\n9. forgetting everything")
     reloaded.forgetEverything()
     await reloaded.flushWrites()
     check(reloaded.conceptCount == 0 && !FileManager.default.fileExists(atPath: storeFolder.path), "store and files gone")

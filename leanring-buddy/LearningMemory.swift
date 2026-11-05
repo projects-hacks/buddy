@@ -65,6 +65,9 @@ struct ExtractedConcept {
     let cues: [String]
     let summary: String
     let angle: String?
+    /// How it relates to the known ideas it was shown with. Nil when the
+    /// extractor was not asked (no key), so the map's one-time pass can.
+    var relations: [ConceptRelation]? = nil
 }
 
 @MainActor
@@ -413,22 +416,39 @@ final class LearningMemory {
             if let title = lesson.lessonTitle, concept.lessonTitles.last != title {
                 concept.lessonTitles = Array((concept.lessonTitles + [title]).suffix(5))
             }
+            concept.relations = Self.mergedRelations(
+                existing: concept.relations, new: extracted.relations, ownID: concept.id)
             index.upsert(concept, vector: embed(Self.embeddingText(for: concept)))
             return concept.id
         }
 
+        let newID = UUID()
         let concept = RememberedConcept(
-            id: UUID(), name: name,
+            id: newID, name: name,
             aliases: Array(extracted.aliases.map { $0.lowercased() }.filter { !$0.isEmpty && $0 != name }.prefix(6)),
             cues: Array(extracted.cues.map { $0.lowercased() }.prefix(24)),
             summary: summary, lastAngle: extracted.angle.map { String($0.prefix(80)) },
             firstExplainedAt: lesson.date, lastExplainedAt: lesson.date,
             timesExplained: 1, timesLost: 0, lastLostAt: nil,
             stabilityDays: ForgettingCurve.initialStabilityDays,
-            lessonTitles: lesson.lessonTitle.map { [$0] } ?? []
+            lessonTitles: lesson.lessonTitle.map { [$0] } ?? [],
+            relations: Self.mergedRelations(existing: nil, new: extracted.relations, ownID: newID)
         )
         index.upsert(concept, vector: embed(Self.embeddingText(for: concept)))
         return concept.id
+    }
+
+    /// The newest links first, then the older ones to other ideas, capped so
+    /// an idea explained many times keeps a readable handful on the map. A
+    /// lesson filed without asking (nil) keeps what was there.
+    static func mergedRelations(existing: [ConceptRelation]?, new: [ConceptRelation]?, ownID: UUID) -> [ConceptRelation]? {
+        guard let new else { return existing }
+        var merged: [ConceptRelation] = []
+        for relation in new + (existing ?? [])
+        where relation.targetID != ownID && !merged.contains(where: { $0.targetID == relation.targetID }) {
+            merged.append(relation)
+        }
+        return Array(merged.prefix(8))
     }
 
     /// Without a key: the lesson's own title is the idea, and its first
@@ -493,6 +513,58 @@ final class LearningMemory {
         let folder = self.folder
         ioQueue.async { try? FileManager.default.removeItem(at: folder) }
         TutorDebugLog.write("🧠 memory: forgotten at the student's request")
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
+    }
+
+    // MARK: - The map of what the student knows (KnowledgeMapWindow.swift)
+
+    /// Posted on the main actor after anything remembered changes, so an open
+    /// map can redraw with the new idea without polling.
+    static let didChangeNotification = Notification.Name("LearningMemoryDidChange")
+
+    /// Forgets one idea, from the map, after the student confirmed. It goes
+    /// from the archive too, and every link to it goes with it, so it cannot
+    /// come back as a dangling edge or be restored by a later lesson's name.
+    func forgetConcept(id: UUID) {
+        guard index.index(of: id) != nil || archived.contains(where: { $0.id == id }) else { return }
+        let forgottenName = index.index(of: id).map { index.concepts[$0].name }
+        index.remove(id: id)
+        archived.removeAll { $0.id == id }
+        lastLessonConceptIDs.removeAll { $0 == id }
+        removeRelations(pointingAt: id)
+        TutorDebugLog.write("🧠 memory: forgot \(forgottenName ?? "an archived idea") at the student's request")
+        save()
+    }
+
+    /// Adds the links the map's one-time pass found to ideas that had none
+    /// on record. Ideas that already have relations (filed since) keep their
+    /// own, since those came from the lesson itself.
+    func applyBackfilledRelations(_ relationsByConceptID: [UUID: [ConceptRelation]]) {
+        var changed = 0
+        for (id, relations) in relationsByConceptID {
+            guard let position = index.index(of: id) else { continue }
+            var concept = index.concepts[position]
+            guard concept.relations == nil else { continue }
+            concept.relations = Self.mergedRelations(
+                existing: nil, new: relations.filter { index.index(of: $0.targetID) != nil }, ownID: id)
+            index.upsert(concept, vector: index.vector(at: position))
+            changed += 1
+        }
+        guard changed > 0 else { return }
+        TutorDebugLog.write("🧠 memory: gave \(changed) older ideas their relations for the map")
+        save()
+    }
+
+    private func removeRelations(pointingAt id: UUID) {
+        for position in index.concepts.indices {
+            var concept = index.concepts[position]
+            guard let relations = concept.relations, relations.contains(where: { $0.targetID == id }) else { continue }
+            concept.relations = relations.filter { $0.targetID != id }
+            index.upsert(concept, vector: index.vector(at: position))
+        }
+        for position in archived.indices {
+            archived[position].relations = archived[position].relations?.filter { $0.targetID != id }
+        }
     }
 
     // MARK: - Files
@@ -532,6 +604,7 @@ final class LearningMemory {
         )
         let folder = self.folder
         ioQueue.async { StoreFiles.write(snapshot, to: folder) }
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self)
     }
 }
 
