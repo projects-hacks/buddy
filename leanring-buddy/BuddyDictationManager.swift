@@ -267,7 +267,15 @@ final class BuddyDictationManager: NSObject, ObservableObject {
     }
 
     private let transcriptionProvider: any BuddyTranscriptionProvider
-    private let audioEngine = AVAudioEngine()
+    /// A new engine for every question. An engine reads the microphone's
+    /// format once, when it is made; if the format changes later (AirPods
+    /// connecting, another app opening the mic in a call mode, which drops
+    /// the built-in mic to 24 kHz), a tap installed with the old format makes
+    /// AVAudioEngine throw an Objective-C exception that Swift cannot catch,
+    /// and the app stops responding. A fresh engine always starts from the
+    /// format the hardware has now.
+    private var audioEngine = AVAudioEngine()
+    private var audioConfigurationChangeObserver: NSObjectProtocol?
     private var activeTranscriptionSession: (any BuddyStreamingTranscriptionSession)?
     private var activeStartSource: BuddyDictationStartSource?
     private var draftCallbacks: BuddyDictationDraftCallbacks?
@@ -551,17 +559,51 @@ final class BuddyDictationManager: NSObject, ObservableObject {
         self.activeTranscriptionSession = activeTranscriptionSession
         print("🎙️ BuddyDictationManager: provider ready, starting audio engine")
 
-        let inputNode = audioEngine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        audioEngine.stop()
+        audioEngine.inputNode.removeTap(onBus: 0)
+        audioEngine = AVAudioEngine()
+        try startMicrophone(on: audioEngine)
 
+        // The format can also change while the keys are held. The engine
+        // stops itself when it does, so the tap is put back with the new
+        // format and the rest of the question is still heard.
+        if let audioConfigurationChangeObserver {
+            NotificationCenter.default.removeObserver(audioConfigurationChangeObserver)
+        }
+        let engineForThisQuestion = audioEngine
+        audioConfigurationChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engineForThisQuestion, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.audioEngine === engineForThisQuestion,
+                      self.activeTranscriptionSession != nil, !self.hasFinishedCurrentDictationSession else { return }
+                TutorDebugLog.write("🎙️ microphone format changed mid-question; listening again with the new one")
+                engineForThisQuestion.stop()
+                engineForThisQuestion.inputNode.removeTap(onBus: 0)
+                do {
+                    try self.startMicrophone(on: engineForThisQuestion)
+                } catch {
+                    self.handleRecognitionError(error)
+                }
+            }
+        }
+    }
+
+    private func startMicrophone(on engine: AVAudioEngine) throws {
+        let inputNode = engine.inputNode
+        // The hardware's own format, which is what a tap must match.
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            throw NSError(domain: "Dictation", code: 3,
+                          userInfo: [NSLocalizedDescriptionKey: "no microphone is available"])
+        }
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
             self?.activeTranscriptionSession?.appendAudioBuffer(buffer)
             self?.updateAudioPowerLevel(from: buffer)
         }
-
-        audioEngine.prepare()
-        try audioEngine.start()
+        engine.prepare()
+        try engine.start()
     }
 
     private func handleRecognitionError(_ error: Error) {
@@ -574,7 +616,7 @@ final class BuddyDictationManager: NSObject, ObservableObject {
                 shouldSubmitFinalDraft: shouldAutomaticallySubmitFinalDraft
             )
         } else {
-            print("❌ Buddy dictation error (\(transcriptionProvider.displayName)): \(error)")
+            TutorDebugLog.write("❌ dictation error (\(transcriptionProvider.displayName)): \(error.localizedDescription)")
             lastErrorMessage = userFacingErrorMessage(
                 from: error,
                 fallback: "couldn't transcribe that. try again."

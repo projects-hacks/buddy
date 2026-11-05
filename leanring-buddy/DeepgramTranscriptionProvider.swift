@@ -58,6 +58,7 @@ final class PreferredTranscriptionProvider: BuddyTranscriptionProvider {
             onError: { [weak combined] _ in combined?.appleFailed() }) {
             combined.backup = backup
         }
+        TutorDebugLog.write("🎙️ Deepgram told to expect \(min(keyterms.count, 60)) terms: \(keyterms.prefix(60).joined(separator: ", "))")
         combined.deepgram = DeepgramStreamingSession(
             apiKey: deepgramKey, keyterms: keyterms,
             onTranscriptUpdate: { [weak combined] text in combined?.deepgramUpdated(text) },
@@ -143,6 +144,7 @@ private final class CombinedTranscriptionSession: BuddyStreamingTranscriptionSes
     }
 
     func appleFailed() {
+        TutorDebugLog.write("🎙️ Apple Speech failed")
         lock.lock(); appleBroken = true; lock.unlock()
         deliverIfReady()
     }
@@ -170,7 +172,7 @@ private final class CombinedTranscriptionSession: BuddyStreamingTranscriptionSes
         guard let chosen else { lock.unlock(); return }
         delivered = true
         lock.unlock()
-        TutorDebugLog.write("🎙️ heard by \(chosen.source)")
+        TutorDebugLog.write("🎙️ heard by \(chosen.source): \"\(chosen.text)\" (Apple Speech heard: \"\(appleText)\")")
         onFinalTranscriptReady(chosen.text)
     }
 }
@@ -192,6 +194,9 @@ final class DeepgramStreamingSession {
     private var finalizedSegments: [String] = []
     private var interimText = ""
     private var bytesSent = 0
+    /// The loudest sample sent, out of 32767, for the log: a question that
+    /// comes back empty with a near-zero peak was silence, not a bad recognizer.
+    private var loudestSample: Int16 = 0
     private var hasEnded = false
     private var isFinishing = false
 
@@ -230,6 +235,12 @@ final class DeepgramStreamingSession {
         queue.async { [weak self] in
             guard let self, !self.isFinishing, !self.hasEnded else { return }
             self.bytesSent += data.count
+            data.withUnsafeBytes { raw in
+                for sample in raw.bindMemory(to: Int16.self) where sample != .min {
+                    let magnitude = abs(sample)
+                    if magnitude > self.loudestSample { self.loudestSample = magnitude }
+                }
+            }
             self.socket.send(.data(data)) { _ in }
         }
     }
@@ -240,6 +251,7 @@ final class DeepgramStreamingSession {
         queue.async { [weak self] in
             guard let self, !self.isFinishing, !self.hasEnded else { return }
             self.isFinishing = true
+            TutorDebugLog.write("🎙️ Deepgram: released after \(String(format: "%.1f", Double(self.bytesSent) / Double(Self.sampleRate * 2)))s of audio (loudest \(self.loudestSample) of 32767), \(self.finalizedSegments.count) finished segments so far")
             self.socket.send(.string(#"{"type":"Finalize"}"#)) { _ in }
             self.socket.send(.string(#"{"type":"CloseStream"}"#)) { _ in }
         }
@@ -302,6 +314,7 @@ final class DeepgramStreamingSession {
 
     private func end(error: Error?) {
         guard !hasEnded else { return }
+        TutorDebugLog.write("🎙️ Deepgram: stream ended\(error.map { " with \($0.localizedDescription)" } ?? ""), \(finalizedSegments.count) segments")
         hasEnded = true
         recordCost()
         socket.cancel(with: .normalClosure, reason: nil)

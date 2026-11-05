@@ -117,6 +117,10 @@ final class QAHooks {
             companionManager.qaSetNotchOpen(info["value"] == "open")
         case "escape":
             companionManager.qaPressEscape()
+        case "holdTalk":
+            companionManager.qaHoldTalkKeys(down: true)
+        case "releaseTalk":
+            companionManager.qaHoldTalkKeys(down: false)
         case "recordFrames":
             // Frames of the screen, Buddy's own windows included, for a demo
             // recording: value is "seconds,x,y,width,height" in points from

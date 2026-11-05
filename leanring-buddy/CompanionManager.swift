@@ -1050,23 +1050,35 @@ final class CompanionManager: ObservableObject {
     ) -> [String] {
         var seen = Set<String>()
         func cleaned(_ hint: String) -> String? {
-            let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            // Sentence punctuation only: the brackets in "O(n)" are part of it.
+            let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ".,;:!?\"'")))
             guard trimmed.count >= 2, trimmed.count <= 40, trimmed.split(separator: " ").count <= 4 else { return nil }
             return trimmed
         }
 
+        // Screens are full of things nobody says: times, file ids, counters,
+        // symbols. Each takes one of the few places Deepgram has, so only
+        // text that is mostly letters is kept, and a word with digits only
+        // when it is short, like "v2", "S3" or "O(n)".
+        func isSpeakable(_ text: String) -> Bool {
+            let letterCount = text.filter(\.isLetter).count
+            let digitCount = text.filter(\.isNumber).count
+            let wordsWithDigitsAreShort = text.split(separator: " ")
+                .allSatisfy { word in !word.contains(where: \.isNumber) || word.count <= 6 }
+            return letterCount >= 2 && letterCount * 2 >= text.count && digitCount <= 2 && wordsWithDigitsAreShort
+        }
         var screenHints: [String] = []
         for label in screenLabels {
             let words = label.split(separator: " ")
             // A short label is usually a name: a box, a button, a heading.
-            if words.count <= 4, let hint = cleaned(label) { screenHints.append(hint) }
+            if words.count <= 4, let hint = cleaned(label), isSpeakable(hint) { screenHints.append(hint) }
             // Inside longer text, keep the words a recognizer would not guess:
             // capitals after the first letter, digits, acronyms.
             for word in words where word.count >= 3 {
                 let text = String(word)
                 let hasInnerCapital = text.dropFirst().contains(where: \.isUppercase)
                 let hasDigit = text.contains(where: \.isNumber)
-                if hasInnerCapital || hasDigit, let hint = cleaned(text) { screenHints.append(hint) }
+                if hasInnerCapital || hasDigit, let hint = cleaned(text), isSpeakable(hint) { screenHints.append(hint) }
             }
         }
 
@@ -2385,6 +2397,9 @@ final class CompanionManager: ObservableObject {
         }
     }
     func qaPressEscape() { handleEscape() }
+    /// Control + Option held and let go, as the shortcut monitor reports
+    /// them, so a spoken question can be tested through the real microphone.
+    func qaHoldTalkKeys(down: Bool) { down ? beginTalking() : finishTalking() }
     func qaOpenChat() { openChatForTyping() }
     func qaSetNotchTab(_ name: String) {
         controlBar.model.selectedTab = name == "settings" ? .settings : (name == "transcript" ? .transcript : .lesson)
