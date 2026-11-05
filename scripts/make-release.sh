@@ -117,6 +117,17 @@ WRITABLE="$OUT/Buddy-writable.dmg"
 rm -f "$WRITABLE"
 hdiutil create -volname "$VOLUME" -srcfolder "$STAGING" -ov -format UDRW "$WRITABLE" >/dev/null
 MOUNTED="$(hdiutil attach "$WRITABLE" -readwrite -noverify -noautoopen | grep -o '/Volumes/.*' | head -1)"
+# The shortcut wears System Settings' icon, so it reads as "open Settings"
+# rather than as a web page.
+osascript -l JavaScript >/dev/null 2>&1 <<SETICON || true
+ObjC.import('AppKit');
+const workspace = \$.NSWorkspace.sharedWorkspace;
+const icon = workspace.iconForFile('/System/Applications/System Settings.app');
+workspace.setIconForFileOptions(icon, '$MOUNTED/Open Privacy & Security.webloc', 0);
+SETICON
+# Window points; the background is drawn for this size (scripts/dmg/), plus
+# the title bar.
+WINDOW_BOUNDS="{200, 100, 960, 772}"
 if osascript <<APPLESCRIPT >/dev/null 2>&1
 tell application "Finder"
   tell disk "$VOLUME"
@@ -124,19 +135,23 @@ tell application "Finder"
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set the bounds of container window to {200, 120, 860, 588}
+    set the bounds of container window to $WINDOW_BOUNDS
     set viewOptions to the icon view options of container window
     set arrangement of viewOptions to not arranged
     set icon size of viewOptions to 96
     set text size of viewOptions to 13
     set background picture of viewOptions to file ".background:background.tiff"
-    set position of item "Buddy.app" of container window to {165, 140}
-    set position of item "Applications" of container window to {495, 140}
-    set position of item "Open Privacy & Security.webloc" of container window to {560, 345}
+    set position of item "Buddy.app" of container window to {210, 130}
+    set position of item "Applications" of container window to {550, 130}
+    set position of item "Open Privacy & Security.webloc" of container window to {555, 556}
     close
     open
-    delay 1
+    -- Set again once reopened: the first size is not always the one saved.
+    set the bounds of container window to $WINDOW_BOUNDS
+    update without registering applications
+    delay 2
     close
+    delay 1
   end tell
 end tell
 APPLESCRIPT
