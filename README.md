@@ -120,19 +120,6 @@ flowchart TD
 
 The model answers with a short drawing program, and the first sentence is spoken while the rest is still being written. Details in [docs/how-it-works.md](docs/how-it-works.md).
 
-## Results
-
-<table>
-  <tr>
-    <td align="center" width="25%"><h3>46 / 50</h3><sub>spoken questions sorted by kind, held out<br>(33 with the on-device model alone)</sub><br><sub><code>scripts/question_sorting</code></sub></td>
-    <td align="center" width="25%"><h3>32 / 33</h3><sub>relevant past lessons recalled, 80 blind questions<br>(16 matching names alone)</sub><br><sub><code>scripts/learning_memory</code></sub></td>
-    <td align="center" width="25%"><h3>32 / 32</h3><sub>hint and diagram review checks<br>on Sonnet and Argon</sub><br><sub><code>scripts/study_modes</code></sub></td>
-    <td align="center" width="25%"><h3>0 / 49</h3><sub>near misses replayed as the wrong how-to<br>(30 of 40 new phrasings found)</sub><br><sub><code>scripts/howto</code></sub></td>
-  </tr>
-</table>
-
-The model for each kind of question was chosen by a blind-judged race of all three: [docs/model-choice.md](docs/model-choice.md).
-
 ## Privacy
 
 | What | Where it goes |

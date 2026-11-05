@@ -2233,15 +2233,15 @@ final class CompanionManager: ObservableObject {
         appUpdater.startAutomaticChecks()
     }
 
-    /// Esc puts away what was opened last: the notch first, then the drawing.
+    /// Esc puts everything away at once: the drawing, the open notch and a
+    /// walkthrough. Closing the notch first and clearing on a second press
+    /// read as Esc not working.
     private func handleEscape() {
         stopGuide(reason: "Esc")
-        if controlBar.closeFromKeyboard() {
-            TutorDebugLog.write("⎋ Esc: closing the notch")
-            return
-        }
-        TutorDebugLog.write("⎋ Esc: clearing the drawing")
-        if clearAnnotations() { InterfaceSounds.shared.play(.wipe) }
+        let closedNotch = controlBar.closeFromKeyboard()
+        let clearedDrawing = clearAnnotations()
+        TutorDebugLog.write("⎋ Esc: \(clearedDrawing ? "drawing cleared" : "nothing drawn")\(closedNotch ? ", notch closed" : "")")
+        if clearedDrawing { InterfaceSounds.shared.play(.wipe) }
     }
 
     #if DEBUG
