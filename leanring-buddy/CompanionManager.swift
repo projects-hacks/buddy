@@ -498,7 +498,13 @@ final class CompanionManager: ObservableObject {
 
     /// Whether the local model server was reachable at last check, so the
     /// panel can say "start Ollama" instead of failing mid-question.
-    @Published private(set) var isLocalModelReachable = true
+    @Published private(set) var isLocalModelReachable = true {
+        didSet { if !isLocalModelReachable { brainKindKnownReachable = nil } }
+    }
+    /// The brain a probe last found answering, so the periodic probe stops
+    /// once it is known and starts again when the brain changes or fails.
+    private var brainKindKnownReachable: TutorBrainKind?
+    private var isProbingBrain = false
 
     /// Conversation history so Claude remembers prior exchanges within a session.
     /// Each entry is the user's transcript and Claude's response.
@@ -1058,8 +1064,18 @@ final class CompanionManager: ObservableObject {
 
                 #endif
 
-                if shouldProbeModelServer {
+                // Only until the brain is known to answer: probing a reachable
+                // brain all day costs a request every twelve seconds (a real
+                // model listing for an AI Studio key). A failed answer marks
+                // it unreachable, and waking re-probes, which starts this again.
+                // Never two probes at once, however slow one is.
+                let brainNeedsProbing = !self.isLocalModelReachable || self.brainKindKnownReachable != self.brainKind
+                if shouldProbeModelServer, brainNeedsProbing, !self.isProbingBrain {
+                    self.isProbingBrain = true
+                    defer { self.isProbingBrain = false }
+                    let brainKindProbed = self.brainKind
                     let (isReachable, _) = await self.tutorBrain.probeServer()
+                    self.brainKindKnownReachable = isReachable ? brainKindProbed : nil
                     if isReachable != self.isLocalModelReachable {
                         self.isLocalModelReachable = isReachable
                         if isReachable {
@@ -2667,9 +2683,13 @@ final class CompanionManager: ObservableObject {
         globalPushToTalkShortcutMonitor.stop()
         if hasAccessibilityPermission { globalPushToTalkShortcutMonitor.start() }
         Task { [weak self] in
-            guard let self else { return }
+            guard let self, !self.isProbingBrain else { return }
+            self.isProbingBrain = true
+            defer { self.isProbingBrain = false }
+            let brainKindProbed = self.brainKind
             let (isReachable, _) = await self.tutorBrain.probeServer()
             self.isLocalModelReachable = isReachable
+            self.brainKindKnownReachable = isReachable ? brainKindProbed : nil
             TutorDebugLog.write("☀️ after waking, the brain is \(isReachable ? "reachable" : "UNREACHABLE")")
         }
     }
