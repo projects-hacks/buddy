@@ -254,7 +254,8 @@ struct BoardProgramTranslator {
         switch method {
         case "title":
             guard let title = string(0) else { return fail("board.title needs words") }
-            return .success(.setTitle(title))
+            // A title, like every lesson name the student sees (LessonTitle).
+            return .success(.setTitle(LessonTitle.displayed(title)))
 
         case "box", "circle", "label", "note", "group":
             guard let identifier = string(0), !identifier.isEmpty else { return fail("board.\(method) needs an id first") }
