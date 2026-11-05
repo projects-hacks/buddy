@@ -128,7 +128,7 @@ final class SetupWindowController {
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.backgroundColor = NSColor(white: 0.07, alpha: 1)
-        window.contentView = Self.fixedSizeHostingView(rootView: SetupView(
+        window.contentView = NSHostingView(rootView: SetupView(
             model: model,
             companionManager: companionManager,
             shortcutTrial: shortcutTrial,
@@ -138,14 +138,6 @@ final class SetupWindowController {
             }
         ))
         return window
-    }
-
-    /// Setup is a fixed size; SwiftUI resetting the window's size limits
-    /// from its content during layout can loop until AppKit throws.
-    private static func fixedSizeHostingView<Content: View>(rootView: Content) -> NSHostingView<Content> {
-        let hostingView = NSHostingView(rootView: rootView)
-        hostingView.sizingOptions = []
-        return hostingView
     }
 }
 

@@ -1159,7 +1159,10 @@ struct TutorNotchView: View {
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .contentTransition(.opacity)
+                // Each sentence replaces the last at once. A cross-fade drew
+                // both in the same place for the length of the fade, and two
+                // sentences wrapping differently read as one garbled line.
+                .contentTransition(.identity)
                 .padding(.horizontal, 26)
                 .padding(.top, 3)
                 .padding(.bottom, 13)
