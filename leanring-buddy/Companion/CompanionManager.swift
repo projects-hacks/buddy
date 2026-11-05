@@ -186,9 +186,9 @@ final class CompanionManager: ObservableObject {
     var brainKindKnownReachable: TutorBrainKind?
     var isProbingBrain = false
 
-    /// Conversation history so Claude remembers prior exchanges within a session.
-    /// Each entry is the user's transcript and Claude's response.
-    var conversationHistory: [(userTranscript: String, assistantResponse: String)] = []
+    /// What was asked and answered this session, and how often running the
+    /// student has said an answer did not land (ConversationHistory.swift).
+    var conversation = ConversationHistory()
 
     /// The currently running AI response task, if any. Cancelled when the user
     /// speaks again so a new response can begin immediately.
@@ -495,7 +495,7 @@ final class CompanionManager: ObservableObject {
         hooks.fileLesson = { [weak self] question, lessonTitle, spokenAnswer in
             self?.fileLessonInMemory(question: question, lessonTitle: lessonTitle, spokenAnswer: spokenAnswer, questionKind: .teach)
         }
-        hooks.rememberExchange = { [weak self] question, answer in self?.rememberExchange(question: question, answer: answer) }
+        hooks.rememberExchange = { [weak self] question, answer in self?.conversation.remember(question: question, answer: answer) }
         hooks.questionNeedsNoAnswer = { [weak self] in self?.questionAwaitingAnswer = nil }
         hooks.reportFailure = { [weak self] error in await self?.speakLocalErrorFallback(for: error) }
         // The same recall as a normal question, inside the same one-second
@@ -562,12 +562,6 @@ final class CompanionManager: ObservableObject {
     // MARK: - Sleep, wake and displays (SystemEventsObserver.swift)
 
     var systemEventsObserver: SystemEventsObserver?
-
-    /// How many times running the student has said they still do not follow.
-    ///
-    /// Reset by any question that is not a push-back, because the counter
-    /// tracks one idea failing to land rather than the length of the session.
-    var consecutiveReexplanationCount = 0
 
     /// When the answer's stream last delivered text, for noticing a stream
     /// that stopped partway: nil until its first words.

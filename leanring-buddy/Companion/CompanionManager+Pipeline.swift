@@ -286,7 +286,7 @@ extension CompanionManager {
             }
             return
         }
-        let hasPreviousAnswer = !conversationHistory.isEmpty
+        let hasPreviousAnswer = !conversation.exchanges.isEmpty
         // A guide step is always short: one or two sentences and a pointer.
         let localProbabilities = isGuideContinuation
             ? [QuestionKind.quick: 1.0]
@@ -382,10 +382,10 @@ extension CompanionManager {
                 // reflects how many times this idea has already failed to land.
                 if questionKind == .reexplain {
                     learningMemory.studentGotLost()
-                    consecutiveReexplanationCount += 1
-                    TutorDebugLog.write("🔁 student still lost after \(lastAnsweringBrainName), attempt \(consecutiveReexplanationCount + 1): switching tactic")
+                    conversation.consecutiveReexplanationCount += 1
+                    TutorDebugLog.write("🔁 student still lost after \(lastAnsweringBrainName), attempt \(conversation.consecutiveReexplanationCount + 1): switching tactic")
                 } else {
-                    consecutiveReexplanationCount = 0
+                    conversation.consecutiveReexplanationCount = 0
                 }
 
                 let labeledImages = screenCaptures.map { capture in
@@ -393,7 +393,7 @@ extension CompanionManager {
                     return (data: capture.imageData, label: capture.label + dimensionInfo)
                 }
 
-                let historyForModel = conversationHistory.map { entry in
+                let historyForModel = conversation.exchanges.map { entry in
                     (userPlaceholder: entry.userTranscript, assistantResponse: entry.assistantResponse)
                 }
 
@@ -521,7 +521,7 @@ extension CompanionManager {
                     canvasSize: canvasSize,
                     screenListing: screenListing,
                     lengthInstruction: lengthInstruction,
-                    reexplanationInstruction: reexplanationInstruction(),
+                    reexplanationInstruction: conversation.reexplanationInstruction(),
                     frontAppName: frontAppName,
                     frontWindowTitle: frontWindowTitle,
                     studyNotes: studyNotes,
@@ -713,7 +713,7 @@ extension CompanionManager {
                     // The whole program, not only what was said: the next
                     // answer has to know what it drew to build on it or to
                     // explain it differently.
-                    rememberExchange(question: transcript, answer: fullResponseText)
+                    conversation.remember(question: transcript, answer: fullResponseText)
                     print("🧠 Answered in \(String(format: "%.1f", duration))s as a drawing program")
                 } else {
 
@@ -755,7 +755,7 @@ extension CompanionManager {
                         )
                     }
                 }
-                rememberExchange(question: transcript, answer: spokenOnlyText)
+                conversation.remember(question: transcript, answer: spokenOnlyText)
                 // Notebook hook: an answer without a drawing is a page of words.
                 if !isGuideContinuation {
                     notebookRecorder.holdTextLesson(question: transcript, spokenAnswer: spokenOnlyText,
@@ -764,7 +764,7 @@ extension CompanionManager {
                 fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
                                    questionKind: questionKind)
 
-                print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
+                print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversation.exchanges.count) exchanges")
                 }
 
             } catch let error where Self.isCancellation(error) || !isStillTheCurrentQuestion() {

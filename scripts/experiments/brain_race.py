@@ -86,9 +86,9 @@ def swift_multiline_after(source: str, marker: str) -> str:
     return "\n".join(l[indent:] for l in lines)
 
 
-# CompanionManager is split across the files of its folder; read them as one.
+# The prompt and the budgets live in different app files; read every one as one text.
 manager_source = "\n".join(
-    path.read_text() for path in sorted((REPOSITORY / "leanring-buddy/Companion").glob("*.swift")))
+    path.read_text() for path in sorted((REPOSITORY / "leanring-buddy").rglob("*.swift")))
 SYSTEM_PROMPT = swift_multiline_after(
     manager_source, "static func tutorSystemPrompt"
 ).replace("\\(screenIndexListing)", SCREEN_INDEX)

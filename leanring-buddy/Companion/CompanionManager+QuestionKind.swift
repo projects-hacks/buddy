@@ -138,7 +138,7 @@ extension CompanionManager {
             phrases.contains { phrase in question.contains(phrase) }
         }
 
-        if hasPreviousAnswer && isAskingAgain(transcript) {
+        if hasPreviousAnswer && ConversationHistory.isAskingAgain(transcript) {
             return .reexplain
         }
 

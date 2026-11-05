@@ -82,7 +82,7 @@ extension CompanionManager {
         // Replaced while it played: the step is not kept or watched. True,
         // so the caller does not hand a cancelled step to the model either.
         guard !Task.isCancelled else { return true }
-        rememberExchange(question: question, answer: program)
+        conversation.remember(question: question, answer: program)
 
         let isLastStep = stepIndex + 1 >= howTo.steps.count || step.instruction == nil
         if isLastStep {

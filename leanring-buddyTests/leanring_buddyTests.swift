@@ -195,31 +195,31 @@ struct HistoryShorteningTests {
     @Test func theEleventhWholeAnswerShortensTheSixOldest() {
         var history: [(userTranscript: String, assistantResponse: String)] = []
         for number in 1...11 {
-            history = CompanionManager.history(history, remembering: "question \(number)", answer: program(number))
+            history = ConversationHistory.history(history, remembering: "question \(number)", answer: program(number))
         }
-        let shortened = history.filter { $0.assistantResponse.hasPrefix(CompanionManager.spokenOnlyMarker) }
+        let shortened = history.filter { $0.assistantResponse.hasPrefix(ConversationHistory.spokenOnlyMarker) }
         #expect(history.count == 11)
-        #expect(shortened.count == CompanionManager.historyTrimBatch)
-        #expect(history[0].assistantResponse == CompanionManager.spokenOnlyMarker + " sentence 1.")
+        #expect(shortened.count == ConversationHistory.historyTrimBatch)
+        #expect(history[0].assistantResponse == ConversationHistory.spokenOnlyMarker + " sentence 1.")
         #expect(history[10].assistantResponse == program(11))
     }
 
     @Test func pastFortyTheOldestSixAreDropped() {
         var history: [(userTranscript: String, assistantResponse: String)] = []
         for number in 1...41 {
-            history = CompanionManager.history(history, remembering: "question \(number)", answer: program(number))
+            history = ConversationHistory.history(history, remembering: "question \(number)", answer: program(number))
         }
-        #expect(history.count == 41 - CompanionManager.historyTrimBatch)
+        #expect(history.count == 41 - ConversationHistory.historyTrimBatch)
         #expect(history.first?.userTranscript == "question 7")
         // Every answer already shortened stays as it was.
-        #expect(history.allSatisfy { !$0.assistantResponse.hasPrefix(CompanionManager.spokenOnlyMarker + " " + CompanionManager.spokenOnlyMarker) })
+        #expect(history.allSatisfy { !$0.assistantResponse.hasPrefix(ConversationHistory.spokenOnlyMarker + " " + ConversationHistory.spokenOnlyMarker) })
     }
 
     @Test func spokenPartOfAProgramAndOfProse() {
-        #expect(CompanionManager.spokenPart(of: "say(\"one.\");\nsay(\"the \\\"two\\\".\");")
-                == CompanionManager.spokenOnlyMarker + " one. the \"two\".")
+        #expect(ConversationHistory.spokenPart(of: "say(\"one.\");\nsay(\"the \\\"two\\\".\");")
+                == ConversationHistory.spokenOnlyMarker + " one. the \"two\".")
         let prose = String(repeating: "word ", count: 400)
-        #expect(CompanionManager.spokenPart(of: prose) == CompanionManager.spokenOnlyMarker + " " + String(prose.prefix(800)))
+        #expect(ConversationHistory.spokenPart(of: prose) == ConversationHistory.spokenOnlyMarker + " " + String(prose.prefix(800)))
     }
 }
 

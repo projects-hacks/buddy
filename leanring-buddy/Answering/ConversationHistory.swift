@@ -1,15 +1,27 @@
 //
-//  CompanionManager+History.swift
+//  ConversationHistory.swift
 //  leanring-buddy
 //
-//  The conversation kept for the model, shortened and trimmed in
-//  batches, and the re-explanation it feeds.
+//  The conversation kept for the model within a session, shortened and
+//  trimmed in batches, and the re-explanation it feeds when the student
+//  says the last answer did not land. A value type with no side effects,
+//  so the unit tests check it directly.
 //
 
-import AppKit
 import Foundation
 
-extension CompanionManager {
+struct ConversationHistory {
+    typealias Exchange = (userTranscript: String, assistantResponse: String)
+
+    /// Each entry is the student's question and the answer given.
+    private(set) var exchanges: [Exchange] = []
+
+    /// How many times running the student has said they still do not follow.
+    ///
+    /// Reset by any question that is not a push-back, because the counter
+    /// tracks one idea failing to land rather than the length of the session.
+    var consecutiveReexplanationCount = 0
+
     /// Recent answers are kept whole, so the next one can build on what was
     /// drawn or explain it differently. Older ones keep only what was said,
     /// about a tenth of the size, so a long session stays in view without
@@ -21,16 +33,16 @@ extension CompanionManager {
     /// same for several questions in a row instead of changing every time.
     static let historyTrimBatch = 6
 
-    func rememberExchange(question: String, answer: String) {
-        conversationHistory = Self.history(conversationHistory, remembering: question, answer: answer)
+    mutating func remember(question: String, answer: String) {
+        exchanges = Self.history(exchanges, remembering: question, answer: answer)
     }
 
     /// The history with one more exchange, shortened and trimmed as above.
     /// Pure, so the unit tests check it.
     static func history(
-        _ earlierHistory: [(userTranscript: String, assistantResponse: String)],
+        _ earlierHistory: [Exchange],
         remembering question: String, answer: String
-    ) -> [(userTranscript: String, assistantResponse: String)] {
+    ) -> [Exchange] {
         var history = earlierHistory
         history.append((userTranscript: question, assistantResponse: answer))
         let wholeAnswerCount = history.filter { !$0.assistantResponse.hasPrefix(spokenOnlyMarker) }.count
@@ -91,7 +103,7 @@ extension CompanionManager {
             min(consecutiveReexplanationCount - 1, strategiesInEscalatingOrder.count - 1)
         ]
 
-        let failedAttempt = conversationHistory.last?.assistantResponse ?? ""
+        let failedAttempt = exchanges.last?.assistantResponse ?? ""
 
         return """
 

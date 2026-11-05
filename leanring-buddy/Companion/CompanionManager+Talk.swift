@@ -273,7 +273,7 @@ extension CompanionManager {
             talkOverListener.stop()
             buddyDictationManager.updateContextualKeyterms(Self.speechHints(
                 screenLabels: Array(screenIndex.lastListedLabels.values),
-                recentAnswerPrograms: conversationHistory.suffix(3).map(\.assistantResponse),
+                recentAnswerPrograms: conversation.exchanges.suffix(3).map(\.assistantResponse),
                 recentlyLearnedConceptNames: learningMemory.recentlyExplainedConceptNames(limit: 15)))
             stopGuide(reason: "the student is talking")
             // The screen is read now, while they talk, rather than after they

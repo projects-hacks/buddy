@@ -4,7 +4,7 @@ Every sorter gets the same 50 labelled test phrasings, all mid-conversation,
 and is scored on how many it puts in the right kind and how long it takes.
 The sorters that learn from examples see only the separate example set.
 
-  keywords    the lists in CompanionManager's sources, read out of them so
+  keywords    the app's own keyword lists, read out of its sources so
               the test grades exactly what the app runs
   apple-*     nearest examples by meaning, using the embedding models built
               into macOS (contextual is the transformer, sentence the older one)
@@ -38,9 +38,9 @@ PREVIOUS_ANSWER = DATA["previous_answer"]
 
 # --- keywords: the app's own lists ----------------------------------------------
 
-# CompanionManager is split across the files of its folder; read them as one.
+# The keyword lists live in different app files; read every one as one text.
 manager = "\n".join(
-    path.read_text() for path in sorted((HERE.parents[1] / "leanring-buddy/Companion").glob("*.swift")))
+    path.read_text() for path in sorted((HERE.parents[1] / "leanring-buddy").rglob("*.swift")))
 
 
 def string_list_after(marker: str, source: str) -> list[str]:
