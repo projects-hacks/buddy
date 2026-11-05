@@ -1,6 +1,6 @@
 # Installing Buddy
 
-About five minutes, most of it making API keys. Buddy runs on a Mac with Apple silicon and macOS 14.2 or later.
+About five minutes, most of it making API keys. Buddy runs on any Mac with Apple silicon or Intel and macOS 14.2 or later.
 
 ```mermaid
 flowchart TD
@@ -9,10 +9,11 @@ flowchart TD
     open --> blocked{macOS says it cannot<br/>verify the developer}:::mac
     blocked --> anyway[System Settings, Privacy and Security,<br/>Open Anyway]:::mac
     anyway --> setup[Setup window opens]:::buddy
-    setup --> name[Your name]:::buddy
-    name --> keys[Your keys, each tested as you paste it]:::buddy
-    keys --> perms[Microphone, Accessibility,<br/>Screen Recording]:::mac
-    perms --> ready([Hold Control + Option and ask]):::step
+    setup --> name[Welcome: your name]:::buddy
+    name --> keys[Keys, each tested as you paste it]:::buddy
+    keys --> perms[Permissions: Microphone, Accessibility,<br/>Screen Recording, Screen Content]:::mac
+    perms --> tryit[Try it: hold Control + Option<br/>and say hello]:::buddy
+    tryit --> ready([Hold Control + Option and ask]):::step
 
     classDef step fill:#fde68a,stroke:#b45309,color:#111
     classDef mac fill:#e5e7eb,stroke:#4b5563,color:#111
@@ -53,11 +54,11 @@ xattr -dr com.apple.quarantine /Applications/Buddy.app
 
 ## 3. Setup
 
-The setup window opens by itself and has four steps.
+The setup window opens by itself and has four steps, Welcome, Keys, Permissions and Try it, with a dot for each at the top.
 
-**Your name.** Used in the greeting and so Buddy can address you.
+**Welcome.** What Buddy does, and your first name, used in the greeting and so Buddy can address you.
 
-**Your keys.** Buddy uses your own accounts, so you pay only for what you use. Each key is tested the moment you paste it; if something is wrong you are told what, and can paste again. Keys are stored in this Mac's Keychain and sent only to the service they belong to.
+**Keys.** Buddy uses your own accounts, so you pay only for what you use. Each key is tested the moment you paste it; if something is wrong you are told what, and can paste again. Keys are stored in this Mac's Keychain and sent only to the service they belong to.
 
 | Key | Needed? | What it adds | Where to get it |
 |---|---|---|---|
@@ -65,7 +66,7 @@ The setup window opens by itself and has four steps.
 | Google Gemini | Optional | Gemini 4 Argon, which answers most explanations under Auto | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | Deepgram | Optional | A natural voice, and hearing that gets technical words and long pauses right; without it macOS's own voice and recognizer are used | [console.deepgram.com](https://console.deepgram.com/) |
 
-At least one of Anthropic or Gemini is needed. With both, Auto picks the best model per question.
+At least one of Anthropic or Gemini is needed to continue. With both, Auto picks the best model per question.
 
 <details>
 <summary>Making an Anthropic key</summary>
@@ -92,25 +93,32 @@ People already set up with the Google Cloud CLI can choose **Google Cloud** inst
 2. Open **API Keys**, create a key with the **Member** role, and copy it.
 </details>
 
-**Permissions.** Each one says why it is needed, and the next one to allow is highlighted.
+**Permissions.** Each one says why it is needed, and a bar shows how many are allowed. **Skip for now** moves on without them; the closed notch then says in amber which one is missing.
 
 | Permission | Why |
 |---|---|
-| Microphone | Hears your question while you hold Control + Option |
-| Accessibility | Notices Control + Option and Control + Option + T from any app, and finds the exact button to point at |
+| Microphone | Hears your question while you hold Control + Option. Also listens while an answer plays, so you can talk over it, and hands free while you teach a topic back. It is not open at any other time. |
+| Accessibility | Notices Buddy's shortcuts from any app (Control + Option, Control + Option + T), and finds the button to point at |
 | Screen Recording | Sees what you are asking about, only when you ask (by voice or typing) or while Buddy guides you through a task. macOS asks you to reopen Buddy after this one. |
 | Screen Content | Reads the text on screen so marks land exactly; offered by macOS once Screen Recording is on |
 
-**Done.** A short how-to, then Buddy waits in the notch.
+Two more are asked later, only when first needed. Buddy works without either.
+
+| Permission | Asked | Why |
+|---|---|---|
+| System Audio Recording | At the first question about a video where its sound would help | Hears only the sound of the video in front, never the microphone or a call, so Buddy knows what the lecturer just said. The last 90 seconds are kept in memory, never on disk. |
+| Notifications | At the first PDF export from the Notebook | Says the PDF is ready, with Open PDF. If refused, the notch shows the result instead. |
+
+**Try it.** Hold Control + Option and say hello. The keys light up while held and your words appear. "Buddy heard you. The microphone and the shortcut both work." means everything is set. The trial is heard by the Mac's own recognizer and nothing is sent anywhere; it can be skipped. The same step has a switch for **Open Buddy when you log in**, and **Start using Buddy** closes setup, leaving Buddy in the notch.
 
 ## Updating
 
-From 1.2 on, Buddy keeps itself current. Once a day it checks for a newer release, and when there is one the open notch says **Buddy 1.3 is ready** with **What's new** and **Update**. Update downloads it, checks it against the checksum published with the release, checks it is signed by the same certificate as the copy you have, swaps it in and relaunches. Keys, memory and permissions carry over, and there is no Open Anyway this time, because Buddy downloaded it rather than a browser. Settings has **Check now** and a switch to stop the daily check.
+From 1.2 on, Buddy keeps itself current. Once a day it checks for a newer release, and when there is one the open notch says **Buddy 2.0 is ready** with **What's new** and **Update**. Update downloads it, checks it against the checksum published with the release, checks it is signed by the same certificate as the copy you have, swaps it in and relaunches. Keys, memory, the Notebook and permissions carry over, and there is no Open Anyway this time, because Buddy downloaded it rather than a browser. Settings has **Check now**; the daily check is always on.
 
 ```mermaid
 flowchart TD
     daily([Once a day]):::buddy --> check[Ask GitHub for the latest release]:::buddy
-    check -->|newer| banner[Notch: Buddy 1.3 is ready]:::you
+    check -->|newer| banner[Notch: Buddy 2.0 is ready]:::you
     banner -->|Update| download[Download the disk image]:::buddy
     download --> sum{Matches the published checksum?}:::buddy
     sum -->|no| stop[Nothing installed, error shown]:::stop
@@ -123,11 +131,11 @@ flowchart TD
     classDef stop fill:#fecaca,stroke:#b91c1c,color:#111
 ```
 
-On 1.0 or 1.1, which have no updater, install 1.2 by hand once, the same way as the first time (download, drag into Applications, replace). Everything after that arrives on its own.
+On 1.0 or 1.1, which have no updater, install the newest release by hand once, the same way as the first time (download, drag into Applications, replace). Everything after that arrives on its own.
 
 ## Changing keys later
 
-Hover the notch, open the gear tab, and choose **Name and API keys**. If a key stops working while you use Buddy, it says so out loud and opens this window on the key that failed.
+Hover the notch, open the gear tab, and choose **Name and keys**. If a key stops working while you use Buddy, it says so out loud and opens this window on the key that failed.
 
 ## Troubleshooting
 
@@ -137,22 +145,36 @@ Hover the notch, open the gear tab, and choose **Name and API keys**. If a key s
 | "has no credit" | Add credit to that account. The key itself is fine. |
 | "looks like a Google key" | It was pasted into the wrong field. |
 | "Couldn't reach" | Check the internet connection and press Test and save again, or Save anyway. |
-| Holding Control + Option does nothing | Accessibility is not allowed yet. In the notch's gear tab, click Allow next to it. If Buddy is missing from the list, use "Show it in Finder" and drag Buddy in. |
+| Holding Control + Option does nothing | Accessibility is not allowed yet. The closed notch says so in amber; open it and click **Allow**, which opens setup on Permissions. If Buddy is missing from the list in System Settings, click "Buddy not in the list?" and drag Buddy in from the Finder window it opens. |
 | Control + Option + T does nothing | Also Accessibility. Allow it as above. |
+| Try it says "The shortcut isn't reaching Buddy" | Accessibility, as above. |
+| Try it says "Nothing heard" | The microphone is not allowed, or another input is selected. The button beside it opens the Microphone settings. Try it can also be skipped. |
+| Talking over an answer does nothing | Buddy listens over an answer only while it is speaking, and never through a Bluetooth headset, whose microphone would make the whole answer sound like a phone call. Use the Mac's microphone, or hold Control + Option to ask. |
 | Buddy does not notice a step was done | It looks after a click, key or scroll, once the screen has changed. If it still waits, ask "what next?" yourself. |
 | Buddy answers about the wrong thing on screen | Screen Recording or Screen Content is not allowed. Allow both, then reopen Buddy. |
+| A question about a video ignores what was said | Buddy reads the video's transcript first and uses its sound only as a fallback. If System Audio Recording was refused, allow Buddy in System Settings > Privacy & Security > Screen & System Audio Recording. Calls, meetings, music apps, adverts and protected video are never heard. |
+| No notification after a PDF export | Notifications were refused, so the notch shows the result instead. To get them, allow Buddy in System Settings > Notifications. |
 | The voice sounds robotic | No Deepgram key, so macOS's own voice is reading. Add one in setup. |
 | No notch on this Mac | Buddy hangs from the middle of the menu bar instead; everything else is the same. |
 
-The log at `~/Library/Logs/Buddy.log` records every step of every question, which helps when asking for help.
+The log at `~/Library/Logs/Buddy.log` records every step of every question, which helps when asking for help. The previous session's log is kept beside it as `Buddy.previous.log`.
 
 ## Removing Buddy
 
-Quit it from the notch's gear tab, delete it from Applications, and if wanted remove its data and keys:
+Turn off **Open at login** in the notch's gear tab, quit Buddy from there, and delete it from Applications. If wanted, also remove what it kept on this Mac:
 
 ```bash
+# memory and the map's links, how-tos, hint steps, the Notebook, transcripts, spending
 rm -rf ~/Library/Application\ Support/Buddy
+# logs and settings
+rm -f ~/Library/Logs/Buddy.log ~/Library/Logs/Buddy.previous.log ~/Library/Logs/Buddy.rotated.log
+defaults delete com.maverickrajeev.clicky-local
+# keys
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.gemini
 security delete-generic-password -a api-key -s com.maverickrajeev.clicky-local.deepgram
+# its entries in Privacy & Security
+tccutil reset All com.maverickrajeev.clicky-local
 ```
+
+PDFs exported from the Notebook stay wherever they were saved. Installed with Homebrew, `brew uninstall --zap --cask projects-hacks/buddy/buddy` also removes the data folder, the current and previous logs and the settings, but not the keys.

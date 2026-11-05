@@ -4,10 +4,11 @@ For the repository's owner. A release is a disk image on GitHub Releases that an
 
 ```mermaid
 flowchart TD
-    commit([Everything committed]):::you --> build[zsh scripts/make-release.sh 1.1]:::script
-    build --> checks{Signed, no personal<br/>project in the binary}:::script
+    commit([Everything committed]):::you --> build[zsh scripts/make-release.sh 2.0]:::script
+    build --> checks{Signed, no personal values<br/>in the source or the app}:::script
     checks --> dmg[build/release/Buddy.dmg<br/>and its .sha256]:::script
-    dmg --> notes[Edit docs/release-notes.md]:::you
+    dmg --> cask[Casks/buddy.rb set to<br/>the new version and checksum]:::script
+    cask --> notes[Edit docs/release-notes.md]:::you
     notes --> publish[gh release create, printed by the script]:::you
     publish --> link([README Download link<br/>points at the latest release]):::web
 
@@ -16,12 +17,12 @@ flowchart TD
     classDef web fill:#bfdbfe,stroke:#1d4ed8,color:#111
 ```
 
-1. Commit everything. The script refuses to package uncommitted app code.
-2. Run `zsh scripts/make-release.sh 1.1` with the new version. It builds the Release configuration into its own folder, so the copy in daily use is untouched, signs it with the same `Clicky Local Dev` certificate as every earlier release, stops if a personal Google Cloud project is still in the binary, and writes the disk image and its checksum.
+1. Commit everything. The script refuses to run with any uncommitted change, since a release should be exactly a commit, and stops if the `Clicky Local Dev` certificate is not in the Keychain.
+2. Run `zsh scripts/make-release.sh 2.0` with the new version. With no version it uses the project's `MARKETING_VERSION`; the build number is the commit count. Before building, it searches the app's source for personal values of whoever is releasing (the Google Cloud project in Buddy's defaults on this Mac, the name part of the git email, a `/Users/<name>` path) and stops if one is there. It builds the Release configuration for Apple silicon and Intel into its own folder outside the home folder, so the copy in daily use is untouched and no home path is compiled in. It signs it with the same certificate as every earlier release, checks the built app for the same personal values, lays out the disk image window, writes `build/release/Buddy.dmg` and its checksum, and sets `version` and `sha256` in `Casks/buddy.rb` to the new image.
 3. Update `docs/release-notes.md` in the layout under Release notes below, render it and look at it.
-4. Run the `gh release create` command the script prints. Every copy from 1.2 on finds it within a day and offers it in the notch; the updater relies on `Buddy.dmg` and `Buddy.dmg.sha256` both being attached, which the printed command does. The file name never changes, so the README's Download button, which points at the latest release's `Buddy.dmg`, always gets the newest one.
+4. Run the `gh release create` command the script prints. It attaches `Buddy.dmg` and `Buddy.dmg.sha256`, which the updater relies on, and uses `docs/release-notes.md` as the notes. Every copy from 1.2 on finds it within a day and offers it in the notch. The file name never changes, so the README's Download button, which points at the latest release's `Buddy.dmg`, always gets the newest one.
 
-5. Commit `Casks/buddy.rb`, the Homebrew cask in this repository. The release script has already set its `version` and `sha256` to the new image; commit it once the release is published, since Homebrew downloads from the release. Copies installed with Homebrew update themselves either way; this keeps fresh `brew install`s on the newest version.
+5. Commit `Casks/buddy.rb`, the Homebrew cask in this repository, once the release is published, since Homebrew downloads from the release. Copies installed with Homebrew update themselves either way; this keeps fresh `brew install`s on the newest version.
 
 **Release notes.** `docs/release-notes.md` is the release page people read before deciding to download, so it is laid out to be scanned, not read:
 
