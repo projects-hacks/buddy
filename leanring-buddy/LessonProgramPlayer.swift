@@ -34,6 +34,10 @@ final class LessonProgramPlayer {
     /// For the stage timings: the moment the student starts hearing the answer.
     var onFirstSentenceHeard: (() -> Void)?
 
+    /// Teaching board hook (TeachingBoardSession): while the board is open,
+    /// each piece's board calls are replaced by exact strokes before it runs.
+    var transformPieceBeforeRunning: ((String) -> String)?
+
     init(overlay: DrawingOverlay, voice: NarrationVoice, bar: TutorControlBarModel) {
         self.overlay = overlay
         self.voice = voice
@@ -144,7 +148,8 @@ final class LessonProgramPlayer {
             guard let self else { return }
             while !self.pendingPieces.isEmpty, !Task.isCancelled {
                 let piece = self.pendingPieces.removeFirst()
-                let result = await self.overlay.run(programPiece: piece)
+                let pieceToRun = self.transformPieceBeforeRunning?(piece) ?? piece
+                let result = await self.overlay.run(programPiece: pieceToRun)
                 if !result.errors.isEmpty {
                     TutorDebugLog.write("⚠️ drawing program: \(result.errors.joined(separator: "; "))")
                 }
