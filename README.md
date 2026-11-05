@@ -104,7 +104,7 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 |---|---|
 | Hold <kbd>Control</kbd> + <kbd>Option</kbd> | Ask out loud; your words show under the notch |
 | <kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>T</kbd> | Type a question; <kbd>Return</kbd> sends, <kbd>Shift</kbd> + <kbd>Return</kbd> adds a line |
-| Hover the notch | The last lesson, the day's chat, Settings |
+| Hover the notch | The last lesson, the day's chat, the map of what you know, Settings |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
 More in [docs/using-buddy.md](docs/using-buddy.md).
@@ -140,6 +140,7 @@ The model answers with a short drawing program, and the first sentence is spoken
 | **Voice** | Heard by Deepgram while the keys are held, when a Deepgram key is set; otherwise transcribed on the Mac |
 | **Sent** | The screenshot and question, to the model that answers |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
+| **Map** | Drawn on the Mac from memory. The first time it opens, ideas with no links on record yet (memory from before 1.6) have only their names and one-sentence summaries sent to Claude Haiku, 20 ideas a call, once, to find how they relate; no lesson, question or screen goes with them |
 | **Analytics** | None |
 
 <details>

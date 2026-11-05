@@ -203,6 +203,24 @@ final class CompanionManager: ObservableObject {
 
     func closeNotchForSetup() { controlBar.putAway() }
 
+    // MARK: - Map of what you know (KnowledgeMapWindow.swift)
+
+    private lazy var knowledgeMapWindow = KnowledgeMapWindowController(
+        learningMemory: learningMemory,
+        askQuestion: { [weak self] question in self?.askTypedQuestion(question) },
+        relationPassReply: { [claudeBrain = self.claudeBrain] message in
+            guard APIKeyStore.hasKey(for: .anthropic) else { return nil }
+            return await claudeBrain.conceptRelationPassReply(message: message)
+        }
+    )
+
+    /// Opened from the notch and from the menu bar panel. The open notch
+    /// sits above every window, so it is put away first.
+    func openKnowledgeMap() {
+        controlBar.putAway()
+        knowledgeMapWindow.show()
+    }
+
     var needsSetup: Bool {
         let hasFinishedSetup = UserDefaults.standard.bool(forKey: "hasFinishedSetup")
         let hasSomethingToThinkWith = canUseClaude || canUseArgon || brainKind == .local
@@ -543,6 +561,7 @@ final class CompanionManager: ObservableObject {
         qaHooks.start()
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        controlBar.model.onOpenKnowledgeMap = { [weak self] in self?.openKnowledgeMap() }
         bindUpdater()
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in

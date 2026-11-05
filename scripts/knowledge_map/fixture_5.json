@@ -1,0 +1,101 @@
+{
+ "version": 1,
+ "embeddingModel": null,
+ "concepts": [
+  {
+   "id": "D76D4330-F144-4BEA-B0C1-1FDECB91CE37",
+   "name": "consistent hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2025-09-27T01:27:16Z",
+   "lastExplainedAt": "2026-11-02T21:20:55Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 33.14,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5F2DD97F-1CFB-40F6-A827-688DE6A16A3B",
+   "name": "hash ring",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash ring, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2025-12-17T16:27:14Z",
+   "lastExplainedAt": "2026-09-17T13:28:35Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 25.05,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D76D4330-F144-4BEA-B0C1-1FDECB91CE37"
+    }
+   ]
+  },
+  {
+   "id": "DE11CC9D-EA95-4C21-AE9C-82B1478C281D",
+   "name": "modulo hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Modulo hashing, explained with key mod server count.",
+   "lastAngle": "key mod server count",
+   "firstExplainedAt": "2026-03-05T21:44:07Z",
+   "lastExplainedAt": "2026-08-25T18:09:44Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 644.36,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "D76D4330-F144-4BEA-B0C1-1FDECB91CE37"
+    }
+   ]
+  },
+  {
+   "id": "015C33B2-DF14-41AA-B8EB-18B900745130",
+   "name": "virtual nodes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Virtual nodes, explained with each server on the ring many times.",
+   "lastAngle": "each server on the ring many times",
+   "firstExplainedAt": "2026-05-28T05:50:17Z",
+   "lastExplainedAt": "2026-08-09T01:58:13Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 10.17,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D76D4330-F144-4BEA-B0C1-1FDECB91CE37"
+    }
+   ]
+  },
+  {
+   "id": "A02FDAA1-AD86-4C44-A049-548E8A0A8C96",
+   "name": "rebalancing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rebalancing, explained with adding a fourth cache box.",
+   "lastAngle": "adding a fourth cache box",
+   "firstExplainedAt": "2026-08-16T06:30:42Z",
+   "lastExplainedAt": "2026-09-10T09:36:05Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 12.89,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "5F2DD97F-1CFB-40F6-A827-688DE6A16A3B"
+    }
+   ]
+  }
+ ]
+}

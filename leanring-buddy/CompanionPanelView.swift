@@ -467,6 +467,15 @@ struct CompanionPanelView: View {
                     .font(.system(size: 11))
                     .foregroundColor(DS.Colors.textTertiary)
                 Spacer()
+                // The map of what you know (KnowledgeMapWindow.swift).
+                Button(action: { companionManager.openKnowledgeMap() }) {
+                    Text("Map")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(DS.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .help("Open the map of what you know")
                 if companionManager.learningMemory.conceptCount > 0 || companionManager.howToCount > 0 {
                     Button(action: forgetButtonTapped) {
                         Text(isConfirmingForget ? "Click again to forget all" : "Forget all")
