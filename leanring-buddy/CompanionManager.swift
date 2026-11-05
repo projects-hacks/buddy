@@ -2156,6 +2156,7 @@ final class CompanionManager: ObservableObject {
                 // because starting again would repeat what was already heard.
                 var attempt = 0
                 var answer: (text: String, duration: TimeInterval)?
+                var hasRetriedBusyBrain = false
                 while answer == nil {
                     if attempt < routing.count { activate(routing[attempt]) }
                     let brainForAttempt = tutorBrain
@@ -2167,19 +2168,31 @@ final class CompanionManager: ObservableObject {
                         ? modelRouter.firstWordsDeadline(for: routing[attempt], probabilities: kindProbabilities)
                         : nil
                     do {
-                        answer = try await withFirstWordsDeadline(deadline) {
-                            try await brainForAttempt.analyzeImageStreaming(
-                                images: imagesForModel,
-                                systemPrompt: TutorProgramPrompt.system,
-                                conversationHistory: historyForModel,
-                                userPrompt: turnPrompt,
-                                onTextChunk: { [weak self] accumulatedText in
-                                    guard let self, self.currentAnswerAttempt == thisAttempt else { return }
-                                    self.routeStreamedText(accumulatedText)
-                                }
-                            )
+                        answer = try await withStallDetection {
+                            try await self.withFirstWordsDeadline(deadline) {
+                                try await brainForAttempt.analyzeImageStreaming(
+                                    images: imagesForModel,
+                                    systemPrompt: TutorProgramPrompt.system,
+                                    conversationHistory: historyForModel,
+                                    userPrompt: turnPrompt,
+                                    onTextChunk: { [weak self] accumulatedText in
+                                        guard let self, self.currentAnswerAttempt == thisAttempt else { return }
+                                        self.lastStreamedTextAt = Date()
+                                        self.routeStreamedText(accumulatedText)
+                                    }
+                                )
+                            }
                         }
                     } catch {
+                        // Busy, with nobody to hand over to and nothing said
+                        // yet: asked once more after a short, random pause.
+                        if !hasRetriedBusyBrain, attempt + 1 >= routing.count, currentAnswerFormat == .undecided,
+                           isStillTheCurrentQuestion(), Self.isBusyRefusal(error) {
+                            hasRetriedBusyBrain = true
+                            TutorDebugLog.write("↻ the brain is busy (\(error.localizedDescription.prefix(80))), asking once more")
+                            try await Task.sleep(nanoseconds: UInt64(Double.random(in: 0.5...1.5) * 1_000_000_000))
+                            continue
+                        }
                         guard isStillTheCurrentQuestion(),
                               error is FirstWordsDeadlineMissed || !Self.isCancellation(error),
                               currentAnswerFormat == .undecided,
@@ -2359,7 +2372,7 @@ final class CompanionManager: ObservableObject {
             } catch {
                 print("⚠️ Tutor response error: \(error.localizedDescription)")
                 TutorDebugLog.write("⚠️ answer failed: \(error.localizedDescription)")
-                await speakLocalErrorFallback(for: error)
+                await speakLocalErrorFallback(for: error, answerHadStarted: currentAnswerFormat != .undecided)
             }
 
             if isStillTheCurrentQuestion() {
@@ -2658,6 +2671,74 @@ final class CompanionManager: ObservableObject {
             }
             throw CancellationError()
         }
+    }
+
+    /// When the answer's stream last delivered text, for noticing a stream
+    /// that stopped partway: nil until its first words.
+    private var lastStreamedTextAt: Date?
+    private static let longestSilenceInAStreamSeconds: TimeInterval = 20
+
+    struct AnswerStreamStalled: LocalizedError {
+        var errorDescription: String? { "the answer stopped arriving partway" }
+    }
+
+    /// Runs one attempt at an answer, and ends it once its stream has gone
+    /// quiet for `longestSilenceInAStreamSeconds` after its first words: a
+    /// connection lost mid-answer otherwise leaves the student with half an
+    /// answer and a long silence. Before the first words the request's own
+    /// idle timeout is what notices.
+    private func withStallDetection<Answer: Sendable>(
+        _ work: @escaping @MainActor () async throws -> Answer
+    ) async throws -> Answer {
+        lastStreamedTextAt = nil
+        return try await withThrowingTaskGroup(of: Answer?.self) { group in
+            group.addTask { @MainActor in try await work() }
+            group.addTask { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                    if let lastStreamedTextAt = self?.lastStreamedTextAt,
+                       Date().timeIntervalSince(lastStreamedTextAt) > Self.longestSilenceInAStreamSeconds {
+                        throw AnswerStreamStalled()
+                    }
+                }
+                return nil
+            }
+            defer { group.cancelAll() }
+            while let finished = try await group.next() {
+                if let answer = finished { return answer }
+            }
+            throw CancellationError()
+        }
+    }
+
+    /// A network that went away, as opposed to a brain that refused.
+    static func isLostConnection(_ error: Error) -> Bool {
+        if error is AnswerStreamStalled { return true }
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
+             .cannotFindHost, .dnsLookupFailed, .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The brain is busy rather than broken: Anthropic's 429 and 529 (or an
+    /// overloaded error mid-stream) and Gemini's 429 or 503. Worth one more
+    /// try when nobody else can answer.
+    static func isBusyRefusal(_ error: Error) -> Bool {
+        if let claudeError = error as? ClaudeError {
+            switch claudeError {
+            case .httpStatus(let code, _): return code == 429 || code == 529
+            case .streamError(let message): return message.lowercased().contains("overloaded")
+            default: return false
+            }
+        }
+        if let geminiError = error as? GeminiError, case .httpStatus(let code, _) = geminiError {
+            return code == 429 || code == 503
+        }
+        return false
     }
 
     /// Who answered the last question, for the push-back log line.
@@ -4103,8 +4184,19 @@ final class CompanionManager: ObservableObject {
     ///
     /// The common cause is the local server not running, which has a specific
     /// and actionable fix, so it gets its own message.
-    private func speakLocalErrorFallback(for error: Error) async {
+    private func speakLocalErrorFallback(for error: Error, answerHadStarted: Bool = false) async {
         guard !Task.isCancelled, !Self.isCancellation(error) else { return }
+        // Cut off partway: what was already said finishes, then one sentence
+        // says why it stopped, instead of a probe and a guess at the cause.
+        if answerHadStarted, Self.isLostConnection(error) {
+            while speechConsumerTask != nil || isAnyVoicePlaying {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                guard !Task.isCancelled else { return }
+            }
+            InterfaceSounds.shared.play(.error)
+            await speakFailure("i lost the connection partway through that answer, so ask me again in a moment.")
+            return
+        }
         InterfaceSounds.shared.play(.error)
         // Skipped in setup: say so plainly and reopen the permission steps,
         // rather than a generic failure the student cannot act on.

@@ -62,14 +62,33 @@ final class GeminiVisionProvider: TutorBrain {
 
     private let session: URLSession
 
+    /// How long a request may go with no bytes at all. Longer than Claude's
+    /// twenty seconds: Gemini sends nothing until its first words, and Argon
+    /// takes up to about twelve seconds to reach them on a trade-off question
+    /// (median, RouteTable.json), so a shorter wait would fail slow answers.
+    static let answerIdleTimeoutSeconds: TimeInterval = 30
+
+    /// gcloud normally answers in one to three seconds; one that has not
+    /// answered in this long is stuck (a prompt, a hung refresh).
+    nonisolated static let longestTokenMintingSeconds: TimeInterval = 15
+
+    /// One token request at a time, shared by every caller and every
+    /// provider: a probe and a question arriving together wait on the same
+    /// gcloud run rather than starting two.
+    private static var tokenMintingTask: Task<String, Error>?
+    private static var sharedAccessToken: String?
+    private static var sharedTokenExpiry: Date = .distantPast
+
     init(model: String = "gemini-4-argon", endpoint: Endpoint = .aiStudio) {
         self.model = model
         self.endpoint = endpoint
 
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 120
+        configuration.timeoutIntervalForRequest = Self.answerIdleTimeoutSeconds
         configuration.timeoutIntervalForResource = 300
-        configuration.waitsForConnectivity = true
+        // Offline, a question fails at once and is said to have failed,
+        // rather than waiting minutes on "thinking" for a network to appear.
+        configuration.waitsForConnectivity = false
         configuration.urlCache = nil
         configuration.httpCookieStorage = nil
         self.session = URLSession(configuration: configuration)
@@ -278,16 +297,32 @@ final class GeminiVisionProvider: TutorBrain {
         if let cachedAccessToken, Date() < cachedTokenExpiry {
             return cachedAccessToken
         }
-        // gcloud is a Python program that takes a second or more to start and
-        // may refresh its credential over the network: off the main thread,
-        // or the notch and the setup window freeze while it runs.
-        let token = try await Task.detached(priority: .userInitiated) {
-            try Self.mintAccessTokenWithGcloud()
-        }.value
-        cachedAccessToken = token
+        if let sharedAccessToken = Self.sharedAccessToken, Date() < Self.sharedTokenExpiry {
+            cachedAccessToken = sharedAccessToken
+            cachedTokenExpiry = Self.sharedTokenExpiry
+            return sharedAccessToken
+        }
+        let mintingTask: Task<String, Error>
+        if let inFlight = Self.tokenMintingTask {
+            mintingTask = inFlight
+        } else {
+            // gcloud is a Python program that takes a second or more to start and
+            // may refresh its credential over the network: off the main thread,
+            // or the notch and the setup window freeze while it runs.
+            mintingTask = Task.detached(priority: .userInitiated) {
+                try Self.mintAccessTokenWithGcloud()
+            }
+            Self.tokenMintingTask = mintingTask
+        }
+        defer { if Self.tokenMintingTask == mintingTask { Self.tokenMintingTask = nil } }
+        let token = try await mintingTask.value
         // Tokens last about an hour; refreshed early so one cannot expire
         // between being checked and being used.
-        cachedTokenExpiry = Date().addingTimeInterval(50 * 60)
+        let expiry = Date().addingTimeInterval(50 * 60)
+        cachedAccessToken = token
+        cachedTokenExpiry = expiry
+        Self.sharedAccessToken = token
+        Self.sharedTokenExpiry = expiry
         return token
     }
 
@@ -308,12 +343,19 @@ final class GeminiVisionProvider: TutorBrain {
         // gcloud prints warnings here; a pipe nobody reads blocks it once full.
         process.standardError = FileHandle.nullDevice
 
+        let processExited = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in processExited.signal() }
         do {
             try process.run()
         } catch {
             throw GeminiError.gcloudUnavailable
         }
-        process.waitUntilExit()
+        // A gcloud that never answers would otherwise hold every Argon
+        // question, and every later one, waiting on this token.
+        if processExited.wait(timeout: .now() + longestTokenMintingSeconds) == .timedOut {
+            process.terminate()
+            throw GeminiError.gcloudTimedOut
+        }
 
         let tokenData = outputPipe.fileHandleForReading.readDataToEndOfFile()
         let token = String(data: tokenData, encoding: .utf8)?
@@ -379,7 +421,7 @@ final class GeminiVisionProvider: TutorBrain {
         if let apiKeyHeader {
             request.setValue(apiKeyHeader, forHTTPHeaderField: "x-goog-api-key")
         }
-        request.timeoutInterval = 120
+        request.timeoutInterval = Self.answerIdleTimeoutSeconds
 
         // Gemini alternates user and model turns, and rejects two in a row, so
         // history is emitted strictly in pairs.
@@ -506,9 +548,14 @@ enum GeminiError: LocalizedError {
     /// failure that cost an afternoon: it surfaces as HTTP 401
     /// CREDENTIALS_MISSING rather than saying the credential expired.
     case notSignedIn
+    /// gcloud did not answer within `longestTokenMintingSeconds`.
+    case gcloudTimedOut
 
     var errorDescription: String? {
         switch self {
+        case .gcloudTimedOut:
+            return "gcloud did not answer within 15 seconds."
+
         case .missingKey:
             return "No Gemini API key saved. Add one in Name and API keys, in the notch's settings."
         case .httpStatus(let code, let body):
