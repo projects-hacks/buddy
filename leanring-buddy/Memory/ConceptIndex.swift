@@ -145,6 +145,12 @@ nonisolated enum ConceptText {
         tokens(name).joined(separator: " ")
     }
 
+    /// "2pc", "bfs", "lru": short, or carrying a digit. An everyday word used
+    /// as an alias ("index", "queue") says too little on its own.
+    static func looksLikeTermOfArt(_ word: String) -> Bool {
+        word.contains(where: \.isNumber) || (word.count <= 4 && !["tree", "heap", "sort", "key", "log", "list", "map", "set", "cache"].contains(word))
+    }
+
     /// Plurals folded, then a light stem, the same on both sides, so
     /// "charged", "charging" and "charge" all meet at "charg". Crude next to
     /// Porter's stemmer, and enough: it only has to make the two sides agree.
@@ -389,7 +395,7 @@ struct ConceptIndex {
             let nameScore = max(
                 nameMatch(nameTokens[position], questionWords: questionWords, contextWords: contextWords),
                 aliasTokens[position]
-                    .filter { !tuning.ignoresEverydayAliases || $0.count > 1 || Self.looksLikeTermOfArt($0.first ?? "") }
+                    .filter { !tuning.ignoresEverydayAliases || $0.count > 1 || ConceptText.looksLikeTermOfArt($0.first ?? "") }
                     .map { nameMatch($0, questionWords: questionWords, contextWords: contextWords) }
                     .max() ?? 0
             )
@@ -437,12 +443,6 @@ struct ConceptIndex {
             .sorted { $0.element > $1.element }
             .prefix(limit)
             .map { concepts[$0.offset] }
-    }
-
-    /// "2pc", "bfs", "lru": short, or carrying a digit. An everyday word used
-    /// as an alias ("index", "queue") says too little on its own.
-    private static func looksLikeTermOfArt(_ word: String) -> Bool {
-        word.contains(where: \.isNumber) || (word.count <= 4 && !["tree", "heap", "sort", "key", "log", "list", "map", "set", "cache"].contains(word))
     }
 
     /// The whole name said scores in full; the whole name only on screen

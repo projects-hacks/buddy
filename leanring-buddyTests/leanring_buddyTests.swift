@@ -223,6 +223,44 @@ struct HistoryShorteningTests {
     }
 }
 
+// MARK: - Filing a lesson under a known idea
+
+struct FilingMatchTests {
+    private func known(_ name: String, aliases: [String]) -> RememberedConcept {
+        RememberedConcept(id: UUID(), name: name, aliases: aliases, cues: nil, summary: "", lastAngle: nil,
+                          firstExplainedAt: Date(), lastExplainedAt: Date(), timesExplained: 1, timesLost: 0,
+                          lastLostAt: nil, stabilityDays: 2, lessonTitles: [])
+    }
+
+    @Test func theLiveMisreadIdIsRefused() {
+        let division = known("division by zero", aliases: ["zerodivisionerror", "divide by zero", "zero division"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "off by one error",
+                                             extractedAliases: ["off by one", "fencepost error", "index out of bounds"],
+                                             known: division))
+    }
+
+    @Test func theSameIdeaUnderItsOwnOrARelatedNameIsKept() {
+        let offByOne = known("off by one error", aliases: ["off-by-one", "index out of range", "fencepost error"])
+        #expect(FilingMatchCheck.namesAgree(extractedName: "off-by-one error", extractedAliases: [], known: offByOne))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "off-by-one bounds", extractedAliases: [], known: offByOne))
+        let hashing = known("consistent hashing", aliases: ["hash ring"])
+        #expect(FilingMatchCheck.namesAgree(extractedName: "adding nodes to hash ring", extractedAliases: [], known: hashing))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "node addition",
+                                            extractedAliases: ["consistent hashing node addition"], known: hashing))
+        #expect(FilingMatchCheck.namesAgree(extractedName: "binary heap", extractedAliases: [], known: known("heap", aliases: [])))
+    }
+
+    @Test func sharedAliasesOrOneEverydayWordAreNotEnough() {
+        let arrayBounds = known("array index out of bounds", aliases: ["index out of range", "indexerror"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "off by one error", extractedAliases: ["index out of range"],
+                                             known: arrayBounds))
+        let indexing = known("database indexing", aliases: ["index"])
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "array index", extractedAliases: [], known: indexing))
+        #expect(!FilingMatchCheck.namesAgree(extractedName: "linear scan", extractedAliases: ["search"],
+                                             known: known("binary search", aliases: [])))
+    }
+}
+
 // MARK: - Spending arithmetic
 
 struct SpendingArithmeticTests {
