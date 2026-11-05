@@ -18,6 +18,7 @@
 #if DEBUG
 import AppKit
 import Foundation
+import ScreenCaptureKit
 
 @MainActor
 final class QAHooks {
@@ -50,6 +51,36 @@ final class QAHooks {
         let key = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return key?.isEmpty == false ? key : nil
+    }
+
+    /// About ten frames a second of one area of the main display, as JPEGs
+    /// numbered in order, with the time of each in frames.txt.
+    private static func recordFrames(seconds: Double, rect: CGRect, folder: URL) async {
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
+              let display = content.displays.first else { return }
+        let configuration = SCStreamConfiguration()
+        configuration.sourceRect = rect
+        configuration.width = Int(rect.width * 2)
+        configuration.height = Int(rect.height * 2)
+        configuration.showsCursor = false
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let started = Date()
+        var index = 0
+        var times = ""
+        while Date().timeIntervalSince(started) < seconds {
+            let frameStarted = Date()
+            if let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration),
+               let data = NSBitmapImageRep(cgImage: image).representation(using: .jpeg, properties: [.compressionFactor: 0.85]) {
+                try? data.write(to: folder.appendingPathComponent(String(format: "frame-%04d.jpg", index)))
+                times += String(format: "%04d %.3f\n", index, frameStarted.timeIntervalSince(started))
+                index += 1
+            }
+            let spent = Date().timeIntervalSince(frameStarted)
+            if spent < 0.1 { try? await Task.sleep(nanoseconds: UInt64((0.1 - spent) * 1_000_000_000)) }
+        }
+        try? times.write(to: folder.appendingPathComponent("frames.txt"), atomically: true, encoding: .utf8)
+        TutorDebugLog.write("🧪 qa: recorded \(index) frames")
     }
 
     private func handle(_ info: [String: String]) {
@@ -86,6 +117,15 @@ final class QAHooks {
             companionManager.qaSetNotchOpen(info["value"] == "open")
         case "escape":
             companionManager.qaPressEscape()
+        case "recordFrames":
+            // Frames of the screen, Buddy's own windows included, for a demo
+            // recording: value is "seconds,x,y,width,height" in points from
+            // the top left, text is the folder.
+            let numbers = (info["value"] ?? "").split(separator: ",").compactMap { Double($0) }
+            guard numbers.count == 5, let folder = info["text"] else { return }
+            Task { await Self.recordFrames(seconds: numbers[0],
+                                           rect: CGRect(x: numbers[1], y: numbers[2], width: numbers[3], height: numbers[4]),
+                                           folder: URL(fileURLWithPath: folder)) }
         case "notchTab":
             companionManager.qaSetNotchTab(info["value"] ?? "lesson")
         case "openChat":

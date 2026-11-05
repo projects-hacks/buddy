@@ -12,16 +12,17 @@
 <p align="center">
   <a href="https://github.com/projects-hacks/buddy/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/projects-hacks/buddy?label=release&color=2563eb"></a>
   <img alt="macOS 14.2 or later" src="https://img.shields.io/badge/macOS-14.2%2B-111111?logo=apple&logoColor=white">
-  <img alt="Apple silicon and Intel" src="https://img.shields.io/badge/Apple%20silicon%20%7C%20Intel-universal-555555">
+  <img alt="Apple silicon and Intel" src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-555555">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-16a34a"></a>
-  <img alt="Your own API keys" src="https://img.shields.io/badge/keys-your%20own-b45309">
+  <img alt="Bring your own API keys" src="https://img.shields.io/badge/bring%20your%20own%20keys-b45309">
 </p>
 
 <p align="center">
   <a href="https://github.com/projects-hacks/buddy/releases/latest/download/Buddy.dmg"><img alt="Download Buddy for Mac" src="https://img.shields.io/badge/Download_for_Mac-2563eb?style=for-the-badge&logo=apple&logoColor=white" height="52"></a>
 </p>
 
-<p align="center"><img src="docs/images/diagram-review.png" alt="Buddy reviewing a system design drawn in Excalidraw: rings around the app servers marked bottleneck, and a Redis cache and a read replica proposed beside the diagram in dashed purple" width="860"></p>
+<p align="center"><img src="docs/images/demo.gif" alt="Asked why a binary search crashes, Buddy rings each line in turn while it talks, and draws a trace of the list 3, 7, 9 on a card beside the code, pass by pass, until low and high both reach the missing index three" width="900"></p>
+<p align="center"><sub>A real answer, sped up. The words under the notch are what Buddy is saying.</sub></p>
 
 ## What it does
 
@@ -29,7 +30,7 @@
   <tr>
     <td width="33%" valign="top">
       <b>Explains and draws</b><br>
-      <sub>Each spoken sentence arrives with its marks: rings and arrows on your code or diagram, hand-drawn cards for the rest.</sub>
+      <sub>Each sentence arrives with its marks: rings on your code, and hand-drawn cards for anything the screen does not show.</sub>
     </td>
     <td width="33%" valign="top">
       <b>Talk or type</b><br>
@@ -37,14 +38,10 @@
     </td>
     <td width="33%" valign="top">
       <b>Walks you through apps</b><br>
-      <sub>"How do I export this?" One step at a time, pointing at each button, waiting for your click.</sub>
+      <sub>"How do I export this?" One step at a time, pointing at each button. Ask again later and it replays from memory.</sub>
     </td>
   </tr>
   <tr>
-    <td valign="top">
-      <b>Replays from memory</b><br>
-      <sub>Ask for a task it has shown you before, in any words, and it is walked through again without a model call.</sub>
-    </td>
     <td valign="top">
       <b>Remembers what you learn</b><br>
       <sub>New answers build on earlier lessons. Stored on your Mac.</sub>
@@ -53,31 +50,25 @@
       <b>Hints before answers</b><br>
       <sub>On LeetCode and similar sites: a nudge, then the approach, then the code only when you ask.</sub>
     </td>
-  </tr>
-  <tr>
     <td valign="top">
       <b>Reviews your diagrams</b><br>
       <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
     </td>
-    <td valign="top">
-      <b>Picks a model per question</b><br>
-      <sub>Sonnet, Opus or Gemini Argon, from measured quality, wait and cost.</sub>
-    </td>
-    <td valign="top">
-      <b>Shows what it spends</b><br>
-      <sub>Today's and this month's spend on your keys, in Settings. A question is one to six cents.</sub>
-    </td>
   </tr>
 </table>
 
+Each question goes to Sonnet, Opus or Gemini Argon, whichever measured best for that kind of question, and Settings shows what you have spent today. A question costs one to six cents.
+
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint in the notch, without the solution"></td>
-    <td width="50%"><img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, which builds on hash map lookup, beside a hand-drawn walk through"></td>
+    <td width="33%"><img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint in the notch, without the solution"></td>
+    <td width="33%"><img src="docs/images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw: the app servers ringed as the bottleneck, a cache and a read replica proposed in dashed purple"></td>
+    <td width="33%"><img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, which builds on hash map lookup, beside a hand-drawn walk through"></td>
   </tr>
   <tr>
-    <td align="center"><sub>A first hint on LeetCode: the line that matters, ringed. No solution.</sub></td>
-    <td align="center"><sub>The lesson card, built on an earlier lesson, beside its drawing.</sub></td>
+    <td align="center"><sub>A first hint, no solution</sub></td>
+    <td align="center"><sub>A review of your own design</sub></td>
+    <td align="center"><sub>A lesson that builds on an earlier one</sub></td>
   </tr>
 </table>
 
@@ -133,14 +124,14 @@ The model answers with a short drawing program, and the first sentence is spoken
 
 <table>
   <tr>
-    <td align="center" width="25%"><h3>46 / 50</h3><sub>held-out spoken questions sorted by kind</sub><br><sub><code>scripts/question_sorting</code></sub></td>
-    <td align="center" width="25%"><h3>32 / 33</h3><sub>relevant past lessons recalled on 80 blind questions</sub><br><sub><code>scripts/learning_memory</code></sub></td>
-    <td align="center" width="25%"><h3>32 / 32</h3><sub>hint and diagram review checks on Sonnet and Argon</sub><br><sub><code>scripts/study_modes</code></sub></td>
-    <td align="center" width="25%"><h3>0 / 49</h3><sub>near misses replayed as the wrong how-to (30 of 40 rephrasings found)</sub><br><sub><code>scripts/howto</code></sub></td>
+    <td align="center" width="25%"><h3>46 / 50</h3><sub>spoken questions sorted by kind, held out<br>(33 with the on-device model alone)</sub><br><sub><code>scripts/question_sorting</code></sub></td>
+    <td align="center" width="25%"><h3>32 / 33</h3><sub>relevant past lessons recalled, 80 blind questions<br>(16 matching names alone)</sub><br><sub><code>scripts/learning_memory</code></sub></td>
+    <td align="center" width="25%"><h3>32 / 32</h3><sub>hint and diagram review checks<br>on Sonnet and Argon</sub><br><sub><code>scripts/study_modes</code></sub></td>
+    <td align="center" width="25%"><h3>0 / 49</h3><sub>near misses replayed as the wrong how-to<br>(30 of 40 new phrasings found)</sub><br><sub><code>scripts/howto</code></sub></td>
   </tr>
 </table>
 
-Which model answers each kind of question comes from a blind-judged race of all three: [docs/model-choice.md](docs/model-choice.md).
+The model for each kind of question was chosen by a blind-judged race of all three: [docs/model-choice.md](docs/model-choice.md).
 
 ## Privacy
 
