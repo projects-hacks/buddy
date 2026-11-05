@@ -117,13 +117,27 @@ private struct SettingsGroup<Content: View>: View {
     }
 }
 
-/// The hairline between rows, inset from the group's edges.
+/// The hairline between rows, inset as far as the rows' content.
 private struct SettingsDivider: View {
     var body: some View {
         Rectangle()
             .fill(Color.white.opacity(0.07))
             .frame(height: 1)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, DS.Notch.settingsRowHorizontalInset)
+    }
+}
+
+private extension View {
+    /// Every row in every group is padded the same way, so each group has
+    /// the same room inside its border at the top and the bottom, whichever
+    /// kind of row comes first or last. A minimum height alone would leave
+    /// a captioned row, which outgrows it, closer to the border than a
+    /// one-line row centred in it.
+    func settingsRowInsets() -> some View {
+        self
+            .padding(.vertical, DS.Notch.settingsRowVerticalInset)
+            .padding(.horizontal, DS.Notch.settingsRowHorizontalInset)
+            .frame(minHeight: DS.Notch.settingsOneLineRowHeight)
     }
 }
 
@@ -163,9 +177,7 @@ private struct SettingsSwitchRow: View {
                 .labelsHidden()
                 .allowsHitTesting(false)
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
         .contentShape(Rectangle())
         .onTapGesture { isOn.toggle() }
         .pointerCursor()
@@ -186,7 +198,7 @@ struct NotchSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Capsule()
             .fill(configuration.isOn ? DS.Colors.accent : Color.white.opacity(0.18))
-            .frame(width: 32, height: 19)
+            .frame(width: DS.Notch.switchSize.width, height: DS.Notch.switchSize.height)
             .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                 Circle()
                     .fill(Color.white)
@@ -247,9 +259,7 @@ private struct MemorySettings: View {
             }
             .accessibilityLabel("Forget everything Buddy remembers")
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
     }
 
     /// Forgetting is permanent, so it asks first, in the system's own alert
@@ -379,9 +389,7 @@ private struct AnswersSettings: View {
             .pointerCursor()
             .accessibilityLabel("Answers from")
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
 
         SettingsDivider()
 
@@ -395,9 +403,7 @@ private struct AnswersSettings: View {
                 .contentTransition(.numericText())
                 .animation(.smooth(duration: 0.3), value: today.dollars)
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
         .contentShape(Rectangle())
         .nativeTooltip(spendingTooltip(today))
         .accessibilityElement(children: .ignore)
@@ -436,9 +442,7 @@ private struct SettingsChevronRow: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(DS.Colors.textTertiary)
             }
-            .padding(.vertical, 9)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 40)
+            .settingsRowInsets()
             .background(isHovering ? DS.Notch.rowHover : Color.clear)
             .contentShape(Rectangle())
         }
@@ -507,9 +511,7 @@ private struct UpdateRow: View {
                 }
             }
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 12)
-        .frame(minHeight: 40)
+        .settingsRowInsets()
     }
 }
 

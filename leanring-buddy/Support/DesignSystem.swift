@@ -210,6 +210,17 @@ enum DS {
         static let groupBorder = Color.white.opacity(0.07)
         static let rowHover = Color.white.opacity(0.05)
 
+        /// The drawn switch (`NotchSwitchStyle`), small as macOS's own.
+        static let switchSize = CGSize(width: 32, height: 19)
+        /// Room between a Settings row's content and the row's edges, the
+        /// same in every row, so the text of a row with a caption sits as far
+        /// from its group's border as a switch does.
+        static let settingsRowVerticalInset: CGFloat = 12
+        static let settingsRowHorizontalInset: CGFloat = 12
+        /// A one-line row is a switch with the same inset above and below,
+        /// so rows with and without a switch are the same height.
+        static let settingsOneLineRowHeight: CGFloat = switchSize.height + 2 * settingsRowVerticalInset
+
         static let dotReady = Color.white.opacity(0.45)
         static let dotListening = Color(red: 0.98, green: 0.36, blue: 0.36)
         static let dotThinking = Color(red: 1.0, green: 0.78, blue: 0.3)
