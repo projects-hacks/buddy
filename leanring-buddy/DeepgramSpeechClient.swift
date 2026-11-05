@@ -323,6 +323,12 @@ final class DeepgramSpeechClient {
 
 // MARK: - Errors
 
+extension Notification.Name {
+    /// Deepgram refused the key while listening (the object is the
+    /// `DeepgramError`), posted on the main thread for the key banner.
+    static let deepgramKeyRefused = Notification.Name("buddy.deepgramKeyRefused")
+}
+
 enum DeepgramError: LocalizedError {
     case missingKey
     case httpStatus(Int)

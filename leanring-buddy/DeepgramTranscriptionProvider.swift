@@ -290,6 +290,17 @@ final class DeepgramStreamingSession {
                 guard !self.hasEnded else { return }
                 switch result {
                 case .failure(let error):
+                    // A refused handshake reads as a socket error; its HTTP
+                    // status says whether the key is the problem.
+                    if let status = (self.socket.response as? HTTPURLResponse)?.statusCode,
+                       status == 401 || status == 402 || status == 403 {
+                        let keyError = DeepgramError.httpStatus(status)
+                        DispatchQueue.main.async {
+                            NotificationCenter.default.post(name: .deepgramKeyRefused, object: keyError)
+                        }
+                        self.end(error: keyError)
+                        return
+                    }
                     self.end(error: self.isFinishing && !self.finalizedSegments.isEmpty ? nil : error)
                 case .success(let message):
                     if case .string(let text) = message { self.handle(text) }

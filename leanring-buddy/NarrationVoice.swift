@@ -107,7 +107,17 @@ final class NarrationVoice {
 
     /// Spoken through instead when Deepgram has no key or fails.
     private let fallbackVoice: LocalSpeechSynthesisClient
-    private var deepgramUnavailable = false
+    /// A failure benches Deepgram for a while rather than for good: a Wi-Fi
+    /// blip or a sleep mid-sentence should not mean the system voice until
+    /// Buddy is restarted.
+    private var deepgramBenchedUntil = Date.distantPast
+    private var isDeepgramBenched: Bool { Date() < deepgramBenchedUntil }
+    static let deepgramBenchSeconds: TimeInterval = 5 * 60
+
+    /// A download failed in a way only the student can fix (a revoked key,
+    /// no credit), or worked again after that; for the notch's key banner.
+    var onDeepgramKeyProblem: ((Error) -> Void)?
+    var onDeepgramWorked: (() -> Void)?
 
     init(fallbackVoice: LocalSpeechSynthesisClient) {
         self.fallbackVoice = fallbackVoice
@@ -307,7 +317,7 @@ final class NarrationVoice {
     private func startDownload(_ line: Line) {
         // A replayed sentence already has its audio, or speaks locally.
         guard line.downloadTask == nil, !line.isDownloaded, !line.downloadFailed else { return }
-        guard !deepgramUnavailable, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
+        guard !isDeepgramBenched, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
             line.downloadFailed = true
             wake(line)
             startNextDownload(after: line)
@@ -352,6 +362,7 @@ final class NarrationVoice {
                 }
                 line.downloadedAtSpeed = speed
                 SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram)
+                self.onDeepgramWorked?()
 
                 // About a fifth of a second per chunk: small enough that the
                 // first one plays almost at once, large enough not to swamp
@@ -376,8 +387,9 @@ final class NarrationVoice {
                 line.isDownloaded = true
             } catch {
                 guard generationAtStart == self.generation, !Task.isCancelled else { return }
-                TutorDebugLog.write("⚠️ narration download failed: \(error.localizedDescription). system voice from here.")
-                self.deepgramUnavailable = true
+                TutorDebugLog.write("⚠️ narration download failed: \(error.localizedDescription). system voice for \(Int(Self.deepgramBenchSeconds / 60)) minutes.")
+                self.deepgramBenchedUntil = Date().addingTimeInterval(Self.deepgramBenchSeconds)
+                if APIKeyChecker.problem(in: error)?.service == .deepgram { self.onDeepgramKeyProblem?(error) }
                 line.downloadFailed = true
             }
             guard generationAtStart == self.generation else { return }

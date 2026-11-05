@@ -416,6 +416,25 @@ final class CompanionManager: ObservableObject {
     /// Which voice is in use this session, decided once at startup.
     private enum VoiceEngine { case deepgram, kokoro, system }
     private var voiceEngine: VoiceEngine = .system
+    /// The prose path's Deepgram voice, benched for five minutes after a
+    /// failure and then tried again, instead of the system voice for good.
+    private var deepgramProseVoiceBenchedUntil = Date.distantPast
+    private var deepgramKeyRefusedObserver: NSObjectProtocol?
+
+    /// Deepgram refused the key, while speaking or while listening: said in
+    /// the notch's banner like any other key, without opening setup mid-answer.
+    private func reportDeepgramKeyProblem(_ error: Error) {
+        guard let problem = APIKeyChecker.problem(in: error), problem.service == .deepgram,
+              keyProblem?.service != .deepgram else { return }
+        reportKeyProblem(problem, answerFailed: false)
+    }
+
+    /// A Deepgram request worked, so a banner about its key can go.
+    private func clearDeepgramKeyProblemIfReported() {
+        guard keyProblem?.service == .deepgram else { return }
+        keyProblem = nil
+        controlBar.model.keyProblemMessage = nil
+    }
 
     private lazy var kokoroClient = KokoroSpeechClient(
         helperScriptPath: Self.kokoroHelperScriptPath
@@ -656,6 +675,12 @@ final class CompanionManager: ObservableObject {
         bindAudioPowerLevel()
         bindShortcutTransitions()
         bindMarkLifetime()
+        deepgramKeyRefusedObserver = NotificationCenter.default.addObserver(
+            forName: .deepgramKeyRefused, object: nil, queue: .main
+        ) { [weak self] notification in
+            guard let error = notification.object as? Error else { return }
+            MainActor.assumeIsolated { self?.reportDeepgramKeyProblem(error) }
+        }
         InterfaceSounds.shared.prepare()
         configureLearningMemory()
         connectNotebook(recorder: notebookRecorder) // Notebook hook
@@ -1663,7 +1688,12 @@ final class CompanionManager: ObservableObject {
     private lazy var drawingOverlay = DrawingOverlay()
     // Notebook hook: keeps each finished lesson as a notebook page.
     private lazy var notebookRecorder = NotebookRecorder(drawingOverlay: drawingOverlay)
-    private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
+    private lazy var narrationVoice: NarrationVoice = {
+        let voice = NarrationVoice(fallbackVoice: speechClient)
+        voice.onDeepgramKeyProblem = { [weak self] error in self?.reportDeepgramKeyProblem(error) }
+        voice.onDeepgramWorked = { [weak self] in self?.clearDeepgramKeyProblemIfReported() }
+        return voice
+    }()
     /// Keeps an answer's marks on the things they mark as windows move and
     /// pages scroll (MarkFollower.swift).
     private lazy var markFollower: MarkFollower = {
@@ -3550,7 +3580,8 @@ final class CompanionManager: ObservableObject {
             return
         }
 
-        switch voiceEngine {
+        let isDeepgramBenched = Date() < deepgramProseVoiceBenchedUntil
+        switch voiceEngine == .deepgram && isDeepgramBenched ? .system : voiceEngine {
         case .deepgram:
             deepgramClient.onSpokenProgress = { reachedOffset in
                 drawMarksReached(upToCharacterOffset: reachedOffset)
@@ -3561,9 +3592,11 @@ final class CompanionManager: ObservableObject {
                 // a sixth of a second rather than the second and a half that
                 // made rendering ahead worth the complexity for Kokoro.
                 try await deepgramClient.speakText(segment.spokenText)
+                clearDeepgramKeyProblemIfReported()
             } catch {
-                TutorDebugLog.write("⚠️ Deepgram failed: \(error.localizedDescription). system voice from here.")
-                voiceEngine = .system
+                TutorDebugLog.write("⚠️ Deepgram failed: \(error.localizedDescription). system voice for \(Int(NarrationVoice.deepgramBenchSeconds / 60)) minutes.")
+                deepgramProseVoiceBenchedUntil = Date().addingTimeInterval(NarrationVoice.deepgramBenchSeconds)
+                reportDeepgramKeyProblem(error)
                 deepgramClient.onSpokenProgress = nil
                 speechClient.onWillSpeakRange = { spokenRange, _ in
                     drawMarksReached(upToCharacterOffset: spokenRange.location + spokenRange.length)
