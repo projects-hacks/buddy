@@ -530,6 +530,26 @@ final class CompanionManager: ObservableObject {
     /// The currently running AI response task, if any. Cancelled when the user
     /// speaks again so a new response can begin immediately.
     private var currentResponseTask: Task<Void, Never>?
+    /// Which question is being answered. Bumped whenever the answer is
+    /// cancelled or replaced, and checked by the answer after every wait, so
+    /// an answer that was replaced never writes history, memory, how-tos,
+    /// guide steps or notebook pages for a question nobody is asking now.
+    private var currentQuestionTicket = 0
+
+    private func cancelCurrentResponseTask() {
+        currentQuestionTicket += 1
+        currentResponseTask?.cancel()
+    }
+
+    /// A cancelled request, however it reports it: Swift's own error, or
+    /// URLSession's `URLError(.cancelled)`, which is what its async calls
+    /// throw when their task is cancelled. Never a failure to explain.
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
 
     private var shortcutTransitionCancellable: AnyCancellable?
     private var typeQuestionCancellable: AnyCancellable?
@@ -833,7 +853,7 @@ final class CompanionManager: ObservableObject {
         overlayWindowManager.hideOverlay()
         transientHideTask?.cancel()
 
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         currentResponseTask = nil
         shortcutTransitionCancellable?.cancel()
         typeQuestionCancellable?.cancel()
@@ -1359,7 +1379,7 @@ final class CompanionManager: ObservableObject {
             NotificationCenter.default.post(name: .clickyDismissPanel, object: nil)
 
             // Cancel any in-progress response and TTS from a previous utterance
-            currentResponseTask?.cancel()
+            cancelCurrentResponseTask()
             markDismissalTask?.cancel()
             markDismissalTask = nil
             diagramTask?.cancel()
@@ -1797,7 +1817,7 @@ final class CompanionManager: ObservableObject {
             earlyScreen?.cancel()
             return
         }
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         // Notebook hook: the answer just cancelled leaves no page.
         notebookRecorder.newQuestionStarted()
         cancelSpeechAndClearQueue()
@@ -1892,7 +1912,18 @@ final class CompanionManager: ObservableObject {
             }
             : nil
 
+        let questionTicket = currentQuestionTicket
         currentResponseTask = Task {
+            @MainActor func isStillTheCurrentQuestion() -> Bool {
+                questionTicket == currentQuestionTicket && !Task.isCancelled
+            }
+            // The side calls end with their answer, so a question cut short
+            // does not go on spending on a classifier, recall or a lecture.
+            defer {
+                classifierTask?.cancel()
+                recallTask.cancel()
+                lectureGatheringTask?.cancel()
+            }
             voiceState = .processing
             controlBar.model.waitingStage = "reading your screen"
             clearAnnotations()
@@ -1904,16 +1935,16 @@ final class CompanionManager: ObservableObject {
                 let screenCaptures: [CompanionScreenCapture]
                 let primaryCapture: CompanionScreenCapture
                 var screenWasReadWhileTheyTalked = false
-                if let preparedScreen = await earlyScreen?.value, !Task.isCancelled {
+                if let preparedScreen = await earlyScreen?.value, isStillTheCurrentQuestion() {
                     screenWasReadWhileTheyTalked = true
                     screenCaptures = preparedScreen.screenCaptures
                     primaryCapture = preparedScreen.primaryCapture
                     screenIndex = preparedScreen.screenIndex
                     logStage("screen read while they talked, still current")
                 } else {
-                    guard !Task.isCancelled else { return }
+                    guard isStillTheCurrentQuestion() else { return }
                     screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
-                    guard !Task.isCancelled, !screenCaptures.isEmpty else { return }
+                    guard isStillTheCurrentQuestion(), !screenCaptures.isEmpty else { return }
                     logStage("screen captured")
 
                     // Index only the screen holding the cursor. Indexing every
@@ -1930,7 +1961,7 @@ final class CompanionManager: ObservableObject {
                             height: primaryCapture.displayHeightInPoints
                         )
                     )
-                    guard !Task.isCancelled else { return }
+                    guard isStillTheCurrentQuestion() else { return }
                 }
                 displayFrameForCurrentAnswer = primaryCapture.displayFrame
                 logStage("screen captured and read")
@@ -1943,7 +1974,7 @@ final class CompanionManager: ObservableObject {
                     localProbabilities: localProbabilities,
                     classifierTask: classifierTask
                 )
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
                 logStage("question kind settled")
 
                 // Counted before the answer is built, so the instruction
@@ -2012,7 +2043,7 @@ final class CompanionManager: ObservableObject {
                     // is worth a fraction of a second more.
                     deadline: max(screenReadAt.addingTimeInterval(Self.classifierGraceSeconds),
                                   answerStartedAt.addingTimeInterval(Self.memoryChooserFloorSeconds)))
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
                 logStage("memory settled")
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
@@ -2070,7 +2101,7 @@ final class CompanionManager: ObservableObject {
                     // Lecture mode hook: the notch says where this answer's words came from.
                     controlBar.model.lectureSourceLabel = LectureMode.shared.lastNoteSourceLabel
                 }
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
 
                 // The pointer's rests are places on the screen as it was while
                 // they talked. Read again because it moved, the screen no
@@ -2149,8 +2180,8 @@ final class CompanionManager: ObservableObject {
                             )
                         }
                     } catch {
-                        guard !Task.isCancelled,
-                              error is FirstWordsDeadlineMissed || !(error is CancellationError),
+                        guard isStillTheCurrentQuestion(),
+                              error is FirstWordsDeadlineMissed || !Self.isCancellation(error),
                               currentAnswerFormat == .undecided,
                               attempt + 1 < routing.count else { throw error }
                         let failedBrain = routing[attempt]
@@ -2194,7 +2225,7 @@ final class CompanionManager: ObservableObject {
                     }
                 }
 
-                guard !Task.isCancelled else { return }
+                guard isStillTheCurrentQuestion() else { return }
 
                 // The raw response, verbatim. When no marks appear this is the
                 // only way to tell the two causes apart: the model emitting no
@@ -2208,6 +2239,7 @@ final class CompanionManager: ObservableObject {
 
                 if currentAnswerFormat == .program {
                     await lessonPlayer.finish(fullText: fullResponseText)
+                    guard isStillTheCurrentQuestion() else { return }
                     if let lessonTitle = lessonPlayer.lessonTitle {
                         TutorDebugLog.write("📘 lesson: \(lessonTitle)")
                         controlBar.model.recordLessonTitle(lessonTitle)
@@ -2300,7 +2332,7 @@ final class CompanionManager: ObservableObject {
                             forExplanation: explanationForDrawing,
                             screenIndexListing: indexForDrawing
                         ) else { return }
-                        guard !Task.isCancelled else { return }
+                        guard isStillTheCurrentQuestion() else { return }
                         self.apply(
                             directive: TeacherDirective(
                                 action: .drawDiagram(shape: shape),
@@ -2321,15 +2353,16 @@ final class CompanionManager: ObservableObject {
                 print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
                 }
 
-            } catch is CancellationError {
+            } catch let error where Self.isCancellation(error) || !isStillTheCurrentQuestion() {
                 // User spoke again; the previous answer was abandoned on purpose.
+                TutorDebugLog.write("🛑 answer cancelled (\(error.localizedDescription))")
             } catch {
                 print("⚠️ Tutor response error: \(error.localizedDescription)")
                 TutorDebugLog.write("⚠️ answer failed: \(error.localizedDescription)")
                 await speakLocalErrorFallback(for: error)
             }
 
-            if !Task.isCancelled {
+            if isStillTheCurrentQuestion() {
                 // Hold .responding while speech drains, so the overlay does not
                 // drop back to idle while the tutor is still talking.
                 while speechConsumerTask != nil || isAnyVoicePlaying {
@@ -2345,7 +2378,7 @@ final class CompanionManager: ObservableObject {
                     await lessonPlayer.waitUntilSpoken()
                     talkOverListener.stop()
                     controlBar.model.caption = ""
-                    if let currentGuideStep, let guideBaseline, !Task.isCancelled {
+                    if let currentGuideStep, let guideBaseline, isStillTheCurrentQuestion() {
                         guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
                                            displayFrame: guideBaseline.displayFrame,
                                            guidedApplication: guidedApplication)
@@ -2355,7 +2388,7 @@ final class CompanionManager: ObservableObject {
                 }
                 scheduleTransientHideIfNeeded()
                 // Notebook hook: finished and not cancelled, so it is kept.
-                if !Task.isCancelled { notebookRecorder.keepHeldLesson() }
+                if isStillTheCurrentQuestion() { notebookRecorder.keepHeldLesson() }
             }
         }
     }
@@ -2485,7 +2518,7 @@ final class CompanionManager: ObservableObject {
         TutorDebugLog.write("🔁 replaying the last answer (\(trigger)): \(recording.sentences.count) sentences, no model")
         stopGuide(reason: "replaying the last answer")
         questionAwaitingAnswer = nil
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         transientHideTask?.cancel()
         transientHideTask = nil
@@ -2551,7 +2584,7 @@ final class CompanionManager: ObservableObject {
     private func stopAnswering() {
         stopGuide(reason: "Stop")
         questionAwaitingAnswer = nil
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         voiceState = .idle
         controlBar.model.caption = ""
@@ -2867,6 +2900,9 @@ final class CompanionManager: ObservableObject {
         voiceState = .responding
         lessonPlayer.feed(accumulatedText: program)
         await lessonPlayer.finish(fullText: program)
+        // Replaced while it played: the step is not kept or watched. True,
+        // so the caller does not hand a cancelled step to the model either.
+        guard !Task.isCancelled else { return true }
         rememberExchange(question: question, answer: program)
 
         let isLastStep = stepIndex + 1 >= howTo.steps.count || step.instruction == nil
@@ -2908,7 +2944,7 @@ final class CompanionManager: ObservableObject {
         shortcutReleasedAt = nil
         answerStartedAt = Date()
         SpendingMeter.shared.countQuestion(isGuideStep: true)
-        currentResponseTask?.cancel()
+        cancelCurrentResponseTask()
         cancelSpeechAndClearQueue()
         let question = GuideMode.continuationQuestion(after: step)
         let application = guidedApplication
@@ -4068,6 +4104,7 @@ final class CompanionManager: ObservableObject {
     /// The common cause is the local server not running, which has a specific
     /// and actionable fix, so it gets its own message.
     private func speakLocalErrorFallback(for error: Error) async {
+        guard !Task.isCancelled, !Self.isCancellation(error) else { return }
         InterfaceSounds.shared.play(.error)
         // Skipped in setup: say so plainly and reopen the permission steps,
         // rather than a generic failure the student cannot act on.
