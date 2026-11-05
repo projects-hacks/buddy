@@ -2024,16 +2024,21 @@ final class CompanionManager: ObservableObject {
                         var nextAttempt = attempt + 1
                         if error is FirstWordsDeadlineMissed {
                             TutorDebugLog.write("↪️ \(failedBrain.rawValue) said nothing in \(Int(deadline ?? 0))s, \(routing[nextAttempt].rawValue) answers instead")
+                            // Silent past the patience window is a failure too:
+                            // a brain that slow now is slow for the next
+                            // question as well, which then waits the same
+                            // seconds again before anyone speaks.
+                            modelRouter.bench(failedBrain, because: "it said nothing in \(Int(deadline ?? 0))s")
                         } else {
                             let problem = keyProblem(in: error)
                             if let problem { reportKeyProblem(problem, answerFailed: false) }
-                            modelRouter.bench(failedBrain)
+                            modelRouter.bench(failedBrain, because: "it failed before speaking")
                             // Sonnet and Opus share the Anthropic key: when the
                             // key is the problem, the other one fails the same way,
                             // so it is skipped rather than tried.
                             if problem?.service == .anthropic {
                                 while nextAttempt < routing.count, routing[nextAttempt] != .argon {
-                                    modelRouter.bench(routing[nextAttempt])
+                                    modelRouter.bench(routing[nextAttempt], because: "it shares the failing Anthropic key")
                                     nextAttempt += 1
                                 }
                                 guard nextAttempt < routing.count else { throw error }
