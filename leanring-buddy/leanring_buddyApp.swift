@@ -28,9 +28,17 @@ struct leanring_buddyApp: App {
 /// the companion voice pipeline on launch.
 @MainActor
 final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
-    private let companionManager = CompanionManager()
+    /// Lazy, so a unit test run never builds it: its parts read the
+    /// Keychain and the student's data as they are made.
+    private lazy var companionManager = CompanionManager()
+
+    /// The unit tests run inside this app. Under them it starts nothing: no
+    /// key taps, overlay, network, keychain, log or setup window, so a test
+    /// run never touches the student's Buddy, its log or its data.
+    static let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningUnitTests else { return }
         // Writing to a pipe whose reader has gone (a helper process that
         // died) sends SIGPIPE, which quits the app by default. Ignored, the
         // write fails with an error instead, and that is handled.
@@ -62,11 +70,13 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     /// Clicking Buddy in the Dock opens the notch, its only window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !Self.isRunningUnitTests else { return false }
         companionManager.openNotchBriefly(on: .lesson)
         return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        guard !Self.isRunningUnitTests else { return }
         companionManager.stop()
         SpendingMeter.shared.saveNow()
         TutorDebugLog.endSession()

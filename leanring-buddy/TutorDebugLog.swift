@@ -27,17 +27,25 @@ nonisolated enum TutorDebugLog {
         let logsDirectory = FileManager.default
             .homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Logs", isDirectory: true)
-        return logsDirectory.appendingPathComponent("\(AppIdentity.dataName).log")
+        return logsDirectory.appendingPathComponent("\(logName).log")
+    }()
+
+    /// The unit tests run inside a copy of Buddy with Buddy's own
+    /// identifier; their lines go to a log of their own, never into the
+    /// log of the Buddy the student is running.
+    private static let logName: String = {
+        let isRunningUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        return isRunningUnitTests ? "\(AppIdentity.dataName)-unit-tests" : AppIdentity.dataName
     }()
 
     /// The last session's log, kept at launch.
     static var previousFileURL: URL {
-        fileURL.deletingLastPathComponent().appendingPathComponent("\(AppIdentity.dataName).previous.log")
+        fileURL.deletingLastPathComponent().appendingPathComponent("\(logName).previous.log")
     }
 
     /// This session's earlier part, once its log passed `largestFileBytes`.
     static var rotatedFileURL: URL {
-        fileURL.deletingLastPathComponent().appendingPathComponent("\(AppIdentity.dataName).rotated.log")
+        fileURL.deletingLastPathComponent().appendingPathComponent("\(logName).rotated.log")
     }
 
     static let largestFileBytes = 5 * 1024 * 1024

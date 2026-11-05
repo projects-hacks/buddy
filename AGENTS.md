@@ -170,7 +170,7 @@ Build only through these scripts. They run `xcodebuild` with the `Clicky Local D
 
 Known non-blocking warnings: Swift 6 concurrency warnings, the deprecated onChange in OverlayWindow.swift. Do not try to fix these.
 
-**Testing.** `scripts/` holds every test and measurement, each with its own readme: memory, routing, question sorting, hints and diagram review, plus `scripts/qa/` for end-to-end runs of the real app through the debug-only QA channel (`QAHooks.swift`).
+**Testing.** `zsh scripts/test.sh` runs the unit tests (`leanring-buddyTests`, Swift Testing, the shared `leanring-buddy` scheme): pure logic such as version comparison, program stream cutting, speech hints, history shortening, spending arithmetic, key errors, routing and benching, utterance joining, talk-over hearing, error recognition and board layout, plus the drawing engine's time limit in a hidden page. It builds into `~/Library/Caches/Buddy-unit-tests`, signs ad hoc and never touches `/Applications/Buddy.app`; under the tests the app starts nothing and logs to `Buddy-unit-tests.log`. `scripts/` holds every other test and measurement, each with its own readme: memory, routing, question sorting, hints and diagram review, plus `scripts/qa/` for end-to-end runs of the real app through the debug-only QA channel (`QAHooks.swift`).
 
 ## Code Style & Conventions
 

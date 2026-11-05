@@ -513,31 +513,42 @@ final class CompanionManager: ObservableObject {
     /// drawn or explain it differently. Older ones keep only what was said,
     /// about a tenth of the size, so a long session stays in view without
     /// paying for every old drawing again.
-    private static let wholeAnswersKept = 10
-    private static let exchangesKept = 40
+    static let wholeAnswersKept = 10
+    static let exchangesKept = 40
     /// Older answers are shortened, and the oldest dropped, several at a
     /// time rather than one per question: the cached history then stays the
     /// same for several questions in a row instead of changing every time.
-    private static let historyTrimBatch = 6
+    static let historyTrimBatch = 6
 
     private func rememberExchange(question: String, answer: String) {
-        conversationHistory.append((userTranscript: question, assistantResponse: answer))
-        let wholeAnswerCount = conversationHistory.filter { !$0.assistantResponse.hasPrefix(Self.spokenOnlyMarker) }.count
-        if wholeAnswerCount > Self.wholeAnswersKept {
+        conversationHistory = Self.history(conversationHistory, remembering: question, answer: answer)
+    }
+
+    /// The history with one more exchange, shortened and trimmed as above.
+    /// Pure, so the unit tests check it.
+    static func history(
+        _ earlierHistory: [(userTranscript: String, assistantResponse: String)],
+        remembering question: String, answer: String
+    ) -> [(userTranscript: String, assistantResponse: String)] {
+        var history = earlierHistory
+        history.append((userTranscript: question, assistantResponse: answer))
+        let wholeAnswerCount = history.filter { !$0.assistantResponse.hasPrefix(spokenOnlyMarker) }.count
+        if wholeAnswerCount > wholeAnswersKept {
             var shortened = 0
-            for position in conversationHistory.indices where shortened < Self.historyTrimBatch {
-                let entry = conversationHistory[position]
-                guard !entry.assistantResponse.hasPrefix(Self.spokenOnlyMarker) else { continue }
-                conversationHistory[position].assistantResponse = Self.spokenPart(of: entry.assistantResponse)
+            for position in history.indices where shortened < historyTrimBatch {
+                let entry = history[position]
+                guard !entry.assistantResponse.hasPrefix(spokenOnlyMarker) else { continue }
+                history[position].assistantResponse = spokenPart(of: entry.assistantResponse)
                 shortened += 1
             }
         }
-        if conversationHistory.count > Self.exchangesKept {
-            conversationHistory.removeFirst(min(conversationHistory.count, Self.historyTrimBatch))
+        if history.count > exchangesKept {
+            history.removeFirst(min(history.count, historyTrimBatch))
         }
+        return history
     }
 
-    private static let spokenOnlyMarker = "(An earlier answer, only what was said; its drawing is left out.)"
+    static let spokenOnlyMarker = "(An earlier answer, only what was said; its drawing is left out.)"
 
     /// The sentences of a drawing program, in order. A prose answer has no
     /// say() lines and is kept as it is, cut to a length that still reads.
