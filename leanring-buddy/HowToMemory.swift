@@ -331,6 +331,14 @@ final class HowToMemory {
            last.instruction?.lowercased() == step.instruction.lowercased() { return }
         let (kind, target, pill) = Self.firstMark(in: program)
         let label = target.map { labels[$0] ?? $0 }
+        // Back at a control an earlier step pointed at: everything since was
+        // a detour (a wrong turn, a misread dialog) and is not part of the
+        // task, so the saved steps never loop.
+        if let label, let earlier = recording?.steps.firstIndex(where: {
+            $0.targetLabel?.lowercased() == label.lowercased()
+        }) {
+            recording?.steps.removeSubrange(earlier...)
+        }
         recording?.steps.append(HowToStep(sentences: sentences, targetLabel: label, markKind: kind, markPill: pill,
                                           instruction: step?.instruction, doneWhen: step?.doneWhen))
     }

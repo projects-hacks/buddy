@@ -78,6 +78,7 @@ enum GuideMode {
         GUIDING THEM THROUGH A TASK
         you are walking them through a task in this app, and this is step \(stepNumber + 1). the last step you gave was: \(step.instruction). \(step.doneWhen.isEmpty ? "" : "once done, the screen shows: \(step.doneWhen).")
         they said nothing: they clicked, typed or scrolled and the screen changed, so you are looking again on your own.\(whereItChanged) answer with the program only, as always, never a word of thinking before it.
+        - a dialog, menu or window that appeared right after the step is normally what that step opens, even when its title is generic ("Save As" after export as pdf). take it as the step done unless it plainly belongs to something else.
         - if that step is done, give the next one the same way: one or two short sentences, point at the exact control, waitForStep(...) at the end.
         - if they went somewhere else by mistake, say in one sentence how to get back, point at it, and waitForStep(...) again.
         - if it is not done yet and nothing went wrong (they are still typing, a menu is half open), write only waitForStep(...) with the same step and nothing else: no say(), no marks. they do not need to hear from you.
@@ -130,8 +131,12 @@ final class GuideWatcher {
         guard let baseline = Self.thumbnail(fromImageData: baselineScreenshot) else { return }
         self.baseline = baseline
         self.displayFrame = displayFrame
-        self.guidedApplication = guidedApplication
+        // The app in front when Buddy starts waiting is the one the step is
+        // in; switching away from it later is not the step.
+        let front = NSWorkspace.shared.frontmostApplication
+        self.guidedApplication = front?.bundleIdentifier == Bundle.main.bundleIdentifier ? guidedApplication : front
         stepWords = (step.instruction + " " + step.doneWhen).lowercased()
+        TutorDebugLog.write("🧭 guide: waiting in \(self.guidedApplication?.localizedName ?? "any app")")
         isWatching = true
 
         let events: NSEvent.EventTypeMask = [.leftMouseUp, .rightMouseUp, .keyDown, .scrollWheel]
