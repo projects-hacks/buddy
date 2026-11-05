@@ -103,9 +103,20 @@ final class ModelRouter {
     private let table: RouteTable?
     private var benchedUntil: [RoutedBrain: Date] = [:]
 
+    /// How many times in a row each brain has been benched without an
+    /// answer from it in between.
+    private var benchStrikes: [RoutedBrain: Int] = [:]
+
     /// Long enough to ride out a short outage, short enough that a brain
     /// that recovered is back within a few questions.
     static let benchSeconds: TimeInterval = 300
+    /// A brain that fails again as soon as it is back is having a bad day,
+    /// not a blip: each such failure doubles its bench up to this. Every
+    /// question it is tried on first is paid for twice (its attempt, then
+    /// the next brain's) and waited on for its whole patience window.
+    static let longestBenchSeconds: TimeInterval = 3600
+    /// A failure this long after the last bench ended starts counting again.
+    static let strikesForgottenAfterSeconds: TimeInterval = 3600
 
     /// The clock benching is measured on; the unit tests move it forward.
     var currentDate: () -> Date = { Date() }
@@ -183,8 +194,21 @@ final class ModelRouter {
     /// Takes a brain out of the running for a while after it failed, or
     /// said nothing within its patience window.
     func bench(_ brain: RoutedBrain, because reason: String) {
-        benchedUntil[brain] = currentDate().addingTimeInterval(Self.benchSeconds)
-        TutorDebugLog.write("🪑 router: \(brain.rawValue) benched for \(Int(Self.benchSeconds))s, \(reason)")
+        let now = currentDate()
+        if let lastBenchEnded = benchedUntil[brain],
+           now.timeIntervalSince(lastBenchEnded) > Self.strikesForgottenAfterSeconds {
+            benchStrikes[brain] = nil
+        }
+        let strikes = (benchStrikes[brain] ?? 0) + 1
+        benchStrikes[brain] = strikes
+        let seconds = min(Self.longestBenchSeconds, Self.benchSeconds * pow(2, Double(strikes - 1)))
+        benchedUntil[brain] = now.addingTimeInterval(seconds)
+        TutorDebugLog.write("🪑 router: \(brain.rawValue) benched for \(Int(seconds))s (time \(strikes) in a row), \(reason)")
+    }
+
+    /// The brain answered: whatever went wrong before is over.
+    func answered(by brain: RoutedBrain) {
+        benchStrikes[brain] = nil
     }
 
     /// Without the table: the fast brain for small questions, the strong one

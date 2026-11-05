@@ -182,6 +182,7 @@ extension CompanionManager {
                     images: [], systemPrompt: systemPrompt, conversationHistory: history,
                     userPrompt: turnNote, onTextChunk: onTextChunk)
                 TutorDebugLog.write("🧑‍🏫 board turn answered in \(String(format: "%.1f", duration))s by \(lastAnsweringBrainName)")
+                if attempt < routing.count { modelRouter.answered(by: routing[attempt]) }
                 return text
             } catch {
                 guard !Task.isCancelled, !(error is CancellationError), !progress.hasReceivedText,
@@ -632,6 +633,7 @@ extension CompanionManager {
                     }
                 }
                 guard let (fullResponseText, duration) = answer else { return }
+                if attempt < routing.count { modelRouter.answered(by: routing[attempt]) }
 
                 // An answer from the provider whose key was reported means the
                 // key works again: the banner goes, unprompted.

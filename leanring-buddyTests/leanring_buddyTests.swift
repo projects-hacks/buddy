@@ -346,6 +346,33 @@ struct RoutingTests {
         #expect(router.choose(probabilities: probabilities, allowed: allowed).ranking[0] == first)
     }
 
+    @Test func aBrainThatKeepsFailingIsBenchedLongerUntilItAnswers() {
+        let router = ModelRouter()
+        var now = Date(timeIntervalSince1970: 1_000_000)
+        router.currentDate = { now }
+        let allowed: Set<RoutedBrain> = [.sonnet, .opus, .argon]
+        func isBenched() -> Bool { !router.choose(probabilities: [.teach: 1], allowed: allowed).ranking.contains(.argon) }
+
+        router.bench(.argon, because: "a test")
+        now = now.addingTimeInterval(ModelRouter.benchSeconds + 1)
+        #expect(!isBenched())
+        // Fails again as soon as it is back: twice as long this time.
+        router.bench(.argon, because: "a test")
+        now = now.addingTimeInterval(ModelRouter.benchSeconds + 1)
+        #expect(isBenched())
+        now = now.addingTimeInterval(ModelRouter.benchSeconds)
+        #expect(!isBenched())
+        // An answer clears the record, so the next failure is a short bench.
+        router.answered(by: .argon)
+        router.bench(.argon, because: "a test")
+        now = now.addingTimeInterval(ModelRouter.benchSeconds + 1)
+        #expect(!isBenched())
+        // Never past an hour however many times in a row.
+        for _ in 0..<10 { router.bench(.argon, because: "a test") }
+        now = now.addingTimeInterval(ModelRouter.longestBenchSeconds + 1)
+        #expect(!isBenched())
+    }
+
     @Test func everyBrainBenchedStillAnswers() {
         let router = ModelRouter()
         router.currentDate = { Date(timeIntervalSince1970: 1_000_000) }
