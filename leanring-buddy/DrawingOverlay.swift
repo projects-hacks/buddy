@@ -132,6 +132,19 @@ final class DrawingOverlay: NSObject {
         callEngine("finishAll", argumentsJSON: "")
     }
 
+    /// Teaching board hook: calls into DrawingEngine/draw-board.js
+    /// (BuddyBoard.open, close, beginTurn, apply).
+    func callBoard(_ function: String, argumentsJSON: String) {
+        let call: () -> Void = { [weak self] in
+            self?.webView?.evaluateJavaScript("BuddyBoard.\(function)(\(argumentsJSON));") { _, error in
+                if let error {
+                    TutorDebugLog.write("⚠️ board \(function) failed: \(error.localizedDescription)")
+                }
+            }
+        }
+        if pageIsReady { call() } else { callsWaitingForPage.append(call) }
+    }
+
     func clearAll() {
         callEngine("clearAll", argumentsJSON: "")
     }
@@ -206,7 +219,7 @@ final class DrawingOverlay: NSObject {
             }
             return text
         }
-        let scripts = ["draw-vendor-rough", "draw-vendor-freehand", "draw-engine"]
+        let scripts = ["draw-vendor-rough", "draw-vendor-freehand", "draw-engine", "draw-board"]
             .map { "<script>\n\(bundled($0, "js"))\n</script>" }
             .joined(separator: "\n")
         return bundled("draw-page", "html").replacingOccurrences(of: "<!--SCRIPTS-->", with: scripts)
