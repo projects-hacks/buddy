@@ -343,7 +343,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Buddy;
 				INFOPLIST_KEY_CFBundleName = Clicky;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy needs screen recording access to see your screen and help you.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy looks at your screen so it can explain what is there and draw on it.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -381,7 +381,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Buddy;
 				INFOPLIST_KEY_CFBundleName = Clicky;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy needs screen recording access to see your screen and help you.";
+				INFOPLIST_KEY_NSScreenCaptureUsageDescription = "Buddy looks at your screen so it can explain what is there and draw on it.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

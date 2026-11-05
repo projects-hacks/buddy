@@ -539,7 +539,7 @@ private struct PermissionStepsList: View {
     private var permissionSteps: [PermissionStep] {
         var steps: [PermissionStep] = [
             PermissionStep(
-                symbol: "mic.fill", title: "Microphone", reason: "Hears your question while you hold Control + Option.",
+                symbol: "mic.fill", title: "Microphone", reason: "Hears you while you hold Control + Option, and while Buddy explains so you can cut in.",
                 isGranted: companionManager.hasMicrophonePermission,
                 allow: {
                     if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
