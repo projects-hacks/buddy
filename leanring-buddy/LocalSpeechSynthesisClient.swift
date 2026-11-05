@@ -54,6 +54,11 @@ final class LocalSpeechSynthesisClient: NSObject {
     /// the clause boundaries, and the gap is where the listener catches up.
     var pauseBetweenSentencesSeconds: TimeInterval = 0.28
 
+    /// Well under any installed voice's pace, so the watchdog below only
+    /// ends a sentence that has truly stopped.
+    private static let slowestWordsPerSecond = 1.0
+    private static let finishMarginSeconds: TimeInterval = 8
+
     override init() {
         self.selectedVoice = Self.resolveHighestQualityEnglishVoice()
         super.init()
@@ -154,6 +159,25 @@ final class LocalSpeechSynthesisClient: NSObject {
         // The beat after each sentence, which is what turns a stream of
         // utterances into something that sounds like someone thinking.
         utterance.postUtteranceDelay = pauseBetweenSentencesSeconds
+
+        // The system voice reports its end through a delegate. If that call
+        // never comes (the speech service restarted, the output vanished),
+        // the sentence is ended after a generous estimate of its length so
+        // the answer behind it is never stuck. Time paused does not count.
+        let wordCount = spokenText.split(whereSeparator: { $0.isWhitespace }).count
+        let longestExpectedSeconds = Double(wordCount) / Self.slowestWordsPerSecond + Self.finishMarginSeconds
+        let watchdog = Task { [weak self] in
+            var secondsLeftBeforeGivingUp = longestExpectedSeconds
+            while secondsLeftBeforeGivingUp > 0 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled, let self else { return }
+                if !self.synthesizer.isPaused { secondsLeftBeforeGivingUp -= 0.5 }
+            }
+            guard let self, self.activeSpeechContinuation != nil else { return }
+            TutorDebugLog.write("⚠️ system voice: a sentence never finished, moving on")
+            self.stopPlayback()
+        }
+        defer { watchdog.cancel() }
 
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in

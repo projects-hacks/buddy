@@ -52,6 +52,10 @@ final class DeepgramSpeechClient {
 
     private var activePlaybackContinuation: CheckedContinuation<Void, Never>?
     private var isCancelled = false
+    private var engineConfigurationObserver: NSObjectProtocol?
+    /// Which sentence the scheduled buffers belong to, so a completion from
+    /// a sentence that was ended never counts toward the next one.
+    private var sentenceToken = 0
 
     init() {
         let configuration = URLSessionConfiguration.default
@@ -63,6 +67,22 @@ final class DeepgramSpeechClient {
         self.session = URLSession(configuration: configuration)
 
         audioEngine.attach(playerNode)
+        // A device change (headphones, AirPods, a display's speakers) stops
+        // the engine and drops every scheduled buffer. Noticed here, the
+        // sentence ends and the next one starts the engine again; unnoticed,
+        // the next play() would raise on a stopped engine.
+        engineConfigurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: audioEngine, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                TutorDebugLog.write("🔈 Deepgram voice: audio device changed, restarting the engine")
+                self.isEngineRunning = false
+                self.sentenceToken += 1
+                if self.playerNode.isPlaying { self.playerNode.stop() }
+                self.resumePlaybackContinuation()
+            }
+        }
     }
 
     var isConfigured: Bool { APIKeyStore.hasKey(for: .deepgram) }
@@ -78,6 +98,7 @@ final class DeepgramSpeechClient {
         }
 
         isCancelled = false
+        sentenceToken += 1
         totalCharactersInCurrentSentence = spokenText.count
         scheduledFrameCount = 0
         playedFrameCount = 0
@@ -108,6 +129,10 @@ final class DeepgramSpeechClient {
             throw DeepgramError.malformedResponse
         }
 
+        // The engine may have stopped while the request was in flight, and
+        // playing into a stopped engine raises an exception nothing catches.
+        try startEngineIfNeeded()
+        guard audioEngine.isRunning else { throw DeepgramError.audioEngineStopped }
         playerNode.play()
 
         // Chunked rather than scheduled per byte: a buffer per sample would
@@ -145,10 +170,29 @@ final class DeepgramSpeechClient {
 
         guard !isCancelled else { return }
 
+        // Never longer than what is left of the audio plus a margin: an
+        // output that stops rendering without a notification leaves the
+        // buffer completions unfired.
+        let sentenceTokenAtWait = sentenceToken
+        let secondsOfAudioLeft = Double(scheduledFrameCount - playedFrameCount) / Self.sampleRate
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64((max(0, secondsOfAudioLeft) + 5) * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.sentenceToken == sentenceTokenAtWait,
+                  self.activePlaybackContinuation != nil else { return }
+            TutorDebugLog.write("⚠️ Deepgram voice: a sentence never finished playing, moving on")
+            self.sentenceToken += 1
+            if self.playerNode.isPlaying { self.playerNode.stop() }
+            self.audioEngine.stop()
+            self.isEngineRunning = false
+            self.resumePlaybackContinuation()
+        }
+        defer { watchdog.cancel() }
+
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                // Nothing was scheduled, so nothing will complete.
-                if scheduledFrameCount == 0 {
+                // Nothing was scheduled, or all of it has played already, so
+                // nothing will complete.
+                if scheduledFrameCount == 0 || playedFrameCount >= scheduledFrameCount {
                     continuation.resume()
                 } else {
                     activePlaybackContinuation = continuation
@@ -195,10 +239,11 @@ final class DeepgramSpeechClient {
 
         scheduledFrameCount += AVAudioFramePosition(frameCount)
         let totalScheduledAtQueueTime = scheduledFrameCount
+        let sentenceTokenAtSchedule = sentenceToken
 
         playerNode.scheduleBuffer(buffer) { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self, !self.isCancelled else { return }
+                guard let self, !self.isCancelled, self.sentenceToken == sentenceTokenAtSchedule else { return }
 
                 self.playedFrameCount += AVAudioFramePosition(frameCount)
 
@@ -224,7 +269,7 @@ final class DeepgramSpeechClient {
     }
 
     private func startEngineIfNeeded() throws {
-        guard !isEngineRunning else { return }
+        guard !(isEngineRunning && audioEngine.isRunning) else { return }
 
         // Connected with the buffer format, not the output device's format.
         // The engine resamples to the hardware rate itself; scheduling buffers
@@ -242,6 +287,7 @@ final class DeepgramSpeechClient {
 
     func stopPlayback() {
         isCancelled = true
+        sentenceToken += 1
         if playerNode.isPlaying {
             playerNode.stop()
         }
@@ -271,9 +317,12 @@ enum DeepgramError: LocalizedError {
     case missingKey
     case httpStatus(Int)
     case malformedResponse
+    case audioEngineStopped
 
     var errorDescription: String? {
         switch self {
+        case .audioEngineStopped:
+            return "The audio output stopped."
         case .missingKey:
             return "No Deepgram API key saved."
         case .httpStatus(let code):

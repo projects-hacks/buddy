@@ -222,12 +222,35 @@ final class KokoroSpeechClient: NSObject {
         let totalCharacters = text.count
         let totalDuration = player.duration
 
-        player.play()
+        // A player that will not start never calls its delegate, so waiting
+        // for the end would wait forever.
+        guard player.play() else {
+            audioPlayer = nil
+            try? FileManager.default.removeItem(at: clipURL)
+            throw KokoroError.playbackFailed
+        }
         startProgressTimer(totalCharacters: totalCharacters, totalDuration: totalDuration)
+
+        // Never longer than the clip plus a margin, in case the output stops
+        // without the player noticing.
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64((max(0, totalDuration) + 5) * 1_000_000_000))
+            guard !Task.isCancelled, let self, self.audioPlayer === player,
+                  self.activePlaybackContinuation != nil else { return }
+            TutorDebugLog.write("⚠️ Kokoro voice: a clip never finished playing, moving on")
+            self.stopPlayback()
+        }
+        defer { watchdog.cancel() }
 
         await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
-                activePlaybackContinuation = continuation
+                // Finished, or stopped, before the wait began.
+                if audioPlayer !== player {
+                    continuation.resume()
+                } else {
+                    resumePlaybackContinuation()
+                    activePlaybackContinuation = continuation
+                }
             }
         } onCancel: {
             Task { @MainActor in self.stopPlayback() }
@@ -326,11 +349,23 @@ final class KokoroSpeechClient: NSObject {
 extension KokoroSpeechClient: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            // A clip that was replaced finishing late is not the current one.
+            guard audioPlayer === player else { return }
             progressTimer?.invalidate()
             progressTimer = nil
+            audioPlayer = nil
             // Report the end of the text so any mark attached past the last
             // sampled position still fires.
             resumePlaybackContinuation()
+        }
+    }
+
+    /// A clip that cannot be decoded never finishes either.
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in
+            guard audioPlayer === player else { return }
+            TutorDebugLog.write("⚠️ Kokoro voice: clip could not be decoded (\(error?.localizedDescription ?? "unknown"))")
+            stopPlayback()
         }
     }
 }
@@ -356,9 +391,11 @@ enum KokoroError: LocalizedError {
     case badRequest
     case timedOut
     case generationFailed(String)
+    case playbackFailed
 
     var errorDescription: String? {
         switch self {
+        case .playbackFailed: return "The rendered clip would not play."
         case .notRunning: return "Kokoro helper is not running."
         case .badRequest: return "Could not encode the speech request."
         case .timedOut: return "Kokoro did not respond in time."
