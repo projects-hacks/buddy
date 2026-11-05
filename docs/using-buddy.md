@@ -115,6 +115,18 @@ Saying "show me the code" at any point skips straight there. A question about a 
 
 Drawing a design in Excalidraw, draw.io, Miro, Freeform or any whiteboard app, ask "what am I missing?" Buddy talks it through like a peer at the whiteboard: it marks your own boxes, and draws anything it would add as a dashed purple box beside where it belongs. It never scores the design.
 
+## Teach it back
+
+Explaining something is how you find out whether you understand it. Say **"let me explain consistent hashing back to you"**, "check my understanding of binary search", "can I teach you the TCP handshake", or just **"teach it back"** after a lesson. "Explain X to me" is the opposite and is answered as usual.
+
+The screen becomes paper titled **You explain: consistent hashing**, with "Explain it like you would to a friend. Buddy draws what you say." under it, and Buddy listens with no keys held. The bar at the bottom shows a red level meter and **Listening** for as long as the microphone is open, and the notch says **you're teaching** with your words as they are heard. Take your time and pause as you like. It ends when you say **"I'm done"** or **"that's it"**, press **Return** or **I'm done**, hold the talk keys, or stay quiet for eight seconds, and after three minutes at most. **Esc** or **Cancel** throws the explanation away; before anything is drawn that also leaves the board with nothing kept. A Bluetooth headset works here.
+
+Buddy then draws what you said, in purple: the parts you named, the links you stated with your own words on them, and nothing you did not say. A wrong claim is drawn the way you said it, and a part you mentioned but never connected stays on its own. Then it marks the gaps on the same drawing, in red and dashed so colour is never the only sign: a dashed outline for a part you left out, a red ring with the correction beside it for something wrong, a dashed arrow for a missing link, one spoken sentence each, at most four, the most important first. Your version is never replaced by the right one; the corrections sit beside it.
+
+Then, on the same board: **Try again** (or "let me try that part again") listens again and changes only the part you talk about, and checks it again. **Fill the gaps** has Buddy explain just those. Any other question is answered on the board as usual. **Leave board** or Esc leaves.
+
+What you got right counts as remembered in learning memory, and what you missed counts as shaky, so those ideas fade sooner on the map. The board, with what you said and what Buddy said, is kept in the Notebook as one page. A teach-back costs about a cent of model time for the drawing and the check, and with a Deepgram key about a cent a minute of listening, both in Spent today.
+
 ## Learning memory
 
 Buddy remembers the ideas it explains, across days. When a new question touches one, the answer builds on it ("the same trade-off as the consistent hashing from Tuesday"), and the lesson card shows **Builds on** with the idea's name. If you said you did not follow an explanation, the next one uses a different example.

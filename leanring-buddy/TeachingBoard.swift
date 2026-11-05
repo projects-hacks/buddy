@@ -28,6 +28,12 @@ enum BoardOperation: Equatable {
     case moveIntoGroup(identifier: String, groupIdentifier: String)
     case highlight(identifier: String)
     case remove(identifier: String)
+    /// Teach it back: something the student said is wrong. It is ringed in
+    /// red and the correction is written beside it; what they said stays.
+    case markWrong(identifier: String, correction: String)
+    /// Teach it back: the ideas the student got right and missed, for
+    /// learning memory. Draws nothing.
+    case verdict(rightIdeas: [String], missedIdeas: [String])
 }
 
 /// Where the model would like something. Only a starting point for the search.
@@ -66,6 +72,10 @@ struct BoardDrawCommand: Codable, Equatable {
         case remove
         /// Zoom or scroll the whole board.
         case viewport
+        /// Teach it back: a red ring that stays around something the student
+        /// said wrong, for as long as its correction stands. Its identifier
+        /// is "ring:" and the correction's id, so removing one removes both.
+        case ring
     }
 
     var action: Action
@@ -86,6 +96,9 @@ struct BoardDrawCommand: Codable, Equatable {
     var stubTag: Int?
     var arrivingRoute: [BoardPoint]?
     var tagFrames: [BoardRect]?
+    /// Teach it back: "student" (purple, their words) or "gap" (red,
+    /// dashed). Absent for Buddy's own pen.
+    var ink: String?
 }
 
 /// Where everything sits on a screen, in the drawing canvas's pixels. The
@@ -152,6 +165,10 @@ enum TutorBoardLog {
 final class TeachingBoard {
     private(set) var state = BoardState()
     let layout: BoardLayout
+    /// Teach it back: the pen for everything added or linked from now on,
+    /// the student's while their explanation is drawn and the gaps' while
+    /// it is checked. Nil is Buddy's own pen, as on every other board.
+    var inkForNewMarks: BoardInk?
     /// Calls that could not be carried out, for the log.
     private(set) var warnings: [String] = []
     /// The top-level element drawn last, where the next unanchored one goes beside.
@@ -178,6 +195,8 @@ final class TeachingBoard {
         state.currentTurn += 1
         thisTurnIdentifiers = []
         thisTurnAddedIdentifiers = []
+        gapIdentifierReplacements = [:]
+        gapMarksThisTurn = 0
         // Between turns is the moment to close up empty bands left by
         // rubbed-out parts. Done at the turn's first board call, so the
         // slide is drawn with the first sentence, and never at all in a turn
@@ -272,6 +291,9 @@ final class TeachingBoard {
     /// zoom or scroll the change needs comes first, so the new part is drawn
     /// where the student can already see it.
     func apply(_ operation: BoardOperation) -> [BoardDrawCommand] {
+        // Teach it back: the check marks the student's drawing and never
+        // changes it, whatever the model writes.
+        guard let operation = operationAllowedInGapCheck(operation) else { return [] }
         // Before this turn's first change is placed, so it lands on the
         // closed-up board.
         var compaction: [BoardDrawCommand] = []
@@ -293,6 +315,9 @@ final class TeachingBoard {
                 }
             }
         }
+        // Teach it back: labels moved out of a new arrow's way.
+        commands += labelRedrawsWaiting
+        labelRedrawsWaiting = []
         return commands
     }
 
@@ -343,15 +368,25 @@ final class TeachingBoard {
             connector.label = label.isEmpty ? connector.label : label
             connector.isDashed = isDashed
             connector.tone = tone ?? connector.tone
-            if existing == nil { state.insert(connector) }
+            if existing == nil {
+                connector.ink = inkForNewMarks
+                state.insert(connector)
+            }
             commands.append(routeAndDraw(&connector))
             focus = fromElement.frame.union(toElement.frame)
 
         case let .unlink(fromIdentifier, toIdentifier):
             guard state.connector(from: fromIdentifier, to: toIdentifier) != nil else { return [] }
             state.removeConnector(from: fromIdentifier, to: toIdentifier)
-            commands.append(BoardDrawCommand(action: .unlink,
-                                             identifier: BoardConnector.identifier(from: fromIdentifier, to: toIdentifier)))
+            let arrowIdentifier = BoardConnector.identifier(from: fromIdentifier, to: toIdentifier)
+            commands.append(BoardDrawCommand(action: .unlink, identifier: arrowIdentifier))
+            // Teach it back: an arrow said again differently loses the
+            // correction that was about the old one.
+            let corrections = state.elements.filter { $0.correctsIdentifier == arrowIdentifier }.map(\.identifier)
+            for correction in corrections { state.removeElement(correction) }
+            if !corrections.isEmpty {
+                commands.append(BoardDrawCommand(action: .remove, removedIdentifiers: corrections + corrections.map { "ring:\($0)" }))
+            }
 
         case let .update(identifier, value):
             guard var element = state.element(identifier) else {
@@ -431,7 +466,15 @@ final class TeachingBoard {
             if let lastTopLevelIdentifier, removedElements.contains(lastTopLevelIdentifier) {
                 self.lastTopLevelIdentifier = state.elements.last { $0.groupIdentifier == nil }?.identifier
             }
-            commands.append(BoardDrawCommand(action: .remove, removedIdentifiers: removedElements + Array(Set(removedConnectors)).sorted()))
+            // A correction takes its red ring with it, and an element that
+            // goes takes the corrections of it.
+            var removedRings = [element].filter { $0.correctsIdentifier != nil }.map { "ring:\($0.identifier)" }
+            for correction in state.elements where correction.correctsIdentifier.map({ removedElements.contains($0) || removedConnectors.contains($0) }) == true {
+                removedRings.append("ring:\(correction.identifier)")
+                removedElements.append(correction.identifier)
+                state.removeElement(correction.identifier)
+            }
+            commands.append(BoardDrawCommand(action: .remove, removedIdentifiers: removedElements + Array(Set(removedConnectors)).sorted() + removedRings))
             // A group that lost a member closes up around the rest, from its
             // top left, so it moves nothing and leaves no empty frame.
             if let groupIdentifier = element.groupIdentifier, var group = state.element(groupIdentifier) {
@@ -448,6 +491,63 @@ final class TeachingBoard {
                     commands += rerouteConnectors(touching: [groupIdentifier])
                 }
             }
+
+        case let .markWrong(identifier, correction):
+            // What is wrong is ringed where it is; the correction goes beside
+            // it as words in the gap's pen, placed like any element so it
+            // covers nothing the student said.
+            let targetFrame: BoardRect
+            let nearIdentifier: String
+            if let element = state.element(identifier) {
+                targetFrame = element.frame
+                nearIdentifier = identifier
+            } else if let connector = connectorNamed(identifier) {
+                let routeBounds = (connector.routePoints + (connector.targetStubPoints ?? [])).reduce(nil as BoardRect?) { bounds, point in
+                    let pointRect = BoardRect(x: point.x, y: point.y, width: 0, height: 0)
+                    return bounds.map { $0.union(pointRect) } ?? pointRect
+                }
+                guard let ringed = connector.labelFrame ?? routeBounds else { return [] }
+                targetFrame = ringed
+                nearIdentifier = connector.toIdentifier
+            } else {
+                warnings.append("board.wrong(\"\(identifier)\") names something not on the board")
+                return []
+            }
+            let correctionIdentifier = "fix-" + identifier.replacingOccurrences(of: ">", with: "-")
+            if state.element(correctionIdentifier) != nil {
+                return apply(.update(identifier: correctionIdentifier, value: .text(correction)))
+            }
+            // The correction touches its ring, on whichever side has room,
+            // so it reads as said about that claim and nothing else.
+            var correctionElement = BoardElement(identifier: correctionIdentifier, kind: .label, text: correction,
+                                                 groupIdentifier: nil, tone: nil,
+                                                 frame: BoardRect(x: 0, y: 0, width: 0, height: 0),
+                                                 addedInTurn: state.currentTurn, lastChangedInTurn: state.currentTurn,
+                                                 ink: .gap, correctsIdentifier: identifier)
+            let size = layout.naturalSize(of: correctionElement)
+            let ringFrame = targetFrame.insetBy(-Self.ringReach)
+            let addCommands: [BoardDrawCommand]
+            let placedFrame: BoardRect
+            if let besideRing = spotTouching(ringFrame, width: size.width, height: size.height,
+                                             ignoring: state.element(identifier) != nil ? [identifier] : [])
+                ?? layout.spotCloseBeside(ringFrame, width: size.width, height: size.height, in: state, farthestExtraDistance: 240) {
+                correctionElement.frame = besideRing
+                state.insert(correctionElement)
+                addCommands = [drawCommand(for: correctionElement, keepsShape: false)]
+                placedFrame = besideRing
+            } else {
+                (addCommands, placedFrame) = add(kind: .label, identifier: correctionIdentifier, text: correction,
+                                                 listItems: [], tableRows: [],
+                                                 placement: BoardPlacementHint(nearIdentifier: nearIdentifier, side: nil, groupIdentifier: nil),
+                                                 tone: nil, ink: .gap, correctsIdentifier: identifier)
+            }
+            commands.append(BoardDrawCommand(action: .ring, identifier: "ring:\(correctionIdentifier)", frame: targetFrame,
+                                             ink: BoardInk.gap.rawValue))
+            commands += addCommands
+            focus = targetFrame.union(placedFrame)
+
+        case .verdict:
+            return []
         }
 
         // The whole turn in view when it fits at the smallest zoom, else
@@ -473,11 +573,13 @@ final class TeachingBoard {
     // MARK: - Adding
 
     private func add(kind: BoardElement.Kind, identifier: String, text: String, listItems: [String],
-                     tableRows: [[String]], placement: BoardPlacementHint, tone: String?) -> ([BoardDrawCommand], BoardRect) {
+                     tableRows: [[String]], placement: BoardPlacementHint, tone: String?,
+                     ink: BoardInk? = nil, correctsIdentifier: String? = nil) -> ([BoardDrawCommand], BoardRect) {
         var element = BoardElement(identifier: identifier, kind: kind, text: text, listItems: listItems,
                                    tableRows: tableRows, groupIdentifier: nil, tone: tone,
                                    frame: BoardRect(x: 0, y: 0, width: 0, height: 0),
-                                   addedInTurn: state.currentTurn, lastChangedInTurn: state.currentTurn)
+                                   addedInTurn: state.currentTurn, lastChangedInTurn: state.currentTurn,
+                                   ink: ink ?? inkForNewMarks, correctsIdentifier: correctsIdentifier)
         let size = layout.naturalSize(of: element)
         var commands: [BoardDrawCommand] = []
 
@@ -509,6 +611,12 @@ final class TeachingBoard {
         if let nearIdentifier = placement.nearIdentifier, let nearElement = state.element(nearIdentifier) {
             // Beside a group's member from outside the group means beside the group.
             let anchorFrame = nearElement.groupIdentifier.flatMap { state.element($0)?.frame } ?? nearElement.frame
+            // Teach it back: a missing part sits next to the part of their
+            // drawing it belongs to whenever there is room that close.
+            if inkForNewMarks == .gap,
+               let close = layout.spotCloseBeside(anchorFrame, width: width, height: height, in: state) {
+                return close
+            }
             return layout.findFreeSpot(width: width, height: height, in: state, near: anchorFrame,
                                        preferredSide: placement.side,
                                        extraSpacing: placement.leavesRoomForArrow ? 110 : 0)
@@ -645,12 +753,21 @@ final class TeachingBoard {
             return BoardDrawCommand(action: .unlink, identifier: connector.identifier)
         }
         let endGroups = Set([fromElement.groupIdentifier, toElement.groupIdentifier].compactMap { $0 })
+        // Teach it back: no arrow there crosses a part (see below). The
+        // student's own arrows move other labels out of their way instead
+        // of counting them as walls, so a short link between neighbours is
+        // drawn straight rather than as two stubs; a gap's arrow goes round
+        // their labels, so the check never moves the student's words.
+        let isTeachBackArrow = connector.ink != nil || fromElement.ink != nil || toElement.ink != nil
+        let movesOtherLabels = connector.ink == .student
+        let otherLabelFrames = movesOtherLabels ? []
+            : state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
         let obstacles = state.elements.filter { element in
             element.kind != .group
                 && element.identifier != fromElement.identifier
                 && element.identifier != toElement.identifier
                 && !endGroups.contains(element.identifier)
-        }.map(\.frame) + state.connectors.filter { $0.identifier != connector.identifier }.compactMap(\.labelFrame)
+        }.map(\.frame) + otherLabelFrames
             + state.connectors.filter { $0.identifier != connector.identifier }.flatMap { $0.stubTagFrames ?? [] }
             // A group's title is words too, even the group an end sits in.
             + state.elements.filter { $0.kind == .group }.map { group in
@@ -665,7 +782,10 @@ final class TeachingBoard {
         connector.drawnLabelLines = nil
         // A line across the board, or through more than one thing, reads as
         // clutter: two short stubs with the same number say the same.
-        if route.crossings > 1 || route.length > layout.longestArrow {
+        // Teach it back: an arrow passing behind one of the student's parts
+        // reads as crossing their words, so there it never crosses anything.
+        let crossingsAllowed = isTeachBackArrow ? 0 : 1
+        func drawAsStubs(_ connector: inout BoardConnector) {
             state.replace(BoardConnector(fromIdentifier: connector.fromIdentifier, toIdentifier: connector.toIdentifier,
                                          label: connector.label, isDashed: connector.isDashed, tone: connector.tone,
                                          routePoints: [], labelFrame: nil, addedInTurn: connector.addedInTurn))
@@ -675,23 +795,90 @@ final class TeachingBoard {
             connector.routePoints = stubs.leaving
             connector.targetStubPoints = stubs.arriving
             connector.stubTagFrames = [stubs.leavingTag, stubs.arrivingTag]
-        } else {
+        }
+        func drawStraight(_ connector: inout BoardConnector) {
             connector.routePoints = route.points
             connector.stubTag = nil
             connector.targetStubPoints = nil
             connector.stubTagFrames = nil
         }
-        state.replace(connector)
-        // A stub whose start became a corner badge has no line there; its
-        // label goes by the arriving stub instead.
-        let labelRoute = connector.routePoints.count >= 2 ? connector.routePoints : (connector.targetStubPoints ?? [])
-        let placedLabel = layout.placeArrowLabel(connector.label, along: labelRoute, in: state,
-                                                 ignoringConnector: connector.identifier,
-                                                 alsoAvoiding: connector.stubTagFrames ?? [])
-        connector.labelFrame = placedLabel?.frame
-        connector.drawnLabelLines = placedLabel?.lines
-        state.replace(connector)
+        func placeLabel(_ connector: inout BoardConnector) {
+            state.replace(connector)
+            // A stub whose start became a corner badge has no line there; its
+            // label goes by the arriving stub instead.
+            let labelRoute = connector.routePoints.count >= 2 ? connector.routePoints : (connector.targetStubPoints ?? [])
+            let placedLabel = layout.placeArrowLabel(connector.label, along: labelRoute, in: state,
+                                                     ignoringConnector: connector.identifier,
+                                                     alsoAvoiding: connector.stubTagFrames ?? [])
+            connector.labelFrame = placedLabel?.frame
+            connector.drawnLabelLines = placedLabel?.lines
+            state.replace(connector)
+        }
+        let drawnAsStubs = route.crossings > crossingsAllowed || route.length > layout.longestArrow
+        if drawnAsStubs { drawAsStubs(&connector) } else { drawStraight(&connector) }
+        placeLabel(&connector)
+        // Teach it back: the words on an arrow are what the student said,
+        // or what a gap explains, and cut to "goes to the..." a wrong claim
+        // no longer says what was wrong. An arrow with no clear place for
+        // all of them is drawn as two stubs, whose arriving end usually has
+        // room, and kept that way if more of its words fit.
+        func wordsShown(_ connector: BoardConnector) -> Int {
+            guard connector.labelFrame != nil, let lines = connector.drawnLabelLines else { return 0 }
+            return lines.map(\.text).joined(separator: " ").replacingOccurrences(of: "\u{2026}", with: "")
+                .split(separator: " ").count
+        }
+        let allWords = connector.label.split(separator: " ").count
+        if connector.ink != nil, allWords > 0, wordsShown(connector) < allWords, !drawnAsStubs {
+            let straightWords = wordsShown(connector)
+            drawAsStubs(&connector)
+            placeLabel(&connector)
+            if wordsShown(connector) <= straightWords {
+                drawStraight(&connector)
+                placeLabel(&connector)
+            }
+        }
+        if movesOtherLabels, !movesLabelsOffTheWay(of: connector), connector.stubTag == nil {
+            // A label that had nowhere else to go stays, and this arrow is
+            // drawn as two stubs round it instead.
+            drawAsStubs(&connector)
+            placeLabel(&connector)
+            _ = movesLabelsOffTheWay(of: connector)
+        }
         return linkCommand(for: connector)
+    }
+
+    /// Redraws of arrows whose labels had to move, sent with the change
+    /// that moved them (apply adds them at the end).
+    private var labelRedrawsWaiting: [BoardDrawCommand] = []
+
+    /// Teach it back: any other arrow's label the new arrow passes through
+    /// is placed again, clear of everything, as placeArrowLabel always
+    /// places one. A label with no other clear place is put back where it
+    /// was, and false is returned, so the new arrow can go round it.
+    private func movesLabelsOffTheWay(of newConnector: BoardConnector) -> Bool {
+        let drawnPath = BoardLayout.sampledPoints(of: newConnector.routePoints) + (newConnector.targetStubPoints ?? [])
+        var everyLabelMoved = true
+        for var other in state.connectors where other.identifier != newConnector.identifier {
+            guard let labelFrame = other.labelFrame, BoardLayout.route(drawnPath, crosses: labelFrame.insetBy(-2)) else { continue }
+            let previousLines = other.drawnLabelLines
+            other.labelFrame = nil
+            other.drawnLabelLines = nil
+            state.replace(other)
+            let route = other.routePoints.count >= 2 ? other.routePoints : (other.targetStubPoints ?? [])
+            guard let placed = layout.placeArrowLabel(other.label, along: route, in: state, ignoringConnector: other.identifier,
+                                                      alsoAvoiding: other.stubTagFrames ?? []) else {
+                other.labelFrame = labelFrame
+                other.drawnLabelLines = previousLines
+                state.replace(other)
+                everyLabelMoved = false
+                continue
+            }
+            other.labelFrame = placed.frame
+            other.drawnLabelLines = placed.lines
+            state.replace(other)
+            labelRedrawsWaiting.append(linkCommand(for: other))
+        }
+        return everyLabelMoved
     }
 
     private func nextStubTag() -> Int {
@@ -754,14 +941,142 @@ final class TeachingBoard {
     private func drawCommand(for element: BoardElement, keepsShape: Bool) -> BoardDrawCommand {
         BoardDrawCommand(action: .element, identifier: element.identifier, kind: element.kind.rawValue,
                          tone: element.tone, geometry: BoardLayout.geometry(for: element, at: element.frame),
-                         keepsShape: keepsShape ? true : nil)
+                         keepsShape: keepsShape ? true : nil, ink: element.ink?.rawValue)
     }
 
     private func linkCommand(for connector: BoardConnector) -> BoardDrawCommand {
         BoardDrawCommand(action: .link, identifier: connector.identifier, tone: connector.tone,
                          route: connector.routePoints, labelLines: connector.drawnLabelLines,
-                         isDashed: connector.isDashed ? true : nil,
+                         isDashed: connector.isDashed || connector.ink == .gap ? true : nil,
                          stubTag: connector.stubTag, arrivingRoute: connector.targetStubPoints,
-                         tagFrames: connector.stubTagFrames)
+                         tagFrames: connector.stubTagFrames, ink: connector.ink?.rawValue)
+    }
+
+    // MARK: - Teach it back
+
+    /// Ids the check gave to a new mark that were already taken by the
+    /// student's drawing, this turn, and the fresh id each was given.
+    private var gapIdentifierReplacements: [String: String] = [:]
+    private var gapMarksThisTurn = 0
+    static let maximumGapMarks = 4
+    /// How far the red ring reaches past what it circles (draw-board.js
+    /// draws it 18 wide and 16 tall past the frame; the larger is used).
+    static let ringReach = 18.0
+
+    /// A spot for a correction that touches `ringFrame` from outside, on
+    /// the side where it fits closest: right, below, above, then left as
+    /// the order between sides that fit equally well. Nil when no side has
+    /// room near the ring.
+    private func spotTouching(_ ringFrame: BoardRect, width: Double, height: Double,
+                              ignoring ignoredIdentifiers: Set<String>) -> BoardRect? {
+        for distance in [6.0, 18, 36, 60, 100] {
+            for side in [BoardSide.right, .below, .above, .left] {
+                let candidates: [BoardRect]
+                switch side {
+                case .right, .left:
+                    let x = side == .right ? ringFrame.maxX + distance : ringFrame.minX - distance - width
+                    candidates = [ringFrame.midY - height / 2, ringFrame.minY, ringFrame.maxY - height]
+                        .map { BoardRect(x: x, y: $0, width: width, height: height) }
+                case .below, .above:
+                    let y = side == .below ? ringFrame.maxY + distance : ringFrame.minY - distance - height
+                    candidates = [ringFrame.midX - width / 2, ringFrame.minX, ringFrame.maxX - width]
+                        .map { BoardRect(x: $0, y: y, width: width, height: height) }
+                }
+                for candidate in candidates where !candidate.intersects(ringFrame)
+                    && layout.isFree(candidate, in: state, ignoring: ignoredIdentifiers, avoidingArrows: true, gap: 14) {
+                    // Clear of the ignored element too, which the ring hugs.
+                    let clearOfTarget = ignoredIdentifiers.compactMap { state.element($0)?.frame }
+                        .allSatisfy { !candidate.intersects($0.insetBy(-Self.ringReach)) }
+                    if clearOfTarget { return candidate }
+                }
+            }
+        }
+        return nil
+    }
+
+    /// While the gap check draws, only marks are made: what the student
+    /// said is never updated, rubbed out, unlinked or moved. A new mark
+    /// whose id is already one of theirs gets a fresh id, and arrows from
+    /// the same turn that name it follow it there.
+    private func operationAllowedInGapCheck(_ operation: BoardOperation) -> BoardOperation? {
+        guard inkForNewMarks == .gap else { return operation }
+        func isTheStudents(_ identifier: String) -> Bool {
+            if let element = state.element(identifier) { return element.ink != .gap }
+            if let connector = connectorNamed(identifier) { return connector.ink != .gap }
+            return false
+        }
+        func current(_ identifier: String) -> String { gapIdentifierReplacements[identifier] ?? identifier }
+        // At most four gaps a check: a missing part, a correction, or a
+        // missing link between two parts already there. A link to a part
+        // marked missing belongs to that part's gap.
+        let isNewGap: Bool
+        switch operation {
+        case .add(_, let identifier, _, _, _, _, _): isNewGap = state.element(current(identifier)) == nil
+        case .markWrong(let identifier, _): isNewGap = state.element("fix-" + identifier.replacingOccurrences(of: ">", with: "-")) == nil
+        case let .link(fromIdentifier, toIdentifier, _, _, _):
+            isNewGap = state.element(current(fromIdentifier))?.ink != .gap && state.element(current(toIdentifier))?.ink != .gap
+                && state.connector(from: current(fromIdentifier), to: current(toIdentifier)) == nil
+        default: isNewGap = false
+        }
+        if isNewGap {
+            guard gapMarksThisTurn < Self.maximumGapMarks else {
+                warnings.append("a fifth gap was left off: a check marks at most \(Self.maximumGapMarks)")
+                return nil
+            }
+            gapMarksThisTurn += 1
+        }
+        switch operation {
+        case let .add(kind, identifier, text, listItems, tableRows, placement, tone):
+            var markIdentifier = current(identifier)
+            if isTheStudents(markIdentifier) {
+                var suffix = 1
+                repeat { markIdentifier = "\(identifier)-gap\(suffix == 1 ? "" : String(suffix))"; suffix += 1 }
+                while state.element(markIdentifier) != nil
+                gapIdentifierReplacements[identifier] = markIdentifier
+            }
+            var markPlacement = placement
+            markPlacement.nearIdentifier = placement.nearIdentifier.map(current)
+            return .add(kind: kind, identifier: markIdentifier, text: text, listItems: listItems, tableRows: tableRows,
+                        placement: markPlacement, tone: tone)
+        case let .link(fromIdentifier, toIdentifier, label, isDashed, tone):
+            let from = current(fromIdentifier), to = current(toIdentifier)
+            // Relabelling one of their arrows would change what they said.
+            if let existing = state.connector(from: from, to: to), existing.ink != .gap {
+                warnings.append("the check tried to change the student's arrow \(existing.identifier): left as said")
+                return nil
+            }
+            return .link(fromIdentifier: from, toIdentifier: to, label: label, isDashed: isDashed, tone: tone)
+        case let .update(identifier, _), let .append(identifier, _), let .remove(identifier),
+             let .moveIntoGroup(identifier, _):
+            guard !isTheStudents(current(identifier)) else {
+                warnings.append("the check tried to change the student's \(identifier): left as said")
+                return nil
+            }
+            return operation
+        case let .unlink(fromIdentifier, toIdentifier):
+            guard !isTheStudents(BoardConnector.identifier(from: fromIdentifier, to: toIdentifier)) else {
+                warnings.append("the check tried to rub out the student's arrow \(fromIdentifier)>\(toIdentifier): left as said")
+                return nil
+            }
+            return operation
+        case .setTitle:
+            return nil
+        default:
+            return operation
+        }
+    }
+
+    /// Rubs out every gap mark (missing parts, missing links, corrections
+    /// and their rings) before the student's explanation is checked again,
+    /// so the new check starts from their drawing alone.
+    func removeGapMarks() -> [BoardDrawCommand] {
+        var commands: [BoardDrawCommand] = []
+        for connector in state.connectors where connector.ink == .gap {
+            commands += apply(.unlink(fromIdentifier: connector.fromIdentifier, toIdentifier: connector.toIdentifier))
+        }
+        for element in state.elements where element.ink == .gap && state.element(element.identifier) != nil {
+            commands += apply(.remove(identifier: element.identifier))
+        }
+        return commands
     }
 }

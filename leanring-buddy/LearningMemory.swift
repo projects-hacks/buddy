@@ -333,6 +333,69 @@ final class LearningMemory {
         save()
     }
 
+    // MARK: Teach it back hook (TeachBackSession.swift)
+
+    /// The student explained a topic back. What they got right was
+    /// recalled, which strengthens it as a review would (the FSRS curve
+    /// starts again from now, with the stability a successful recall
+    /// earns); what they missed or got wrong counts as lost, as "I didn't
+    /// follow" does, so the map shows those ideas fading. Ideas are found
+    /// by name or alias, then by the names-only match; a missed idea memory
+    /// does not hold on its own counts against the topic it belongs to. A
+    /// topic memory has never seen is filed as a lesson first.
+    func recordTeachBack(_ lesson: LessonToRemember, topic: String, rightIdeas: [String], missedIdeas: [String]) async {
+        guard isEnabled, isLoaded else { return }
+        let topicID = knownConceptID(named: topic)
+        var rightIDs = Set(rightIdeas.compactMap(knownConceptID(named:)))
+        var missedIDs = Set(missedIdeas.compactMap(knownConceptID(named:)))
+        let someMissedIdeaIsUnknown = missedIdeas.contains { knownConceptID(named: $0) == nil }
+
+        if topicID == nil && rightIDs.isEmpty && missedIDs.isEmpty {
+            // New to memory: filed from what Buddy said about it, so its
+            // summary is the right version, then weakened by the gaps.
+            await remember(lesson)
+            if !missedIdeas.isEmpty { markLost(lastLessonConceptIDs) }
+            TutorDebugLog.write("🧠 memory: teach-back of a new topic, filed\(missedIdeas.isEmpty ? "" : " and marked weak")")
+            return
+        }
+        appendToLessonLog(lesson)
+        if let topicID {
+            if someMissedIdeaIsUnknown { missedIDs.insert(topicID) } else if missedIDs.isEmpty { rightIDs.insert(topicID) }
+        }
+        rightIDs.subtract(missedIDs)
+        let now = lesson.date
+        for id in rightIDs {
+            guard let position = index.index(of: id) else { continue }
+            var concept = index.concepts[position]
+            let elapsedDays = now.timeIntervalSince(concept.lastExplainedAt) / 86_400
+            if now.timeIntervalSince(concept.lastExplainedAt) > Self.sameSittingSeconds {
+                let retrievability = ForgettingCurve.retrievability(elapsedDays: elapsedDays, stabilityDays: concept.stabilityDays)
+                concept.stabilityDays = ForgettingCurve.stabilityAfterReexplaining(concept.stabilityDays,
+                                                                                   retrievabilityAtTheTime: retrievability)
+            }
+            concept.lastExplainedAt = now
+            index.upsert(concept, vector: index.vector(at: position))
+        }
+        markLost(Array(missedIDs))
+        let touched = (rightIDs.union(missedIDs)).compactMap { id in index.index(of: id).map { index.concepts[$0] } }
+        onLessonFiled?(lesson, touched)
+        TutorDebugLog.write("🧠 memory: teach-back strengthened \(rightIDs.count), marked \(missedIDs.count) lost")
+        save()
+    }
+
+    /// A known idea by its name or an alias, else the best names-only match.
+    private func knownConceptID(named name: String) -> UUID? {
+        let normalised = ConceptText.normalisedName(name.lowercased())
+        guard !normalised.isEmpty else { return nil }
+        if let exact = index.concepts.first(where: { known in
+            ConceptText.normalisedName(known.name) == normalised
+                || known.aliases.contains { ConceptText.normalisedName($0) == normalised }
+        }) {
+            return exact.id
+        }
+        return namesOnlyRecall(question: name, screenContext: "").first?.concept.id
+    }
+
     /// Files one finished lesson away. Runs after the answer; nothing waits on it.
     func remember(_ lesson: LessonToRemember) async {
         guard isEnabled else { return }

@@ -29,7 +29,10 @@
     content: { x: 0, y: 0, w: 0, h: 0 }, titleOrigin: [56, 112], partsCard: [0, 0, 280], barBand: [0, 44],
     elements: {},   // id -> { group, textGroup, drawnX, drawnY, offsetX, offsetY }
     links: {},      // id -> group
+    rings: {},      // "ring:<correction id>" -> group, teach it back only
     highlights: [],
+    teachBack: null,  // { title, subtitle, phase } while teach it back is on the board
+    levelBars: [],
     worldTransform: 'translate(0px, 0px) scale(1)',
     isSpeaking: false
   };
@@ -106,7 +109,7 @@
     layer.appendChild(viewport);
     board.world = world;
 
-    board.barLayer = svgElement('g');
+    board.barLayer = svgElement('g', { id: 'board-bar' });
     layer.appendChild(board.barLayer);
 
     engineState.svg.insertBefore(layer, engineState.cardLayer);
@@ -138,7 +141,10 @@
     board.world = null;
     board.elements = {};
     board.links = {};
+    board.rings = {};
     board.highlights = [];
+    board.teachBack = null;
+    board.levelBars = [];
     board.titleGroup = null;
     board.partLineGroup = null;
   }
@@ -163,6 +169,16 @@
     const group = kit().svgElement('g');
     board.titleLayer.appendChild(group);
     board.partLineGroup = group;
+    // Teach it back: the invitation, from the approved design, instead of a part.
+    if (board.teachBack && board.teachBack.subtitle) {
+      const invitation = kit().svgElement('text', {
+        x: board.titleOrigin[0], y: board.titleOrigin[1] + 40, 'font-size': 26, 'font-family': kit().HAND_FONT,
+        fill: kit().TONES.grey
+      });
+      invitation.textContent = board.teachBack.subtitle;
+      group.appendChild(invitation);
+      return;
+    }
     const part = board.parts[board.currentPart];
     if (!part) return;
     const text = kit().svgElement('text', {
@@ -178,7 +194,7 @@
   function drawPartsCard() {
     const layer = board.partsCardLayer;
     while (layer.firstChild) layer.removeChild(layer.firstChild);
-    if (!board.parts.length) return;
+    if (!board.parts.length || board.teachBack) return;
     const svgElement = kit().svgElement;
     const [x, y, width] = board.partsCard;
     const rowHeight = 40;
@@ -241,39 +257,81 @@
       layer.appendChild(node);
       cursor += 28;
     }
-    const partCount = board.parts ? board.parts.length : 0;
-    label(partCount ? `Part ${board.currentPart + 1}` : 'Starting', { bold: true, gap: 14 });
-    separator();
-    label('Hold', { gap: 8 });
-    keycap('⌃');
-    keycap('⌥');
-    label('to ask about it', { gap: 14 });
-    separator();
-    // Leave board: a real button, pointer cursor and a hover wash, in the
-    // notch's own button style.
-    const button = svgElement('g', { class: 'board-leave', cursor: 'pointer' });
-    button.style.pointerEvents = 'auto';
-    button.style.cursor = 'pointer';
-    const buttonStart = cursor - 8;
-    const wash = svgElement('rect', { x: buttonStart, y: middle - 15, width: 10, height: 30, rx: 15, fill: 'rgba(255,255,255,0.10)' });
-    button.appendChild(wash);
-    const buttonLabel = svgElement('text', { x: cursor + 6, y: middle + 5, 'font-size': 14, 'font-family': UI_FONT, 'font-weight': 600, fill: 'rgba(255,255,255,0.95)' });
-    buttonLabel.textContent = 'Leave board';
-    button.appendChild(buttonLabel);
-    layer.appendChild(button);
-    const leaveWidth = textWidth(buttonLabel, 11, 14);
-    const escape = svgElement('text', { x: cursor + 6 + leaveWidth + 8, y: middle + 5, 'font-size': 13, 'font-family': UI_FONT, fill: 'rgba(255,255,255,0.5)' });
-    escape.textContent = 'esc';
-    button.appendChild(escape);
-    const escapeWidth = textWidth(escape, 3, 13);
-    wash.setAttribute('width', leaveWidth + escapeWidth + 34);
-    cursor += leaveWidth + escapeWidth + 34;
-    button.addEventListener('mouseenter', () => wash.setAttribute('fill', 'rgba(255,255,255,0.20)'));
-    button.addEventListener('mouseleave', () => wash.setAttribute('fill', 'rgba(255,255,255,0.10)'));
-    button.addEventListener('mousedown', event => {
-      event.preventDefault();
-      try { window.webkit.messageHandlers.clicky.postMessage({ type: 'leaveBoard' }); } catch (_) {}
-    });
+    // A real button: pointer cursor and a hover wash, in the notch's own
+    // button style; the primary one in the accent blue.
+    function barButton(words, hint, message, options = {}) {
+      const button = svgElement('g', { class: 'board-button', cursor: 'pointer' });
+      button.style.pointerEvents = 'auto';
+      button.style.cursor = 'pointer';
+      const restingFill = options.primary ? '#2F6FEB' : 'rgba(255,255,255,0.10)';
+      const hoverFill = options.primary ? '#4A84F0' : 'rgba(255,255,255,0.20)';
+      const wash = svgElement('rect', { x: cursor - 8, y: middle - 15, width: 10, height: 30, rx: 15, fill: restingFill });
+      button.appendChild(wash);
+      const buttonLabel = svgElement('text', { x: cursor + 6, y: middle + 5, 'font-size': 14, 'font-family': UI_FONT, 'font-weight': 600, fill: 'rgba(255,255,255,0.95)' });
+      buttonLabel.textContent = words;
+      button.appendChild(buttonLabel);
+      layer.appendChild(button);
+      const labelWidth = textWidth(buttonLabel, words.length, 14);
+      let hintWidth = 0;
+      if (hint) {
+        const hintNode = svgElement('text', { x: cursor + 6 + labelWidth + 8, y: middle + 5, 'font-size': 13, 'font-family': UI_FONT, fill: options.primary ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.5)' });
+        hintNode.textContent = hint;
+        button.appendChild(hintNode);
+        hintWidth = textWidth(hintNode, hint.length, 13) + 8;
+      }
+      wash.setAttribute('width', labelWidth + hintWidth + 26);
+      cursor += labelWidth + hintWidth + 34;
+      button.addEventListener('mouseenter', () => wash.setAttribute('fill', hoverFill));
+      button.addEventListener('mouseleave', () => wash.setAttribute('fill', restingFill));
+      button.addEventListener('mousedown', event => {
+        event.preventDefault();
+        try { window.webkit.messageHandlers.clicky.postMessage(message); } catch (_) {}
+      });
+    }
+    function askHint() {
+      label('Hold', { gap: 8 });
+      keycap('⌃');
+      keycap('⌥');
+      label('to ask about it', { gap: 14 });
+    }
+
+    const teachBack = board.teachBack;
+    board.levelBars = [];
+    if (teachBack && teachBack.phase === 'listening') {
+      // The live red meter and "Listening" stay in sight for as long as the
+      // microphone is open: hands free is only fair when it is visible.
+      for (let index = 0; index < 5; index++) {
+        const bar = svgElement('rect', { x: cursor + index * 6, y: middle - 3, width: 3.5, height: 6, rx: 1.75, fill: kit().TONES.red });
+        layer.appendChild(bar);
+        board.levelBars.push(bar);
+      }
+      cursor += 38;
+      label('Listening', { bold: true, gap: 16 });
+      label('No need to hold the keys. Take your time.', { dim: true, gap: 22 });
+      separator();
+      barButton('✓ I’m done', 'return', { type: 'teachBack', action: 'done' }, { primary: true });
+      barButton('Cancel', 'esc', { type: 'teachBack', action: 'cancel' });
+    } else if (teachBack && teachBack.phase === 'result') {
+      label('Your version', { bold: true, gap: 14 });
+      separator();
+      barButton('Fill the gaps', null, { type: 'teachBack', action: 'fill' }, { primary: true });
+      barButton('Try again', null, { type: 'teachBack', action: 'again' });
+      separator();
+      askHint();
+      separator();
+      barButton('Leave board', 'esc', { type: 'leaveBoard' });
+    } else if (teachBack) {
+      label(teachBack.phase === 'checking' ? 'Checking what you said' : 'Drawing what you said', { bold: true, gap: 14 });
+      separator();
+      barButton('Leave board', 'esc', { type: 'leaveBoard' });
+    } else {
+      const partCount = board.parts ? board.parts.length : 0;
+      label(partCount ? `Part ${board.currentPart + 1}` : 'Starting', { bold: true, gap: 14 });
+      separator();
+      askHint();
+      separator();
+      barButton('Leave board', 'esc', { type: 'leaveBoard' });
+    }
 
     // Centre the capsule on the screen, sized to what it holds.
     const barWidth = cursor + 10;
@@ -282,6 +340,47 @@
     capsule.setAttribute('width', barWidth);
     layer.setAttribute('transform', `translate(${left} 0)`);
     layer.style.opacity = board.isSpeaking ? '0.4' : '1';
+  }
+
+  // Teach it back, from TeachBackSession.swift: { title, subtitle, phase }
+  // where phase is listening, drawing, checking or result. The title is
+  // the board's own title, written once; the bar and the line under the
+  // title follow the phase.
+  function setTeachBack(options) {
+    if (!board.layer) return;
+    const previous = board.teachBack;
+    board.teachBack = options ? Object.assign({}, previous || {}, options) : null;
+    // Written at once rather than as a pen mark: the title is up before
+    // any sentence is said, and a mark waits for a sentence to draw it.
+    if (options && options.title && (!previous || previous.title !== options.title)) {
+      if (board.titleGroup) board.titleGroup.remove();
+      const group = kit().svgElement('g');
+      board.titleLayer.appendChild(group);
+      board.titleGroup = group;
+      const title = kit().svgElement('text', {
+        x: board.titleOrigin[0], y: board.titleOrigin[1], 'font-size': 44, 'font-weight': 700,
+        'font-family': kit().HAND_FONT, fill: kit().TONES.ink
+      });
+      title.textContent = options.title;
+      group.appendChild(title);
+    }
+    drawPartLine();
+    drawPartsCard();
+    drawBar();
+  }
+
+  // The microphone's level, 0 to 1, several times a second while listening:
+  // five bars that rise from the middle, the loudest in the centre.
+  function setLevel(level) {
+    const clamped = Math.max(0, Math.min(1, Number(level) || 0));
+    const [barTop, barHeight] = board.barBand;
+    const middle = barTop + barHeight / 2;
+    const shape = [0.45, 0.8, 1, 0.75, 0.5];
+    board.levelBars.forEach((bar, index) => {
+      const height = 6 + clamped * 18 * shape[index];
+      bar.setAttribute('height', height.toFixed(1));
+      bar.setAttribute('y', (middle - height / 2).toFixed(1));
+    });
   }
 
   // While Buddy speaks the bar steps back to 40%, and returns on any pointer
@@ -342,7 +441,7 @@
         actionMark(0.25, seconds => fadeAwayAndRemove(oldText, seconds));
         existing.textGroup = kit().svgElement('g');
         existing.group.appendChild(existing.textGroup);
-        writeLines(existing.textGroup, geometry.textLines, existing);
+        writeLines(existing.textGroup, geometry.textLines, existing, inkTone(command.ink));
         return;
       }
       if (existing) {
@@ -354,10 +453,10 @@
       layer.appendChild(group);
       const entry = { group, textGroup: null, drawnX: geometry.frame.x, drawnY: geometry.frame.y, offsetX: 0, offsetY: 0 };
       board.elements[command.identifier] = entry;
-      drawShape(group, command.kind, geometry, command.tone);
+      drawShape(group, command.kind, geometry, command.tone, command.ink);
       entry.textGroup = kit().svgElement('g');
       group.appendChild(entry.textGroup);
-      writeLines(entry.textGroup, geometry.textLines, entry);
+      writeLines(entry.textGroup, geometry.textLines, entry, inkTone(command.ink));
     },
 
     link(command) {
@@ -367,7 +466,11 @@
       board.linkLayer.appendChild(group);
       board.links[command.identifier] = group;
       const points = command.route.map(point => [point.x, point.y]);
-      const options = kit().roughOptions({ tone: command.tone || 'ink', size: 2.2, dashed: !!command.isDashed }, { roughness: 0.9 });
+      // Teach it back: the student's arrows in their purple, a missing link
+      // in the gap's dashed red; Buddy's own arrows keep their tone.
+      const lineTone = inkTone(command.ink) || command.tone || 'ink';
+      command = Object.assign({}, command, { tone: lineTone });
+      const options = kit().roughOptions({ tone: lineTone, size: 2.2, dashed: !!command.isDashed }, { roughness: 0.9 });
       if (points.length >= 2) {
         const node = points.length === 3
           ? kit().state().roughSvg.curve(points, options)
@@ -393,8 +496,26 @@
         kit().arrowHead(group, points.length === 3 ? [points[1], points[2]] : points, command.tone || 'ink', true);
       }
       for (const line of command.labelLines || []) {
-        kit().writeText(group, line.x, line.y, line.text, { size: line.size, tone: 'grey' });
+        kit().writeText(group, line.x, line.y, line.text, { size: line.size, tone: inkTone(command.ink) || 'grey' });
       }
+    },
+
+    // Teach it back: a red ring that stays around what the student said
+    // wrong, until its correction is rubbed out.
+    ring(command) {
+      const frame = command.frame;
+      const centreX = frame.x + frame.width / 2, centreY = frame.y + frame.height / 2;
+      const radiusX = frame.width / 2 + 18, radiusY = frame.height / 2 + 16;
+      const points = [];
+      for (let index = 0; index <= 48; index++) {
+        const angle = -2.0 + (index / 48) * Math.PI * 2 * 1.06;
+        const wobble = 1 + Math.sin(index * 1.3) * 0.03;
+        points.push([centreX + Math.cos(angle) * radiusX * wobble, centreY + Math.sin(angle) * radiusY * wobble]);
+      }
+      const ring = kit().svgElement('g', { 'data-board-ring': command.identifier });
+      board.highlightLayer.appendChild(ring);
+      kit().inkStroke(ring, points, { tone: 'red', size: 3.2, glow: false });
+      board.rings[command.identifier] = ring;
     },
 
     unlink(command) {
@@ -449,6 +570,7 @@
       for (const identifier of command.removedIdentifiers || []) {
         if (board.elements[identifier]) { nodes.push(board.elements[identifier].group); delete board.elements[identifier]; }
         if (board.links[identifier]) { nodes.push(board.links[identifier]); delete board.links[identifier]; }
+        if (board.rings[identifier]) { nodes.push(board.rings[identifier]); delete board.rings[identifier]; }
       }
       actionMark(0.4, seconds => nodes.flatMap(node => fadeAwayAndRemove(node, seconds)));
     },
@@ -461,12 +583,20 @@
   // Words are given at the element's current place; an element that slid
   // since it was drawn has its own translate, so new words are written in
   // the coordinates it was drawn in.
-  function writeLines(layer, textLines, entry) {
+  function writeLines(layer, textLines, entry, toneName) {
     const shiftX = entry ? entry.offsetX : 0, shiftY = entry ? entry.offsetY : 0;
     for (const line of textLines || []) {
       kit().writeText(layer, line.x - shiftX, line.y - shiftY, line.text,
-        { size: line.size, bold: line.isBold, anchor: line.anchor === 'middle' ? 'middle' : 'start' });
+        { size: line.size, bold: line.isBold, anchor: line.anchor === 'middle' ? 'middle' : 'start', tone: toneName || undefined });
     }
+  }
+
+  // Teach it back's two pens (BoardInk in BoardState.swift): the student's
+  // words in purple, the gaps in red. Buddy's own pen has no ink name.
+  function inkTone(ink) {
+    if (ink === 'student') return 'purple';
+    if (ink === 'gap') return 'red';
+    return null;
   }
 
   // A box or circle is filled solid: its colour washed onto the paper, or
@@ -482,11 +612,30 @@
     return kit().roughOptions({ tone: 'ink', fill: hex, fillAlpha: 1, size: 2.4 });
   }
 
-  function drawShape(group, kind, geometry, toneName) {
+  function drawShape(group, kind, geometry, toneName, ink) {
     const rough = kit().state().roughSvg;
     const frame = geometry.frame;
     const svgElement = kit().svgElement;
     const TONES = kit().TONES;
+    // Teach it back: what the student said, outlined in their purple on a
+    // light wash, solid like every box so an arrow goes behind it and never
+    // across their words; a part they left out, as a dashed red outline on paper.
+    if (ink === 'student' && (kind === 'box' || kind === 'circle')) {
+      const options = kit().roughOptions({ tone: 'purple', fill: '#ECE5F6', fillAlpha: 1, size: 2.4 });
+      const node = kind === 'box'
+        ? rough.rectangle(frame.x, frame.y, frame.width, frame.height, options)
+        : rough.circle(frame.x + frame.width / 2, frame.y + frame.height / 2, Math.min(frame.width, frame.height), options);
+      kit().roughShape(group, node, 0.6);
+      return;
+    }
+    if (ink === 'gap' && kind !== 'label') {
+      const options = kit().roughOptions({ tone: 'red', fill: 'paper', fillAlpha: 1, size: 2.2, dashed: true }, { roughness: 0.8 });
+      const node = kind === 'circle'
+        ? rough.circle(frame.x + frame.width / 2, frame.y + frame.height / 2, Math.min(frame.width, frame.height), options)
+        : rough.rectangle(frame.x, frame.y, frame.width, frame.height, options);
+      kit().roughShape(group, node, 0.5, true);
+      return;
+    }
     switch (kind) {
       case 'box': {
         kit().roughShape(group, rough.rectangle(frame.x, frame.y, frame.width, frame.height, solidFill(toneName)), 0.6);
@@ -551,7 +700,7 @@
   });
 
   window.BuddyBoard = {
-    open, close, beginTurn, apply, setParts, setSpeaking,
+    open, close, beginTurn, apply, setParts, setSpeaking, setTeachBack, setLevel,
     reportError: message => kit().reportError(message),
     isOpen: () => !!board.layer
   };

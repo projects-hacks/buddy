@@ -1,0 +1,261 @@
+{
+  "about": "Spoken explanations with deliberate errors and omissions, for teach it back. Each lists what was said (parts, stated relations), the wrong claims as stated and as corrected, words for parts that were NOT said (none of them may appear in the student's purple drawing), and the gaps a good check finds. Keywords match a word's start, so 'serv' matches 'server' and 'servers'.",
+  "fixtures": [
+    {
+      "name": "consistent-hashing",
+      "topic": "consistent hashing",
+      "explanation": "Okay so consistent hashing. Um, you have a circle, like a ring of numbers, and each server gets a spot on the circle by hashing its name. Then when a key comes in you hash the key too and it lands somewhere on the circle, and then the key goes to the previous server, like the one just before it going backwards. And there's also replication, I think.",
+      "said_parts": [["circle", "ring"], ["server"], ["key"], ["replicat"]],
+      "stated_relations": [
+        {"ends": [["server"], ["circle", "ring", "spot"]]},
+        {"ends": [["key"], ["circle", "ring", "somewhere", "lands"]]},
+        {"ends": [["key"], ["server", "previous"]]}
+      ],
+      "unconnected_parts": [["replicat"]],
+      "wrong_claims": [{"claim": "the key goes to the previous server", "as_stated": ["previous", "before", "backward"], "corrected": ["clockwise", "next", "after", "successor"]}],
+      "unsaid": ["virtual", "clockwise", "join", "leave", "added", "removed", "successor", "rebalanc"],
+      "expected_gaps": [
+        {"gap": "the key goes to the next server clockwise", "words": ["clockwise", "next", "after", "successor"]},
+        {"gap": "adding or removing a server moves only a few keys", "words": ["add", "join", "leave", "remov", "few keys", "only the keys", "moves", "moved"]}
+      ]
+    },
+    {
+      "name": "tcp-handshake",
+      "topic": "the TCP three way handshake",
+      "explanation": "So the TCP handshake. The client sends a SYN to the server, then the server sends back an ACK, and then the connection is open and they can send data. Um, and the sequence numbers are random.",
+      "said_parts": [["client"], ["server"], ["syn"], ["ack"], ["open", "connection"], ["sequence", "random"]],
+      "stated_relations": [
+        {"ends": [["client"], ["server", "syn"]]},
+        {"ends": [["server"], ["client", "ack"]]}
+      ],
+      "unconnected_parts": [["sequence", "random"]],
+      "wrong_claims": [{"claim": "the server answers with a plain ACK", "as_stated": ["ack"], "corrected": ["syn-ack", "synack", "syn ack", "syn/ack", "syn and ack", "syn + ack", "syn+ack"]}],
+      "unsaid": ["syn-ack", "synack", "syn ack", "syn/ack", "syn+ack", "fin", "window", "final ack", "third", "three"],
+      "expected_gaps": [
+        {"gap": "the server answers SYN-ACK, not ACK", "words": ["syn-ack", "synack", "syn ack", "syn/ack", "syn+ack", "syn and ack", "its own syn", "own syn", "syn too", "a syn"]},
+        {"gap": "the client sends a final ACK as the third step", "words": ["final ack", "third", "client sends an ack", "client acks", "ack back", "last ack", "client answers", "client replies", "acknowledg"]}
+      ]
+    },
+    {
+      "name": "binary-search",
+      "topic": "binary search",
+      "explanation": "Binary search. You take a list and you look at the middle element, and if the thing you want is bigger you go left, and if it's smaller you go right, and you keep halving it until you find it. It's O of n.",
+      "said_parts": [["list"], ["middle"], ["left"], ["right"], ["halv", "half"], ["find", "found"], ["o of n", "o(n)", "of n", "linear"]],
+      "stated_relations": [
+        {"ends": [["middle", "bigger"], ["left"]]},
+        {"ends": [["middle", "smaller"], ["right"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [
+        {"claim": "bigger goes left", "as_stated": ["left"], "corrected": []},
+        {"claim": "it is O of n", "as_stated": ["o of n", "o(n)", "of n"], "corrected": ["log"]}
+      ],
+      "unsaid": ["sorted", "log", "not found", "missing", "low", "high", "pointer"],
+      "expected_gaps": [
+        {"gap": "a bigger target is searched on the right", "words": ["right", "swap", "backwards", "other way", "reversed", "upper"]},
+        {"gap": "it is O of log n", "words": ["log"]},
+        {"gap": "the list must be sorted", "words": ["sorted", "order"]}
+      ]
+    },
+    {
+      "name": "lru-cache",
+      "topic": "an LRU cache",
+      "explanation": "A cache is a small fast memory that sits in front of the database. When you read something you check the cache first, and if it's there that's a hit and you return it. If it's not there you go to the database. And when the cache is full you kick out the oldest item, the one that was put in first.",
+      "said_parts": [["cache"], ["database"], ["hit"], ["full"], ["oldest", "first"]],
+      "stated_relations": [
+        {"ends": [["cache", "memory"], ["database"]]},
+        {"ends": [["read", "check", "request"], ["cache", "memory"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "evicts the item put in first", "as_stated": ["oldest", "put in first", "first"], "corrected": ["least recently", "recently used", "lru"]}],
+      "unsaid": ["least recently", "recently used", "ttl", "write", "store it", "put it in the cache", "copy", "miss", "move to front"],
+      "expected_gaps": [
+        {"gap": "evict the least recently used, not the first put in", "words": ["least recently", "recently used", "longest unused", "used least", "not used"]},
+        {"gap": "on a miss the value is put in the cache", "words": ["store", "put it in", "add it", "copy", "save", "keep it", "miss"]}
+      ]
+    },
+    {
+      "name": "photosynthesis",
+      "topic": "photosynthesis",
+      "explanation": "Photosynthesis is how plants make food. The leaves take in oxygen from the air and water from the roots, and with sunlight in the chloroplasts they make glucose, and they give off carbon dioxide.",
+      "said_parts": [["leav", "leaf"], ["oxygen"], ["water"], ["sunlight", "light"], ["chloroplast"], ["glucose", "sugar"], ["carbon"]],
+      "stated_relations": [
+        {"ends": [["oxygen"], ["leav", "leaf", "chloroplast", "plant"]]},
+        {"ends": [["water", "root"], ["leav", "leaf", "chloroplast", "plant"]]},
+        {"ends": [["leav", "leaf", "chloroplast", "plant", "sunlight"], ["glucose", "sugar"]]},
+        {"ends": [["leav", "leaf", "chloroplast", "plant"], ["carbon"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [
+        {"claim": "takes in oxygen", "as_stated": ["oxygen"], "corrected": []},
+        {"claim": "gives off carbon dioxide", "as_stated": ["carbon"], "corrected": []}
+      ],
+      "unsaid": ["chlorophyll", "calvin", "atp", "stomata", "co2 in", "takes in carbon"],
+      "expected_gaps": [
+        {"gap": "they take in carbon dioxide, not oxygen", "words": ["carbon dioxide in", "take in carbon", "takes in carbon", "absorb carbon", "co2", "carbon dioxide"]},
+        {"gap": "they give off oxygen, not carbon dioxide", "words": ["give off oxygen", "release oxygen", "releases oxygen", "oxygen out", "gives off oxygen", "oxygen is released", "produce oxygen", "oxygen"]}
+      ]
+    },
+    {
+      "name": "dns-resolution",
+      "topic": "DNS resolution",
+      "explanation": "When you type a website, the browser asks the DNS resolver for the IP address. The resolver asks the root server, and the root server gives back the IP address of the website, and then the browser connects to it. Oh and the answer gets cached.",
+      "said_parts": [["browser"], ["resolver"], ["root"], ["ip"], ["cache"]],
+      "stated_relations": [
+        {"ends": [["browser"], ["resolver"]]},
+        {"ends": [["resolver"], ["root"]]},
+        {"ends": [["root"], ["ip", "resolver", "browser"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "the root server gives the IP address", "as_stated": ["ip"], "corrected": ["tld", "top level", "authoritative", ".com", "referral", "refers"]}],
+      "unsaid": ["tld", "top level", "top-level", "authoritative", ".com", "referral", "refers", "ttl"],
+      "expected_gaps": [
+        {"gap": "the root only points to the TLD server", "words": ["tld", "top level", "top-level", "refer", "points", "only knows", "doesn't know", "does not know"]},
+        {"gap": "the authoritative server gives the actual address", "words": ["authoritative", "nameserver", "name server", "own server"]}
+      ]
+    },
+    {
+      "name": "merge-sort",
+      "topic": "merge sort",
+      "explanation": "Merge sort. You split the array in half, and you keep splitting until each piece has one element. Then you merge the pieces back together. And it sorts in place so it doesn't need any extra memory.",
+      "said_parts": [["array"], ["split", "half"], ["one element"], ["merge"], ["in place", "extra memory", "no extra"]],
+      "stated_relations": [
+        {"ends": [["array", "split"], ["half", "piece", "one element", "split"]]},
+        {"ends": [["piece", "one element", "split"], ["merge"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "it sorts in place with no extra memory", "as_stated": ["in place", "extra memory", "no extra", "memory"], "corrected": ["o of n", "o(n)", "needs extra", "extra array", "temporary", "auxiliary"]}],
+      "unsaid": ["compar", "smaller", "log", "sorted order", "front", "auxiliary", "temporary"],
+      "expected_gaps": [
+        {"gap": "merging compares the fronts so the result is sorted", "words": ["compar", "smaller", "sorted order", "in order", "front", "smallest"]},
+        {"gap": "it needs extra memory, not in place", "words": ["extra", "memory", "in place", "not in place", "auxiliary", "temporary", "o of n space", "space"]}
+      ]
+    },
+    {
+      "name": "supply-and-demand",
+      "topic": "supply and demand",
+      "explanation": "So when the price goes up, people want to buy more of it, that's demand. And sellers want to sell more when the price goes up, that's supply. And where they cross is the equilibrium price.",
+      "said_parts": [["price"], ["demand", "buy more"], ["supply", "sell more"], ["equilibrium", "cross"]],
+      "stated_relations": [
+        {"ends": [["price"], ["demand", "buy"]]},
+        {"ends": [["price"], ["supply", "sell"]]},
+        {"ends": [["demand", "supply", "cross"], ["equilibrium"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "demand rises with price", "as_stated": ["buy more", "more"], "corrected": ["buy less", "less", "fewer", "falls", "down"]}],
+      "unsaid": ["shortage", "surplus", "shift", "elastic", "curve slopes", "buy less", "fewer"],
+      "expected_gaps": [
+        {"gap": "people buy less when the price rises", "words": ["less", "fewer", "falls", "drops", "down", "decreas", "lower"]}
+      ]
+    },
+    {
+      "name": "mark-and-sweep",
+      "topic": "mark and sweep garbage collection",
+      "explanation": "The garbage collector starts from the roots, like global variables and the stack, and it marks every object it can reach. Then it goes through memory and frees everything that is marked.",
+      "said_parts": [["root"], ["global", "stack"], ["mark", "reach"], ["memory", "free"]],
+      "stated_relations": [
+        {"ends": [["root", "global", "stack", "collector"], ["mark", "object", "reach"]]},
+        {"ends": [["memory", "sweep", "mark", "collector", "goes through"], ["free"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "frees what is marked", "as_stated": ["marked"], "corrected": ["unmarked", "not marked", "unreachable", "unreached"]}],
+      "unsaid": ["unmarked", "not marked", "unreachable", "generation", "reference count", "compact", "clear the marks"],
+      "expected_gaps": [
+        {"gap": "it frees what is NOT marked", "words": ["unmarked", "not marked", "unreachable", "couldn't reach", "could not reach", "can't reach", "cannot reach", "wasn't marked", "were not marked", "weren't marked"]}
+      ]
+    },
+    {
+      "name": "vaccines",
+      "topic": "how vaccines work",
+      "explanation": "A vaccine puts a weakened or dead virus into your body, and your red blood cells make antibodies against it, and then the next time you see the real virus you already have the antibodies.",
+      "said_parts": [["vaccine"], ["weakened", "dead", "virus"], ["red blood"], ["antibod"], ["real virus", "next time"]],
+      "stated_relations": [
+        {"ends": [["vaccine"], ["virus", "body", "weakened", "dead"]]},
+        {"ends": [["red blood"], ["antibod"]]},
+        {"ends": [["real virus", "next time", "antibod"], ["antibod", "real virus", "next time"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "red blood cells make antibodies", "as_stated": ["red blood"], "corrected": ["white blood", "b cell", "b-cell", "lymphocyte", "plasma"]}],
+      "unsaid": ["white blood", "b cell", "b-cell", "memory cell", "memory", "t cell", "lymphocyte", "plasma"],
+      "expected_gaps": [
+        {"gap": "white blood cells (B cells) make antibodies", "words": ["white blood", "b cell", "b-cell", "lymphocyte", "plasma"]},
+        {"gap": "memory cells are what last and respond fast", "words": ["memory"]}
+      ]
+    },
+    {
+      "name": "two-phase-commit",
+      "topic": "two phase commit",
+      "explanation": "Two phase commit is for distributed transactions. The coordinator sends a prepare message to all the participants, and each one votes yes or no. Then if most of them vote yes, the coordinator tells everyone to commit.",
+      "said_parts": [["coordinator"], ["participant"], ["prepare"], ["vote", "yes or no"], ["commit"], ["most"]],
+      "stated_relations": [
+        {"ends": [["coordinator", "prepare"], ["participant", "prepare"]]},
+        {"ends": [["participant", "vote"], ["vote", "coordinator", "yes"]]},
+        {"ends": [["coordinator", "most", "yes", "vote"], ["commit", "participant", "everyone"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "commits if most vote yes", "as_stated": ["most", "majority"], "corrected": ["all", "every", "unanim"]}],
+      "unsaid": ["abort", "roll back", "rollback", "log", "block", "timeout", "unanim", "all yes", "every participant"],
+      "expected_gaps": [
+        {"gap": "commit only if every participant votes yes", "words": ["all", "every", "unanim", "any no", "single no", "one no"]},
+        {"gap": "if any votes no, everyone aborts", "words": ["abort", "roll back", "rollback", "any no", "one no", "single no"]}
+      ]
+    },
+    {
+      "name": "newtons-second-law",
+      "topic": "Newton's second law",
+      "explanation": "Newton's second law says force equals mass times velocity. So if you push something heavier with the same force, it moves slower.",
+      "said_parts": [["force"], ["mass", "heavier"], ["velocity"], ["slower"]],
+      "stated_relations": [
+        {"ends": [["mass", "velocity", "times"], ["force", "mass", "velocity"]]},
+        {"ends": [["heavier", "mass", "same force", "push"], ["slower"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "force is mass times velocity", "as_stated": ["velocity"], "corrected": ["accelerat"]}],
+      "unsaid": ["accelerat", "newtons", "momentum", "f = ma", "f=ma"],
+      "expected_gaps": [
+        {"gap": "force equals mass times acceleration", "words": ["accelerat"]}
+      ]
+    },
+    {
+      "name": "hash-table",
+      "topic": "hash tables",
+      "explanation": "A hash table stores key value pairs. You run the key through a hash function to get an index into an array, and you put the value in that bucket. If two keys land in the same bucket that's a collision, and you can keep a little linked list in the bucket for them. So lookups are usually constant time.",
+      "said_parts": [["key"], ["hash function"], ["index", "array"], ["bucket"], ["collision"], ["linked list", "list"], ["constant"]],
+      "stated_relations": [
+        {"ends": [["key"], ["hash"]]},
+        {"ends": [["hash"], ["index", "array", "bucket"]]},
+        {"ends": [["collision", "bucket", "same bucket"], ["linked list", "list", "bucket", "collision"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [],
+      "unsaid": ["resiz", "load factor", "rehash", "open addressing", "probing", "worst case"],
+      "expected_gaps": []
+    },
+    {
+      "name": "osmosis",
+      "topic": "osmosis",
+      "explanation": "Osmosis is when water moves across a membrane from where there's less water to where there's more water. It keeps going until both sides are the same.",
+      "said_parts": [["water"], ["membrane"], ["less water"], ["more water"], ["same", "equal"]],
+      "stated_relations": [
+        {"ends": [["less water", "less"], ["more water", "more"]]}
+      ],
+      "unconnected_parts": [],
+      "wrong_claims": [{"claim": "water moves from less water to more water", "as_stated": ["less water", "less"], "corrected": ["high water", "higher water", "more water to", "dilute", "concentrated", "solute"]}],
+      "unsaid": ["semi", "permeable", "solute", "dilute", "concentrat", "pressure", "salt"],
+      "expected_gaps": [
+        {"gap": "water moves from more water to less water (toward more solute)", "words": ["more water to", "dilute", "concentrat", "solute", "higher", "other way", "reverse", "backwards", "opposite"]},
+        {"gap": "the membrane is semi-permeable: water passes, solutes do not", "words": ["semi", "permeable", "solute", "only water", "lets water"]}
+      ]
+    }
+  ],
+  "retries": [
+    {
+      "fixture": "binary-search",
+      "explanation": "Okay let me try the comparison part again. If the thing you want is bigger than the middle you go right, and if it's smaller you go left."
+    },
+    {
+      "fixture": "tcp-handshake",
+      "explanation": "The server actually sends back a SYN-ACK, and then the client sends a final ACK, and then the connection is open."
+    }
+  ]
+}

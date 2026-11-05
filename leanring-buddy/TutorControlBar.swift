@@ -129,6 +129,10 @@ final class TutorControlBarModel: ObservableObject {
     /// Teaching board hook (TeachingBoardSession): true while the board is
     /// open, so the notch can say "On the board" for the whole session.
     @Published var isBoardOpen = false
+    /// Teach it back hook (TeachBackSession): true while the student is
+    /// explaining a topic on the board, so the notch says "Teach it back"
+    /// and, while it listens, "you're teaching".
+    @Published var isTeachingBack = false
     /// The talk-over microphone is open while an answer plays, so a small
     /// mic beside "explaining" says the student can just talk.
     @Published var isListeningWhileExplaining = false
@@ -1081,6 +1085,7 @@ struct TutorNotchView: View {
     private var rightSideContent: (glyph: String?, text: String) {
         if needsYouWord != nil { return (nil, "hover to fix") }
         // Teaching board hook: the board's label wins for the whole session.
+        if model.isTeachingBack && !isTalkedOver { return ("person.wave.2", "Teach it back") } // Teach it back hook.
         if model.isBoardOpen && !isTalkedOver { return (nil, "On the board") }
         if isTalkedOver { return (nil, "Buddy paused") }
         if model.errorOffer != nil && model.activity == .ready { return (nil, model.errorOffer?.applicationName ?? "") }
@@ -1460,7 +1465,7 @@ struct TutorNotchView: View {
         if isTalkedOver { return "listening" }
         switch model.activity {
         case .ready: return model.guideInstruction == nil ? "ready" : "your turn"
-        case .listening: return "listening"
+        case .listening: return model.isTeachingBack ? "you\u{2019}re teaching" : "listening" // Teach it back hook.
         case .thinking: return model.waitingStage ?? "thinking"
         case .speaking: return "explaining"
         }

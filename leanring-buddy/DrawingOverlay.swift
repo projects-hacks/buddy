@@ -217,6 +217,48 @@ final class DrawingOverlay: NSObject {
         onLeaveBoardRequested?()
     }
 
+    // MARK: Teach it back hook (TeachBackSession.swift)
+
+    /// One of the teach-back bar's buttons: "done", "cancel", "fill", "again".
+    var onTeachBackAction: ((String) -> Void)?
+    private var keyboardMonitor: Any?
+
+    /// While the student explains hands free, Return finishes and Esc
+    /// cancels. The overlay takes the keyboard for that time, so those keys
+    /// reach Buddy and never the app hidden under the paper, where a Return
+    /// could run a command the student cannot see. Being non-activating,
+    /// the panel leaves that app frontmost, and the keyboard goes back to
+    /// it in `releaseKeyboard`. Every other key is let through to the page,
+    /// which ignores it.
+    func takeKeyboard(onKey: @escaping (_ keyCode: UInt16) -> Bool) {
+        guard let panel = panel as? DrawingOverlayPanel else { return }
+        releaseKeyboard()
+        panel.acceptsKeyboard = true
+        panel.makeKey()
+        // A typed "let me explain" closes the notch's chat box, which hands
+        // the keyboard back to the studied app a moment later; taking it
+        // again once that has happened keeps Return and Esc here.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak panel] in
+            guard let panel, panel.acceptsKeyboard, !panel.isKeyWindow else { return }
+            panel.makeKey()
+        }
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === panel else { return event }
+            return onKey(event.keyCode) ? nil : event
+        }
+    }
+
+    func releaseKeyboard() {
+        if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
+        keyboardMonitor = nil
+        guard let panel = panel as? DrawingOverlayPanel, panel.acceptsKeyboard else { return }
+        panel.acceptsKeyboard = false
+        panel.resignKey()
+        // As the notch does after its chat box: Buddy steps back so the
+        // keyboard returns to the app the student was in.
+        if NSApp.isActive { NSApp.deactivate() }
+    }
+
     /// Teaching board hook: calls into DrawingEngine/draw-board.js
     /// (BuddyBoard.open, close, beginTurn, apply).
     func callBoard(_ function: String, argumentsJSON: String) {
@@ -258,7 +300,7 @@ final class DrawingOverlay: NSObject {
     // MARK: - Page
 
     private func buildPanel() {
-        let panel = NSPanel(
+        let panel = DrawingOverlayPanel(
             contentRect: NSScreen.main?.frame ?? .zero,
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
@@ -529,11 +571,25 @@ private final class WeakMessageHandler: NSObject, WKScriptMessageHandler {
             MainActor.assumeIsolated { owner?.leaveBoardWasClicked() }
             return
         }
+        // Teach it back hook: the bar's I'm done, Cancel, Fill the gaps and
+        // Try again. Only those four words are acted on.
+        if let body = message.body as? [String: Any], body["type"] as? String == "teachBack",
+           let action = body["action"] as? String, ["done", "cancel", "fill", "again"].contains(action) {
+            MainActor.assumeIsolated { owner?.onTeachBackAction?(action) }
+            return
+        }
         guard let body = message.body as? [String: Any],
               body["type"] as? String == "cards",
               let rects = body["rects"] as? [[Double]] else { return }
         MainActor.assumeIsolated { owner?.cardsDidChange(canvasRects: rects) }
     }
+}
+
+/// A borderless panel never takes the keyboard by default. This one takes
+/// it only while teach it back listens, for Return and Esc.
+private final class DrawingOverlayPanel: NSPanel {
+    var acceptsKeyboard = false
+    override var canBecomeKey: Bool { acceptsKeyboard }
 }
 
 /// Takes the first click even though the overlay never becomes the key

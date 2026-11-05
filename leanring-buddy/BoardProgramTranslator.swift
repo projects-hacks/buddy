@@ -316,6 +316,30 @@ struct BoardProgramTranslator {
             guard let identifier = string(0) else { return fail("board.remove needs an id") }
             return .success(.remove(identifier: identifier))
 
+        // Teach it back's marks (TeachBackPrompt.swift). The pen they are
+        // drawn in is the board's, set by the session for the gap check.
+        case "missing":
+            guard let identifier = string(0), !identifier.isEmpty else { return fail("board.missing needs an id first") }
+            let optionValues = options(2)
+            return .success(.add(kind: .box, identifier: identifier, text: string(1) ?? identifier, listItems: [],
+                                 tableRows: [], placement: placement(optionValues), tone: nil))
+
+        case "missingLink":
+            guard let fromIdentifier = string(0), let toIdentifier = string(1) else { return fail("board.missingLink needs two ids") }
+            return .success(.link(fromIdentifier: fromIdentifier, toIdentifier: toIdentifier, label: string(2) ?? "",
+                                  isDashed: true, tone: nil))
+
+        case "wrong":
+            guard let identifier = string(0), let correction = string(1) else {
+                return fail("board.wrong needs an id and the correction")
+            }
+            return .success(.markWrong(identifier: identifier, correction: correction))
+
+        case "verdict":
+            let optionValues = options(0)
+            return .success(.verdict(rightIdeas: stringList(optionValues["right"]) ?? [],
+                                     missedIdeas: stringList(optionValues["missed"]) ?? []))
+
         default:
             return fail("board.\(method) is not part of the board")
         }

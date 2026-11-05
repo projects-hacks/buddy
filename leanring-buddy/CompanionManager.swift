@@ -230,8 +230,8 @@ final class CompanionManager: ObservableObject {
         knowledgeMapWindow.show(focusingIdeaNamed: ideaName)
     }
 
-    /// The Map's Teach it back. Teach-back itself is built later; for now
-    /// the words go in the chat box for the student to send.
+    /// The Map's Teach it back: the words go in the chat box for the
+    /// student to send, and TeachBackIntent starts teach-back from them.
     func putTeachBackInChatBox(ideaName: String) {
         controlBar.openChat(withDraft: "let me explain \(ideaName) to you")
     }
@@ -1130,6 +1130,9 @@ final class CompanionManager: ObservableObject {
                 // Don't override .responding, the AI response pipeline
                 // manages that state directly until streaming finishes.
                 guard self.voiceState != .responding else { return }
+                // Teach it back hook: its own microphone is listening, which
+                // the end of the question that started it must not cover.
+                guard !self.teachingBoard.isTeachBackListening else { return }
 
                 if isFinalizing {
                     self.voiceState = .processing
@@ -1227,6 +1230,9 @@ final class CompanionManager: ObservableObject {
         }
         switch transition {
         case .pressed:
+            // Teach it back hook: the talk keys end a hands-free explanation
+            // as Return does, and start no question of their own.
+            if teachingBoard.talkKeysPressed() { return }
             guard !buddyDictationManager.isDictationInProgress else { return }
             // Don't register push-to-talk while the onboarding video is playing
             guard !showOnboardingVideo else { return }
@@ -1244,6 +1250,7 @@ final class CompanionManager: ObservableObject {
                 self.beginTalking()
             }
         case .released:
+            if teachingBoard.talkKeysReleased() { return } // Teach it back hook.
             // Let go before listening began: a tap of the keys, or the T took
             // them for typing. Nothing was started, so nothing is stopped.
             if let pendingTalkStart {
@@ -1794,6 +1801,38 @@ final class CompanionManager: ObservableObject {
         hooks.turnFinished = { [weak self] in
             self?.questionAwaitingAnswer = nil
             self?.scheduleTransientHideIfNeeded()
+        }
+        // Teach it back hooks (TeachBackSession.swift).
+        hooks.lastLessonTitle = { [weak self] in self?.controlBar.model.transcript.last(where: { $0.lessonTitle != nil })?.lessonTitle }
+        hooks.keytermsForTopic = { [weak self] topic in
+            guard let self else { return [topic] }
+            // The topic, the ideas memory holds near it, then recent ones.
+            let related = self.learningMemory.isEnabled
+                ? self.learningMemory.namesOnlyRecall(question: topic, screenContext: "").map(\.concept.name) : []
+            var terms = [topic] + related + self.learningMemory.recentlyExplainedConceptNames(limit: 15)
+            var seen = Set<String>()
+            terms = terms.filter { seen.insert($0.lowercased()).inserted }
+            return Array(terms.prefix(30))
+        }
+        hooks.prepareForListening = { [weak self] in
+            self?.talkOverListener.stop()
+            self?.cancelSpeechAndClearQueue()
+        }
+        hooks.askAsStudent = { [weak self] question in self?.askFollowUp(question) }
+        hooks.recordTeachBack = { [weak self] record in
+            guard let self, self.learningMemory.isEnabled else { return }
+            let lesson = LessonToRemember(
+                question: record.openingQuestion, lessonTitle: TeachBackPrompt.boardTitle(topic: record.topic),
+                spokenAnswer: record.spokenAnswer, questionKind: "teach-back",
+                answeredBy: self.lastAnsweringBrainName, date: Date())
+            Task { [learningMemory] in
+                await learningMemory.recordTeachBack(lesson, topic: record.topic,
+                                                     rightIdeas: record.rightIdeas, missedIdeas: record.missedIdeas)
+            }
+        }
+        // Notebook hook: the board kept as one page when it is left.
+        hooks.keepBoardInNotebook = { [weak self] question, title, paragraphs in
+            self?.notebookRecorder.keepBoard(question: question, lessonTitle: title, paragraphs: paragraphs)
         }
         return TeachingBoardSession(overlay: drawingOverlay, player: lessonPlayer, bar: controlBar.model, hooks: hooks)
     }()

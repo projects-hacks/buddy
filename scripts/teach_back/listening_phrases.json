@@ -1,0 +1,24 @@
+{
+  "ends": [
+    ["Each server sits on a ring. A key walks to the next server. I'm done.", "Each server sits on a ring. A key walks to the next server."],
+    ["Each server sits on a ring. That's it.", "Each server sits on a ring."],
+    ["You cut the list in half each time. Done.", "You cut the list in half each time."],
+    ["You cut the list in half each time. Okay, done.", "You cut the list in half each time."],
+    ["The client sends a SYN, the server answers with SYN-ACK, and I'm done.", "The client sends a SYN, the server answers with SYN-ACK."],
+    ["The cache keeps recent pages. That's all.", "The cache keeps recent pages."],
+    ["The cache keeps recent pages. I think that's it.", "The cache keeps recent pages."],
+    ["Light hits the leaf and makes sugar. Finished.", "Light hits the leaf and makes sugar."],
+    ["Light hits the leaf and makes sugar. That's it, I'm done.", "Light hits the leaf and makes sugar."],
+    ["Light hits the leaf and makes sugar. That's it buddy.", "Light hits the leaf and makes sugar."],
+    ["I'm done.", ""]
+  ],
+  "keeps_listening": [
+    "The client sends a SYN and then the handshake is done",
+    "The client sends a SYN and then the handshake is done.",
+    "That's it for the ring part. Now the keys walk clockwise",
+    "So the merge step is done when both halves are empty.",
+    "You keep going until you're done with the list",
+    "Each server sits on a ring. That's it for the servers, then the keys",
+    "and that's it really, no wait, the replicas"
+  ]
+}
