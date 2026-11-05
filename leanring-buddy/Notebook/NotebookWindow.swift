@@ -324,7 +324,7 @@ final class NotebookModel: ObservableObject {
         }
     }
 
-    private func export(pages: [NotebookStoredPage], rangeDescription: String, to destinationURL: URL) {
+    fileprivate func export(pages: [NotebookStoredPage], rangeDescription: String, to destinationURL: URL) {
         exportStatus = .exporting(lessonCount: pages.count)
         NotebookExportNotifier.shared.prepareForExport()
         let request = NotebookPDFExporter.Request(
@@ -346,6 +346,22 @@ final class NotebookModel: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+extension NotebookModel {
+    /// QA channel only: the same background export Export PDF starts, to a
+    /// given file instead of the save panel, which a script cannot answer.
+    func qaExportToday(to destinationURL: URL) {
+        let scope = NotebookExportScope.day(NotebookStore.dayIdentifier(for: Date()))
+        let pages = pages(in: scope)
+        guard !pages.isEmpty else {
+            TutorDebugLog.write("🧪 qa: no notebook pages today to export")
+            return
+        }
+        export(pages: pages, rangeDescription: rangeDescription(for: pages, scope: scope), to: destinationURL)
+    }
+}
+#endif
 
 // MARK: - Views
 

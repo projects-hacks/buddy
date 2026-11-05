@@ -178,6 +178,15 @@ final class QAHooks {
             }
         case "installUpdate":
             Task { @MainActor in await companionManager.appUpdater.installAvailableUpdate() }
+        case "openNotebook":
+            NotebookWindowController.shared.show()
+        case "closeNotebook":
+            NotebookWindowController.shared.model.window?.close()
+        case "exportNotebookToday":
+            NotebookWindowController.shared.model.qaExportToday(
+                to: URL(fileURLWithPath: info["value"] ?? NSTemporaryDirectory() + "buddy-qa-notebook.pdf"))
+        case "openMap":
+            companionManager.openKnowledgeMap()
         case "forgetMemory":
             companionManager.forgetLearningMemory()
         default:
