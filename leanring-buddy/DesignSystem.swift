@@ -55,8 +55,13 @@ enum DS {
         /// Secondary text, descriptions, hints, muted labels.
         static let textSecondary = Color(hex: "#ADB5B2")
 
-        /// Tertiary text, very muted, used for section labels, timestamps, disabled text.
-        static let textTertiary = Color(hex: "#6B736F")
+        /// Tertiary text: captions, section labels, timestamps. 5.5:1 on
+        /// black, so an 11pt caption still meets AA.
+        static let textTertiary = Color(hex: "#858D89")
+
+        /// The old tertiary grey, 4.1:1 on black: under AA for small text,
+        /// so kept only for text that is disabled.
+        static let textDisabled = Color(hex: "#6B736F")
 
         /// Text used on top of the accent fill (#2563eb blue), like the primary button label.
         /// White on #2563eb achieves ~5.1:1 contrast, WCAG AA compliant.
@@ -181,6 +186,69 @@ enum DS {
         static var disabledText: Color {
             textPrimary.opacity(0.38)
         }
+    }
+
+    // MARK: - The notch
+
+    /// The notch's own colours, on its black shape. Text never goes under
+    /// `textMinimum` (6.2:1 on black), which replaces the 35% and 40% greys
+    /// that read under AA.
+    enum Notch {
+        static let fill = Color.black
+        static let textPrimary = Color.white.opacity(0.94)
+        static let textSecondary = Color.white.opacity(0.62)
+        static let textMinimum = Color.white.opacity(0.55)
+        static let control = Color.white.opacity(0.10)
+        static let controlHover = Color.white.opacity(0.20)
+        static let controlSelected = Color.white.opacity(0.16)
+        /// Unselected tabs and quiet buttons on hover.
+        static let quietHover = Color.white.opacity(0.07)
+        /// The track the Lesson and Chat tabs sit in.
+        static let track = Color.white.opacity(0.06)
+        /// Settings groups, start tiles and the folded last lesson.
+        static let groupFill = Color.white.opacity(0.045)
+        static let groupBorder = Color.white.opacity(0.07)
+        static let rowHover = Color.white.opacity(0.05)
+
+        static let dotReady = Color.white.opacity(0.45)
+        static let dotListening = Color(red: 0.98, green: 0.36, blue: 0.36)
+        static let dotThinking = Color(red: 1.0, green: 0.78, blue: 0.3)
+        static let dotSpeaking = Color(red: 0.2, green: 0.5, blue: 1.0)
+        static let dotTurn = Color(red: 0.45, green: 0.85, blue: 0.7)
+
+        /// The error glow: a soft red halo under the shape with a thin
+        /// brighter edge. Red, but never a dot, so it does not read as
+        /// listening.
+        static let errorGlow = Color(hex: "#E5484D")
+        static let errorGlowEdge = Color(hex: "#FF786E")
+        static let errorCardEyebrow = Color(hex: "#FF8A8F")
+        static let errorCardBorder = Color(hex: "#FF6369")
+    }
+
+    // MARK: - Paper
+
+    /// The paper of lessons: the notch's lesson card and Notebook pages on
+    /// `card`; the board, teach-back and the Map canvas on `board`.
+    enum Paper {
+        static let card = Color(hex: "#F7F2E3")
+        static let board = Color(hex: "#FBF7EE")
+        static let ink = Color(hex: "#2B2D33")
+        static let inkMuted = Color(hex: "#5E626B")
+        /// The smallest text on paper: black 56% is 4.6:1 on `card`.
+        static let eyebrow = Color.black.opacity(0.56)
+        static let dot = Color.black.opacity(0.09)
+        /// Buttons on paper: black 6%, 11% on hover.
+        static let control = Color.black.opacity(0.06)
+        static let controlHover = Color.black.opacity(0.11)
+        static let link = Color(hex: "#2A5CD9")
+        static let buildsOnText = Color(hex: "#5C459E")
+        static let buildsOnFill = Color(hex: "#DCD1F7")
+    }
+
+    /// Ink drawn on paper for what the student said, and for their gaps.
+    enum Ink {
+        static let student = Color(hex: "#7A5CE0")
+        static let gap = Color(hex: "#E5484D")
     }
 
     // MARK: - Spacing (for reference, not enforced)
@@ -822,11 +890,20 @@ struct IBeamCursorView: NSViewRepresentable {
 /// Uses AppKit's `NSView.toolTip` to show a tooltip on hover.
 /// SwiftUI's `.help()` conflicts with `.onHover` tracking areas, so
 /// this bridges directly to AppKit's tooltip system which works independently.
+/// Passes every click through to the control under it: the tooltip is
+/// shown from the window's tooltip rects, which need no hit testing, and a
+/// view that took the click would make the button it labels dead.
+private class PassThroughTooltipNSView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
+}
+
 private struct NativeTooltipView: NSViewRepresentable {
     let tooltip: String
 
     func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+        let view = PassThroughTooltipNSView()
         view.toolTip = tooltip
         return view
     }

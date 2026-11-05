@@ -2,9 +2,17 @@
 //  CompanionPanelView.swift
 //  leanring-buddy
 //
-//  The SwiftUI content hosted inside the menu bar panel. Shows the companion
-//  voice status, push-to-talk shortcut, and quick settings. Designed to feel
-//  like Loom's recording panel, dark, rounded, minimal, and special.
+//  Settings, behind the gear in the open notch: nine controls in four
+//  groups, two columns, never a scroll. Talking (Talk over Buddy, Sounds,
+//  Open at login), Memory (Remember what I learn, Open Map, Forget
+//  everything), Answers (Answers from, Spent today, Name and keys) and
+//  Buddy itself (one update row), with How to use Buddy and Quit Buddy
+//  under them.
+//
+//  Settings only holds settings: the how-to lives in setup's last step and
+//  How to use Buddy, the day's lessons in the Notebook, and a missing
+//  permission is an alert on the Lesson tab, not a takeover of this tab.
+//  The same file draws the permission rows the setup window shows.
 //
 
 import AVFoundation
@@ -12,8 +20,8 @@ import SwiftUI
 
 struct CompanionPanelView: View {
     @ObservedObject var companionManager: CompanionManager
-    /// Shown inside the notch's settings tab rather than as its own panel:
-    /// no header, no window background, the notch's width.
+    /// Inside the notch's settings tab, the only place it is shown now. Off,
+    /// it draws its own dark background, for the old menu bar panel.
     var isEmbedded = false
     /// Just the permission steps, for the setup window, which has its own
     /// heading and buttons around them.
@@ -21,211 +29,517 @@ struct CompanionPanelView: View {
 
     var body: some View {
         if showsOnlyPermissions {
-            settingsSection
+            PermissionStepsList(companionManager: companionManager)
         } else {
-            fullPanel
+            NotchSettingsView(companionManager: companionManager)
+                .padding(isEmbedded ? 0 : 16)
+                .frame(width: isEmbedded ? nil : 600)
+                .background(isEmbedded ? Color.clear : DS.Colors.background)
         }
     }
+}
 
-    private var fullPanel: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if !isEmbedded {
-                panelHeader
-                Divider()
-                    .background(DS.Colors.borderSubtle)
-                    .padding(.horizontal, 16)
-            }
+struct NotchSettingsView: View {
+    @ObservedObject var companionManager: CompanionManager
 
-            howToUseSection
-                .padding(.top, 14)
-                .padding(.horizontal, 16)
+    /// Each column's width inside the open notch (600 points, less 18 a
+    /// side and the 12 between). Fixed, because wrapped captions in two
+    /// flexible columns are measured at the wrong width and overflow.
+    static let columnWidth: CGFloat = 276
 
-            if companionManager.allPermissionsGranted {
-                Spacer().frame(height: 14)
-                modelPickerRow
-                    .padding(.horizontal, 16)
-
-                Spacer().frame(height: 6)
-                SpendingRow()
-                    .padding(.horizontal, 16)
-
-                interfaceSoundsToggleRow
-                    .padding(.horizontal, 16)
-
-                talkOverToggleRow
-                    .padding(.horizontal, 16)
-
-                learningMemoryRow
-                    .padding(.horizontal, 16)
-
-                keysAndNameRow
-                    .padding(.horizontal, 16)
-
-                openAtLoginRow
-                    .padding(.horizontal, 16)
-
-                UpdatesRow(updater: companionManager.appUpdater)
-                    .padding(.horizontal, 16)
-
-                Spacer().frame(height: 10)
-                lessonsSection
-                    .padding(.horizontal, 16)
-            } else {
-                Spacer().frame(height: 16)
-                settingsSection
-                    .padding(.horizontal, 16)
-            }
-
-            Spacer().frame(height: 12)
-            Divider()
-                .background(DS.Colors.borderSubtle)
-                .padding(.horizontal, 16)
-
-            footerSection
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-        }
-        .frame(width: isEmbedded ? nil : 320)
-        .frame(maxWidth: isEmbedded ? .infinity : nil)
-        .background(isEmbedded ? AnyView(Color.clear) : AnyView(panelBackground))
+    /// Where How to use Buddy goes: the guide in the repository, readable in
+    /// any browser.
+    private var howToUseBuddyURL: URL {
+        URL(string: "https://github.com/\(AppUpdater.repository)/blob/main/docs/using-buddy.md")!
     }
 
-    // MARK: - How to use
-
-    @ViewBuilder
-    private var howToUseSection: some View {
-        if companionManager.allPermissionsGranted {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Hold Control + Option and ask about anything on your screen.")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 4) {
-                    hintRow(symbol: "keyboard", text: "Control + Option + T to type instead.")
-                    hintRow(symbol: "hand.point.up.left", text: "Ask how to do something in an app to be walked through it.")
-                    hintRow(symbol: "rectangle.topthird.inset.filled", text: "Hover the notch to read the conversation.")
-                    hintRow(symbol: "escape", text: "Esc clears the drawing or stops a walkthrough.")
-                    hintRow(symbol: "arrow.uturn.backward", text: "Say \"I didn't get it\" for a new angle.")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
+                    SettingsGroup(title: "Talking") {
+                        TalkingSettings()
+                    }
+                    SettingsGroup(title: "Memory") {
+                        MemorySettings(companionManager: companionManager)
+                    }
                 }
+                .frame(width: Self.columnWidth, alignment: .top)
+                VStack(alignment: .leading, spacing: 12) {
+                    SettingsGroup(title: "Answers") {
+                        AnswersSettings(companionManager: companionManager)
+                    }
+                    SettingsGroup(title: "Buddy \(companionManager.appUpdater.currentVersion)") {
+                        UpdateRow(updater: companionManager.appUpdater)
+                    }
+                }
+                .frame(width: Self.columnWidth, alignment: .top)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Let Buddy hear and see")
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(DS.Colors.textPrimary)
-                Text("The screen is only captured when you ask, and what Buddy keeps, your conversation and what you have learned, stays on this Mac.")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
 
-    private func hintRow(symbol: String, text: String) -> some View {
-        HStack(spacing: 7) {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(DS.Colors.textTertiary)
-                .frame(width: 14)
-            Text(text)
-                .font(.system(size: 11.5))
-                .foregroundColor(DS.Colors.textSecondary)
-        }
-    }
-
-    // MARK: - Lessons
-
-    private var lessonsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Today")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
+                NotchQuietTextButton(title: "How to use Buddy", systemImage: "questionmark.circle") {
+                    NSWorkspace.shared.open(howToUseBuddyURL)
+                }
+                .accessibilityLabel("How to use Buddy, opens in your browser")
                 Spacer()
-                Button(action: { companionManager.openTranscriptsFolder() }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder")
-                            .font(.system(size: 10, weight: .medium))
-                        Text("Transcripts")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundColor(DS.Colors.textTertiary)
+                NotchQuietTextButton(title: "Quit Buddy", systemImage: "power") {
+                    NSApp.terminate(nil)
                 }
-                .buttonStyle(.plain)
-                .pointerCursor()
             }
+            .padding(.horizontal, 6)
+            .padding(.top, 2)
+        }
+    }
+}
 
-            let titles = companionManager.recentLessonTitles
-            if titles.isEmpty {
-                Text("Lessons you work through show up here.")
-                    .font(.system(size: 11.5))
-                    .foregroundColor(DS.Colors.textTertiary)
-            } else {
-                ForEach(titles, id: \.self) { title in
-                    HStack(spacing: 7) {
-                        Image(systemName: "book.closed")
-                            .font(.system(size: 10))
-                            .foregroundColor(DS.Colors.accentText)
-                        Text(title)
-                            .font(.system(size: 12))
-                            .foregroundColor(DS.Colors.textPrimary)
-                            .lineLimit(1)
-                    }
-                }
+// MARK: - Groups and rows
+
+/// A titled group: white 4.5% on black, a hairline border, rows inside.
+private struct SettingsGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.leading, 6)
+                .accessibilityAddTraits(.isHeader)
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(DS.Notch.groupFill))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(DS.Notch.groupBorder, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+}
+
+/// The hairline between rows, inset from the group's edges.
+private struct SettingsDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.07))
+            .frame(height: 1)
+            .padding(.horizontal, 12)
+    }
+}
+
+/// A label with an optional caption under it.
+private struct SettingsLabel: View {
+    let title: String
+    let caption: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(DS.Colors.textPrimary)
+            if let caption {
+                Text(caption)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Colors.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    // MARK: - Header
+/// A switch with its label. The whole row toggles, so the target is the
+/// row and not only the small switch, and the pointer says so over all of it.
+private struct SettingsSwitchRow: View {
+    let title: String
+    var caption: String? = nil
+    @Binding var isOn: Bool
 
-    private var panelHeader: some View {
-        HStack {
-            HStack(spacing: 8) {
-                // Animated status dot
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsLabel(title: title, caption: caption)
+            Toggle("", isOn: $isOn)
+                .toggleStyle(NotchSwitchStyle())
+                .labelsHidden()
+                .allowsHitTesting(false)
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+        .contentShape(Rectangle())
+        .onTapGesture { isOn.toggle() }
+        .pointerCursor()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "on" : "off")
+        .accessibilityHint(caption ?? "")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { isOn.toggle() }
+    }
+}
+
+/// A switch drawn here rather than by AppKit: the notch's panel is never the
+/// active window (it must not take focus from the app being studied), and
+/// AppKit draws every switch in an inactive window grey, on or off. Small
+/// size, accent when on.
+struct NotchSwitchStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Capsule()
+            .fill(configuration.isOn ? DS.Colors.accent : Color.white.opacity(0.18))
+            .frame(width: 32, height: 19)
+            .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                 Circle()
-                    .fill(statusDotColor)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: statusDotColor.opacity(0.6), radius: 4)
-
-                Text("Buddy")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(DS.Colors.textPrimary)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
+                    .padding(2)
             }
+            .animation(.easeOut(duration: 0.15), value: configuration.isOn)
+    }
+}
 
-            Spacer()
+// MARK: - Talking
 
-            Text(statusText)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(DS.Colors.textTertiary)
+private struct TalkingSettings: View {
+    /// The existing talk-over switch: the microphone is open while an
+    /// answer plays, so the student can cut in without the keys.
+    @AppStorage(TalkOverListener.enabledDefaultsKey) private var talkOverEnabled = true
+    @AppStorage(InterfaceSounds.enabledDefaultsKey) private var interfaceSoundsEnabled = true
+    @State private var opensAtLogin = LoginItem.isChosen
 
-            Button(action: {
-                NotificationCenter.default.post(name: .clickyDismissPanel, object: nil)
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 20, height: 20)
-                    .background(
-                        Circle()
-                            .fill(Color.white.opacity(0.08))
-                    )
-            }
-            .buttonStyle(.plain)
-            .pointerCursor()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+    var body: some View {
+        SettingsSwitchRow(title: "Talk over Buddy",
+                          caption: "Keeps listening while it explains, so you can cut in.",
+                          isOn: $talkOverEnabled)
+        SettingsDivider()
+        SettingsSwitchRow(title: "Sounds", isOn: $interfaceSoundsEnabled)
+        SettingsDivider()
+        SettingsSwitchRow(title: "Open at login", isOn: Binding(get: { opensAtLogin }, set: { chosen in
+            opensAtLogin = chosen
+            LoginItem.setChosen(chosen)
+        }))
+    }
+}
+
+// MARK: - Memory
+
+private struct MemorySettings: View {
+    @ObservedObject var companionManager: CompanionManager
+    @AppStorage(LearningMemory.enabledDefaultsKey) private var learningMemoryEnabled = true
+
+    private var ideaCount: Int { companionManager.learningMemory.conceptCount }
+    private var howToCount: Int { companionManager.howToCount }
+
+    /// "142 ideas and 6 how-tos"
+    private var whatIsKept: String {
+        var parts: [String] = []
+        if ideaCount > 0 { parts.append(ideaCount == 1 ? "1 idea" : "\(ideaCount) ideas") }
+        if howToCount > 0 { parts.append(howToCount == 1 ? "1 how-to" : "\(howToCount) how-tos") }
+        return parts.joined(separator: " and ")
     }
 
-    // MARK: - Permissions
+    private var caption: String {
+        guard learningMemoryEnabled else { return "Off. Each answer starts fresh." }
+        if whatIsKept.isEmpty { return "Nothing yet. What you learn is kept on this Mac." }
+        return whatIsKept + ", kept on this Mac."
+    }
 
-    /// The permissions still to grant, in the order macOS makes sensible:
-    /// the microphone first (one click), Screen Recording last (it asks for a
-    /// reopen). Screen Content appears only once Screen Recording is on,
-    /// because macOS offers it only then.
+    var body: some View {
+        SettingsSwitchRow(title: "Remember what I learn", caption: caption, isOn: $learningMemoryEnabled)
+        SettingsDivider()
+        HStack {
+            MapLinkButton { companionManager.openKnowledgeMap() }
+            Spacer()
+            SettingsTextButton(title: "Forget everything\u{2026}", isEnabled: !whatIsKept.isEmpty) {
+                confirmForgetting()
+            }
+            .accessibilityLabel("Forget everything Buddy remembers")
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+    }
+
+    /// Forgetting is permanent, so it asks first, in the system's own alert
+    /// with Cancel as the default.
+    private func confirmForgetting() {
+        let alert = NSAlert()
+        alert.messageText = "Forget \(whatIsKept)?"
+        alert.informativeText = "Buddy will stop building on earlier lessons. This can't be undone."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Cancel")
+        let forgetButton = alert.addButton(withTitle: "Forget")
+        forgetButton.hasDestructiveAction = true
+        // A menu bar app has to ask to come forward, or the alert opens
+        // behind the app being studied.
+        NSApp.activate()
+        if alert.runModal() == .alertSecondButtonReturn {
+            companionManager.forgetLearningMemory()
+        }
+    }
+}
+
+private struct MapLinkButton: View {
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Open Map")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(DS.Colors.accentText.opacity(isHovering ? 1 : 0.88))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(NotchMotion.hover) { isHovering = hovering }
+        }
+        .accessibilityLabel("Open Map of what you know, opens a window")
+    }
+}
+
+/// Text that acts, secondary until hovered. Disabled, it keeps the arrow
+/// and does not change on hover.
+private struct SettingsTextButton: View {
+    let title: String
+    var isEnabled = true
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isEnabled
+                                 ? (isHovering ? DS.Colors.textPrimary : DS.Colors.textSecondary)
+                                 : DS.Colors.textDisabled)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .pointerCursor(isEnabled: isEnabled)
+        .onHover { hovering in
+            withAnimation(NotchMotion.hover) { isHovering = hovering && isEnabled }
+        }
+    }
+}
+
+// MARK: - Answers
+
+private struct AnswersSettings: View {
+    @ObservedObject var companionManager: CompanionManager
+    @ObservedObject private var meter = SpendingMeter.shared
+
+    /// Local is left out: its models are not installed by default, and a
+    /// choice that can only fail is worse than none.
+    private static let choices: [TutorBrainKind] = [.auto, .claude, .hosted]
+
+    private func hasKey(for kind: TutorBrainKind) -> Bool {
+        switch kind {
+        case .auto: return companionManager.canUseClaude || companionManager.canUseArgon
+        case .claude: return companionManager.canUseClaude
+        case .hosted: return companionManager.canUseArgon
+        case .local: return true
+        }
+    }
+
+    private var caption: String {
+        switch companionManager.brainKind {
+        case .auto: return "Auto picks the best one for each question."
+        case .claude: return "Claude answers every question."
+        case .hosted: return "Gemini answers every question."
+        case .local: return "The model on this Mac answers."
+        }
+    }
+
+    /// Picking a brain without a key opens setup on Keys instead, since the
+    /// answer would only fail.
+    private var brainChoice: Binding<TutorBrainKind> {
+        Binding(
+            get: { companionManager.brainKind },
+            set: { chosen in
+                if hasKey(for: chosen) {
+                    companionManager.setBrainKind(chosen)
+                } else {
+                    companionManager.setupWindow.show(startingAt: .keys)
+                }
+            })
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsLabel(title: "Answers from", caption: caption)
+            Picker("Answers from", selection: brainChoice) {
+                ForEach(Self.choices, id: \.self) { kind in
+                    Text(hasKey(for: kind) ? kind.displayName : "\(kind.displayName), add a key")
+                        .foregroundStyle(hasKey(for: kind) ? DS.Colors.textPrimary : DS.Colors.textDisabled)
+                        .tag(kind)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
+            .pointerCursor()
+            .accessibilityLabel("Answers from")
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+
+        SettingsDivider()
+
+        let today = meter.today
+        HStack(spacing: 12) {
+            SettingsLabel(title: "Spent today",
+                          caption: "This month \(SpendingMeter.formatted(meter.thisMonthDollars))")
+            Text(SpendingMeter.formatted(today.dollars))
+                .font(.system(size: 13.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(DS.Colors.textPrimary)
+                .contentTransition(.numericText())
+                .animation(.smooth(duration: 0.3), value: today.dollars)
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+        .contentShape(Rectangle())
+        .nativeTooltip(spendingTooltip(today))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Spent today, \(SpendingMeter.formatted(today.dollars)). This month, \(SpendingMeter.formatted(meter.thisMonthDollars)).")
+
+        SettingsDivider()
+
+        SettingsChevronRow(title: "Name and keys") {
+            companionManager.setupWindow.show(startingAt: .keys)
+        }
+    }
+
+    private func spendingTooltip(_ today: SpendingMeter.Day) -> String {
+        var counts = today.questions == 1 ? "1 question" : "\(today.questions) questions"
+        if today.guideSteps > 0 {
+            counts += " and " + (today.guideSteps == 1 ? "1 guide step" : "\(today.guideSteps) guide steps")
+        }
+        return counts + " today. Worked out from published prices; your provider's bill is exact."
+    }
+}
+
+/// A row that opens something: white 5% on hover, the pointer, a chevron.
+private struct SettingsChevronRow: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(DS.Colors.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DS.Colors.textTertiary)
+            }
+            .padding(.vertical, 9)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 40)
+            .background(isHovering ? DS.Notch.rowHover : Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(NotchMotion.hover) { isHovering = hovering }
+        }
+        .accessibilityLabel("\(title), opens setup")
+    }
+}
+
+// MARK: - Updates
+
+/// One row: when Buddy last looked and Check now, or the newer Buddy and
+/// Update. Checks run once a day on their own; there is no switch for them.
+private struct UpdateRow: View {
+    @ObservedObject var updater: AppUpdater
+
+    private var title: String {
+        switch updater.state {
+        case .checking: return "Checking\u{2026}"
+        case .available: return "Buddy \(updater.availableRelease?.version ?? "") is ready"
+        case .downloading: return "Downloading Buddy \(updater.availableRelease?.version ?? "")\u{2026}"
+        case .installing: return "Checking and installing\u{2026}"
+        case .failed: return "Couldn't update"
+        case .upToDate: return "Up to date"
+        case .idle: return updater.lastCheckedAt == nil ? "Not checked yet" : "Up to date"
+        }
+    }
+
+    private var caption: String? {
+        switch updater.state {
+        case .failed(let message): return message
+        case .available: return "Updating restarts Buddy."
+        case .checking, .downloading, .installing: return nil
+        case .upToDate, .idle: return Self.checkedText(updater.lastCheckedAt)
+        }
+    }
+
+    /// "Checked today at 09:12".
+    static func checkedText(_ lastCheckedAt: Date?) -> String? {
+        guard let lastCheckedAt else { return "Buddy looks once a day." }
+        let time = lastCheckedAt.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits))
+        if Calendar.current.isDateInToday(lastCheckedAt) { return "Checked today at \(time)" }
+        if Calendar.current.isDateInYesterday(lastCheckedAt) { return "Checked yesterday at \(time)" }
+        return "Checked \(lastCheckedAt.formatted(.dateTime.day().month(.wide)))"
+    }
+
+    private var isBusy: Bool {
+        updater.state == .checking || updater.state == .downloading || updater.state == .installing
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            SettingsLabel(title: title, caption: caption)
+            if isBusy {
+                ProgressView().controlSize(.small)
+            } else if updater.state == .available {
+                NotchPrimaryButton(systemImage: nil, title: "Update") {
+                    Task { await updater.installAvailableUpdate() }
+                }
+            } else {
+                SettingsTextButton(title: "Check now") {
+                    Task { await updater.check() }
+                }
+            }
+        }
+        .padding(.vertical, 9)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 40)
+    }
+}
+
+// MARK: - Permissions (shown by the setup window)
+
+/// One permission to grant: what it is for, and how to grant it.
+private struct PermissionStep {
+    let symbol: String
+    let title: String
+    let reason: String
+    let isGranted: Bool
+    let allow: () -> Void
+    var helpTitle: String? = nil
+    var help: (() -> Void)? = nil
+    var note: String? = nil
+}
+
+/// The permissions still to grant, in the order macOS makes sensible: the
+/// microphone first (one click), Screen Recording last (it asks for a
+/// reopen). Screen Content appears only once Screen Recording is on,
+/// because macOS offers it only then.
+private struct PermissionStepsList: View {
+    @ObservedObject var companionManager: CompanionManager
+
     private var permissionSteps: [PermissionStep] {
         var steps: [PermissionStep] = [
             PermissionStep(
@@ -265,10 +579,10 @@ struct CompanionPanelView: View {
         return steps
     }
 
-    private var settingsSection: some View {
+    var body: some View {
         let steps = permissionSteps
         let grantedCount = steps.filter(\.isGranted).count
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 // How far through: a thin bar fills as each one is allowed.
                 GeometryReader { proxy in
@@ -287,6 +601,8 @@ struct CompanionPanelView: View {
             }
             .padding(.bottom, 4)
             .animation(.smooth(duration: 0.3), value: grantedCount)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(grantedCount) of \(steps.count) permissions allowed")
 
             ForEach(Array(steps.enumerated()), id: \.element.title) { position, step in
                 PermissionStepRow(
@@ -298,410 +614,6 @@ struct CompanionPanelView: View {
             }
         }
     }
-
-    private func permissionRow(
-        label: String,
-        iconName: String,
-        isGranted: Bool,
-        settingsURL: String
-    ) -> some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: iconName)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isGranted ? DS.Colors.textTertiary : DS.Colors.warning)
-                    .frame(width: 16)
-
-                Text(label)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            if isGranted {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(DS.Colors.success)
-                        .frame(width: 6, height: 6)
-                    Text("Granted")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(DS.Colors.success)
-                }
-            } else {
-                Button(action: {
-                    if let url = URL(string: settingsURL) {
-                        NSWorkspace.shared.open(url)
-                    }
-                }) {
-                    Text("Grant")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textOnAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(DS.Colors.accent)
-                        )
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-
-
-    // MARK: - Talk Over Toggle
-
-    /// Speaking over an answer without the keys: the microphone is open
-    /// while an answer plays.
-    @AppStorage(TalkOverListener.enabledDefaultsKey) private var talkOverEnabled = true
-
-    private var talkOverToggleRow: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: talkOverEnabled ? "mic" : "mic.slash")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-
-                Text("Listen while explaining")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            .help("Say \u{201C}wait, why?\u{201D}, \u{201C}hold on\u{201D} or \u{201C}slower\u{201D} over an answer without pressing the keys. The microphone is open while an answer plays.")
-
-            Spacer()
-
-            Toggle("", isOn: $talkOverEnabled)
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .tint(DS.Colors.accent)
-                .scaleEffect(0.8)
-                .pointerCursor()
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Sounds Toggle
-
-    @AppStorage(InterfaceSounds.enabledDefaultsKey) private var interfaceSoundsEnabled = true
-
-    private var interfaceSoundsToggleRow: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: interfaceSoundsEnabled ? "speaker.wave.2" : "speaker.slash")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-
-                Text("Sounds")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: $interfaceSoundsEnabled)
-                .toggleStyle(.switch)
-                .labelsHidden()
-                .tint(DS.Colors.accent)
-                .scaleEffect(0.8)
-                .pointerCursor()
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Open at login
-
-    @State private var opensAtLogin = LoginItem.isChosen
-
-    private var openAtLoginRow: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Image(systemName: "power")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-                Text("Open at login")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-            }
-            Spacer()
-            Toggle("", isOn: Binding(get: { opensAtLogin }, set: { chosen in
-                opensAtLogin = chosen
-                LoginItem.setChosen(chosen)
-            }))
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .tint(DS.Colors.accent)
-            .scaleEffect(0.8)
-            .pointerCursor()
-        }
-        .padding(.vertical, 4)
-    }
-
-    // MARK: - Keys and Name
-
-    private var keysAndNameRow: some View {
-        Button(action: { companionManager.setupWindow.show(startingAt: .keys) }) {
-            HStack(spacing: 8) {
-                Image(systemName: "key")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .frame(width: 16)
-                Text("Name and API keys")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(DS.Colors.textSecondary)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(DS.Colors.textTertiary)
-            }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-    }
-
-    // MARK: - Learning Memory
-
-    @AppStorage(LearningMemory.enabledDefaultsKey) private var learningMemoryEnabled = true
-    /// Forgetting is permanent, so it takes a second click within a few seconds.
-    @State private var isConfirmingForget = false
-
-    private var learningMemoryRow: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "brain")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .frame(width: 16)
-
-                    Text("Learning memory")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-
-                Spacer()
-
-                Toggle("", isOn: $learningMemoryEnabled)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .tint(DS.Colors.accent)
-                    .scaleEffect(0.8)
-                    .pointerCursor()
-            }
-
-            HStack(spacing: 8) {
-                Text(learningMemoryCaption)
-                    .font(.system(size: 11))
-                    .foregroundColor(DS.Colors.textTertiary)
-                Spacer()
-                // The map of what you know (KnowledgeMapWindow.swift).
-                Button(action: { companionManager.openKnowledgeMap() }) {
-                    Text("Map")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-                .help("Open the map of what you know")
-                if companionManager.learningMemory.conceptCount > 0 || companionManager.howToCount > 0 {
-                    Button(action: forgetButtonTapped) {
-                        Text(isConfirmingForget ? "Click again to forget all" : "Forget all")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(isConfirmingForget ? .red : DS.Colors.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
-                }
-            }
-            .padding(.leading, 24)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var learningMemoryCaption: String {
-        let count = companionManager.learningMemory.conceptCount
-        guard learningMemoryEnabled else { return "Off. Each answer starts fresh." }
-        let howTos = companionManager.howToCount
-        if count == 0 && howTos == 0 { return "Remembers what you learn, on this Mac only." }
-        var parts: [String] = []
-        if count > 0 { parts.append(count == 1 ? "1 idea" : "\(count) ideas") }
-        if howTos > 0 { parts.append(howTos == 1 ? "1 how-to" : "\(howTos) how-tos") }
-        return parts.joined(separator: " and ") + " remembered, on this Mac only."
-    }
-
-    private func forgetButtonTapped() {
-        if isConfirmingForget {
-            companionManager.forgetLearningMemory()
-            isConfirmingForget = false
-        } else {
-            isConfirmingForget = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { isConfirmingForget = false }
-        }
-    }
-
-    // MARK: - Brain Picker
-
-    private var modelPickerRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            modelPickerControls
-
-            // The one failure worth explaining in the UI: everything else
-            // still works, the app simply has nothing to think with, and the
-            // fix differs per brain, so the message names the right one.
-            if !companionManager.isLocalModelReachable {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.orange)
-                    Text(unreachableBrainFix)
-                        .font(.system(size: 11))
-                        .foregroundColor(DS.Colors.textSecondary)
-                        .textSelection(.enabled)
-                }
-            }
-        }
-    }
-
-    private var unreachableBrainFix: String {
-        switch companionManager.brainKind {
-        case .hosted: return "Google Cloud sign-in expired. Run: gcloud auth application-default login"
-        case .claude: return "No Anthropic key in the Keychain."
-        case .auto: return "No Anthropic key in the Keychain, so Auto can only use Argon."
-        case .local: return "Ollama is not running. Run: brew services start ollama"
-        }
-    }
-
-    private var modelPickerControls: some View {
-        HStack {
-            Text("Brain")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(DS.Colors.textSecondary)
-
-            Spacer()
-
-            // Local is left out: its models are not installed by default, and
-            // a button that can only fail is worse than no button.
-            HStack(spacing: 0) {
-                brainOptionButton(kind: .auto)
-                brainOptionButton(kind: .claude)
-                brainOptionButton(kind: .hosted)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(DS.Colors.borderSubtle, lineWidth: 0.5)
-            )
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func brainOptionButton(kind: TutorBrainKind) -> some View {
-        let isSelected = companionManager.brainKind == kind
-        return Button(action: {
-            companionManager.setBrainKind(kind)
-        }) {
-            Text(kind.displayName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(isSelected ? DS.Colors.textPrimary : DS.Colors.textTertiary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(isSelected ? Color.white.opacity(0.1) : Color.clear)
-                )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-    }
-
-    // MARK: - Footer
-
-    private var footerSection: some View {
-        HStack {
-            Button(action: {
-                NSApp.terminate(nil)
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: "power")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("Quit Buddy")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(DS.Colors.textTertiary)
-            }
-            .buttonStyle(.plain)
-            .pointerCursor()
-
-            Spacer()
-        }
-    }
-
-    // MARK: - Visual Helpers
-
-    private var panelBackground: some View {
-        RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(DS.Colors.background)
-            .shadow(color: Color.black.opacity(0.5), radius: 20, x: 0, y: 10)
-            .shadow(color: Color.black.opacity(0.3), radius: 4, x: 0, y: 2)
-    }
-
-    private var statusDotColor: Color {
-        if !companionManager.isOverlayVisible {
-            return DS.Colors.textTertiary
-        }
-        switch companionManager.voiceState {
-        case .idle:
-            return DS.Colors.success
-        case .listening:
-            return DS.Colors.blue400
-        case .processing, .responding:
-            return DS.Colors.blue400
-        }
-    }
-
-    private var statusText: String {
-        if !companionManager.hasCompletedOnboarding || !companionManager.allPermissionsGranted {
-            return "Setup"
-        }
-        if !companionManager.isOverlayVisible {
-            return "Ready"
-        }
-        switch companionManager.voiceState {
-        case .idle:
-            return "Active"
-        case .listening:
-            return "Listening"
-        case .processing:
-            return "Processing"
-        case .responding:
-            return "Responding"
-        }
-    }
-
-}
-
-
-/// One permission to grant: what it is for, and how to grant it.
-private struct PermissionStep {
-    let symbol: String
-    let title: String
-    let reason: String
-    let isGranted: Bool
-    let allow: () -> Void
-    var helpTitle: String? = nil
-    var help: (() -> Void)? = nil
-    var note: String? = nil
 }
 
 private struct PermissionStepRow: View {
@@ -764,6 +676,7 @@ private struct PermissionStepRow: View {
                 .buttonStyle(.plain)
                 .pointerCursor()
                 .onHover { isHoveringAllow = $0 }
+                .accessibilityLabel("Allow \(step.title)")
             }
         }
         .padding(10)
@@ -777,122 +690,5 @@ private struct PermissionStepRow: View {
         )
         .animation(.smooth(duration: 0.25), value: step.isGranted)
         .animation(.smooth(duration: 0.25), value: isNext)
-    }
-}
-
-
-/// The version, automatic checks, and a check or update on demand.
-/// What Buddy has spent on the student's keys, from each reply's own token
-/// counts and the published prices (SpendingMeter.swift).
-private struct SpendingRow: View {
-    @ObservedObject private var meter = SpendingMeter.shared
-
-    var body: some View {
-        let today = meter.today
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "dollarsign.circle")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .frame(width: 16)
-                    Text("Spent today")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                Spacer()
-                Text(SpendingMeter.formatted(today.dollars))
-                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                    .foregroundColor(DS.Colors.textPrimary)
-                    .contentTransition(.numericText())
-                    .animation(.smooth(duration: 0.3), value: today.dollars)
-            }
-            Text(caption(today))
-                .font(.system(size: 11))
-                .foregroundColor(DS.Colors.textTertiary)
-                .padding(.leading, 24)
-                .help("Worked out from each reply's token counts and the providers' published prices. Your provider's bill is the exact figure.")
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func caption(_ today: SpendingMeter.Day) -> String {
-        var parts: [String] = []
-        parts.append(today.questions == 1 ? "1 question" : "\(today.questions) questions")
-        if today.guideSteps > 0 {
-            parts.append(today.guideSteps == 1 ? "1 guide step" : "\(today.guideSteps) guide steps")
-        }
-        parts.append("this month \(SpendingMeter.formatted(meter.thisMonthDollars))")
-        return parts.joined(separator: ", ")
-    }
-}
-
-private struct UpdatesRow: View {
-    @ObservedObject var updater: AppUpdater
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(DS.Colors.textTertiary)
-                        .frame(width: 16)
-                    Text("Check for updates")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                Spacer()
-                Toggle("", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.checksAutomatically = $0 }))
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .tint(DS.Colors.accent)
-                    .scaleEffect(0.8)
-                    .pointerCursor()
-            }
-            HStack(spacing: 8) {
-                Text(statusText)
-                    .font(.system(size: 11))
-                    .foregroundColor(DS.Colors.textTertiary)
-                    .lineLimit(2)
-                Spacer()
-                Button(action: buttonTapped) {
-                    Text(buttonTitle)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(DS.Colors.textSecondary)
-                }
-                .buttonStyle(.plain)
-                .disabled(updater.state == .checking || updater.state == .downloading || updater.state == .installing)
-                .pointerCursor()
-            }
-            .padding(.leading, 24)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private var statusText: String {
-        switch updater.state {
-        case .checking: return "Buddy \(updater.currentVersion), checking..."
-        case .upToDate: return "Buddy \(updater.currentVersion), up to date."
-        case .available: return "Buddy \(updater.availableRelease?.version ?? "") is ready."
-        case .downloading: return "Downloading..."
-        case .installing: return "Installing..."
-        case .failed(let message): return message
-        case .idle: return "Buddy \(updater.currentVersion)"
-        }
-    }
-
-    private var buttonTitle: String {
-        updater.state == .available ? "Update" : "Check now"
-    }
-
-    private func buttonTapped() {
-        Task {
-            if updater.state == .available {
-                await updater.installAvailableUpdate()
-            } else {
-                await updater.check()
-            }
-        }
     }
 }

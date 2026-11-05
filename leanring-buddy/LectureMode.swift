@@ -59,10 +59,24 @@ final class LectureMode {
         let frontApplicationPlayedSoundRecently: Bool
     }
 
+    /// Told when the front app's sound starts or stops being kept, for the
+    /// notch's lecture indicator.
+    var onKeepingSoundChanged: (Bool) -> Void = { _ in }
+    /// What the last note was taken from, for the notch's right side while
+    /// that answer plays: "lecture at 12:40". Nil when the last question
+    /// got no lecture note.
+    private(set) var lastNoteSourceLabel: String?
+
     /// Called once at launch: starts watching which app is in front and
     /// whether it is playing sound.
     func startWatching() {
+        audioBuffer.onTappingChanged = { [weak self] isTapping in self?.onKeepingSoundChanged(isTapping) }
         audioBuffer.startWatching()
+    }
+
+    private static func sourceLabel(for playbackPosition: LecturePlaybackPosition?) -> String {
+        guard let playbackPosition else { return "the lecture" }
+        return "lecture at " + LectureClock.clockText(fromSeconds: playbackPosition.currentSeconds)
     }
 
     /// Starts gathering the moment a question arrives, so the page is read,
@@ -128,6 +142,7 @@ final class LectureMode {
     /// which case the prompt is exactly what it would have been without it.
     func note(for gatheringTask: Task<Gathering?, Never>, question: String, screenListing: String,
               waitingUntil deadline: Date) async -> String? {
+        lastNoteSourceLabel = nil
         guard let gatheredValue = await Self.value(of: gatheringTask, before: deadline), let gathering = gatheredValue else {
             gatheringTask.cancel()
             return nil
@@ -148,6 +163,7 @@ final class LectureMode {
         if let playbackPosition, let transcriptNote = transcriptNote(gathering: gathering, screenListing: screenListing,
                                                                      playbackPosition: playbackPosition) {
             gathering.heardWordsTask?.cancel()
+            lastNoteSourceLabel = Self.sourceLabel(for: playbackPosition)
             return transcriptNote
         }
 
@@ -161,6 +177,7 @@ final class LectureMode {
         if let heardWordsTask {
             if let heardValue = await Self.value(of: heardWordsTask, before: deadline), let heardWords = heardValue {
                 TutorDebugLog.write("🎓 lecture: \(heardWords.secondsCovered)s of \(gathering.applicationName)'s sound, heard by \(heardWords.heardBy)")
+                lastNoteSourceLabel = Self.sourceLabel(for: playbackPosition)
                 return LectureNote.heardNote(passage: heardWords.passage, secondsCovered: heardWords.secondsCovered,
                                              heardBy: heardWords.heardBy)
             }

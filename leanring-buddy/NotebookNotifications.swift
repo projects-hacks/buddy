@@ -2,8 +2,9 @@
 //  NotebookNotifications.swift
 //  leanring-buddy
 //
-//  Saying a PDF export is done, and the notebook's two small controls in
-//  the notch.
+//  Saying a PDF export is done, and the notch's notice of it when
+//  notifications are off. (The notch's way into the Notebook is the
+//  Notebook button in its tab row, TutorControlBar.swift.)
 //
 //  An export runs in the background, so it ends with a macOS notification
 //  that has an Open PDF action. Permission is asked for once, when the first
@@ -131,31 +132,6 @@ extension NotebookExportNotifier: UNUserNotificationCenterDelegate {
 }
 
 // MARK: - In the notch
-
-/// The notch's way into the notebook: a small control in the row under the
-/// last lesson, styled like the notch's other buttons.
-struct NotebookNotchButton: View {
-    @State private var isHovering = false
-
-    var body: some View {
-        Button(action: { NotebookWindowController.shared.show() }) {
-            HStack(spacing: 5) {
-                Image(systemName: "book.pages")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Notebook")
-                    .font(.system(size: 11.5, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(0.9))
-            .padding(.horizontal, 11)
-            .padding(.vertical, 6)
-            .background(Capsule().fill(Color.white.opacity(isHovering ? 0.2 : 0.1)))
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .help("Every lesson, kept as a notebook page")
-        .onHover { hovering in isHovering = hovering }
-    }
-}
 
 /// An export's result, when there is no notification to carry it.
 struct NotebookNotchExportNotice: View {
