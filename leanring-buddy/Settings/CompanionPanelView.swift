@@ -2,12 +2,13 @@
 //  CompanionPanelView.swift
 //  leanring-buddy
 //
-//  Settings, behind the gear in the open notch: nine controls in four
-//  groups, two columns, never a scroll. Talking (Talk over Buddy, Sounds,
-//  Open at login), Memory (Remember what I learn, Open Map, Forget
-//  everything), Answers (Answers from, Spent today, Name and keys) and
-//  Buddy itself (one update row), with How to use Buddy and Quit Buddy
-//  under them.
+//  Settings, behind the gear in the open notch: eight controls in four
+//  groups, two columns, never a scroll. Talking (Sounds, Open at login),
+//  Memory (Remember what I learn, Open Map, Forget everything), Answers
+//  (Answers from, Spent today, Name and keys) and Buddy itself (one update
+//  row), with How to use Buddy and Quit Buddy under them. Talking over an
+//  answer has no switch, like lecture mode and the error offer
+//  (TalkOverListener says why that is safe).
 //
 //  Settings only holds settings: the how-to lives in setup's last step and
 //  How to use Buddy, the day's lessons in the Notebook, and a missing
@@ -199,17 +200,10 @@ struct NotchSwitchStyle: ToggleStyle {
 // MARK: - Talking
 
 private struct TalkingSettings: View {
-    /// The existing talk-over switch: the microphone is open while an
-    /// answer plays, so the student can cut in without the keys.
-    @AppStorage(TalkOverListener.enabledDefaultsKey) private var talkOverEnabled = true
     @AppStorage(InterfaceSounds.enabledDefaultsKey) private var interfaceSoundsEnabled = true
     @State private var opensAtLogin = LoginItem.isChosen
 
     var body: some View {
-        SettingsSwitchRow(title: "Talk over Buddy",
-                          caption: "Keeps listening while it explains, so you can cut in.",
-                          isOn: $talkOverEnabled)
-        SettingsDivider()
         SettingsSwitchRow(title: "Sounds", isOn: $interfaceSoundsEnabled)
         SettingsDivider()
         SettingsSwitchRow(title: "Open at login", isOn: Binding(get: { opensAtLogin }, set: { chosen in
