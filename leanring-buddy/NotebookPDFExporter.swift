@@ -154,6 +154,12 @@ extension NotebookPDFExporter: WKNavigationDelegate {
         pageLoadContinuation = nil
     }
 
+    /// A page whose process died reports neither a finish nor a failure.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        pageLoadContinuation?.resume(throwing: ExportError.pageDidNotLoad)
+        pageLoadContinuation = nil
+    }
+
     /// The document is loaded once from a string; it has no links to follow.
     func webView(
         _ webView: WKWebView,
