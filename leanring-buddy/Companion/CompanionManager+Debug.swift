@@ -2,7 +2,7 @@
 //  CompanionManager+Debug.swift
 //  leanring-buddy
 //
-//  The QA channel's entry points, debug builds only.
+//  The QA channel's entry points and the file triggers, debug builds only.
 //
 
 import AppKit
@@ -10,6 +10,50 @@ import Foundation
 
 #if DEBUG
 extension CompanionManager {
+    /// Test triggers read from files in ~/Library/Logs, checked on every
+    /// permission poll. Debug builds only: any program on the Mac can write
+    /// those files, and one of them makes Buddy capture the screen and send
+    /// it to a model.
+    func runDebugFileTriggers() async {
+        if FileManager.default.fileExists(atPath: CalibrationSnapshot.triggerURL.path) {
+            try? FileManager.default.removeItem(at: CalibrationSnapshot.triggerURL)
+            await runCalibration()
+        }
+
+        if let tabName = try? String(contentsOf: CalibrationSnapshot.openNotchURL, encoding: .utf8) {
+            try? FileManager.default.removeItem(at: CalibrationSnapshot.openNotchURL)
+            switch tabName.trimmingCharacters(in: .whitespacesAndNewlines) {
+            case "transcript": openNotchBriefly(on: .transcript)
+            case "settings": openNotchBriefly(on: .settings)
+            default: openNotchBriefly(on: .lesson)
+            }
+        }
+
+        // A question in this file is asked as if spoken, so the whole
+        // pipeline can be checked from a terminal: capture, model,
+        // voice, drawing.
+        if let question = try? String(contentsOf: CalibrationSnapshot.askURL, encoding: .utf8) {
+            try? FileManager.default.removeItem(at: CalibrationSnapshot.askURL)
+            let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedQuestion.isEmpty {
+                TutorDebugLog.write("🧪 asked from file")
+                sendTranscriptToTutorWithScreenshot(transcript: trimmedQuestion)
+            }
+        }
+
+        // A picture of the screen with whatever is drawn on it, to
+        // check a drawing by looking at it.
+        if FileManager.default.fileExists(atPath: CalibrationSnapshot.snapshotTriggerURL.path) {
+            try? FileManager.default.removeItem(at: CalibrationSnapshot.snapshotTriggerURL)
+            do {
+                try await CalibrationSnapshot.captureIncludingOverlay()
+                TutorDebugLog.write("📸 snapshot saved")
+            } catch {
+                TutorDebugLog.write("⚠️ snapshot failed: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// As if spoken: the connections are warmed the way holding the keys
     /// warms them, then the question goes in after a speaking-length pause,
     /// so timings match real use instead of a cold start.

@@ -29,10 +29,10 @@ final class CompanionManager: ObservableObject {
     @Published var voiceState: CompanionVoiceState = .idle
     @Published var lastTranscript: String?
     @Published var currentAudioPowerLevel: CGFloat = 0
-    @Published var hasAccessibilityPermission = false
-    @Published var hasScreenRecordingPermission = false
-    @Published var hasMicrophonePermission = false
-    @Published var hasScreenContentPermission = false
+    /// Accessibility, screen recording, microphone and screen content,
+    /// read again every 1.5 seconds (PermissionMonitor.swift).
+    let permissionMonitor = PermissionMonitor()
+    var permissionMonitorCancellable: AnyCancellable?
 
     /// Screen location (global AppKit coords) of a detected UI element the
     /// buddy should fly to and point at. Parsed from Claude's response;
@@ -203,7 +203,6 @@ final class CompanionManager: ObservableObject {
     var typeQuestionCancellable: AnyCancellable?
     var voiceStateCancellable: AnyCancellable?
     var audioPowerCancellable: AnyCancellable?
-    var accessibilityCheckTimer: Timer?
     var pendingKeyboardShortcutStartTask: Task<Void, Never>?
     /// Scheduled hide for transient cursor mode, cancelled if the user
     /// speaks again before the delay elapses.
@@ -230,9 +229,10 @@ final class CompanionManager: ObservableObject {
         : UserDefaults.standard.bool(forKey: "isClickyCursorEnabled")
 
     func start() {
+        connectPermissionMonitor()
         refreshAllPermissions()
         TutorDebugLog.write("🔑 at launch, accessibility: \(hasAccessibilityPermission), screen: \(hasScreenRecordingPermission), mic: \(hasMicrophonePermission), screenContent: \(hasScreenContentPermission)")
-        startPermissionPolling()
+        permissionMonitor.startPolling()
         bindVoiceStateObservation()
         bindAudioPowerLevel()
         bindShortcutTransitions()
@@ -353,14 +353,8 @@ final class CompanionManager: ObservableObject {
         typeQuestionCancellable?.cancel()
         voiceStateCancellable?.cancel()
         audioPowerCancellable?.cancel()
-        accessibilityCheckTimer?.invalidate()
-        accessibilityCheckTimer = nil
+        permissionMonitor.stopPolling()
     }
-
-    /// Triggers the macOS screen content picker by performing a dummy
-    /// screenshot capture. Once the user approves, we persist the grant
-    /// so they're never asked again during onboarding.
-    @Published var isRequestingScreenContent = false
 
     var pendingTalkStart: Task<Void, Never>?
     /// The screen read while the keys are held, for the question they end in.
