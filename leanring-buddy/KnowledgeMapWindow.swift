@@ -3,12 +3,12 @@
 //  leanring-buddy
 //
 //  The window the map of what the student knows lives in, opened from the
-//  notch and from the menu bar panel. A real window, like setup, because
-//  searching needs the keyboard and the notch never takes it.
+//  notch and from Settings. A real window, like setup, because searching
+//  needs the keyboard and the notch never takes it.
 //
 //  It keeps the map in step with memory (a lesson filed while it is open
-//  grows in as a new dot), runs the one-time relation pass for older stores
-//  on its first opening, and hands Re-teach this to the normal answer flow:
+//  grows in as a new idea), runs the one-time relation pass for older stores
+//  on its first opening, and hands Quick recap to the normal answer flow:
 //  the window steps aside first, and the app being studied gets the
 //  keyboard back, so the answer is spoken and drawn where the student was.
 //
@@ -36,6 +36,12 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
     /// since grow in when it next opens, even across relaunches.
     private static let seenConceptIDsDefaultsKey = "knowledgeMapSeenConceptIDs"
 
+    /// Teach it back: the words go in the notch's chat box for now.
+    var onTeachBack: (RememberedConcept) -> Void = { _ in }
+    /// Opens the Notebook on a lesson, by its title.
+    var onOpenLesson: (String) -> Void = { _ in }
+    private var keyMonitor: Any?
+
     init(learningMemory: LearningMemory,
          askQuestion: @escaping (String) -> Void,
          relationPassReply: @escaping (String) async -> String?) {
@@ -43,11 +49,27 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
         self.askQuestion = askQuestion
         self.relationPassReply = relationPassReply
         super.init()
-        model.onReteach = { [weak self] concept in self?.reteach(concept) }
+        model.onReteach = { [weak self] concept in self?.quickRecap(concept) }
         model.onForget = { [weak self] concept in self?.forget(concept) }
+        model.onTeachBack = { [weak self] concept in
+            self?.stepAside()
+            self?.onTeachBack(concept)
+        }
+        model.onOpenLesson = { [weak self] lessonTitle in self?.onOpenLesson(lessonTitle) }
+        model.onTurnOnMemory = { [weak self] in
+            UserDefaults.standard.set(true, forKey: LearningMemory.enabledDefaultsKey)
+            self?.reloadMap(animated: false)
+        }
     }
 
     var isVisible: Bool { window?.isVisible ?? false }
+
+    /// Opens on an idea when one is named, as a lesson's Builds on chip does.
+    func show(focusingIdeaNamed ideaName: String?) {
+        show()
+        guard let ideaName else { return }
+        model.focusWhenLaidOut(onIdeaNamed: ideaName)
+    }
 
     func show() {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
@@ -70,20 +92,21 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
 
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
+            contentRect: NSRect(x: 0, y: 0, width: 1180, height: 750),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "What you know"
+        window.title = "Map of what you know"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 640, height: 460)
+        window.minSize = NSSize(width: 820, height: 560)
         window.setFrameAutosaveName("BuddyKnowledgeMap")
         window.delegate = self
-        // Follows the system's light or dark appearance; the view draws its
-        // own background in either.
+        // Dark chrome around a paper canvas, whatever the system appearance.
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.backgroundColor = NSColor(DS.Colors.background)
         let hostingView = NSHostingView(rootView: KnowledgeMapView(model: model))
         // The window sets the size (with its own minimum), never the content:
         // measured at zero width, wrapped text asks for a towering window.
@@ -115,6 +138,33 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
                 MainActor.assumeIsolated { self?.handleScroll(event) ?? event }
             }
         }
+        if keyMonitor == nil {
+            keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                MainActor.assumeIsolated { self?.handleKey(event) ?? event }
+            }
+        }
+    }
+
+    /// Arrow keys move the selection along the links, Return gives a quick
+    /// recap and Delete asks to forget, while nothing is being typed.
+    private func handleKey(_ event: NSEvent) -> NSEvent? {
+        guard let window, event.window === window, !(window.firstResponder is NSTextView),
+              event.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return event }
+        switch event.keyCode {
+        case 123: model.selectLinkedIdea(towards: CGVector(dx: -1, dy: 0))
+        case 124: model.selectLinkedIdea(towards: CGVector(dx: 1, dy: 0))
+        case 125: model.selectLinkedIdea(towards: CGVector(dx: 0, dy: 1))
+        case 126: model.selectLinkedIdea(towards: CGVector(dx: 0, dy: -1))
+        case 36, 76:
+            guard let concept = model.selectedNode?.concept else { return event }
+            quickRecap(concept)
+        case 51, 117:
+            guard model.selectedNode != nil else { return event }
+            NotificationCenter.default.post(name: KnowledgeMapModel.forgetRequestedNotification, object: model)
+        default:
+            return event
+        }
+        return nil
     }
 
     /// Returns nil when the map used the event, the event otherwise.
@@ -141,6 +191,8 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
         memoryObserver = nil
         if let scrollMonitor { NSEvent.removeMonitor(scrollMonitor) }
         scrollMonitor = nil
+        if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
+        keyMonitor = nil
     }
 
     /// Lays the map out off the main actor (300 ideas take a moment in a
@@ -179,18 +231,18 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
 
     // MARK: Actions from the map
 
-    /// Asks for the idea again through the normal answer flow, worded as a
-    /// new teaching question. "Again", "simpler" or "another way" would read
-    /// as the student not following the last lesson, which marks that
-    /// lesson's ideas as lost; this is a fresh request about a named idea.
-    private func reteach(_ concept: RememberedConcept) {
+    /// Quick recap: asks for the idea again through the normal answer flow,
+    /// worded as a fresh request about a named idea, short. "Again",
+    /// "simpler" or "another way" would read as the student not following
+    /// the last lesson, which marks that lesson's ideas as lost.
+    private func quickRecap(_ concept: RememberedConcept) {
         let question: String
         if let angle = concept.lastAngle, !angle.isEmpty {
-            question = "teach me \(concept.name) from the start, with a different example from last time's \(angle)"
+            question = "give me a quick recap of \(concept.name) in about thirty seconds, with a different example from last time's \(angle)"
         } else {
-            question = "teach me \(concept.name) from the start, with a fresh example"
+            question = "give me a quick recap of \(concept.name) in about thirty seconds"
         }
-        TutorDebugLog.write("🗺️ map: re-teach \(concept.name)")
+        TutorDebugLog.write("🗺️ map: quick recap of \(concept.name)")
         stepAside()
         // A moment for the window to leave the screen and the studied app to
         // come forward before the screen is captured for the answer.

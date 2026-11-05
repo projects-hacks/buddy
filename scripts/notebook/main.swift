@@ -300,7 +300,7 @@ final class HeadlessDrawingBoard: NSObject, WKNavigationDelegate {
     }
 }
 
-/// Shows a day the way the Notebook window does, and snapshots it.
+/// Shows a day's newest page the way the Notebook window does, and snapshots it.
 @MainActor
 final class DayViewRenderer: NSObject, WKNavigationDelegate {
     private var loaded: CheckedContinuation<Void, Never>?
@@ -314,7 +314,11 @@ final class DayViewRenderer: NSObject, WKNavigationDelegate {
         webView.navigationDelegate = self
         await withCheckedContinuation { continuation in
             loaded = continuation
-            webView.loadHTMLString(NotebookDocumentHTML.dayPagesHTML(day: day), baseURL: URL(string: "\(NotebookDocumentHTML.fileScheme)://notes/"))
+            let pageHTML = day.pages.last.map { newestPage in
+                NotebookDocumentHTML.windowPageHTML(storedPage: newestPage, pageNumber: day.pages.count,
+                                                    pageCount: day.pages.count, dayName: "today", canReplay: false)
+            } ?? "<!doctype html><html><body></body></html>"
+            webView.loadHTMLString(pageHTML, baseURL: URL(string: "\(NotebookDocumentHTML.fileScheme)://notes/"))
         }
         try? await Task.sleep(nanoseconds: 600_000_000)
         let contentHeight = (try? await webView.evaluateJavaScript("document.documentElement.scrollHeight") as? NSNumber)?.doubleValue

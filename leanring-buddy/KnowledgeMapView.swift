@@ -3,15 +3,16 @@
 //  leanring-buddy
 //
 //  The map of what the student knows, as drawn in its window
-//  (KnowledgeMapWindow.swift): every remembered idea a dot, related ideas
-//  joined, clusters tinted by topic, and ideas being forgotten fading out
-//  with "review soon" under their names. Hover shows how an idea was last
-//  explained; a click opens it, with Re-teach this and Forget this idea.
+//  (KnowledgeMapWindow.swift): board paper with every remembered idea as its
+//  hand-lettered name in a capsule, coloured by how well it is remembered
+//  (Strong, Fading, Time to review), related ideas joined and clusters
+//  named. Hover shows how an idea was last explained; a click opens it in
+//  the inspector, with Quick recap, Teach it back and Forget this idea.
 //
 //  Drawn in one Canvas rather than a view per idea, so 300 ideas pan and
-//  zoom as smoothly as 5. Names are drawn at a fixed size on screen and
-//  shown in order of importance until there is no room for the next, so the
-//  map stays readable at any zoom instead of turning into overprinted text.
+//  zoom as smoothly as 5. Names are drawn at a fixed size on screen, most
+//  important first; an idea whose capsule has no room is a small dot in its
+//  colour, so the map stays readable at any zoom instead of overprinting.
 //
 
 import AppKit
@@ -38,8 +39,18 @@ final class KnowledgeMapModel: ObservableObject {
     @Published var panOffset: CGSize = .zero
     @Published private(set) var isAnimating = false
 
+    /// Quick recap: a short spoken recap on screen, through the normal
+    /// answer flow.
     var onReteach: (RememberedConcept) -> Void = { _ in }
     var onForget: (RememberedConcept) -> Void = { _ in }
+    /// Teach it back, which for now puts the words in the notch's chat box.
+    var onTeachBack: (RememberedConcept) -> Void = { _ in }
+    /// Opens the Notebook on a lesson the idea came up in, by its title.
+    var onOpenLesson: (String) -> Void = { _ in }
+    /// The empty state's Turn on, when Remember what I learn is off.
+    var onTurnOnMemory: () -> Void = {}
+    /// Posted by the window on Delete, so the view asks before forgetting.
+    static let forgetRequestedNotification = Notification.Name("KnowledgeMapForgetRequested")
 
     /// Set by the view as it is laid out, and by scripts that render it.
     var viewSize: CGSize = .zero
@@ -80,6 +91,7 @@ final class KnowledgeMapModel: ObservableObject {
     /// Shows a new layout. Ideas in `appearingIDs` grow in from the idea they
     /// are linked to; every other idea glides from where it was drawn.
     func apply(_ newLayout: KnowledgeMapLayout, appearingIDs newAppearingIDs: Set<UUID>, animated: Bool, now: Date = Date()) {
+        defer { focusOnPendingIdeaIfLaidOut() }
         let wasEmpty = layout.nodes.isEmpty
         var drawnPositions: [UUID: CGPoint] = [:]
         if animated {
@@ -190,6 +202,7 @@ final class KnowledgeMapModel: ObservableObject {
         let wasUnsized = viewSize == .zero
         viewSize = size
         if wasUnsized || needsFitWhenSized || !hasStudentMovedCamera { fitToContent() }
+        focusOnPendingIdeaIfLaidOut()
     }
 
     /// The whole map in view, centred, no bigger than comfortable.
@@ -253,6 +266,11 @@ final class KnowledgeMapModel: ObservableObject {
     /// The idea under a point of the view, if any, with a little slack so
     /// small dots are easy to hit.
     func nodeID(atScreenPoint screenPoint: CGPoint) -> UUID? {
+        // A named idea is drawn as a capsule around its name: the whole
+        // capsule is the target.
+        if let capsule = drawnCapsuleRects.first(where: { $0.value.insetBy(dx: -2, dy: -2).contains(screenPoint) }) {
+            return capsule.key
+        }
         var nearest: (id: UUID, distance: CGFloat)?
         for node in layout.nodes {
             let centre = self.screenPoint(forMapPoint: node.position)
@@ -284,86 +302,207 @@ final class KnowledgeMapModel: ObservableObject {
         }
     }
 
+    /// The ideas drawn at full strength: those the search finds and the
+    /// filter keeps. Nil when neither narrows anything.
     var searchMatchIDs: Set<UUID>? {
-        searchText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Set(searchMatches.map(\.id))
+        let searchIDs = searchText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Set(searchMatches.map(\.id))
+        let filterIDs = filter == .all ? nil : Set(layout.nodes.filter { filter.includes($0) }.map(\.id))
+        switch (searchIDs, filterIDs) {
+        case (nil, nil): return nil
+        case (let searchIDs?, nil): return searchIDs
+        case (nil, let filterIDs?): return filterIDs
+        case (let searchIDs?, let filterIDs?): return searchIDs.intersection(filterIDs)
+        }
+    }
+
+    // MARK: Filter
+
+    enum Filter: Hashable, CaseIterable {
+        case all, fading, thisWeek
+
+        var title: String {
+            switch self {
+            case .all: return "All"
+            case .fading: return "Fading"
+            case .thisWeek: return "This week"
+            }
+        }
+
+        func includes(_ node: KnowledgeMapNode, now: Date = Date()) -> Bool {
+            switch self {
+            case .all: return true
+            case .fading: return node.strength.needsReview
+            case .thisWeek: return now.timeIntervalSince(node.concept.lastExplainedAt) < 7 * 86_400
+            }
+        }
+    }
+
+    @Published var filter: Filter = .all
+
+    func count(of filter: Filter) -> Int { layout.nodes.filter { filter.includes($0) }.count }
+
+    /// Where each named idea's capsule was drawn in the last frame, in view
+    /// points, for hit testing. Written by the renderer; not published,
+    /// since it changes with every frame.
+    var drawnCapsuleRects: [UUID: CGRect] = [:]
+
+    /// The arrow keys move the selection along the links, to the linked
+    /// idea that lies most in the arrow's direction.
+    func selectLinkedIdea(towards direction: CGVector) {
+        guard let selected = selectedNode ?? layout.nodes.first else { return }
+        guard selectedNode != nil else {
+            focus(on: selected.id)
+            return
+        }
+        let linkedIDs = layout.edges.compactMap { edge -> UUID? in
+            if edge.fromID == selected.id { return edge.toID }
+            if edge.toID == selected.id { return edge.fromID }
+            return nil
+        }
+        let best = linkedIDs.compactMap { node(id: $0) }.compactMap { candidate -> (KnowledgeMapNode, CGFloat)? in
+            let offset = CGVector(dx: candidate.position.x - selected.position.x, dy: candidate.position.y - selected.position.y)
+            let length = max(1, hypot(offset.dx, offset.dy))
+            let alignment = (offset.dx * direction.dx + offset.dy * direction.dy) / length
+            return alignment > 0.2 ? (candidate, alignment) : nil
+        }.max { $0.1 < $1.1 }
+        if let best { focus(on: best.0.id) }
+    }
+
+    /// An idea to open once the map is laid out, from a lesson's Builds on
+    /// chip or a Notebook page. Matched by name, as memory files it.
+    private var ideaNameToFocusWhenLaidOut: String?
+
+    func focusWhenLaidOut(onIdeaNamed ideaName: String) {
+        ideaNameToFocusWhenLaidOut = ideaName.lowercased()
+        focusOnPendingIdeaIfLaidOut()
+    }
+
+    func focusOnPendingIdeaIfLaidOut() {
+        guard let ideaName = ideaNameToFocusWhenLaidOut, hasLoaded, viewSize != .zero else { return }
+        ideaNameToFocusWhenLaidOut = nil
+        let match = layout.nodes.first { $0.concept.name.lowercased() == ideaName }
+            ?? layout.nodes.first { node in node.concept.aliases.contains { $0.lowercased() == ideaName } }
+        if let match { focus(on: match.id) }
     }
 }
 
 // MARK: - Colours
 
-/// The map's own colours, in a light and a dark set. The light set is the
-/// cream squared paper of Buddy's lesson cards; the dark set keeps the same
-/// hues, deeper, so a topic is the same colour in both.
+/// The map's own colours: board paper for the canvas, with each idea drawn
+/// in the colour of how well it is remembered. The window around it is the
+/// app's dark chrome; the canvas stays paper, as lessons are.
 struct KnowledgeMapColors {
-    let colorScheme: ColorScheme
-    private var isDark: Bool { colorScheme == .dark }
-
-    var background: Color { isDark ? Color(hex: "#17181A") : Color(hex: "#F7F3E8") }
-    var paperDots: Color { isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.075) }
-    var ink: Color { isDark ? Color(hex: "#ECEAE4") : Color(hex: "#24211C") }
-    var secondaryInk: Color { isDark ? Color(hex: "#A39E95") : Color(hex: "#6E685E") }
-    var faintInk: Color { isDark ? Color.white.opacity(0.16) : Color.black.opacity(0.16) }
-    var reviewSoon: Color { isDark ? Color(hex: "#F2A35E") : Color(hex: "#B4541A") }
-    var card: Color { isDark ? Color(hex: "#232427") : Color(hex: "#FFFDF7") }
-    var cardBorder: Color { isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1) }
-    var field: Color { isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.05) }
+    var background: Color { DS.Paper.board }
+    var paperDots: Color { Color.black.opacity(0.075) }
+    var ink: Color { DS.Paper.ink }
+    var secondaryInk: Color { DS.Paper.inkMuted }
+    /// Cluster names, in a muted hand.
+    var clusterInk: Color { Color.black.opacity(0.45) }
+    var link: Color { Color(hex: "#B9B6AC") }
+    var card: Color { Color(hex: "#FFFDF7") }
+    var cardBorder: Color { Color.black.opacity(0.1) }
+    var field: Color { Color.black.opacity(0.05) }
     var accent: Color { DS.Colors.accent }
+    var selectionRing: Color { Color(hex: "#2F6BE0") }
     var destructive: Color { DS.Colors.destructive }
 
-    private static let lightStrokes = ["#2D6BD8", "#6E4BC7", "#138A80", "#D2691E", "#C23F7E", "#3E8E32", "#A87A00", "#C4383F"]
-    private static let lightFills = ["#D8E6FB", "#E6DDF9", "#D2F0EC", "#FBE3CF", "#F8DCEA", "#DDF0D6", "#F7EBC4", "#F9D9D8"]
-    private static let darkStrokes = ["#7FB0FF", "#B39BFF", "#5FD3C6", "#FFAE6B", "#FF8EC2", "#8FD67F", "#F2C94C", "#FF7F7A"]
-    private static let darkFills = ["#2C4F86", "#4A3B80", "#1F5A54", "#6B4324", "#6A3150", "#335C2B", "#62511C", "#6E2A2A"]
-
-    func stroke(_ colorIndex: Int?) -> Color {
-        guard let colorIndex else { return isDark ? Color(hex: "#ABA69C") : Color(hex: "#6B665F") }
-        return Color(hex: (isDark ? Self.darkStrokes : Self.lightStrokes)[colorIndex % Self.lightStrokes.count])
+    // Strong, fading and time to review: fill, edge, and the inspector's text.
+    func fill(for strength: KnowledgeMapStrength) -> Color {
+        switch strength {
+        case .solid: return Color(hex: "#CDEBD6")
+        case .fading: return Color(hex: "#FBE7B5")
+        case .faded: return Color.white
+        }
     }
 
-    func fill(_ colorIndex: Int?) -> Color {
-        guard let colorIndex else { return isDark ? Color(hex: "#2E2D2A") : Color(hex: "#ECE6D8") }
-        return Color(hex: (isDark ? Self.darkFills : Self.lightFills)[colorIndex % Self.lightFills.count])
+    func edge(for strength: KnowledgeMapStrength) -> Color {
+        switch strength {
+        case .solid: return Color(hex: "#2E9D5B")
+        case .fading: return Color(hex: "#F59A3C")
+        case .faded: return DS.Ink.gap
+        }
     }
+
+    /// The same colours, readable as text on the dark inspector.
+    func label(for strength: KnowledgeMapStrength) -> Color {
+        switch strength {
+        case .solid: return Color(hex: "#5BD08A")
+        case .fading: return Color(hex: "#F7B955")
+        case .faded: return Color(hex: "#FF7A7F")
+        }
+    }
+}
+
+extension KnowledgeMapStrength {
+    /// Words for the state, so colour is never the only signal.
+    var displayName: String {
+        switch self {
+        case .solid: return "Strong"
+        case .fading: return "Fading"
+        case .faded: return "Time to review"
+        }
+    }
+}
+
+/// The hand the map writes names in: Noteworthy, then the other hands
+/// macOS ships, the way the drawing engine chooses.
+private func knowledgeMapHandFont(size: CGFloat) -> Font {
+    for name in ["Noteworthy", "Bradley Hand", "Chalkboard SE"] where NSFont(name: name, size: size) != nil {
+        return .custom(name, size: size)
+    }
+    return .system(size: size, design: .rounded)
 }
 
 // MARK: - The window's content
 
 struct KnowledgeMapView: View {
     @ObservedObject var model: KnowledgeMapModel
-    @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isSearchFocused: Bool
     @State private var dragStartPan: CGSize?
     @State private var pinchStartZoom: CGFloat?
     @State private var isConfirmingForget = false
 
-    private var colors: KnowledgeMapColors { KnowledgeMapColors(colorScheme: colorScheme) }
+    private let colors = KnowledgeMapColors()
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            ZStack {
-                if !model.isMemoryEnabled {
-                    emptyState(title: "Learning memory is off",
-                               message: "Turn on Learning memory in Buddy's settings, and the ideas from each lesson will start to appear here as a map.")
-                } else if model.hasLoaded && model.layout.nodes.isEmpty {
-                    emptyState(title: "Nothing on your map yet",
-                               message: "Every time Buddy explains something, the ideas it taught land here as dots, joined to the ideas they build on. Ideas you have not come back to in a while fade, so you can see what to review.\n\nHold Control + Option and ask about anything on your screen to add the first one.")
-                } else {
-                    mapCanvas
-                    overlays
+            toolbar
+            Rectangle().fill(Color.black.opacity(0.5)).frame(height: 1)
+            HStack(spacing: 0) {
+                ZStack {
+                    if !model.isMemoryEnabled {
+                        emptyState(title: "Remember what I learn is off.",
+                                   message: "Turn it on and the ideas from each lesson start to appear here.",
+                                   showsTurnOn: true)
+                    } else if model.hasLoaded && model.layout.nodes.isEmpty {
+                        emptyState(title: "Nothing here yet.",
+                                   message: "Ideas appear as Buddy explains them. Hold Control + Option and ask about anything on your screen to add the first one.",
+                                   showsTurnOn: false)
+                    } else {
+                        mapCanvas
+                        overlays
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(colors.background)
+                .clipped()
+                Rectangle().fill(Color.black.opacity(0.4)).frame(width: 1)
+                KnowledgeMapInspector(model: model, colors: colors, onForget: { isConfirmingForget = true })
+                    .frame(width: 300)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
         }
-        .background(colors.background)
+        .background(DS.Colors.background)
+        .environment(\.colorScheme, .dark)
         .alert(forgetAlertTitle, isPresented: $isConfirmingForget) {
+            Button("Cancel", role: .cancel) {}
             Button("Forget", role: .destructive) {
                 if let concept = model.selectedNode?.concept { model.onForget(concept) }
             }
-            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Buddy will stop building on it and stop reminding you of it. This cannot be undone.")
+            Text("Buddy will stop building on it and stop reminding you of it. This can't be undone.")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: KnowledgeMapModel.forgetRequestedNotification, object: model)) { _ in
+            if model.selectedNode != nil { isConfirmingForget = true }
         }
     }
 
@@ -371,84 +510,82 @@ struct KnowledgeMapView: View {
         "Forget \u{201C}\(model.selectedNode?.concept.name ?? "this idea")\u{201D}?"
     }
 
-    // MARK: Header
+    // MARK: Toolbar
 
-    private var header: some View {
+    private var toolbar: some View {
         HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("What you know")
-                    .font(.system(size: 19, weight: .bold, design: .rounded))
-                    .foregroundStyle(colors.ink)
-                Text(headerSubtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(colors.secondaryInk)
+            Text("Map of what you know")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(DS.Colors.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            if model.isFindingRelations {
+                Text("Linking older ideas\u{2026}")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DS.Colors.textTertiary)
             }
             Spacer(minLength: 12)
-            if !model.layout.nodes.isEmpty { searchField }
-        }
-        // Clear of the window's close button, which sits over the content.
-        .padding(.leading, 84)
-        .padding(.trailing, 18)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
-        .background(colors.background)
-        .overlay(alignment: .bottom) { Rectangle().fill(colors.cardBorder).frame(height: 1) }
-    }
-
-    private var headerSubtitle: String {
-        let count = model.layout.nodes.count
-        guard count > 0 else { return "Ideas Buddy has taught you, on this Mac only" }
-        let ideas = count == 1 ? "1 idea" : "\(count) ideas"
-        let review = model.reviewSoonCount
-        let reviewPart = review == 0 ? "all fresh" : "\(review) to review soon"
-        let findingPart = model.isFindingRelations ? " \u{00B7} linking older ideas\u{2026}" : ""
-        return "\(ideas) \u{00B7} \(reviewPart)\(findingPart)"
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(colors.secondaryInk)
-            TextField("Search ideas", text: $model.searchText)
-                .textFieldStyle(.plain)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(colors.ink)
-                .focused($isSearchFocused)
-                .onSubmit {
-                    if let first = model.searchMatches.first { model.focus(on: first.id) }
-                }
-                .onExitCommand { model.searchText = "" }
-            if !model.searchText.isEmpty {
-                Text(model.searchMatches.count == 1 ? "1 idea" : "\(model.searchMatches.count) ideas")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(colors.secondaryInk)
-                Button(action: { model.searchText = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(colors.secondaryInk)
-                }
-                .buttonStyle(.plain)
-                .pointerCursor()
-                .help("Clear the search")
+            if !model.layout.nodes.isEmpty {
+                filterControl
+                NotebookSearchField(text: $model.searchText, placeholder: "Find an idea", isFocused: $isSearchFocused)
+                    .frame(width: 260)
+                    .onSubmit {
+                        if let first = model.searchMatches.first { model.focus(on: first.id) }
+                    }
+                    .background {
+                        // Command F reaches the search however the window was opened.
+                        Button("") { isSearchFocused = true }
+                            .keyboardShortcut("f", modifiers: .command)
+                            .opacity(0)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .frame(width: 260)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(colors.field))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .stroke(isSearchFocused ? colors.accent.opacity(0.6) : Color.clear, lineWidth: 1.5))
-        .background {
-            // Command F reaches the search however the window was opened.
-            Button("") { isSearchFocused = true }
-                .keyboardShortcut("f", modifiers: .command)
-                .opacity(0)
-                .allowsHitTesting(false)
+        // Clear of the window's close, minimise and zoom buttons.
+        .padding(.leading, 84)
+        .padding(.trailing, 14)
+        .frame(height: 52)
+        .background(DS.Colors.surface1)
+    }
+
+    /// All, Fading and This week, with how many ideas each holds.
+    private var filterControl: some View {
+        HStack(spacing: 0) {
+            ForEach(KnowledgeMapModel.Filter.allCases, id: \.self) { filter in
+                KnowledgeMapFilterButton(title: filter.title, count: model.count(of: filter),
+                                         isSelected: model.filter == filter) {
+                    withAnimation(.easeOut(duration: 0.15)) { model.filter = filter }
+                }
+            }
         }
+        .padding(2)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white.opacity(0.06)))
     }
 
     // MARK: The map
+
+    /// Ideas in the order VoiceOver reads them: by state, then by name, so
+    /// the graph is never the only way in.
+    private var ideasForVoiceOver: [KnowledgeMapNode] {
+        let order: [KnowledgeMapStrength] = [.faded, .fading, .solid]
+        return model.layout.nodes.sorted { first, second in
+            let firstRank = order.firstIndex(of: first.strength) ?? 0
+            let secondRank = order.firstIndex(of: second.strength) ?? 0
+            if firstRank != secondRank { return firstRank < secondRank }
+            return first.concept.name < second.concept.name
+        }
+    }
+
+    private func voiceOverDescription(of node: KnowledgeMapNode) -> String {
+        let linkedNames = model.layout.edges.compactMap { edge -> String? in
+            if edge.fromID == node.id { return model.node(id: edge.toID)?.concept.name }
+            if edge.toID == node.id { return model.node(id: edge.fromID)?.concept.name }
+            return nil
+        }
+        var text = "\(node.concept.name), \(node.strength.displayName.lowercased())"
+        if !linkedNames.isEmpty { text += ", links to " + linkedNames.joined(separator: ", ") }
+        return text
+    }
 
     private var mapCanvas: some View {
         GeometryReader { geometry in
@@ -501,6 +638,21 @@ struct KnowledgeMapView: View {
                     model.selectedID = model.nodeID(atScreenPoint: value.location)
                 }
             )
+            // A double click opens the newest lesson the idea came up in.
+            .simultaneousGesture(
+                SpatialTapGesture(count: 2).onEnded { value in
+                    guard let id = model.nodeID(atScreenPoint: value.location),
+                          let newestLesson = model.node(id: id)?.concept.lessonTitles.last else { return }
+                    model.onOpenLesson(newestLesson)
+                }
+            )
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Map of what you know")
+            .accessibilityChildren {
+                ForEach(ideasForVoiceOver) { node in
+                    Button(voiceOverDescription(of: node)) { model.focus(on: node.id) }
+                }
+            }
         }
     }
 
@@ -523,17 +675,7 @@ struct KnowledgeMapView: View {
                 }
             }
             .padding(16)
-            if let selected = model.selectedNode {
-                HStack {
-                    Spacer()
-                    detailCard(for: selected)
-                        .frame(width: 300)
-                        .padding(16)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
-            }
         }
-        .animation(.smooth(duration: 0.22), value: model.selectedID)
     }
 
     private var searchResults: some View {
@@ -546,16 +688,16 @@ struct KnowledgeMapView: View {
                         model.focus(on: node.id)
                     }) {
                         HStack(spacing: 8) {
-                            Circle().fill(colors.stroke(node.colorIndex)).frame(width: 8, height: 8)
+                            Circle().fill(colors.edge(for: node.strength)).frame(width: 8, height: 8)
                             Text(node.concept.name)
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(colors.ink)
                                 .lineLimit(1)
                             Spacer(minLength: 8)
                             if node.strength.needsReview {
-                                Text("review soon")
+                                Text(node.strength.displayName.lowercased())
                                     .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(colors.reviewSoon)
+                                    .foregroundStyle(colors.edge(for: node.strength))
                             }
                         }
                     }
@@ -570,60 +712,64 @@ struct KnowledgeMapView: View {
         .padding(.top, -8)
     }
 
+    /// The three states in words, so colour is never the only signal.
     private var legend: some View {
-        HStack(spacing: 14) {
-            legendItem(opacity: 1, dashed: false, text: "Remembered")
-            legendItem(opacity: 0.62, dashed: false, text: "Review soon")
-            legendItem(opacity: 0.3, dashed: true, text: "Fading out")
+        HStack(spacing: 16) {
+            ForEach([KnowledgeMapStrength.solid, .fading, .faded], id: \.displayName) { strength in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(colors.fill(for: strength))
+                        .overlay(Circle().stroke(colors.edge(for: strength),
+                                                 style: StrokeStyle(lineWidth: 2, dash: strength == .faded ? [3, 2.5] : [])))
+                        .frame(width: 12, height: 12)
+                    Text(strength.displayName)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(colors.ink.opacity(0.8))
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Capsule().fill(colors.card.opacity(0.92)))
-        .overlay(Capsule().stroke(colors.cardBorder))
-    }
-
-    private func legendItem(opacity: Double, dashed: Bool, text: String) -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(colors.fill(0).opacity(opacity))
-                .overlay(Circle().stroke(colors.stroke(0).opacity(opacity),
-                                         style: StrokeStyle(lineWidth: 1.5, dash: dashed ? [3, 2.5] : [])))
-                .frame(width: 11, height: 11)
-            Text(text)
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(colors.secondaryInk)
-        }
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(colors.card))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(colors.cardBorder))
+        .shadow(color: .black.opacity(0.06), radius: 4, y: 1)
+        .accessibilityElement(children: .combine)
     }
 
     private var zoomControls: some View {
         HStack(spacing: 2) {
-            KnowledgeMapIconButton(systemImage: "minus", help: "Zoom out", colors: colors) {
+            KnowledgeMapIconButton(systemImage: "minus", tooltip: "Zoom out", colors: colors) {
                 model.zoom(by: 1 / 1.25)
             }
             .keyboardShortcut("-", modifiers: .command)
-            KnowledgeMapIconButton(systemImage: "arrow.up.left.and.down.right.magnifyingglass", help: "Show the whole map", colors: colors) {
-                model.fitToContent(animated: true)
-            }
-            .keyboardShortcut("0", modifiers: .command)
-            KnowledgeMapIconButton(systemImage: "plus", help: "Zoom in", colors: colors) {
+            KnowledgeMapIconButton(systemImage: "plus", tooltip: "Zoom in", colors: colors) {
                 model.zoom(by: 1.25)
             }
             .keyboardShortcut("=", modifiers: .command)
         }
         .padding(3)
-        .background(Capsule().fill(colors.card.opacity(0.92)))
-        .overlay(Capsule().stroke(colors.cardBorder))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(colors.card))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(colors.cardBorder))
+        .shadow(color: .black.opacity(0.06), radius: 4, y: 1)
+        .background {
+            // Command 0 still shows the whole map, without a third button.
+            Button("") { model.fitToContent(animated: true) }
+                .keyboardShortcut("0", modifiers: .command)
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 
     private func hoverCard(for node: KnowledgeMapNode) -> some View {
         let centre = model.screenPoint(forMapPoint: node.position)
         let cardWidth: CGFloat = 250
-        // Beside the dot, on whichever side has room, and never under the
-        // open idea's card on the right.
-        let rightEdge = model.viewSize.width - (model.selectedID != nil ? 332 : 0)
-        let placeOnRight = centre.x + cardWidth + 40 < rightEdge
-        let x = placeOnRight ? centre.x + node.radius * model.zoom + 14 + cardWidth / 2
-            : centre.x - node.radius * model.zoom - 14 - cardWidth / 2
+        let capsule = model.drawnCapsuleRects[node.id]
+        let halfWidth = (capsule?.width ?? node.radius * 2 * model.zoom) / 2
+        // Beside the idea, on whichever side has room.
+        let placeOnRight = centre.x + halfWidth + cardWidth + 30 < model.viewSize.width
+        let x = placeOnRight ? centre.x + halfWidth + 14 + cardWidth / 2
+            : centre.x - halfWidth - 14 - cardWidth / 2
         let y = min(max(centre.y, 70), max(70, model.viewSize.height - 70))
         return VStack(alignment: .leading, spacing: 5) {
             Text(node.concept.name)
@@ -638,9 +784,9 @@ struct KnowledgeMapView: View {
             }
             HStack(spacing: 6) {
                 Text("Learned \(KnowledgeMapDates.day(node.concept.firstExplainedAt))")
-                if node.strength.needsReview {
-                    Text("review soon").foregroundStyle(colors.reviewSoon).fontWeight(.semibold)
-                }
+                Text(node.strength.displayName.lowercased())
+                    .foregroundStyle(colors.edge(for: node.strength))
+                    .fontWeight(.semibold)
             }
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(colors.secondaryInk)
@@ -654,168 +800,13 @@ struct KnowledgeMapView: View {
         .allowsHitTesting(false)
     }
 
-    private func detailCard(for node: KnowledgeMapNode) -> some View {
-        let concept = node.concept
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 8) {
-                Circle().fill(colors.stroke(node.colorIndex)).frame(width: 10, height: 10).padding(.top, 6)
-                Text(concept.name)
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundStyle(colors.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 4)
-                KnowledgeMapIconButton(systemImage: "xmark", help: "Close", colors: colors) {
-                    model.selectedID = nil
-                }
-            }
-            strengthRow(for: node)
-            if !concept.summary.isEmpty {
-                Text(concept.summary)
-                    .font(.system(size: 13))
-                    .foregroundStyle(colors.ink.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let angle = concept.lastAngle, !angle.isEmpty {
-                Text("Last example: \(angle)")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(colors.secondaryInk)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Learned \(KnowledgeMapDates.day(concept.firstExplainedAt)), last explained \(KnowledgeMapDates.relative(concept.lastExplainedAt))")
-                Text(concept.timesExplained == 1 ? "Explained once" : "Explained \(concept.timesExplained) times")
-                    + Text(concept.timesLost > 0 ? ", lost the thread \(concept.timesLost == 1 ? "once" : "\(concept.timesLost) times")" : "")
-            }
-            .font(.system(size: 11.5, weight: .medium))
-            .foregroundStyle(colors.secondaryInk)
-            .fixedSize(horizontal: false, vertical: true)
-
-            let links = linkedIdeas(of: node)
-            if !links.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("LINKED IDEAS")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(0.7)
-                        .foregroundStyle(colors.secondaryInk)
-                        .padding(.bottom, 2)
-                    ForEach(links, id: \.node.id) { link in
-                        KnowledgeMapRowButton(colors: colors, action: { model.focus(on: link.node.id) }) {
-                            HStack(spacing: 6) {
-                                Text(link.phrase)
-                                    .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundStyle(colors.secondaryInk)
-                                Text(link.node.concept.name)
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                    .foregroundStyle(colors.stroke(link.node.colorIndex))
-                                    .lineLimit(1)
-                                Spacer(minLength: 0)
-                            }
-                        }
-                    }
-                }
-            }
-
-            VStack(spacing: 8) {
-                Button(action: { model.onReteach(concept) }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 12, weight: .bold))
-                        Text("Re-teach this")
-                            .font(.system(size: 13.5, weight: .semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(KnowledgeMapPrimaryButtonStyle(colors: colors))
-                .pointerCursor()
-                .help("Buddy explains it again, out loud and drawn, with a different example from last time")
-
-                Button(action: { isConfirmingForget = true }) {
-                    Text("Forget this idea")
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(KnowledgeMapQuietButtonStyle(colors: colors, tint: colors.destructive))
-                .pointerCursor()
-            }
-            .padding(.top, 2)
-        }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(colors.card)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(colors.cardBorder))
-        .shadow(color: .black.opacity(0.16), radius: 16, y: 5)
-    }
-
-    private func strengthRow(for node: KnowledgeMapNode) -> some View {
-        let percent = Int((node.retrievability * 100).rounded())
-        let label: String
-        let tint: Color
-        switch node.strength {
-        case .solid:
-            label = "Remembered"
-            tint = colors.stroke(5)
-        case .fading:
-            label = "Review soon"
-            tint = colors.reviewSoon
-        case .faded:
-            label = "Review soon, fading out"
-            tint = colors.reviewSoon
-        }
-        return VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(tint)
-                Spacer()
-                Text("about \(percent)% likely to recall")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(colors.secondaryInk)
-            }
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(colors.field)
-                    Capsule().fill(tint).frame(width: geometry.size.width * CGFloat(node.retrievability))
-                }
-            }
-            .frame(height: 5)
-        }
-    }
-
-    private struct LinkedIdea {
-        let node: KnowledgeMapNode
-        let phrase: String
-    }
-
-    /// Each link read from this idea's side: "uses event loop", or, for a
-    /// link stored on the other idea, "used by" and the like.
-    private func linkedIdeas(of node: KnowledgeMapNode) -> [LinkedIdea] {
-        model.layout.edges.compactMap { edge -> LinkedIdea? in
-            if edge.fromID == node.id, let other = model.node(id: edge.toID) {
-                return LinkedIdea(node: other, phrase: edge.kind)
-            }
-            if edge.toID == node.id, let other = model.node(id: edge.fromID) {
-                return LinkedIdea(node: other, phrase: Self.reversedPhrase(for: edge.kind))
-            }
-            return nil
-        }
-    }
-
-    static func reversedPhrase(for kind: String) -> String {
-        switch kind {
-        case "uses": return "used by"
-        case "part of": return "has part"
-        case "prerequisite of": return "builds on"
-        default: return kind
-        }
-    }
-
     // MARK: Empty state
 
-    private func emptyState(title: String, message: String) -> some View {
-        VStack(spacing: 16) {
+    private func emptyState(title: String, message: String, showsTurnOn: Bool) -> some View {
+        VStack(spacing: 14) {
             KnowledgeMapEmptyIllustration(colors: colors)
                 .frame(width: 180, height: 110)
+                .accessibilityHidden(true)
             Text(title)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundStyle(colors.ink)
@@ -824,8 +815,13 @@ struct KnowledgeMapView: View {
                 .foregroundStyle(colors.secondaryInk)
                 .multilineTextAlignment(.center)
                 .lineSpacing(2)
-                .frame(maxWidth: 440)
+                .frame(maxWidth: 420)
                 .fixedSize(horizontal: false, vertical: true)
+            if showsTurnOn {
+                Button("Turn on") { model.onTurnOnMemory() }
+                    .buttonStyle(DSPrimaryButtonStyle(isFullWidth: false))
+                    .padding(.top, 4)
+            }
         }
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -833,19 +829,329 @@ struct KnowledgeMapView: View {
     }
 }
 
+// MARK: - Inspector
+
+/// The chosen idea, on the window's dark side panel: its name and state in
+/// words, the plain-words cue memory wrote, when it was learned and is due
+/// again, what it links to, the lessons it came from, and what to do next.
+private struct KnowledgeMapInspector: View {
+    @ObservedObject var model: KnowledgeMapModel
+    let colors: KnowledgeMapColors
+    let onForget: () -> Void
+
+    var body: some View {
+        Group {
+            if let node = model.selectedNode {
+                ideaDetails(node)
+            } else {
+                overview
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(DS.Colors.surface1)
+    }
+
+    private var overview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(model.layout.nodes.count == 1 ? "1 idea" : "\(model.layout.nodes.count) ideas")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(DS.Colors.textPrimary)
+            Text("Click an idea to see how it was explained, when to look at it again, and the lessons it came from.")
+                .font(.system(size: 13))
+                .foregroundStyle(DS.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            let needingReview = model.layout.nodes.filter { $0.strength.needsReview }
+                .sorted { $0.retrievability < $1.retrievability }
+            if !needingReview.isEmpty {
+                Text("Worth a look")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DS.Colors.textTertiary)
+                    .padding(.top, 8)
+                VStack(spacing: 0) {
+                    ForEach(needingReview.prefix(8)) { node in
+                        InspectorRowButton(action: { model.focus(on: node.id) }) {
+                            HStack(spacing: 8) {
+                                Circle().fill(colors.label(for: node.strength)).frame(width: 7, height: 7)
+                                Text(node.concept.name)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(DS.Colors.textPrimary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 6)
+                                Text(node.strength.displayName)
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(DS.Colors.textTertiary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 22)
+    }
+
+    private func ideaDetails(_ node: KnowledgeMapNode) -> some View {
+        let concept = node.concept
+        return VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(Self.sentenceCased(concept.name))
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundStyle(DS.Colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityAddTraits(.isHeader)
+                        Text(node.strength.displayName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(colors.label(for: node.strength))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(colors.label(for: node.strength).opacity(0.16)))
+                    }
+                    if !concept.summary.isEmpty {
+                        Text(concept.summary)
+                            .font(.system(size: 13.5))
+                            .lineSpacing(2)
+                            .foregroundStyle(DS.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
+                    facts(for: node)
+                    if !concept.lessonTitles.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Lessons")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(DS.Colors.textTertiary)
+                                .accessibilityAddTraits(.isHeader)
+                            ForEach(Array(concept.lessonTitles.reversed().enumerated()), id: \.offset) { _, lessonTitle in
+                                InspectorRowButton(action: { model.onOpenLesson(lessonTitle) }) {
+                                    HStack(spacing: 9) {
+                                        Image(systemName: "book.closed")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(DS.Colors.textTertiary)
+                                        Text(lessonTitle)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(DS.Colors.textPrimary)
+                                            .lineLimit(1)
+                                        Spacer(minLength: 0)
+                                    }
+                                }
+                                .accessibilityLabel("\(lessonTitle), opens the Notebook")
+                            }
+                        }
+                    }
+                    HStack(spacing: 10) {
+                        Button(action: { model.onReteach(concept) }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "play.fill").font(.system(size: 10, weight: .bold))
+                                Text("Quick recap").font(.system(size: 13, weight: .semibold))
+                            }
+                            .padding(.horizontal, 14)
+                        }
+                        .buttonStyle(KnowledgeMapPrimaryButtonStyle(colors: colors))
+                        .pointerCursor()
+                        .nativeTooltip("A short spoken recap, drawn on your screen")
+                        Button(action: { model.onTeachBack(concept) }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "person.wave.2").font(.system(size: 11, weight: .semibold))
+                                Text("Teach it back").font(.system(size: 13, weight: .semibold))
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
+                            .padding(.horizontal, 14)
+                        }
+                        .buttonStyle(KnowledgeMapQuietButtonStyle())
+                        .pointerCursor()
+                        .nativeTooltip("Explain it in your own words")
+                    }
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal, 22)
+                .padding(.top, 22)
+                .padding(.bottom, 16)
+            }
+            Spacer(minLength: 0)
+            InspectorTextButton(title: "Forget this idea\u{2026}", action: onForget)
+                .padding(.horizontal, 22)
+                .padding(.bottom, 20)
+                .accessibilityLabel("Forget this idea")
+        }
+    }
+
+    private func facts(for node: KnowledgeMapNode) -> some View {
+        let concept = node.concept
+        let times = concept.timesExplained == 1 ? "Once" : "\(concept.timesExplained) times"
+        let linked = model.layout.edges.compactMap { edge -> KnowledgeMapNode? in
+            if edge.fromID == node.id { return model.node(id: edge.toID) }
+            if edge.toID == node.id { return model.node(id: edge.fromID) }
+            return nil
+        }
+        return VStack(alignment: .leading, spacing: 8) {
+            factRow("Learned") {
+                Text("\(times), last on \(concept.lastExplainedAt.formatted(.dateTime.day().month(.wide)))")
+            }
+            factRow("Next review") { Text(Self.nextReviewText(for: concept)) }
+            if !linked.isEmpty {
+                factRow("Links to") {
+                    // Each one opens on the map.
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(linked) { linkedNode in
+                            InspectorLinkButton(title: linkedNode.concept.name) { model.focus(on: linkedNode.id) }
+                        }
+                    }
+                }
+            }
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(DS.Colors.textPrimary)
+    }
+
+    private func factRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(label)
+                .foregroundStyle(DS.Colors.textTertiary)
+                .frame(width: 92, alignment: .leading)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// When recall is expected to drop under 85%, where the map starts to
+    /// call an idea fading: "In about 2 days", "Today", or "Now".
+    static func nextReviewText(for concept: RememberedConcept, now: Date = Date()) -> String {
+        // Solving the FSRS curve for 85% recall.
+        let daysUntilFading = concept.stabilityDays / ForgettingCurve.factor
+            * (pow(0.85, 1 / ForgettingCurve.decay) - 1)
+        let due = concept.lastExplainedAt.addingTimeInterval(daysUntilFading * 86_400)
+        let daysLeft = due.timeIntervalSince(now) / 86_400
+        if daysLeft <= 0 { return "Now" }
+        if daysLeft < 1 { return "Today" }
+        let rounded = Int(daysLeft.rounded())
+        if rounded < 14 { return rounded == 1 ? "In about a day" : "In about \(rounded) days" }
+        return "In about \(Int((daysLeft / 7).rounded())) weeks"
+    }
+
+    static func sentenceCased(_ name: String) -> String {
+        guard let first = name.first else { return name }
+        return first.uppercased() + name.dropFirst()
+    }
+}
+
+private struct InspectorRowButton<Label: View>: View {
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            label()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isHovering ? DS.Notch.rowHover : Color.clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .padding(.horizontal, -8)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
+        }
+    }
+}
+
+private struct InspectorLinkButton: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .foregroundStyle(isHovering ? DS.Colors.accentText : DS.Colors.textPrimary)
+                .underline(isHovering)
+                .multilineTextAlignment(.leading)
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
+        }
+        .accessibilityLabel("\(title), show on the map")
+    }
+}
+
+private struct InspectorTextButton: View {
+    let title: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(isHovering ? DS.Colors.textPrimary : DS.Colors.textTertiary)
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
+        }
+    }
+}
+
+private struct KnowledgeMapFilterButton: View {
+    let title: String
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .foregroundStyle(isSelected ? DS.Colors.textPrimary : (isHovering ? DS.Colors.textPrimary : DS.Colors.textSecondary))
+                Text("\(count)")
+                    .foregroundStyle(DS.Colors.textTertiary)
+                    .monospacedDigit()
+            }
+            .font(.system(size: 13, weight: .medium))
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isSelected ? Color.white.opacity(0.14) : (isHovering ? Color.white.opacity(0.06) : Color.clear)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
+        }
+        .accessibilityLabel("\(title), \(count) ideas")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+    }
+}
+
 // MARK: - Drawing
 
 /// Draws one frame of the map. A struct made per frame, so the drawing code
-/// reads top to bottom: paper, topic tints, links, dots, names.
+/// reads top to bottom: paper, links, then each idea as a capsule around its
+/// hand-lettered name where there is room, and as a small dot where there
+/// is not, so 300 ideas stay readable at any zoom.
 @MainActor
 struct KnowledgeMapRenderer {
     let model: KnowledgeMapModel
     let colors: KnowledgeMapColors
     let date: Date
 
+    private static let nameSize: CGFloat = 15
+    private static let capsuleHeight: CGFloat = 32
+    private static let dotRadius: CGFloat = 5.5
+
     func draw(in context: inout GraphicsContext, size: CGSize) {
         let camera = model.camera(at: date)
-        let zoom = camera.zoom
         func screen(_ mapPoint: CGPoint) -> CGPoint { model.screenPoint(forMapPoint: mapPoint, camera: camera) }
 
         drawPaper(in: &context, size: size, camera: camera)
@@ -861,68 +1167,103 @@ struct KnowledgeMapRenderer {
         let positions = Dictionary(uniqueKeysWithValues: model.layout.nodes.map {
             ($0.id, screen(model.displayPosition(of: $0, at: date)))
         })
-        let visibleRect = CGRect(origin: .zero, size: size).insetBy(dx: -60, dy: -60)
+        let visibleRect = CGRect(origin: .zero, size: size).insetBy(dx: -80, dy: -80)
 
-        // Topic tints, behind everything, so a cluster reads as one thing.
+        // Cluster names first, in a muted hand, where they have room.
+        var occupied: [CGRect] = []
         for topic in model.layout.topics {
             let topLeft = screen(CGPoint(x: topic.frame.minX, y: topic.frame.minY))
-            let rectangle = CGRect(x: topLeft.x, y: topLeft.y,
-                                   width: topic.frame.width * zoom, height: topic.frame.height * zoom)
-            guard rectangle.intersects(visibleRect) else { continue }
-            let shape = Path(roundedRect: rectangle, cornerRadius: min(28, 28 * zoom), style: .continuous)
-            let dimmed = searchMatchIDs != nil
-            context.fill(shape, with: .color(colors.fill(topic.colorIndex).opacity(dimmed ? 0.18 : (colors.colorScheme == .dark ? 0.42 : 0.55))))
+            let text = context.resolve(Text(topic.title.lowercased())
+                .font(knowledgeMapHandFont(size: 17))
+                .foregroundColor(colors.clusterInk.opacity(searchMatchIDs == nil ? 1 : 0.4)))
+            let measured = text.measure(in: CGSize(width: 400, height: 40))
+            let rect = CGRect(x: topLeft.x + 10, y: topLeft.y - measured.height - 2, width: measured.width, height: measured.height)
+            guard rect.intersects(visibleRect), !occupied.contains(where: { $0.insetBy(dx: -6, dy: -2).intersects(rect) }) else { continue }
+            occupied.append(rect)
+            context.draw(text, in: rect)
         }
 
-        // Links.
+        // Links: grey pencil lines, darker for the idea in focus.
         for edge in model.layout.edges {
             guard let from = positions[edge.fromID], let to = positions[edge.toID],
                   let fromNode = model.node(id: edge.fromID), let toNode = model.node(id: edge.toID) else { continue }
             let isFocused = focusedID != nil && (edge.fromID == focusedID || edge.toID == focusedID)
-            let isDimmed = (focusedID != nil && !isFocused)
-                || (searchMatchIDs.map { !$0.contains(edge.fromID) && !$0.contains(edge.toID) } ?? false)
+            let isDimmed = searchMatchIDs.map { !$0.contains(edge.fromID) && !$0.contains(edge.toID) } ?? false
             let appearance = min(model.appearance(of: fromNode, at: date), model.appearance(of: toNode, at: date))
-            let fade = min(fromNode.opacity, toNode.opacity)
-            let path = bowedLine(from: from, to: to, salt: edge.id)
-            let color = isFocused ? colors.stroke(fromNode.colorIndex ?? toNode.colorIndex) : colors.ink
-            let opacity = (isFocused ? 0.85 : (isDimmed ? 0.06 : 0.2 * (0.5 + 0.5 * fade))) * Double(max(0, min(1, appearance)))
-            context.stroke(path, with: .color(color.opacity(opacity)),
-                           style: StrokeStyle(lineWidth: isFocused ? 2 : 1.3, lineCap: .round))
+            let opacity = (isDimmed ? 0.25 : 1) * Double(max(0, min(1, appearance)))
+            context.stroke(bowedLine(from: from, to: to, salt: edge.id),
+                           with: .color((isFocused ? colors.ink.opacity(0.55) : colors.link).opacity(opacity)),
+                           style: StrokeStyle(lineWidth: isFocused ? 2.2 : 1.8, lineCap: .round))
         }
 
-        // Dots.
-        for node in model.layout.nodes {
+        // Ideas, most important first, so they win the room for a capsule.
+        func priority(_ node: KnowledgeMapNode) -> Double {
+            var score = Double(node.linkCount) * 2 + log2(Double(max(1, node.concept.timesExplained))) * 3 + node.retrievability
+            if searchMatchIDs?.contains(node.id) == true { score += 1_000 }
+            if focusedNeighbourIDs.contains(node.id) { score += 2_000 }
+            if node.id == focusedID || node.id == model.selectedID { score += 3_000 }
+            return score
+        }
+        var capsules: [(node: KnowledgeMapNode, rect: CGRect, text: GraphicsContext.ResolvedText, opacity: Double)] = []
+        var dots: [(node: KnowledgeMapNode, centre: CGPoint, opacity: Double)] = []
+        for node in model.layout.nodes.sorted(by: { priority($0) > priority($1) }) {
             guard let centre = positions[node.id], visibleRect.contains(centre) else { continue }
-            let appearance = model.appearance(of: node, at: date)
+            let appearance = Double(model.appearance(of: node, at: date))
             guard appearance > 0.01 else { continue }
-            let radius = max(4, node.radius * zoom) * max(0, appearance)
             let isMatch = searchMatchIDs?.contains(node.id) ?? true
-            let isFocused = node.id == focusedID
-            let isNeighbour = focusedNeighbourIDs.contains(node.id)
-            var opacity = node.opacity * Double(min(1, appearance))
-            if !isMatch { opacity *= 0.18 }
-            if focusedID != nil && !isFocused && !isNeighbour { opacity *= 0.55 }
-            let outline = wobblyCircle(centre: centre, radius: radius, id: node.id)
-            if isFocused || node.id == model.selectedID {
-                let ring = Path(ellipseIn: CGRect(x: centre.x - radius - 5, y: centre.y - radius - 5,
-                                                  width: 2 * radius + 10, height: 2 * radius + 10))
-                context.stroke(ring, with: .color(colors.stroke(node.colorIndex).opacity(0.45)), lineWidth: 3)
-            }
-            context.fill(outline, with: .color(colors.fill(node.colorIndex).opacity(opacity)))
-            context.stroke(outline, with: .color(colors.stroke(node.colorIndex).opacity(opacity)),
-                           style: StrokeStyle(lineWidth: node.strength == .faded ? 1.4 : 2,
-                                              dash: node.strength == .faded ? [4, 3] : []))
-            // A small inner dot marks an idea that has been explained more
-            // than once: the ones the student has come back to.
-            if node.concept.timesExplained > 1 && radius > 7 {
-                let core = radius * 0.32
-                context.fill(Path(ellipseIn: CGRect(x: centre.x - core, y: centre.y - core, width: 2 * core, height: 2 * core)),
-                             with: .color(colors.stroke(node.colorIndex).opacity(opacity * 0.8)))
+            let opacity = (isMatch ? 1 : 0.25) * min(1, appearance)
+            let isForced = node.id == focusedID || node.id == model.selectedID || focusedNeighbourIDs.contains(node.id)
+                || (isMatch && (searchMatchIDs.map { $0.count <= 8 } ?? false))
+            let text = context.resolve(Text(node.displayName)
+                .font(knowledgeMapHandFont(size: Self.nameSize))
+                .foregroundColor(colors.ink))
+            let measured = text.measure(in: CGSize(width: 320, height: 40))
+            let width = max(measured.width + 34, 64)
+            let rect = CGRect(x: centre.x - width / 2, y: centre.y - Self.capsuleHeight / 2,
+                              width: width, height: Self.capsuleHeight)
+            let isFree = !occupied.contains { $0.intersects(rect.insetBy(dx: -4, dy: -3)) }
+            if appearance > 0.5, isFree || isForced {
+                occupied.append(rect)
+                capsules.append((node, rect, text, opacity))
+            } else {
+                dots.append((node, centre, opacity))
             }
         }
 
-        drawLabels(in: &context, size: size, positions: positions, zoom: zoom,
-                   searchMatchIDs: searchMatchIDs, focusedID: focusedID, focusedNeighbourIDs: focusedNeighbourIDs)
+        for dot in dots {
+            let radius = Self.dotRadius * CGFloat(max(0.3, min(1, model.appearance(of: dot.node, at: date))))
+            let circle = Path(ellipseIn: CGRect(x: dot.centre.x - radius, y: dot.centre.y - radius,
+                                                width: 2 * radius, height: 2 * radius))
+            context.fill(circle, with: .color(colors.fill(for: dot.node.strength).opacity(dot.opacity)))
+            context.stroke(circle, with: .color(colors.edge(for: dot.node.strength).opacity(dot.opacity)),
+                           style: StrokeStyle(lineWidth: 1.6, dash: dot.node.strength == .faded ? [2.5, 2] : []))
+        }
+
+        var drawnCapsuleRects: [UUID: CGRect] = [:]
+        // Drawn lowest priority first, so the focused idea sits on top.
+        for capsule in capsules.reversed() {
+            let node = capsule.node
+            let shape = Path(roundedRect: capsule.rect, cornerRadius: Self.capsuleHeight / 2, style: .continuous)
+            var layer = context
+            layer.opacity = capsule.opacity
+            if node.id == model.hoveredID {
+                // Raised a point on hover, so it reads as something to press.
+                var shadowed = layer
+                shadowed.addFilter(.shadow(color: .black.opacity(0.18), radius: 3, y: 1))
+                shadowed.fill(shape, with: .color(colors.fill(for: node.strength)))
+            }
+            if node.id == model.selectedID {
+                let ring = Path(roundedRect: capsule.rect.insetBy(dx: -5, dy: -5),
+                                cornerRadius: Self.capsuleHeight / 2 + 5, style: .continuous)
+                layer.stroke(ring, with: .color(colors.selectionRing), lineWidth: 2.5)
+            }
+            layer.fill(shape, with: .color(colors.fill(for: node.strength)))
+            layer.stroke(shape, with: .color(colors.edge(for: node.strength)),
+                         style: StrokeStyle(lineWidth: 2.2, dash: node.strength == .faded ? [6, 5] : []))
+            layer.draw(capsule.text, at: CGPoint(x: capsule.rect.midX, y: capsule.rect.midY), anchor: .center)
+            drawnCapsuleRects[node.id] = capsule.rect
+        }
+        model.drawnCapsuleRects = drawnCapsuleRects
     }
 
     private func drawPaper(in context: inout GraphicsContext, size: CGSize, camera: (pan: CGSize, zoom: CGFloat)) {
@@ -946,126 +1287,6 @@ struct KnowledgeMapRenderer {
         context.fill(dots, with: .color(colors.paperDots))
     }
 
-    /// Names, most important first, each only if it has room. The focused
-    /// idea and its neighbours always get theirs; then search matches; then
-    /// topic names; then ideas by how linked and how often explained.
-    private func drawLabels(in context: inout GraphicsContext, size: CGSize, positions: [UUID: CGPoint], zoom: CGFloat,
-                            searchMatchIDs: Set<UUID>?, focusedID: UUID?, focusedNeighbourIDs: Set<UUID>) {
-        var occupied: [CGRect] = []
-        // A name may not cover another idea's dot either.
-        // During a search the dimmed dots and topic names step back, so
-        // the matches' names have the room.
-        let dotRects: [(id: UUID, rect: CGRect)] = model.layout.nodes.compactMap { node in
-            guard let centre = positions[node.id], searchMatchIDs?.contains(node.id) ?? true else { return nil }
-            let radius = max(4, node.radius * zoom) + 2
-            return (node.id, CGRect(x: centre.x - radius, y: centre.y - radius, width: 2 * radius, height: 2 * radius))
-        }
-        let visibleRect = CGRect(origin: .zero, size: size)
-
-        func priority(_ node: KnowledgeMapNode) -> Double {
-            var score = Double(node.linkCount) * 2 + log2(Double(max(1, node.concept.timesExplained))) * 3 + node.retrievability
-            if searchMatchIDs?.contains(node.id) == true { score += 1_000 }
-            if focusedNeighbourIDs.contains(node.id) { score += 2_000 }
-            if node.id == focusedID || node.id == model.selectedID { score += 3_000 }
-            return score
-        }
-
-        // Topic names sit above their tints, in their colour.
-        var topicLabels: [(text: GraphicsContext.ResolvedText, rect: CGRect)] = []
-        for topic in model.layout.topics {
-            let topLeft = model.screenPoint(forMapPoint: CGPoint(x: topic.frame.minX, y: topic.frame.minY),
-                                            camera: (model.camera(at: date).pan, zoom))
-            let text = context.resolve(Text(topic.title.uppercased())
-                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                .tracking(0.8)
-                .foregroundColor(colors.stroke(topic.colorIndex).opacity(searchMatchIDs == nil ? 0.95 : 0.35)))
-            let measured = text.measure(in: CGSize(width: 400, height: 40))
-            let rect = CGRect(x: topLeft.x + 14, y: topLeft.y - measured.height - 5, width: measured.width, height: measured.height)
-            // Two topics side by side can put their names in one spot; the
-            // larger topic, laid out first, keeps its name.
-            guard rect.intersects(visibleRect), !topicLabels.contains(where: { $0.rect.insetBy(dx: -6, dy: -2).intersects(rect) }) else { continue }
-            topicLabels.append((text, rect))
-        }
-
-        let ordered = model.layout.nodes.sorted { priority($0) > priority($1) }
-        var labelsToDraw: [(text: GraphicsContext.ResolvedText, review: GraphicsContext.ResolvedText?, point: CGPoint, opacity: Double)] = []
-        for node in ordered {
-            guard let centre = positions[node.id], visibleRect.insetBy(dx: -40, dy: -40).contains(centre) else { continue }
-            let appearance = model.appearance(of: node, at: date)
-            guard appearance > 0.5 else { continue }
-            let isMatch = searchMatchIDs?.contains(node.id) ?? true
-            let isFocusedOrNeighbour = node.id == focusedID || node.id == model.selectedID || focusedNeighbourIDs.contains(node.id)
-            // A search with a handful of matches names every one of them.
-            let isFewSearchMatches = isMatch && (searchMatchIDs.map { $0.count <= 8 } ?? false)
-            let isForced = isFocusedOrNeighbour || isFewSearchMatches
-            // During a search only matches are named.
-            if searchMatchIDs != nil && !isMatch && !isForced { continue }
-            var labelOpacity = 0.35 + 0.65 * node.opacity
-            if focusedID != nil && !isFocusedOrNeighbour { labelOpacity *= 0.6 }
-            let text = context.resolve(Text(node.displayName)
-                .font(.system(size: 12, weight: isForced ? .bold : .semibold, design: .rounded))
-                .foregroundColor(colors.ink.opacity(labelOpacity)))
-            let measured = text.measure(in: CGSize(width: 300, height: 40))
-            let radius = max(4, node.radius * zoom)
-            let top = centre.y + radius + 4
-            var review: GraphicsContext.ResolvedText?
-            var height = measured.height
-            var width = measured.width
-            if node.strength.needsReview {
-                let reviewText = context.resolve(Text("review soon")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(colors.reviewSoon.opacity(0.4 + 0.6 * labelOpacity)))
-                let reviewSize = reviewText.measure(in: CGSize(width: 200, height: 30))
-                review = reviewText
-                height += reviewSize.height
-                width = max(width, reviewSize.width)
-            }
-            // Under the dot first; when a neighbour's name is there, slid to
-            // one side, then above, then beside it, before giving up.
-            let candidateTopCentres = [
-                CGPoint(x: centre.x, y: top),
-                CGPoint(x: centre.x + width / 2 - radius, y: top),
-                CGPoint(x: centre.x - width / 2 + radius, y: top),
-                CGPoint(x: centre.x, y: centre.y - radius - 3 - height),
-                CGPoint(x: centre.x + radius + 6 + width / 2, y: centre.y - height / 2),
-                CGPoint(x: centre.x - radius - 6 - width / 2, y: centre.y - height / 2)
-            ]
-            func labelRect(topCentre: CGPoint) -> CGRect {
-                CGRect(x: topCentre.x - width / 2 - 3, y: topCentre.y - 1, width: width + 6, height: height + 2)
-            }
-            func isFree(_ rect: CGRect) -> Bool {
-                !occupied.contains { $0.intersects(rect) }
-                    && (searchMatchIDs != nil || !topicLabels.contains { $0.rect.intersects(rect) })
-                    && !dotRects.contains { $0.id != node.id && $0.rect.intersects(rect) }
-            }
-            let chosenTopCentre = candidateTopCentres.first { isFree(labelRect(topCentre: $0)) }
-                ?? (isForced ? candidateTopCentres[0] : nil)
-            guard let chosenTopCentre else { continue }
-            occupied.append(labelRect(topCentre: chosenTopCentre))
-            labelsToDraw.append((text, review, chosenTopCentre, labelOpacity))
-        }
-
-        // Topic names first, so where an idea's name had to overlap one
-        // (the idea in focus, a search match), the idea's name is on top.
-        for topicLabel in topicLabels {
-            context.draw(topicLabel.text, in: topicLabel.rect)
-        }
-        for label in labelsToDraw {
-            // A wash of paper behind each name, so a link passing under it
-            // never strikes it through.
-            let measured = label.text.measure(in: CGSize(width: 300, height: 40))
-            let reviewSize = label.review?.measure(in: CGSize(width: 200, height: 30)) ?? .zero
-            let backingWidth = max(measured.width, reviewSize.width)
-            let backing = CGRect(x: label.point.x - backingWidth / 2 - 3, y: label.point.y - 1,
-                                 width: backingWidth + 6, height: measured.height + max(0, reviewSize.height - 1) + 2)
-            context.fill(Path(roundedRect: backing, cornerRadius: 4), with: .color(colors.background.opacity(0.82)))
-            context.draw(label.text, at: label.point, anchor: .top)
-            if let review = label.review {
-                context.draw(review, at: CGPoint(x: label.point.x, y: label.point.y + measured.height - 1), anchor: .top)
-            }
-        }
-    }
-
     /// A pencil-like link: a gentle curve whose bend is fixed per link, so it
     /// looks drawn by hand and is the same curve every time.
     private func bowedLine(from start: CGPoint, to end: CGPoint, salt: String) -> Path {
@@ -1074,41 +1295,11 @@ struct KnowledgeMapRenderer {
         let length = max(1, hypot(deltaX, deltaY))
         var hash: UInt32 = 2_166_136_261
         for byte in salt.utf8 { hash = (hash ^ UInt32(byte)) &* 16_777_619 }
-        let bend = (CGFloat(hash % 1000) / 1000 - 0.5) * 0.18 * length
+        let bend = (CGFloat(hash % 1000) / 1000 - 0.5) * 0.12 * length
         let control = CGPoint(x: middle.x - deltaY / length * bend, y: middle.y + deltaX / length * bend)
         var path = Path()
         path.move(to: start)
         path.addQuadCurve(to: end, control: control)
-        return path
-    }
-
-    /// A circle with a slight hand-drawn wobble, fixed per idea. Subtle on
-    /// purpose: it should read as drawn, never as broken.
-    private func wobblyCircle(centre: CGPoint, radius: CGFloat, id: UUID) -> Path {
-        guard radius > 6 else {
-            return Path(ellipseIn: CGRect(x: centre.x - radius, y: centre.y - radius, width: 2 * radius, height: 2 * radius))
-        }
-        let pointCount = 14
-        let phase = KnowledgeMapLayout.stableFraction(of: id, salt: 11) * 2 * Double.pi
-        let wobble = min(1.0, Double(radius) * 0.045)
-        var points: [CGPoint] = []
-        for step in 0..<pointCount {
-            let angle = Double(step) / Double(pointCount) * 2 * Double.pi
-            let offset = wobble * sin(3 * angle + phase) + wobble * 0.5 * cos(5 * angle + phase * 1.7)
-            let distance = Double(radius) + offset
-            points.append(CGPoint(x: centre.x + CGFloat(cos(angle) * distance), y: centre.y + CGFloat(sin(angle) * distance)))
-        }
-        var path = Path()
-        // Through the midpoints, with the points as controls: a smooth closed curve.
-        func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
-            CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
-        }
-        path.move(to: midpoint(points[pointCount - 1], points[0]))
-        for step in 0..<pointCount {
-            let next = points[(step + 1) % pointCount]
-            path.addQuadCurve(to: midpoint(points[step], next), control: points[step])
-        }
-        path.closeSubpath()
         return path
     }
 }
@@ -1167,20 +1358,19 @@ private struct KnowledgeMapEmptyIllustration: View {
             var links = Path()
             links.move(to: points[0])
             links.addQuadCurve(to: points[1], control: CGPoint(x: size.width * 0.3, y: size.height * 0.3))
-            context.stroke(links, with: .color(colors.ink.opacity(0.25)), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            context.stroke(links, with: .color(colors.link), style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
             var pending = Path()
             pending.move(to: points[1])
             pending.addQuadCurve(to: points[2], control: CGPoint(x: size.width * 0.72, y: size.height * 0.3))
-            context.stroke(pending, with: .color(colors.ink.opacity(0.2)),
-                           style: StrokeStyle(lineWidth: 1.6, lineCap: .round, dash: [4, 4]))
+            context.stroke(pending, with: .color(colors.link),
+                           style: StrokeStyle(lineWidth: 1.8, lineCap: .round, dash: [4, 4]))
+            let strengths: [KnowledgeMapStrength] = [.solid, .fading, .faded]
             for (index, point) in points.enumerated() {
-                let radius: CGFloat = index == 1 ? 17 : 13
-                let circle = Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: 2 * radius, height: 2 * radius))
-                let colorIndex = [0, 2, 3][index]
-                let opacity = index == 2 ? 0.4 : 1
-                context.fill(circle, with: .color(colors.fill(colorIndex).opacity(opacity)))
-                context.stroke(circle, with: .color(colors.stroke(colorIndex).opacity(opacity)),
-                               style: StrokeStyle(lineWidth: 2, dash: index == 2 ? [4, 3] : []))
+                let capsule = Path(roundedRect: CGRect(x: point.x - 24, y: point.y - 11, width: 48, height: 22),
+                                   cornerRadius: 11, style: .continuous)
+                context.fill(capsule, with: .color(colors.fill(for: strengths[index])))
+                context.stroke(capsule, with: .color(colors.edge(for: strengths[index])),
+                               style: StrokeStyle(lineWidth: 2, dash: index == 2 ? [5, 4] : []))
             }
         }
     }
@@ -1188,7 +1378,7 @@ private struct KnowledgeMapEmptyIllustration: View {
 
 private struct KnowledgeMapIconButton: View {
     let systemImage: String
-    let help: String
+    let tooltip: String
     let colors: KnowledgeMapColors
     let action: () -> Void
     @State private var isHovering = false
@@ -1196,22 +1386,23 @@ private struct KnowledgeMapIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(colors.ink.opacity(isHovering ? 0.95 : 0.65))
-                .frame(width: 28, height: 26)
-                .background(Capsule().fill(isHovering ? colors.field : Color.clear))
-                .contentShape(Capsule())
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(colors.ink.opacity(isHovering ? 0.95 : 0.7))
+                .frame(width: 34, height: 28)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(isHovering ? colors.field : Color.clear))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .pointerCursor()
-        .help(help)
+        .nativeTooltip(tooltip)
+        .accessibilityLabel(tooltip)
         .onHover { hovering in
             withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
         }
     }
 }
 
-/// A whole row that can be clicked: a search result or a linked idea.
+/// A whole row that can be clicked: a search result.
 private struct KnowledgeMapRowButton<Label: View>: View {
     let colors: KnowledgeMapColors
     let action: () -> Void
@@ -1242,7 +1433,7 @@ private struct KnowledgeMapPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(DS.Colors.textOnAccent)
-            .padding(.vertical, 9)
+            .frame(height: 34)
             .background(Capsule().fill(isHovering ? DS.Colors.accentHover : colors.accent))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
@@ -1252,16 +1443,15 @@ private struct KnowledgeMapPrimaryButtonStyle: ButtonStyle {
     }
 }
 
+/// The second action on the dark inspector: white 10%, 18% on hover.
 private struct KnowledgeMapQuietButtonStyle: ButtonStyle {
-    let colors: KnowledgeMapColors
-    let tint: Color
     @State private var isHovering = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(tint)
-            .padding(.vertical, 7)
-            .background(Capsule().fill(isHovering ? tint.opacity(0.1) : Color.clear))
+            .foregroundStyle(DS.Colors.textPrimary)
+            .frame(height: 34)
+            .background(Capsule().fill(Color.white.opacity(isHovering ? 0.18 : 0.1)))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .onHover { hovering in
                 withAnimation(.easeOut(duration: DS.Animation.fast)) { isHovering = hovering }
