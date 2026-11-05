@@ -42,9 +42,22 @@ final class GlobalPushToTalkShortcutMonitor: ObservableObject {
         /// "transpose": it swaps two letters in whatever the student was writing.
         var typeQuestionEventTap: CFMachPort?
         var isShortcutPressed = false
+        var shortcutPressedAt: Date?
+        /// Ended by the length cap while the keys were still down: nothing
+        /// starts again until they are really let go.
+        var isAwaitingReleaseAfterCap = false
+        var heldKeysPollTimer: DispatchSourceTimer?
     }
     private let tapStateLock = NSLock()
     nonisolated(unsafe) private var tapState = TapState()
+
+    /// A recording is never longer than this: a release missed by every
+    /// check below would otherwise leave the microphone open and Deepgram
+    /// billing until the next press.
+    nonisolated static let longestRecordingSeconds: TimeInterval = 120
+    /// How often the real key state is read while the shortcut is held.
+    nonisolated private static let heldKeysPollIntervalSeconds: TimeInterval = 0.5
+    nonisolated private static let heldKeysPollQueue = DispatchQueue(label: "buddy.push-to-talk-poll", qos: .userInteractive)
 
     deinit {
         stop()
@@ -168,6 +181,7 @@ final class GlobalPushToTalkShortcutMonitor: ObservableObject {
         isShortcutCurrentlyPressed = false
         let (globalEventTap, typeQuestionEventTap) = withTapState { state -> (CFMachPort?, CFMachPort?) in
             let taps = (state.globalEventTap, state.typeQuestionEventTap)
+            state.heldKeysPollTimer?.cancel()
             state = TapState()
             return taps
         }
@@ -198,6 +212,8 @@ final class GlobalPushToTalkShortcutMonitor: ObservableObject {
             if let globalEventTap = withTapState({ $0.globalEventTap }) {
                 CGEvent.tapEnable(tap: globalEventTap, enable: true)
             }
+            // A release that came while the tap was off was never seen.
+            endPressIfKeysWereLetGo(reason: "the key tap was paused by macOS")
             return Unmanaged.passUnretained(event)
         }
 
@@ -214,18 +230,112 @@ final class GlobalPushToTalkShortcutMonitor: ObservableObject {
                 for: eventType,
                 keyCode: eventKeyCode,
                 modifierFlagsRawValue: event.flags.rawValue,
-                wasShortcutPreviouslyPressed: state.isShortcutPressed
+                wasShortcutPreviouslyPressed: state.isShortcutPressed || state.isAwaitingReleaseAfterCap
             )
             switch transition {
-            case .none: break
-            case .pressed: state.isShortcutPressed = true
-            case .released: state.isShortcutPressed = false
+            case .none:
+                return .none
+            case .pressed:
+                state.isShortcutPressed = true
+                state.shortcutPressedAt = Date()
+                startPollingHeldKeys(in: &state)
+                return .pressed
+            case .released:
+                // The cap already ended this press; the real release only
+                // lets the next press start.
+                if state.isAwaitingReleaseAfterCap {
+                    state.isAwaitingReleaseAfterCap = false
+                    endPress(in: &state)
+                    return .none
+                }
+                endPress(in: &state)
+                return .released
             }
-            return transition
         }
         publish(shortcutTransition)
 
         return Unmanaged.passUnretained(event)
+    }
+
+    // MARK: - Releases that were never seen
+
+    /// Reads the keyboard's real state while the shortcut is held, so a
+    /// release the tap missed (paused by macOS, swallowed by a password
+    /// field's secure input) still ends the recording, and ends any press
+    /// past the length cap. Called with the lock held.
+    nonisolated private func startPollingHeldKeys(in state: inout TapState) {
+        state.heldKeysPollTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: Self.heldKeysPollQueue)
+        timer.schedule(deadline: .now() + Self.heldKeysPollIntervalSeconds,
+                       repeating: Self.heldKeysPollIntervalSeconds)
+        timer.setEventHandler { [weak self] in
+            self?.checkHeldKeys()
+        }
+        state.heldKeysPollTimer = timer
+        timer.resume()
+    }
+
+    /// Called with the lock held.
+    nonisolated private func endPress(in state: inout TapState) {
+        state.isShortcutPressed = false
+        state.shortcutPressedAt = nil
+        state.heldKeysPollTimer?.cancel()
+        state.heldKeysPollTimer = nil
+    }
+
+    nonisolated private static func isShortcutHeldNow() -> Bool {
+        BuddyPushToTalkShortcut.isShortcutHeld(
+            modifierFlagsRawValue: CGEventSource.flagsState(.combinedSessionState).rawValue,
+            isSpaceKeyDown: CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(BuddyPushToTalkShortcut.pushToTalkKeyCode)))
+    }
+
+    nonisolated private func checkHeldKeys() {
+        let isHeldNow = Self.isShortcutHeldNow()
+        var reasonForEnding: String?
+        let transition = withTapState { state -> BuddyPushToTalkShortcut.ShortcutTransition in
+            // Past the cap the poll goes on until the keys are up, so a
+            // release missed then cannot block the next press either.
+            if state.isAwaitingReleaseAfterCap {
+                if !isHeldNow {
+                    state.isAwaitingReleaseAfterCap = false
+                    endPress(in: &state)
+                }
+                return .none
+            }
+            guard state.isShortcutPressed else { return .none }
+            if !isHeldNow {
+                reasonForEnding = "the keys were let go without a release event"
+                endPress(in: &state)
+                return .released
+            }
+            if let pressedAt = state.shortcutPressedAt,
+               Date().timeIntervalSince(pressedAt) >= Self.longestRecordingSeconds {
+                reasonForEnding = "the keys were held for \(Int(Self.longestRecordingSeconds))s, the longest a recording runs"
+                state.isShortcutPressed = false
+                state.shortcutPressedAt = nil
+                state.isAwaitingReleaseAfterCap = true
+                return .released
+            }
+            return .none
+        }
+        if let reasonForEnding { TutorDebugLog.write("⌨️ push to talk ended: \(reasonForEnding)") }
+        publish(transition)
+    }
+
+    nonisolated private func endPressIfKeysWereLetGo(reason: String) {
+        let isHeldNow = Self.isShortcutHeldNow()
+        let transition = withTapState { state -> BuddyPushToTalkShortcut.ShortcutTransition in
+            if !isHeldNow, state.isAwaitingReleaseAfterCap {
+                state.isAwaitingReleaseAfterCap = false
+                endPress(in: &state)
+                return .none
+            }
+            guard state.isShortcutPressed, !isHeldNow else { return .none }
+            endPress(in: &state)
+            return .released
+        }
+        if transition == .released { TutorDebugLog.write("⌨️ push to talk ended: \(reason), and the keys are up") }
+        publish(transition)
     }
 
     /// Hands a transition to the main thread, where everything that reacts
