@@ -3,8 +3,9 @@
 //  leanring-buddy
 //
 //  Lecture mode's fallback for players with no transcript to read: the
-//  last 90 seconds of the sound of the app in front, held in memory and
-//  transcribed only when a question is asked.
+//  last 90 seconds of the sound of the app in front, held in memory, and
+//  the newest 65 of them transcribed only when a question is about a
+//  lecture (LectureAudioGate).
 //
 //  How it hears one app and nothing else. Core Audio process taps (macOS
 //  14.2) deliver the output of chosen processes, here the app in front and
@@ -47,6 +48,10 @@ nonisolated struct LectureAudioSnapshot: Sendable {
 @MainActor
 final class LectureAudioBuffer {
     static let keptSeconds: Double = 90
+    /// What is transcribed of it: the minute the note keeps, plus a few
+    /// seconds to start that minute at the beginning of a sentence. Only
+    /// this much is ever sent, and the cost is counted on it.
+    static let transcribedSeconds: Double = 65
     static let sampleRate = 16_000
 
     /// Set the moment the prompt is first raised, so it is raised once ever.
@@ -76,6 +81,33 @@ final class LectureAudioBuffer {
         watchTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.checkFrontApplication() }
         }
+        listenForOutputDeviceChanges()
+    }
+
+    /// The tap's aggregate device is clocked by the output device it was
+    /// built on. When that changes (AirPods connect, headphones come out),
+    /// the old device stops delivering, yet the tap has already heard sound,
+    /// so the silence check would never restart it. A new tap is built on
+    /// the new device instead; what is in the ring is kept.
+    private func listenForOutputDeviceChanges() {
+        var defaultOutputDeviceAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        let status = AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &defaultOutputDeviceAddress, DispatchQueue.main) { [weak self] _, _ in
+            Task { @MainActor in self?.defaultOutputDeviceChanged() }
+        }
+        if status != noErr {
+            TutorDebugLog.write("🎓 lecture: could not watch for output device changes (\(status))")
+        }
+    }
+
+    private func defaultOutputDeviceChanged() {
+        guard activeTap != nil, let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier == bufferOwnerProcessIdentifier else { return }
+        TutorDebugLog.write("🎓 lecture: output device changed, listening again on the new one")
+        startTap(on: LectureAudioProcesses.processesBelonging(to: front))
     }
 
     /// Whether the app in front played sound in the last `seconds`.
@@ -88,7 +120,7 @@ final class LectureAudioBuffer {
     func snapshotForQuestion() -> LectureAudioSnapshot? {
         guard let front = NSWorkspace.shared.frontmostApplication,
               front.processIdentifier == bufferOwnerProcessIdentifier else { return nil }
-        let samples = ringBuffer.newestSamples(seconds: Self.keptSeconds)
+        let samples = ringBuffer.newestSamples(seconds: Self.transcribedSeconds)
         // Under three seconds of actual sound is silence, a click, or a
         // tap that heard nothing because the video is protected.
         guard LectureAudioRingBuffer.secondsWithSound(in: samples, sampleRate: Self.sampleRate) >= 3 else { return nil }
@@ -156,7 +188,10 @@ final class LectureAudioBuffer {
             stopTapAndForget(reason: "\(bufferOwnerName) is using a microphone, treated as a call")
             return
         }
-        let windowTitle = LecturePageReader.focusedWindowTitle(processIdentifier: front.processIdentifier)
+        // The title matters only for telling a meeting tab apart, and only
+        // while something plays; reading it costs a message to the app, so
+        // idle seconds make none.
+        let windowTitle = isPlayingSound ? LecturePageReader.focusedWindowTitle(processIdentifier: front.processIdentifier) : nil
         if let exclusionReason = LectureCaptureExclusions.reasonToExclude(
             bundleIdentifier: front.bundleIdentifier, applicationName: front.localizedName,
             windowTitle: windowTitle, pageURL: nil) {
@@ -445,7 +480,7 @@ nonisolated final class LectureProcessTap {
     }
 
     private static func defaultOutputDeviceUID() -> String? {
-        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultSystemOutputDevice,
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
                                                  mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         var outputDeviceIdentifier = AudioObjectID(kAudioObjectUnknown)
         var dataSize = UInt32(MemoryLayout<AudioObjectID>.size)

@@ -527,6 +527,40 @@ nonisolated enum LectureCaptureExclusions {
     }
 }
 
+// MARK: - When the sound may be sent
+
+/// Whether a question may have the front app's buffered sound transcribed
+/// (sent to Deepgram when a key is set) and the words added to the prompt.
+///
+/// Only with evidence that the question is about a lecture: a player's
+/// time was read from the page or the screen, or the student asked about
+/// what was said. Anything else that happens to be playing (music in
+/// another tab while they ask about code) is never sent and never added.
+nonisolated enum LectureAudioGate {
+    static func maySendSound(playbackPosition: LecturePlaybackPosition?, question: String) -> Bool {
+        playbackPosition != nil || questionIsAboutWhatWasSaid(question)
+    }
+
+    /// Phrases that only make sense about someone speaking. Kept narrow on
+    /// purpose: "what does this error mean" is not about a lecture.
+    static func questionIsAboutWhatWasSaid(_ question: String) -> Bool {
+        let lowercasedQuestion = " " + question.lowercased()
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: "?", with: " ")
+            .replacingOccurrences(of: ",", with: " ") + " "
+        let phrases = [" he said", " she said", " they said", " just said", " was said", " he say", " she say",
+                       " he's saying", " she's saying", " he is saying", " she is saying", " they're saying",
+                       " did he mean", " does he mean", " did she mean", " does she mean", " did they mean",
+                       " he meant", " she meant", " he means", " she means", " he just", " she just",
+                       " lecturer", " professor", " instructor", " teacher", " speaker",
+                       " the video", " this video", " the lecture", " this lecture", " the talk",
+                       " explain what he", " explain what she", " explain what they", " just explained",
+                       " he explained", " she explained", " went over", " he mentioned", " she mentioned",
+                       " what was that", " he's talking about", " she's talking about"]
+        return phrases.contains { lowercasedQuestion.contains($0) }
+    }
+}
+
 // MARK: - The note for the tutor
 
 nonisolated enum LectureNote {

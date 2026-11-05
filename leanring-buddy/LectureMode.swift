@@ -19,9 +19,11 @@
 //  No audio, no permission, no cost.
 //
 //  The sound as a fallback, the way Snipd keeps a rolling buffer and
-//  transcribes only on demand: when no transcript can be placed, the last
-//  90 seconds of the front app's own sound (LectureAudioBuffer.swift) are
-//  transcribed by Deepgram, or on the Mac without a Deepgram key.
+//  transcribes only on demand: when no transcript can be placed, the newest
+//  65 of the 90 seconds kept of the front app's own sound
+//  (LectureAudioBuffer.swift) are transcribed by Deepgram, or on the Mac
+//  without a Deepgram key. Only for a lecture question: a player's time
+//  was read, or the question is about what was said (LectureAudioGate).
 //
 //  Calls, meetings and music are never heard (LectureCaptureExclusions).
 //  During an advert, nothing is added: the time on screen is the advert's.
@@ -51,6 +53,9 @@ final class LectureMode {
         let exclusionReason: String?
         let youTubeOutcome: YouTubeTranscriptOutcome?
         let heardWordsTask: Task<LectureHeardWords?, Never>?
+        /// Kept so the sound can still be transcribed once the screen
+        /// listing shows a player's time, when the page itself did not.
+        let audioSnapshot: LectureAudioSnapshot?
         let frontApplicationPlayedSoundRecently: Bool
     }
 
@@ -82,16 +87,21 @@ final class LectureMode {
                 bundleIdentifier: bundleIdentifier, applicationName: applicationName,
                 windowTitle: reading.windowTitle, pageURL: reading.pageURL) {
                 return Gathering(applicationName: applicationName, reading: reading, exclusionReason: exclusionReason,
-                                 youTubeOutcome: nil, heardWordsTask: nil, frontApplicationPlayedSoundRecently: playedSoundRecently)
+                                 youTubeOutcome: nil, heardWordsTask: nil, audioSnapshot: nil,
+                                 frontApplicationPlayedSoundRecently: playedSoundRecently)
             }
 
-            // The sound is transcribed alongside the transcript fetch unless
-            // a transcript panel is already in hand, so the slow path costs
-            // no extra waiting. When YouTube does serve the captions, the
-            // sound's transcription is simply not used.
+            // The sound is sent to be transcribed only when this is a
+            // lecture question: a player's time was read, or the question
+            // is about what was said. Music in another tab while asking
+            // about code never leaves the Mac. When the gate passes, the
+            // sound is transcribed alongside the transcript fetch, so the
+            // slow path costs no extra waiting; if YouTube does serve the
+            // captions, the sound's words are simply not used.
             let transcriptPanelIsInHand = reading.playbackPosition != nil && !reading.transcriptCues.isEmpty
             var heardWordsTask: Task<LectureHeardWords?, Never>?
-            if !transcriptPanelIsInHand, !reading.showsAnAdvert, let audioSnapshot {
+            if !transcriptPanelIsInHand, !reading.showsAnAdvert, let audioSnapshot,
+               LectureAudioGate.maySendSound(playbackPosition: reading.playbackPosition, question: question) {
                 heardWordsTask = Task { await LectureAudioTranscriber.transcribe(audioSnapshot) }
             }
 
@@ -109,7 +119,7 @@ final class LectureMode {
                 TutorDebugLog.write("🎓 lecture: YouTube \(videoIdentifier): \(youTubeOutcome?.summary ?? "still fetching")")
             }
             return Gathering(applicationName: applicationName, reading: reading, exclusionReason: nil,
-                             youTubeOutcome: youTubeOutcome, heardWordsTask: heardWordsTask,
+                             youTubeOutcome: youTubeOutcome, heardWordsTask: heardWordsTask, audioSnapshot: audioSnapshot,
                              frontApplicationPlayedSoundRecently: playedSoundRecently)
         }
     }
@@ -141,7 +151,14 @@ final class LectureMode {
             return transcriptNote
         }
 
-        if let heardWordsTask = gathering.heardWordsTask {
+        // Started late when only the screen listing showed the player's
+        // time, within the same deadline.
+        var heardWordsTask = gathering.heardWordsTask
+        if heardWordsTask == nil, let audioSnapshot = gathering.audioSnapshot,
+           LectureAudioGate.maySendSound(playbackPosition: playbackPosition, question: question) {
+            heardWordsTask = Task { await LectureAudioTranscriber.transcribe(audioSnapshot) }
+        }
+        if let heardWordsTask {
             if let heardValue = await Self.value(of: heardWordsTask, before: deadline), let heardWords = heardValue {
                 TutorDebugLog.write("🎓 lecture: \(heardWords.secondsCovered)s of \(gathering.applicationName)'s sound, heard by \(heardWords.heardBy)")
                 return LectureNote.heardNote(passage: heardWords.passage, secondsCovered: heardWords.secondsCovered,
@@ -155,7 +172,7 @@ final class LectureMode {
         // Nothing to read and nothing heard. The one moment worth asking to
         // hear the sound: something was playing and the question is about it.
         if !audioBuffer.hasAskedForPermission, gathering.frontApplicationPlayedSoundRecently,
-           playbackPosition != nil || Self.questionIsAboutWhatWasSaid(question),
+           LectureAudioGate.maySendSound(playbackPosition: playbackPosition, question: question),
            audioBuffer.askForPermissionNow() {
             return LectureNote.permissionJustAskedNote
         }
@@ -191,16 +208,6 @@ final class LectureMode {
                                               sourceDescription: candidate.sourceDescription)
         }
         return nil
-    }
-
-    /// Only decides whether a first question is worth the permission
-    /// prompt; it never decides whether a note is added.
-    private static func questionIsAboutWhatWasSaid(_ question: String) -> Bool {
-        let lowercasedQuestion = " " + question.lowercased() + " "
-        let phrases = [" said", " say ", " saying", " mean", " meant", " he ", " she ", " they just", " lecturer",
-                       " professor", " teacher", " instructor", " video", " lecture", " talking about", " just explained",
-                       " explain that", " what was that", " went over", " mentioned"]
-        return phrases.contains { lowercasedQuestion.contains($0) }
     }
 
     /// A task's value, or nil once the deadline passes. A task that has

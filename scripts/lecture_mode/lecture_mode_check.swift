@@ -175,6 +175,32 @@ check(LectureTranscriptWindow.passage(from: [TimedTranscriptCue(startSeconds: 0,
                                              TimedTranscriptCue(startSeconds: 2, text: "the sum of all the elements")]) == "then take the sum of all the elements",
       "auto-caption overlap removed")
 
+// MARK: when the sound may be sent
+// No playback time anywhere and an unrelated question: nothing is
+// transcribed, so no heard-words note can be added.
+let codingListing = """
+t1 [100, 80, 700, 40] main.py - Visual Studio Code
+t2 [120, 200, 600, 30] def binary_search(items, target):
+t3 [1500, 40, 300, 30] Lo-fi beats to study to
+"""
+let codingPosition = LectureClock.playbackPosition(fromScreenTexts: ListedScreenText.texts(inListing: codingListing))
+check(codingPosition == nil, "gate: no player time on a coding screen")
+check(!LectureAudioGate.maySendSound(playbackPosition: codingPosition, question: "why does this function return none"),
+      "gate: unrelated question with music playing sends nothing")
+check(!LectureAudioGate.maySendSound(playbackPosition: nil, question: "what does this error mean"), "gate: 'mean' about an error is not a lecture")
+check(!LectureAudioGate.maySendSound(playbackPosition: nil, question: "can you explain that line"), "gate: 'explain that' alone is not a lecture")
+check(!LectureAudioGate.maySendSound(playbackPosition: nil, question: "what should this say instead"), "gate: 'say' about code is not a lecture")
+check(LectureAudioGate.maySendSound(playbackPosition: LecturePlaybackPosition(currentSeconds: 754, totalSeconds: 2890),
+                                    question: "why does this function return none"), "gate: a player's time is evidence")
+check(LectureAudioGate.maySendSound(playbackPosition: LecturePlaybackPosition(currentSeconds: 754, totalSeconds: 2890),
+                                    question: "what is this"), "gate: a player's time from the screen listing is evidence")
+check(LectureAudioGate.maySendSound(playbackPosition: nil, question: "what did he mean by that?"), "gate: what did he mean")
+check(LectureAudioGate.maySendSound(playbackPosition: nil, question: "explain what she just said"), "gate: explain what she just said")
+check(LectureAudioGate.maySendSound(playbackPosition: nil, question: "what is the professor talking about"), "gate: the professor")
+check(LectureAudioGate.maySendSound(playbackPosition: nil, question: "didn\u{2019}t get the last part of the video"), "gate: the video")
+check(LectureAudioGate.maySendSound(playbackPosition: LectureClock.playbackPosition(fromScreenTexts: ListedScreenText.texts(inListing: listing)),
+                                    question: "why"), "gate: time read from a lecture's screen listing")
+
 // MARK: heard words, cut to the last minute at a sentence start
 var heardWords: [(word: String, startSeconds: Double)] = []
 for second in stride(from: 0.0, to: 90.0, by: 1.0) {
