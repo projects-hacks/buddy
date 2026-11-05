@@ -184,7 +184,7 @@ final class GeminiVisionProvider: TutorBrain {
         var latestUsage: [String: Any]?
         defer {
             if let latestUsage {
-                SpendingMeter.record(APIPrices.gemini(usageMetadata: latestUsage), for: .gemini)
+                SpendingMeter.record(APIPrices.gemini(usageMetadata: latestUsage), for: .gemini, purpose: .answers)
             } else if Task.isCancelled {
                 // Given up on before a single event, so Google reported no
                 // usage, though the prompt was read and may still be billed.
@@ -192,7 +192,7 @@ final class GeminiVisionProvider: TutorBrain {
                 let estimatedPromptTokens = Self.estimatedPromptTokens(
                     systemPrompt: systemPrompt, conversationHistory: conversationHistory,
                     userPrompt: userPrompt, imageCount: images.count)
-                SpendingMeter.record(APIPrices.gemini(promptTokens: estimatedPromptTokens, cachedTokens: 0, outputTokens: 0), for: .gemini)
+                SpendingMeter.record(APIPrices.gemini(promptTokens: estimatedPromptTokens, cachedTokens: 0, outputTokens: 0), for: .gemini, purpose: .answers)
                 TutorDebugLog.write("💸 Gemini request cancelled before any reply; about \(estimatedPromptTokens) input tokens counted")
             }
         }
@@ -278,7 +278,7 @@ final class GeminiVisionProvider: TutorBrain {
             throw GeminiError.malformedResponse
         }
         if let usage = json["usageMetadata"] as? [String: Any] {
-            SpendingMeter.record(APIPrices.gemini(usageMetadata: usage), for: .gemini)
+            SpendingMeter.record(APIPrices.gemini(usageMetadata: usage), for: .gemini, purpose: .answers)
         }
 
         let text = parts.compactMap { part in part["text"] as? String }.joined()

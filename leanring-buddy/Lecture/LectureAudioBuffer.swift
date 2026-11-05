@@ -545,7 +545,7 @@ nonisolated enum LectureAudioTranscriber {
                 TutorDebugLog.write("🎓 lecture: Deepgram answered \(statusCode), trying Apple Speech")
                 return nil
             }
-            SpendingMeter.record(snapshot.durationSeconds / 60 * deepgramDollarsPerMinute, for: .deepgram)
+            SpendingMeter.record(snapshot.durationSeconds / 60 * deepgramDollarsPerMinute, for: .deepgram, purpose: .lectures)
             guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
                   let results = root["results"] as? [String: Any],
                   let channels = results["channels"] as? [[String: Any]],

@@ -40,9 +40,10 @@ protocol BuddyTranscriptionProvider {
 enum BuddyTranscriptionProviderFactory {
     /// Deepgram Nova-3 when a Deepgram key is set, with Apple Speech hearing
     /// the same audio as a backup; Apple Speech alone otherwise
-    /// (DeepgramTranscriptionProvider.swift).
+    /// (DeepgramTranscriptionProvider.swift). Push-to-talk's, so its
+    /// minutes are counted as hearing the student.
     static func makeDefaultProvider() -> any BuddyTranscriptionProvider {
-        let provider = PreferredTranscriptionProvider()
+        let provider = PreferredTranscriptionProvider(spendingPurpose: .hearing)
         print("🎙️ Transcription: using \(provider.displayName)")
         return provider
     }

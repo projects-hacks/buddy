@@ -371,7 +371,7 @@ final class NarrationVoice {
                     throw DeepgramError.httpStatus((response as? HTTPURLResponse)?.statusCode ?? -1)
                 }
                 line.downloadedAtSpeed = speed
-                SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram)
+                SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram, purpose: .voice)
                 self.onDeepgramWorked?()
 
                 // About a fifth of a second per chunk: small enough that the

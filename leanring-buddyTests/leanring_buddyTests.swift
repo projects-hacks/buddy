@@ -258,6 +258,101 @@ struct SpendingArithmeticTests {
     }
 }
 
+// MARK: - Spending by service and purpose
+
+struct SpendingBreakdownTests {
+    /// A day as Buddy 1.6 wrote it: services but no purposes.
+    private let dayWithoutPurposes = """
+    {"date":"2026-11-03","questions":4,"guideSteps":1,"dollars":0.30,"dollarsByService":{"claude":0.25,"deepgram":0.05}}
+    """
+    /// Older still: no guide steps and no service split.
+    private let dayWithOnlyTotals = """
+    {"date":"2026-11-02","questions":2,"dollars":0.10}
+    """
+
+    @Test func oldDaysStillDecodeWithTheirServiceSplit() throws {
+        let days = try JSONDecoder().decode([SpendingMeter.Day].self,
+                                            from: Data("[\(dayWithoutPurposes),\(dayWithOnlyTotals)]".utf8))
+        #expect(days.count == 2)
+        #expect(days[0].questions == 4 && days[0].guideSteps == 1)
+        #expect(days[0].dollarsByService == ["claude": 0.25, "deepgram": 0.05])
+        #expect(days[0].dollarsByPurpose.isEmpty)
+        #expect(days[1].guideSteps == 0 && days[1].dollarsByService.isEmpty)
+        #expect(abs(days[1].dollars - 0.10) < 1e-12)
+    }
+
+    @Test func aDayRoundTripsWithItsPurposes() throws {
+        var day = SpendingMeter.Day(date: "2026-11-05")
+        SpendingMeter.add(0.20, for: .claude, purpose: .answers, to: &day)
+        SpendingMeter.add(0.01, for: .deepgram, purpose: .listening, to: &day)
+        let decoded = try JSONDecoder().decode(SpendingMeter.Day.self, from: JSONEncoder().encode(day))
+        #expect(decoded == day)
+        #expect(decoded.dollarsByPurpose == ["answers": 0.20, "listening": 0.01])
+    }
+
+    @Test func eachCostCountsUnderItsServiceAndItsPurpose() {
+        var day = SpendingMeter.Day(date: "2026-11-05")
+        SpendingMeter.add(0.40, for: .claude, purpose: .answers, to: &day)
+        SpendingMeter.add(0.02, for: .claude, purpose: .helpers, to: &day)
+        SpendingMeter.add(0.05, for: .deepgram, purpose: .voice, to: &day)
+        SpendingMeter.add(0.01, for: .deepgram, purpose: .hearing, to: &day)
+        #expect(abs(day.dollars - 0.48) < 1e-12)
+        #expect(abs((day.dollarsByService["claude"] ?? 0) - 0.42) < 1e-12)
+        #expect(abs((day.dollarsByService["deepgram"] ?? 0) - 0.06) < 1e-12)
+        #expect(abs(day.dollarsByPurpose.values.reduce(0, +) - day.dollars) < 1e-12)
+    }
+
+    @Test func monthTotalsAddOnlyThatMonthsDays() throws {
+        let oldDay = try JSONDecoder().decode(SpendingMeter.Day.self, from: Data(dayWithoutPurposes.utf8))
+        var today = SpendingMeter.Day(date: "2026-11-05")
+        today.questions = 3
+        SpendingMeter.add(0.10, for: .gemini, purpose: .answers, to: &today)
+        SpendingMeter.add(0.02, for: .deepgram, purpose: .lectures, to: &today)
+        var lastMonth = SpendingMeter.Day(date: "2026-10-31")
+        SpendingMeter.add(5, for: .claude, purpose: .answers, to: &lastMonth)
+        // A day named like the month but in another year is not this month.
+        var anotherYear = SpendingMeter.Day(date: "2025-11-05")
+        SpendingMeter.add(7, for: .claude, purpose: .answers, to: &anotherYear)
+
+        let month = SpendingMeter.monthTotals(of: [anotherYear, lastMonth, oldDay, today], month: "2026-11")
+        #expect(abs(month.dollars - 0.42) < 1e-12)
+        #expect(month.questions == 7 && month.guideSteps == 1)
+        #expect(abs(month.dollars(for: .claude) - 0.25) < 1e-12)
+        #expect(abs(month.dollars(for: .gemini) - 0.10) < 1e-12)
+        #expect(abs(month.dollars(for: .deepgram) - 0.07) < 1e-12)
+        // The old day has no purposes, so only today's are sorted.
+        #expect(abs(month.dollars(for: .answers) - 0.10) < 1e-12)
+        #expect(abs(month.dollars(for: .lectures) - 0.02) < 1e-12)
+        #expect(month.dollars(for: .voice) == 0)
+    }
+
+    @Test func theCardLeavesOutWhatHadNoSpending() {
+        var today = SpendingMeter.Day(date: "2026-11-05")
+        today.questions = 1
+        SpendingMeter.add(0.30, for: .claude, purpose: .answers, to: &today)
+        var earlier = SpendingMeter.Day(date: "2026-11-01")
+        SpendingMeter.add(0.04, for: .deepgram, purpose: .voice, to: &earlier)
+        let breakdown = SpendingBreakdown(today: SpendingMeter.Totals(adding: [today]),
+                                          thisMonth: SpendingMeter.Totals(adding: [earlier, today]))
+        #expect(breakdown.serviceLines.map(\.name) == ["Claude", "Deepgram"])
+        #expect(breakdown.purposeLines.map(\.name) == ["Answers", "Voice"])
+        #expect(breakdown.purposeLines[1].today == 0 && breakdown.purposeLines[1].thisMonth == 0.04)
+        #expect(breakdown.countsSentence == "1 question today")
+        #expect(breakdown.spokenDescription.hasPrefix("Claude, $0.30 today, $0.30 this month."))
+        #expect(breakdown.spokenDescription.hasSuffix(SpendingBreakdown.whereTheNumbersComeFrom))
+    }
+
+    @Test func countsNameGuideStepsOnlyWhenThereAreSome() {
+        var today = SpendingMeter.Day(date: "2026-11-05")
+        today.questions = 12
+        today.guideSteps = 3
+        let breakdown = SpendingBreakdown(today: SpendingMeter.Totals(adding: [today]),
+                                          thisMonth: SpendingMeter.Totals(adding: [today]))
+        #expect(breakdown.countsSentence == "12 questions and 3 guide steps today")
+        #expect(breakdown.serviceLines.isEmpty && breakdown.purposeLines.isEmpty)
+    }
+}
+
 // MARK: - Key error reading
 
 struct KeyErrorReadingTests {

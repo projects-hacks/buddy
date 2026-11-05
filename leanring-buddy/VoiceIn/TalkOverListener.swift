@@ -88,7 +88,7 @@ final class TalkOverListener {
     private var audioEngine: AVAudioEngine?
     private var configurationChangeObserver: NSObjectProtocol?
     private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?
-    private let transcriptionProvider = PreferredTranscriptionProvider()
+    private let transcriptionProvider = PreferredTranscriptionProvider(spendingPurpose: .listening)
     private var startTask: Task<Void, Never>?
     private var sessionGeneration = 0
 

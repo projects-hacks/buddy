@@ -66,7 +66,7 @@ final class TeachBackListener {
     private var audioEngine: AVAudioEngine?
     private var configurationChangeObserver: NSObjectProtocol?
     private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?
-    private let transcriptionProvider = PreferredTranscriptionProvider()
+    private let transcriptionProvider = PreferredTranscriptionProvider(spendingPurpose: .hearing)
     private var sessionGeneration = 0
     private var startedAt = Date()
     private var lastNewWordsAt: Date?

@@ -12,6 +12,11 @@
 //  below. It is an estimate in one way only: a provider's bill also counts
 //  anything done with the same key outside Buddy, and its rounding is its own.
 //
+//  Each cost is kept twice over: under the service paid (Claude, Gemini,
+//  Deepgram) and under what it was for (answers, voice, hearing the
+//  student...), because the bill is per provider but the choice a student
+//  can make is per feature.
+//
 //  Kept in ~/Library/Application Support/Buddy/spending.json, one small
 //  record per day, never sent anywhere.
 //
@@ -77,7 +82,48 @@ enum APIPrices {
 final class SpendingMeter: ObservableObject {
     static let shared = SpendingMeter()
 
-    enum Service: String, Codable, CaseIterable { case claude, gemini, deepgram }
+    enum Service: String, Codable, CaseIterable {
+        case claude, gemini, deepgram
+
+        var displayName: String {
+            switch self {
+            case .claude: return "Claude"
+            case .gemini: return "Gemini"
+            case .deepgram: return "Deepgram"
+            }
+        }
+    }
+
+    /// What the money was for, so Settings can say which part of Buddy costs
+    /// what, not only which provider was paid. The order of the cases is the
+    /// order the spending card lists them in.
+    enum Purpose: String, Codable, CaseIterable {
+        /// The main Claude or Gemini answer, board turns, teach-back's two
+        /// calls and guide steps.
+        case answers
+        /// Deepgram Aura reading answers aloud.
+        case voice
+        /// Talk-over: the microphone heard while an answer plays.
+        case listening
+        /// Push-to-talk and teach-back's listening.
+        case hearing
+        /// Haiku's small calls: sorting the question, memory's recall and
+        /// filing, the map's relations, a how-to's ways of asking.
+        case helpers
+        /// The front app's sound transcribed for a lecture question.
+        case lectures
+
+        var displayName: String {
+            switch self {
+            case .answers: return "Answers"
+            case .voice: return "Voice"
+            case .listening: return "Listening while it talks"
+            case .hearing: return "Hearing you"
+            case .helpers: return "Small helpers"
+            case .lectures: return "Lectures"
+            }
+        }
+    }
 
     struct Day: Codable, Equatable {
         var date: String
@@ -85,6 +131,51 @@ final class SpendingMeter: ObservableObject {
         var guideSteps = 0
         var dollars = 0.0
         var dollarsByService: [String: Double] = [:]
+        /// Empty on days saved before purposes were kept; their service
+        /// split is still there.
+        var dollarsByPurpose: [String: Double] = [:]
+
+        init(date: String) {
+            self.date = date
+        }
+
+        /// Every field but the date may be missing on disk, so a day written
+        /// by an older Buddy, before that field existed, still reads.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            date = try container.decode(String.self, forKey: .date)
+            questions = try container.decodeIfPresent(Int.self, forKey: .questions) ?? 0
+            guideSteps = try container.decodeIfPresent(Int.self, forKey: .guideSteps) ?? 0
+            dollars = try container.decodeIfPresent(Double.self, forKey: .dollars) ?? 0
+            dollarsByService = try container.decodeIfPresent([String: Double].self, forKey: .dollarsByService) ?? [:]
+            dollarsByPurpose = try container.decodeIfPresent([String: Double].self, forKey: .dollarsByPurpose) ?? [:]
+        }
+    }
+
+    /// Days added together: today alone, or every day of a month.
+    struct Totals: Equatable {
+        var dollars = 0.0
+        var dollarsByService: [String: Double] = [:]
+        var dollarsByPurpose: [String: Double] = [:]
+        var questions = 0
+        var guideSteps = 0
+
+        init(adding days: [Day]) {
+            for day in days {
+                dollars += day.dollars
+                questions += day.questions
+                guideSteps += day.guideSteps
+                for (service, serviceDollars) in day.dollarsByService {
+                    dollarsByService[service, default: 0] += serviceDollars
+                }
+                for (purpose, purposeDollars) in day.dollarsByPurpose {
+                    dollarsByPurpose[purpose, default: 0] += purposeDollars
+                }
+            }
+        }
+
+        func dollars(for service: Service) -> Double { dollarsByService[service.rawValue] ?? 0 }
+        func dollars(for purpose: Purpose) -> Double { dollarsByPurpose[purpose.rawValue] ?? 0 }
     }
 
     @Published private(set) var days: [Day] = []
@@ -99,10 +190,10 @@ final class SpendingMeter: ObservableObject {
     }
 
     /// Callable from any thread: every paid call reports here when its reply
-    /// says what it used.
-    nonisolated static func record(_ dollars: Double, for service: Service) {
+    /// says what it used, and says what the money was for.
+    nonisolated static func record(_ dollars: Double, for service: Service, purpose: Purpose) {
         guard dollars > 0, dollars.isFinite else { return }
-        Task { @MainActor in shared.add(dollars, for: service) }
+        Task { @MainActor in shared.add(dollars, for: service, purpose: purpose) }
     }
 
     func countQuestion(isGuideStep: Bool) {
@@ -113,16 +204,27 @@ final class SpendingMeter: ObservableObject {
 
     var today: Day { days.last(where: { $0.date == Self.dayName(Date()) }) ?? Day(date: Self.dayName(Date())) }
 
-    var thisMonthDollars: Double {
-        let month = String(Self.dayName(Date()).prefix(7))
-        return days.filter { $0.date.hasPrefix(month) }.reduce(0) { $0 + $1.dollars }
+    var thisMonthDollars: Double { thisMonth.dollars }
+
+    var thisMonth: Totals { Self.monthTotals(of: days, month: String(Self.dayName(Date()).prefix(7))) }
+
+    /// Every day of one month ("2026-11") added together.
+    static func monthTotals(of days: [Day], month: String) -> Totals {
+        Totals(adding: days.filter { $0.date.hasPrefix(month + "-") })
     }
 
-    private func add(_ dollars: Double, for service: Service) {
+    private func add(_ dollars: Double, for service: Service, purpose: Purpose) {
         updateToday { day in
-            day.dollars += dollars
-            day.dollarsByService[service.rawValue, default: 0] += dollars
+            Self.add(dollars, for: service, purpose: purpose, to: &day)
         }
+    }
+
+    /// One recorded cost added to a day, under both its service and its
+    /// purpose, so each split adds up to the day's total.
+    static func add(_ dollars: Double, for service: Service, purpose: Purpose, to day: inout Day) {
+        day.dollars += dollars
+        day.dollarsByService[service.rawValue, default: 0] += dollars
+        day.dollarsByPurpose[purpose.rawValue, default: 0] += dollars
     }
 
     private func updateToday(_ change: (inout Day) -> Void) {
@@ -185,5 +287,56 @@ final class SpendingMeter: ObservableObject {
     static func formatted(_ dollars: Double) -> String {
         if dollars > 0 && dollars < 0.01 { return "under 1¢" }
         return String(format: "$%.2f", dollars)
+    }
+}
+
+/// The lines of Spent today's breakdown card and the sentence a screen
+/// reader hears for it, worked out once from today's and this month's
+/// totals so the card and its spoken label can never disagree.
+struct SpendingBreakdown: Equatable {
+    struct Line: Equatable {
+        let name: String
+        let today: Double
+        let thisMonth: Double
+    }
+
+    static let whereTheNumbersComeFrom =
+        "From published prices; your provider's bill is exact and also counts anything else using the same key."
+
+    /// A row per service, leaving out one with nothing today or this month.
+    let serviceLines: [Line]
+    /// A row per purpose with spending, in `SpendingMeter.Purpose` order.
+    let purposeLines: [Line]
+    let questionsToday: Int
+    let guideStepsToday: Int
+
+    init(today: SpendingMeter.Totals, thisMonth: SpendingMeter.Totals) {
+        serviceLines = SpendingMeter.Service.allCases
+            .map { Line(name: $0.displayName, today: today.dollars(for: $0), thisMonth: thisMonth.dollars(for: $0)) }
+            .filter { $0.today > 0 || $0.thisMonth > 0 }
+        purposeLines = SpendingMeter.Purpose.allCases
+            .map { Line(name: $0.displayName, today: today.dollars(for: $0), thisMonth: thisMonth.dollars(for: $0)) }
+            .filter { $0.today > 0 || $0.thisMonth > 0 }
+        questionsToday = today.questions
+        guideStepsToday = today.guideSteps
+    }
+
+    /// "3 questions and 1 guide step today"; guide steps are left out on a
+    /// day with none, as most days have.
+    var countsSentence: String {
+        var sentence = questionsToday == 1 ? "1 question" : "\(questionsToday) questions"
+        if guideStepsToday > 0 {
+            sentence += " and " + (guideStepsToday == 1 ? "1 guide step" : "\(guideStepsToday) guide steps")
+        }
+        return sentence + " today"
+    }
+
+    /// Every line of the card in reading order, for VoiceOver.
+    var spokenDescription: String {
+        func spoken(_ line: Line) -> String {
+            "\(line.name), \(SpendingMeter.formatted(line.today)) today, \(SpendingMeter.formatted(line.thisMonth)) this month."
+        }
+        let lines = (serviceLines + purposeLines).map(spoken)
+        return (lines + [countsSentence + ".", Self.whereTheNumbersComeFrom]).joined(separator: " ")
     }
 }
