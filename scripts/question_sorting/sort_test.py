@@ -4,7 +4,7 @@ Every sorter gets the same 50 labelled test phrasings, all mid-conversation,
 and is scored on how many it puts in the right kind and how long it takes.
 The sorters that learn from examples see only the separate example set.
 
-  keywords    the lists in CompanionManager.swift, read out of the source so
+  keywords    the lists in CompanionManager's sources, read out of them so
               the test grades exactly what the app runs
   apple-*     nearest examples by meaning, using the embedding models built
               into macOS (contextual is the transformer, sentence the older one)
@@ -38,7 +38,9 @@ PREVIOUS_ANSWER = DATA["previous_answer"]
 
 # --- keywords: the app's own lists ----------------------------------------------
 
-manager = (HERE.parents[1] / "leanring-buddy/Companion/CompanionManager.swift").read_text()
+# CompanionManager is split across the files of its folder; read them as one.
+manager = "\n".join(
+    path.read_text() for path in sorted((HERE.parents[1] / "leanring-buddy/Companion").glob("*.swift")))
 
 
 def string_list_after(marker: str, source: str) -> list[str]:
@@ -49,7 +51,7 @@ def string_list_after(marker: str, source: str) -> list[str]:
 
 
 asking_again = string_list_after("let pushBackPhrases = [", manager)
-keyword_source = manager[manager.index("private static func questionKindFromKeywords"):]
+keyword_source = manager[manager.index("static func questionKindFromKeywords"):]
 teach_phrases = string_list_after("if mentions(", keyword_source)
 after_teach = keyword_source[keyword_source.index("return .teach"):]
 tradeoff_phrases = string_list_after("if mentions(", after_teach)
