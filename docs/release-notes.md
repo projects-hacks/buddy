@@ -6,27 +6,28 @@
 2. Open Buddy from Applications. The first time only, macOS says it can't check the app: click **Done**, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway**.
 3. Follow the setup window: your name, your keys, three permissions.
 
-Already have Buddy 1.2? It offers this update in the notch by itself: click **Update**. On 1.0 or 1.1, download it once and drag it onto Applications, choosing **Replace**. Your keys, memory and permissions stay.
+Already have Buddy 1.2 or 1.3? It offers this update in the notch by itself: click **Update**. On 1.0 or 1.1, download it once and drag it onto Applications, choosing **Replace**. Your keys, memory and permissions stay.
 
-## What's new in 1.3
+## What's new in 1.4
 
-Two new ways to use Buddy: type instead of talk, and get walked through any app one step at a time.
+**Repeat tasks, answered from memory**
 
-**Type instead of talk**
+When Buddy walks you through something in an app and you reach the end, it now keeps the steps. Ask for the same thing again, in whatever words, "how do I get a PDF of this" after "how do I save this as a PDF", and Buddy walks you through from memory: the same steps, pointing at the same buttons, without asking an AI model at all, so it is quicker and costs only the voice. It replays only when the request is plainly the same task; something that just sounds like it, "save as PNG" after "save as PDF", gets a fresh answer. If the app has changed since, Buddy notices the missing button and works out that step afresh. The notch says **from memory** while it replays.
 
-Press **Control + Option + T** from any app, or click the chat box in the open notch, type your question and press Return. Shift + Return starts a new line, and Esc puts the box away with your text kept. Buddy answers exactly as it does a spoken question, out loud and drawn on your screen, so it works in a library, a shared room, or when the question is a pasted error message. The chat tab in the notch keeps the whole day's conversation, spoken and typed.
+**See what you've spent**
 
-**Learn any app, step by step**
+Settings now shows **Spent today**, with this month's total and how many questions Buddy answered. It is worked out from what each reply says it used, at the providers' published prices, so there are no surprises on your bill.
 
-New to an editing app, a design tool, or a settings screen? Ask how to do the thing you want, "how do I export this as a PDF?", and Buddy gives one step at a time: it says what to click and points at the exact button or menu, then waits. Do the step and it notices on its own and says the next one, until the task is done. If you take a wrong turn it tells you how to get back. There is nothing to switch on: Buddy guides whenever the question is a task, and the step it is waiting for shows under the notch. Esc stops it any time.
+**Easier first install**
 
-Watching for your step happens entirely on your Mac and costs nothing. Buddy only looks after you click, type or scroll, and asks the model again only once the screen has changed, which is one ordinary answer, about a cent.
+The download window now shows the three install steps as pictures: drag Buddy to Applications, click **Done** when macOS says it can't check Buddy, then **Open Anyway** in Privacy & Security. No need to find the instructions anywhere else.
 
 **Also in this release**
 
-- Setup and the notch describe both new features, and the privacy wording says exactly when the screen is captured.
-- Opening **Name and API keys** from the notch no longer leaves the setup window hidden behind it.
-- An answer that started with a stray sentence before its drawing no longer loses the drawing.
+- **Control + Option + T** has its own sound, three soft key taps, and no longer turns the microphone on or stops an answer that is playing before the chat box opens.
+- Buddy points at the right button even when it names it instead of using its place on screen, so fewer arrows go missing.
+- A smaller, tighter app: an unused analytics package from the project Buddy grew out of is gone, along with the two permissions it needed, one of them the camera, which Buddy never used.
+- Buddy's files on your Mac now live in a folder named Buddy, moved there for you on first launch.
 
 Works on any Mac with macOS 14.2 or later, Apple silicon or Intel. Step-by-step help: [docs/install.md](https://github.com/projects-hacks/buddy/blob/main/docs/install.md).
 

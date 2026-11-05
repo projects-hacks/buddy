@@ -134,11 +134,24 @@ The watching costs no tokens: nothing is captured without input from the student
 
 Menu bar titles and an open menu's items are kept in the screen index, which otherwise drops everything outside the front window as chrome, so a step can point at File and then at Export as PDF by id.
 
+## How-tos: replayed with no model
+
+A walkthrough that reaches the end of its task is kept (`HowToMemory.swift`): each step's sentences, the label of the control it pointed at, and what it waited for. Labels rather than ids, because ids are new on every screen and "Export as PDF…" is what is still there tomorrow. When it is kept, one Haiku call (about $0.0001) names the task and writes ten ways a person might ask for it.
+
+A new question is checked against the saved how-tos before anything is paid for, on the Mac: the same app, a question that asks how to do something, and a saved phrasing that shares nearly all of its words both ways. Meaning from the on-device sentence model rates every short how-to question alike, so it is only a floor; the words decide, and the steps' own words are left out of them. Measured in `scripts/howto/` on eight tasks across seven apps: 30 of 40 fresh rephrasings found, and none of 49 near misses ("save as PNG" for "save as PDF", "turn off dark mode" for "turn on") ever replayed.
+
+A match skips the question sorter, memory and the model. The screen is read, the first step's control is found by its label, and the saved step is spoken and drawn through the same engine. Each later step is replayed once the student has done the previous one and its control has appeared. A control that is not there means the app is different from last time: the model is told what was already done and carries on from that step, and the walkthrough it gives replaces the saved one.
+
+## What it spends
+
+`SpendingMeter.swift` adds up what each paid call reports: the token counts in every Claude and Gemini reply, priced at the published rates in one table (Argon's introductory price doubles on 1 December 2026, and the meter changes with it), and Deepgram's per-character price for every sentence sent to it. It only listens: it reads the numbers after a reply has arrived, never delays or changes an answer, and saves a moment later off the main thread. Kept per day in `spending.json`.
+
 ## Where things live
 
 | What | Where |
 |---|---|
 | Keys | macOS Keychain, saved and read through `/usr/bin/security` so updates never prompt |
 | Transcripts | `~/Library/Application Support/Buddy/Transcripts`, one Markdown file a day |
-| Memory and hint steps | `~/Library/Application Support/Buddy/Memory` |
+| Memory, hint steps and how-tos | `~/Library/Application Support/Buddy/Memory` |
+| Spending | `~/Library/Application Support/Buddy/spending.json` |
 | Log | `~/Library/Logs/Buddy.log` |

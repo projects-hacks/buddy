@@ -32,6 +32,8 @@ Buddy runs on your own API keys: an [Anthropic](https://console.anthropic.com/se
 |---|---|
 | **Talk or type** | Hold Control + Option and speak, or press Control + Option + T and type in the notch's chat box. Either way the answer is spoken and drawn, and the chat keeps the whole day's conversation. |
 | **Guides you through any app** | Ask "how do I export this?" and Buddy gives one step, points at the exact button or menu, and watches for you to do it before saying the next. Watching happens on your Mac and costs nothing; each step is one short answer. Esc stops it. |
+| **Answers repeat tasks from memory** | A finished walkthrough is kept. Ask for the same task again in your own words and Buddy replays it, pointing at the same buttons, with no AI model asked; only the voice costs anything. A near miss ("PNG" instead of "PDF") gets a fresh answer. Measured in `scripts/howto/`. |
+| **Shows what it spends** | Settings shows today's and this month's spend on your keys, from each reply's own token counts at published prices. |
 | **Explains while drawing** | Answers are small drawing programs. Each spoken sentence arrives with its marks: rings, underlines and arrows on your real screen, and hand-drawn cards on calm space for pictures the screen does not have. The pen is paced to the voice. |
 | **Lives in the notch** | Status, the sentence being said, and your own words live as you speak. Hover for the last lesson as a paper card, or the chat with the whole day's conversation. Idle, it disappears into the camera housing. |
 | **Remembers what you learned** | Ideas explained in earlier sessions are recalled when a new question touches them, so an answer can build on Tuesday's lesson instead of starting over. Ideas you did not follow get a different example next time. Kept on your Mac only. |
@@ -154,7 +156,7 @@ The screen is captured only when you ask, by holding the keys or sending a typed
 
 | Path | What it holds |
 |---|---|
-| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift`, `DiagramReview.swift` and `GuideMode.swift` are the features above. |
+| `leanring-buddy/` | The app. `CompanionManager.swift` runs the pipeline; `TutorControlBar.swift` is the notch; `SetupWindow.swift` is first-run setup; `ModelRouter.swift`, `LearningMemory.swift`, `PracticeHints.swift`, `DiagramReview.swift`, `GuideMode.swift`, `HowToMemory.swift` and `SpendingMeter.swift` are the features above. |
 | `leanring-buddy/DrawingEngine/` | The drawing engine the answers run in. |
 | `scripts/route_race/` | The model race, the blind judging and the routing table. |
 | `scripts/question_sorting/` | The question sorter's calibration and its blind test. |

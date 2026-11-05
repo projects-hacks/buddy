@@ -69,6 +69,8 @@ flowchart LR
 
 If you go the wrong way, the next step says how to get back. If you are mid-step, still typing a name, it stays quiet and keeps waiting. Switching to another app to reply to a message does not count as doing the step.
 
+**Asked before? Answered from memory.** When a walkthrough reaches the end, Buddy keeps it: each step's words and the button it pointed at. Ask for the same thing again in that app, in your own words ("how do I get a PDF of this" after "how do I save this as a PDF"), and it walks you through from memory: the same steps, pointing at the same buttons, with no AI model asked at all, so only the voice costs anything (well under a cent). It only does this when the request is plainly the same task; something that only sounds like it, "save as PNG" after "save as PDF", gets a fresh answer instead. If the app has changed and a saved step's button is not there, the model takes over from that step and the walkthrough is saved again. The notch shows **from memory** while it replays. Kept on this Mac; Forget all clears these with the rest of memory.
+
 ## The notch
 
 - **Idle**, it disappears into the camera housing.
@@ -118,11 +120,16 @@ Hover the notch and open the gear tab.
 | Setting | What it does |
 |---|---|
 | Brain | **Auto** picks Sonnet, Opus or Argon per question; or always use Claude, Gemini, or a local model |
-| Sounds | Soft tones when the mic opens and a question is sent, a water drop when the notch opens |
-| Learning memory | On or off, how many ideas are remembered, Forget all |
+| Spent today | What Buddy has spent on your keys today and this month, with how many questions it answered |
+| Sounds | Soft tones when the mic opens and a question is sent, key taps when the chat box opens, a water drop when the notch opens |
+| Learning memory | On or off, how many ideas and how-tos are remembered, Forget all |
 | Name and API keys | Reopens setup on the keys |
 | Open at login | Whether Buddy starts when you log in |
 | Check for updates | The daily check for a newer Buddy, and Check now |
+
+## What it costs
+
+Buddy runs on your own keys, so you pay the providers directly. **Spent today** in Settings shows the running total, worked out from what each reply says it used (tokens in, from the cache, and out, and characters spoken) at the providers' published prices. It counts only what Buddy did; your provider's bill is the exact figure and includes anything else done with the same key. A typical question is one to six cents, a walkthrough step about a cent, and a replayed how-to only its voice.
 
 ## Shortcuts
 
