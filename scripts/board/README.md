@@ -5,7 +5,7 @@ Tests for "teach me X from scratch": the full-screen board that a lesson is draw
 ## When the board opens: `intent_test.swift`
 
 ```bash
-swiftc -O -parse-as-library -o /tmp/board_intent scripts/board/intent_test.swift leanring-buddy/BoardIntent.swift
+swiftc -O -parse-as-library -o /tmp/board_intent scripts/board/intent_test.swift leanring-buddy/Drawing/Board/BoardIntent.swift
 /tmp/board_intent scripts/board/intent_phrasings.json scripts/board/blind_phrasings.json \
     scripts/board/blind_phrasings_2.json scripts/board/blind_phrasings_3.json \
     scripts/question_sorting/phrasings.json scripts/question_sorting/spoken_test.json
@@ -33,8 +33,8 @@ The sorter's kinds, `QuestionKindExamples.json` and `QuestionSorterPrompt.txt` a
 
 ```bash
 swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
-    leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
-    leanring-buddy/BoardProgramTranslator.swift leanring-buddy/BoardProgramPrompt.swift leanring-buddy/ProgramStream.swift
+    leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
+    leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift
 /tmp/board_harness build/board-runs sonnet     # or opus, argon, or offline for a free drawing check
 /tmp/board_harness build/board-runs replay build/board-runs/sonnet   # earlier answers, current layout, no calls
 python3 -I scripts/board/overlap_check.py build/board-runs/sonnet

@@ -1,6 +1,6 @@
 // Prints the study notes the app would add for each test scenario, from
 // PracticeHints.swift and DiagramReview.swift themselves, as JSON.
-// build: xcrun swiftc -o /tmp/print_notes leanring-buddy/PracticeHints.swift leanring-buddy/DiagramReview.swift <copy of this file named main.swift>
+// build: xcrun swiftc -o /tmp/print_notes leanring-buddy/Answering/PracticeHints.swift leanring-buddy/Answering/DiagramReview.swift <copy of this file named main.swift>
 import Foundation
 
 let practiceListing = "Example 1: Constraints: Submit"

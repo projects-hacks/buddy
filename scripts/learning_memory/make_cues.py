@@ -1,6 +1,6 @@
 """Files each fixture concept the way the app files a lesson, to get its cues.
 
-Calls Claude Haiku with leanring-buddy/LessonConceptPrompt.txt, exactly the
+Calls Claude Haiku with leanring-buddy/Memory/LessonConceptPrompt.txt, exactly the
 prompt that ships, giving it each concept as a one-sentence lesson. Writes
 concepts_filed.json with the aliases and cues Haiku produced, which
 recall_eval.swift then grades against the blind questions. Haiku never sees
@@ -18,7 +18,7 @@ import sys
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-PROMPT = (HERE.parents[1] / "leanring-buddy/LessonConceptPrompt.txt").read_text()
+PROMPT = (HERE.parents[1] / "leanring-buddy/Memory/LessonConceptPrompt.txt").read_text()
 KEY = sys.stdin.read().strip()
 concepts = json.loads((HERE / "concepts.json").read_text())["concepts"]
 

@@ -1,6 +1,6 @@
 # The map of what you know
 
-Checks for the map window (`leanring-buddy/KnowledgeMap*.swift`) and for the relations Claude Haiku names for it.
+Checks for the map window (`leanring-buddy/Memory/Map/KnowledgeMap*.swift`) and for the relations Claude Haiku names for it.
 
 | File | What it is |
 |---|---|
@@ -13,10 +13,10 @@ Checks for the map window (`leanring-buddy/KnowledgeMap*.swift`) and for the rel
 python3 -I scripts/knowledge_map/make_fixture.py
 
 mkdir -p /tmp/map_check && cp scripts/knowledge_map/map_check.swift /tmp/map_check/main.swift
-xcrun swiftc -O -parse-as-library -o /tmp/map_check/check leanring-buddy/ConceptIndex.swift \
-  leanring-buddy/LearningMemory.swift leanring-buddy/KnowledgeMapRelations.swift \
-  leanring-buddy/KnowledgeMapLayout.swift leanring-buddy/KnowledgeMapView.swift \
-  leanring-buddy/DesignSystem.swift /tmp/map_check/main.swift
+xcrun swiftc -O -parse-as-library -o /tmp/map_check/check leanring-buddy/Memory/ConceptIndex.swift \
+  leanring-buddy/Memory/LearningMemory.swift leanring-buddy/Memory/Map/KnowledgeMapRelations.swift \
+  leanring-buddy/Memory/Map/KnowledgeMapLayout.swift leanring-buddy/Memory/Map/KnowledgeMapView.swift \
+  leanring-buddy/Support/DesignSystem.swift /tmp/map_check/main.swift
 /tmp/map_check/check scripts/knowledge_map /tmp/map_check/out
 
 security find-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -w \

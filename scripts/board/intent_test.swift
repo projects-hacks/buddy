@@ -4,7 +4,7 @@
 // Compiled together with the app's own file, so the test grades exactly
 // what the app runs:
 //
-//   swiftc -O -parse-as-library -o /tmp/board_intent scripts/board/intent_test.swift leanring-buddy/BoardIntent.swift
+//   swiftc -O -parse-as-library -o /tmp/board_intent scripts/board/intent_test.swift leanring-buddy/Drawing/Board/BoardIntent.swift
 //   /tmp/board_intent scripts/board/intent_phrasings.json scripts/board/blind_phrasings.json \
 //       scripts/question_sorting/phrasings.json scripts/question_sorting/spoken_test.json
 //

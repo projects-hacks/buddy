@@ -270,9 +270,9 @@ final class HeadlessDrawingBoard: NSObject, WKNavigationDelegate {
 
     func load() async {
         let scripts = ["draw-vendor-rough", "draw-vendor-freehand", "draw-engine"]
-            .map { "<script>\n\(sourceText("DrawingEngine/\($0).js"))\n</script>" }
+            .map { "<script>\n\(sourceText("Drawing/DrawingEngine/\($0).js"))\n</script>" }
             .joined(separator: "\n")
-        let html = sourceText("DrawingEngine/draw-page.html").replacingOccurrences(of: "<!--SCRIPTS-->", with: scripts)
+        let html = sourceText("Drawing/DrawingEngine/draw-page.html").replacingOccurrences(of: "<!--SCRIPTS-->", with: scripts)
         await withCheckedContinuation { continuation in
             loaded = continuation
             webView.loadHTMLString(html, baseURL: nil)
@@ -295,7 +295,7 @@ final class HeadlessDrawingBoard: NSObject, WKNavigationDelegate {
                                                             arguments: ["code": program], contentWorld: .page)
         print("   engine: \(result as? String ?? "no result")".prefix(220))
         guard let snapshotJSON = try? await webView.evaluateJavaScript(
-            sourceText("notebook-snapshot.js"), in: nil, contentWorld: .defaultClient) as? String else { return nil }
+            sourceText("Notebook/notebook-snapshot.js"), in: nil, contentWorld: .defaultClient) as? String else { return nil }
         return NotebookDrawingSnapshot.parse(json: snapshotJSON)
     }
 }

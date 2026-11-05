@@ -33,7 +33,7 @@ REPOSITORY = HERE.parents[1]
 SCREENSHOT, LISTING_FILE, OUT = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
 OUT.mkdir(parents=True, exist_ok=True)
 
-prompt_source = (REPOSITORY / "leanring-buddy/TutorProgramPrompt.swift").read_text()
+prompt_source = (REPOSITORY / "leanring-buddy/Answering/TutorProgramPrompt.swift").read_text()
 system_block = prompt_source[prompt_source.index('static let system = """') + len('static let system = """'):]
 system_block = system_block[:system_block.index('    """')]
 SYSTEM = "\n".join(line[4:] if line.startswith("    ") else line for line in system_block.strip("\n").split("\n"))

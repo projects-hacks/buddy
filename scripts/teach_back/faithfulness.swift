@@ -14,8 +14,8 @@
 // Build and run from the repository root:
 //
 //   swiftc -O -parse-as-library -o /tmp/teach_back_faithfulness scripts/teach_back/faithfulness.swift \
-//       leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
-//       leanring-buddy/BoardProgramTranslator.swift leanring-buddy/ProgramStream.swift leanring-buddy/TeachBackPrompt.swift
+//       leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
+//       leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/ProgramStream.swift leanring-buddy/TeachBack/TeachBackPrompt.swift
 //   /tmp/teach_back_faithfulness build/teach-back-runs [fixture ...]
 //   /tmp/teach_back_faithfulness build/teach-back-runs replay     # earlier answers, no calls
 //
@@ -180,7 +180,7 @@ struct TeachBackFaithfulness {
 
             // The Notebook's copy of the board, by the app's own snapshot
             // script, drawn back to a picture from the SVG alone.
-            let snapshotScript = try String(contentsOf: repository.appendingPathComponent("leanring-buddy/notebook-snapshot.js"), encoding: .utf8)
+            let snapshotScript = try String(contentsOf: repository.appendingPathComponent("leanring-buddy/Notebook/notebook-snapshot.js"), encoding: .utf8)
             if let boardSVG = try await renderer.notebookBoardSVG(snapshotScript: snapshotScript) {
                 try boardSVG.write(to: directory.appendingPathComponent("notebook-board.svg"), atomically: true, encoding: .utf8)
                 try await renderer.picture(ofSVG: boardSVG, to: directory.appendingPathComponent("notebook-board.png"))
@@ -567,7 +567,7 @@ final class BoardRenderer: NSObject, WKNavigationDelegate {
         webView.navigationDelegate = self
         window.orderFrontRegardless()
 
-        let engineDirectory = repository.appendingPathComponent("leanring-buddy/DrawingEngine")
+        let engineDirectory = repository.appendingPathComponent("leanring-buddy/Drawing/DrawingEngine")
         func read(_ name: String) throws -> String { try String(contentsOf: engineDirectory.appendingPathComponent(name), encoding: .utf8) }
         let scripts = try ["draw-vendor-rough.js", "draw-vendor-freehand.js", "draw-engine.js", "draw-board.js"]
             .map { "<script>\n\(try read($0))\n</script>" }.joined(separator: "\n")

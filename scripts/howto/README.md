@@ -7,8 +7,8 @@ Tests whether a saved how-to is found again when the same task is asked in other
 ```bash
 security find-generic-password -a api-key -s com.maverickrajeev.clicky-local.anthropic -w \
   | python3 -I scripts/howto/make_cues.py          # the shipped prompt; about $0.0001 a how-to
-swiftc -O -o "$TMPDIR/howto_eval" scripts/howto/eval/*.swift leanring-buddy/HowToMemory.swift \
-  leanring-buddy/GuideMode.swift leanring-buddy/AppIdentity.swift
+swiftc -O -o "$TMPDIR/howto_eval" scripts/howto/eval/*.swift leanring-buddy/Guide/HowToMemory.swift \
+  leanring-buddy/Guide/GuideMode.swift leanring-buddy/App/AppIdentity.swift
 "$TMPDIR/howto_eval"
 ```
 

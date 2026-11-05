@@ -30,7 +30,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 DATA = json.loads((HERE / "phrasings.json").read_text())
 # The examples are the app's own file, so the test grades what ships.
 DATA["examples"] = json.loads(
-    (HERE.parents[1] / "leanring-buddy/QuestionKindExamples.json").read_text())["examples"]
+    (HERE.parents[1] / "leanring-buddy/Answering/QuestionKindExamples.json").read_text())["examples"]
 KINDS = list(DATA["kinds"])
 TEST = DATA["test"]
 PREVIOUS_ANSWER = DATA["previous_answer"]
@@ -38,7 +38,7 @@ PREVIOUS_ANSWER = DATA["previous_answer"]
 
 # --- keywords: the app's own lists ----------------------------------------------
 
-manager = (HERE.parents[1] / "leanring-buddy/CompanionManager.swift").read_text()
+manager = (HERE.parents[1] / "leanring-buddy/Companion/CompanionManager.swift").read_text()
 
 
 def string_list_after(marker: str, source: str) -> list[str]:

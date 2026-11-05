@@ -8,7 +8,7 @@ repository=${here:h:h}
 build=$(mktemp -d)
 cp "$here/lecture_mode_check.swift" "$build/main.swift"
 xcrun swiftc -O -o "$build/lecture_mode_check" \
-  "$repository/leanring-buddy/LectureModeCore.swift" \
-  "$repository/leanring-buddy/YouTubeCaptions.swift" \
+  "$repository/leanring-buddy/Lecture/LectureModeCore.swift" \
+  "$repository/leanring-buddy/Lecture/YouTubeCaptions.swift" \
   "$build/main.swift"
 "$build/lecture_mode_check" "$@"

@@ -5,7 +5,7 @@
 // Compiled with the app's own files, so it grades what the app runs:
 //
 //   swiftc -O -parse-as-library -o /tmp/teach_back_intent scripts/teach_back/intent_test.swift \
-//       leanring-buddy/TeachBackIntent.swift leanring-buddy/BoardIntent.swift
+//       leanring-buddy/TeachBack/TeachBackIntent.swift leanring-buddy/Drawing/Board/BoardIntent.swift
 //   /tmp/teach_back_intent scripts/teach_back/intent_phrasings.json scripts/teach_back/blind_phrasings.json \
 //       scripts/teach_back/listening_phrases.json scripts/board/intent_phrasings.json \
 //       scripts/question_sorting/phrasings.json scripts/question_sorting/spoken_test.json

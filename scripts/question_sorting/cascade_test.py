@@ -36,7 +36,7 @@ key = subprocess.run(["security", "find-generic-password", "-a", "api-key",
 claude = anthropic.Anthropic(api_key=key)
 
 # The prompt the app sends, kept in one place so the test grades what ships.
-SYSTEM = (HERE.parents[1] / "leanring-buddy/QuestionSorterPrompt.txt").read_text()
+SYSTEM = (HERE.parents[1] / "leanring-buddy/Answering/QuestionSorterPrompt.txt").read_text()
 
 
 def haiku(question: str, after_answer: bool) -> tuple[str, float]:

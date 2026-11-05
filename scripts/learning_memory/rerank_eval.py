@@ -1,7 +1,7 @@
 """Grades the second stage of recall: Claude Haiku choosing from the shortlist.
 
 Reads the shortlists recall_eval.swift wrote for every blind question, asks
-Haiku with leanring-buddy/MemoryRecallPrompt.txt (the prompt that ships), and
+Haiku with leanring-buddy/Memory/MemoryRecallPrompt.txt (the prompt that ships), and
 scores what it chose against the blind answers, per half. Also reports how
 long each call took, since it has to fit inside the screen capture.
 
@@ -20,7 +20,7 @@ import time
 import urllib.request
 
 HERE = pathlib.Path(__file__).resolve().parent
-PROMPT = (HERE.parents[1] / "leanring-buddy/MemoryRecallPrompt.txt").read_text()
+PROMPT = (HERE.parents[1] / "leanring-buddy/Memory/MemoryRecallPrompt.txt").read_text()
 KEY = sys.stdin.read().strip()
 rows = json.loads(pathlib.Path(sys.argv[1]).read_text())
 

@@ -11,8 +11,8 @@
 // Build and run from the repository root:
 //
 //   swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
-//       leanring-buddy/BoardState.swift leanring-buddy/BoardLayout.swift leanring-buddy/TeachingBoard.swift \
-//       leanring-buddy/BoardProgramTranslator.swift leanring-buddy/BoardProgramPrompt.swift leanring-buddy/ProgramStream.swift
+//       leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
+//       leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift
 //   /tmp/board_harness <out_dir> [sonnet|opus|argon|offline] [topic ...]
 //
 // "argon" calls Gemini 4 Argon on Vertex the way GeminiVisionProvider does:
@@ -531,7 +531,7 @@ final class BoardRenderer: NSObject, WKNavigationDelegate {
         webView.navigationDelegate = self
         window.orderFrontRegardless()
 
-        let engineDirectory = repository.appendingPathComponent("leanring-buddy/DrawingEngine")
+        let engineDirectory = repository.appendingPathComponent("leanring-buddy/Drawing/DrawingEngine")
         func read(_ name: String) throws -> String { try String(contentsOf: engineDirectory.appendingPathComponent(name), encoding: .utf8) }
         let scripts = try ["draw-vendor-rough.js", "draw-vendor-freehand.js", "draw-engine.js", "draw-board.js"]
             .map { "<script>\n\(try read($0))\n</script>" }.joined(separator: "\n")

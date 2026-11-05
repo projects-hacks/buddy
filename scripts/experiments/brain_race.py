@@ -86,7 +86,7 @@ def swift_multiline_after(source: str, marker: str) -> str:
     return "\n".join(l[indent:] for l in lines)
 
 
-manager_source = (REPOSITORY / "leanring-buddy/CompanionManager.swift").read_text()
+manager_source = (REPOSITORY / "leanring-buddy/Companion/CompanionManager.swift").read_text()
 SYSTEM_PROMPT = swift_multiline_after(
     manager_source, "private static func tutorSystemPrompt"
 ).replace("\\(screenIndexListing)", SCREEN_INDEX)

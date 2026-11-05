@@ -12,7 +12,7 @@
 | `error_offer/` | Offering to explain an error only for real errors, never for near misses, and what watching costs |
 | `study_modes/` | Hint ladder and diagram review, checked on Sonnet and Argon |
 | `lecture_mode/` | Lecture mode offline: time reading, transcript finding, exclusions, the minute before a time on real lecture captions, the rolling buffer, and YouTube's caption tracks for real videos |
-| `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/RouteTable.json`) |
+| `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/Answering/RouteTable.json`) |
 | `lesson_race/` | The teaching-lesson race the routing table's teach row comes from |
 | `draw_judgement/` | Whether answers draw a card, marks or nothing only when that helps |
 | `talk_over/` | Reading what is heard while an answer plays: echoes of Buddy's voice, cut-ins, commands |
