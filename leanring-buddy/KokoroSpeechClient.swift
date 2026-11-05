@@ -95,8 +95,9 @@ final class KokoroSpeechClient: NSObject {
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
         // Kept separate so dependency resolution chatter cannot be mistaken
-        // for a protocol response on stdout.
-        process.standardError = Pipe()
+        // for a protocol response on stdout, and thrown away: a pipe nobody
+        // reads fills after 64 KB of warnings and the helper then blocks.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
@@ -126,7 +127,13 @@ final class KokoroSpeechClient: NSObject {
 
     func shutDown() {
         stopPlayback()
-        helperInput?.closeFile()
+        stopHelperProcess()
+    }
+
+    /// Ends the helper but lets a clip already rendered finish playing:
+    /// the next sentence is rendered while the current one plays.
+    private func stopHelperProcess() {
+        try? helperInput?.close()
         helperProcess?.terminate()
         helperProcess = nil
         helperInput = nil
@@ -177,7 +184,11 @@ final class KokoroSpeechClient: NSObject {
     private func renderClip(for text: String) async throws -> GeneratedClip {
         let spokenText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !spokenText.isEmpty else { throw KokoroError.badRequest }
-        guard isReady, let helperInput else { throw KokoroError.notRunning }
+        guard isReady, let helperInput, helperProcess?.isRunning == true else {
+            if isReady { TutorDebugLog.write("⚠️ Kokoro helper is no longer running") }
+            stopHelperProcess()
+            throw KokoroError.notRunning
+        }
 
         let request: [String: Any] = [
             "text": spokenText,
@@ -188,10 +199,21 @@ final class KokoroSpeechClient: NSObject {
             throw KokoroError.badRequest
         }
 
-        helperInput.write(requestData)
-        helperInput.write(Data("\n".utf8))
+        // The throwing write: the older `write(_:)` raises an exception on a
+        // helper that has exited, which Swift cannot catch.
+        do {
+            try helperInput.write(contentsOf: requestData + Data("\n".utf8))
+        } catch {
+            TutorDebugLog.write("⚠️ Kokoro helper did not take the sentence: \(error.localizedDescription)")
+            stopHelperProcess()
+            throw KokoroError.notRunning
+        }
 
         guard let response = await readResponseLine(timeoutSeconds: 60) else {
+            // The reader is still waiting on the pipe and would take the next
+            // reply as this one's, so the helper is not asked again.
+            TutorDebugLog.write("⚠️ Kokoro helper did not answer in time, stopping it")
+            stopHelperProcess()
             throw KokoroError.timedOut
         }
         guard response["ok"] as? Bool == true,

@@ -45,10 +45,11 @@ final class QAHooks {
                              "\(AppIdentity.standardBundleIdentifier).\(service.rawValue)", "-w"]
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         guard (try? process.run()) != nil else { return nil }
+        let keyData = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        let key = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+        let key = String(data: keyData, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return key?.isEmpty == false ? key : nil
     }

@@ -31,6 +31,10 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
     private let companionManager = CompanionManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Writing to a pipe whose reader has gone (a helper process that
+        // died) sends SIGPIPE, which quits the app by default. Ignored, the
+        // write fails with an error instead, and that is handled.
+        signal(SIGPIPE, SIG_IGN)
         print("🎯 Buddy: Starting...")
         print("🎯 Buddy: Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown")")
 

@@ -163,10 +163,19 @@ enum APIKeyStore {
         process.arguments = arguments
         let inputPipe = Pipe()
         process.standardInput = inputPipe
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        // Nothing reads these, and a pipe nobody reads blocks the tool once full.
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return -1 }
-        if let input { inputPipe.fileHandleForWriting.write(Data(input.utf8)) }
+        // Writing to a tool that already exited fails; the throwing write
+        // reports it instead of raising an exception nothing can catch.
+        if let input, process.isRunning {
+            do {
+                try inputPipe.fileHandleForWriting.write(contentsOf: Data(input.utf8))
+            } catch {
+                TutorDebugLog.write("⚠️ keychain tool did not take the key: \(error.localizedDescription)")
+            }
+        }
         try? inputPipe.fileHandleForWriting.close()
         process.waitUntilExit()
         return process.terminationStatus
@@ -191,11 +200,12 @@ enum APIKeyStore {
         process.arguments = ["find-generic-password", "-a", "api-key", "-s", service.keychainService, "-w"]
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
+        // Read before waiting: a tool that fills the pipe waits for a reader.
+        let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
-        let data = output.fileHandleForReading.readDataToEndOfFile()
         let key = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return key.isEmpty ? nil : key
     }

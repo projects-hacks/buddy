@@ -305,7 +305,8 @@ final class GeminiVisionProvider: TutorBrain {
         process.arguments = ["auth", "application-default", "print-access-token"]
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        // gcloud prints warnings here; a pipe nobody reads blocks it once full.
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
