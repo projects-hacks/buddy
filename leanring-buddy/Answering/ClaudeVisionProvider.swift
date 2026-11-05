@@ -141,7 +141,7 @@ final class ClaudeVisionProvider: TutorBrain {
         }
 
         var accumulatedText = ""
-        var inputUsageForCost: (fresh: Int, cached: Int, written: Int) = (0, 0, 0)
+        var inputUsageForCost: (fresh: Int, cached: Int, written: Int, writtenForAnHour: Int) = (0, 0, 0, 0)
         var sawMessageStart = false
         var costRecorded = false
         // An answer cut off by a new question, Esc or a dropped connection
@@ -153,7 +153,7 @@ final class ClaudeVisionProvider: TutorBrain {
                 let cost = Self.estimatedCostInDollars(
                     model: model, freshInput: inputUsageForCost.fresh,
                     cachedInput: inputUsageForCost.cached, cacheWrites: inputUsageForCost.written,
-                    output: accumulatedText.count / 4
+                    cacheWritesKeptAnHour: inputUsageForCost.writtenForAnHour, output: accumulatedText.count / 4
                 )
                 TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for an answer that was stopped")
                 SpendingMeter.record(cost, for: .claude)
@@ -179,7 +179,12 @@ final class ClaudeVisionProvider: TutorBrain {
                     let cached = usage["cache_read_input_tokens"] as? Int ?? 0
                     let written = usage["cache_creation_input_tokens"] as? Int ?? 0
                     TutorDebugLog.write("💾 \(model): \(cached) cached, \(written) newly cached, \(fresh) fresh input tokens")
-                    inputUsageForCost = (fresh, cached, written)
+                    // Every cache point Buddy sets is kept an hour, which is
+                    // billed at twice the input price; the breakdown, when
+                    // the reply gives one, says which writes were which.
+                    let breakdown = usage["cache_creation"] as? [String: Any]
+                    let writtenForAnHour = breakdown.map { $0["ephemeral_1h_input_tokens"] as? Int ?? 0 } ?? written
+                    inputUsageForCost = (fresh, cached, max(0, written - writtenForAnHour), writtenForAnHour)
                     sawMessageStart = true
                 }
 
@@ -201,7 +206,7 @@ final class ClaudeVisionProvider: TutorBrain {
                     let cost = Self.estimatedCostInDollars(
                         model: model, freshInput: inputUsageForCost.fresh,
                         cachedInput: inputUsageForCost.cached, cacheWrites: inputUsageForCost.written,
-                        output: outputTokens
+                        cacheWritesKeptAnHour: inputUsageForCost.writtenForAnHour, output: outputTokens
                     )
                     TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for this answer")
                     SpendingMeter.record(cost, for: .claude)
@@ -261,13 +266,12 @@ final class ClaudeVisionProvider: TutorBrain {
         return (text: text, duration: Date().timeIntervalSince(startTime))
     }
 
-    /// List prices per million tokens, for the cost line in the log. Cache
-    /// reads are a tenth of input; cache writes a quarter more than input.
+    /// List prices per million tokens, for the cost line in the log and the meter.
     private static func estimatedCostInDollars(
-        model: String, freshInput: Int, cachedInput: Int, cacheWrites: Int, output: Int
+        model: String, freshInput: Int, cachedInput: Int, cacheWrites: Int, cacheWritesKeptAnHour: Int, output: Int
     ) -> Double {
         APIPrices.claude(model: model, freshInput: freshInput, cachedInput: cachedInput,
-                         cacheWrites: cacheWrites, output: output)
+                         cacheWrites: cacheWrites, cacheWritesKeptAnHour: cacheWritesKeptAnHour, output: output)
     }
 
     // MARK: - Request construction

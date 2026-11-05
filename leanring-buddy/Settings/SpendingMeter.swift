@@ -22,8 +22,10 @@ import Foundation
 /// Published list prices, in dollars per million tokens or per thousand
 /// characters. Checked November 2026.
 enum APIPrices {
-    /// Claude Messages API. Cache writes cost 1.25 times the input price.
-    static func claude(model: String, freshInput: Int, cachedInput: Int, cacheWrites: Int, output: Int) -> Double {
+    /// Claude Messages API. A cache write kept five minutes costs 1.25 times
+    /// the input price; one kept an hour, as Buddy's prompts are, costs twice.
+    static func claude(model: String, freshInput: Int, cachedInput: Int, cacheWrites: Int,
+                       cacheWritesKeptAnHour: Int = 0, output: Int) -> Double {
         let (input, cacheRead, outputPrice): (Double, Double, Double)
         switch model {
         case let name where name.contains("opus"): (input, cacheRead, outputPrice) = (4, 0.20, 20)
@@ -31,7 +33,8 @@ enum APIPrices {
         default: (input, cacheRead, outputPrice) = (2, 0.20, 10)
         }
         return (Double(freshInput) * input + Double(cachedInput) * cacheRead
-                + Double(cacheWrites) * input * 1.25 + Double(output) * outputPrice) / 1_000_000
+                + Double(cacheWrites) * input * 1.25 + Double(cacheWritesKeptAnHour) * input * 2
+                + Double(output) * outputPrice) / 1_000_000
     }
 
     /// Gemini Argon on Google's API or Vertex: an introductory price until the

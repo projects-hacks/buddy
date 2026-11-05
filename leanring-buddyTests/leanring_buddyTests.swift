@@ -230,8 +230,10 @@ struct SpendingArithmeticTests {
         #expect(abs(APIPrices.claude(model: "claude-sonnet-5-5", freshInput: 1_000_000, cachedInput: 0, cacheWrites: 0, output: 0) - 2) < 1e-9)
         #expect(abs(APIPrices.claude(model: "claude-opus-5-5", freshInput: 0, cachedInput: 0, cacheWrites: 0, output: 1_000_000) - 20) < 1e-9)
         #expect(abs(APIPrices.claude(model: "claude-haiku-5", freshInput: 0, cachedInput: 1_000_000, cacheWrites: 0, output: 0) - 0.01) < 1e-9)
-        // A cache write costs 1.25 times the input price.
+        // A cache write costs 1.25 times the input price, or twice when kept an hour.
         #expect(abs(APIPrices.claude(model: "claude-sonnet-5-5", freshInput: 0, cachedInput: 0, cacheWrites: 1_000_000, output: 0) - 2.5) < 1e-9)
+        #expect(abs(APIPrices.claude(model: "claude-sonnet-5-5", freshInput: 0, cachedInput: 0, cacheWrites: 0,
+                                     cacheWritesKeptAnHour: 1_000_000, output: 0) - 4) < 1e-9)
     }
 
     @Test func geminiIntroductoryPriceThenDouble() {
