@@ -53,9 +53,16 @@ enum TalkOverHearing {
     ]
     private static let cueOpenings = ["wait", "hold on", "hang on", "sorry", "but", "actually", "excuse me", "hey", "so"]
     private static let questionWords: Set<String> = [
-        "why", "what", "how", "when", "where", "which", "who", "whats", "hows", "huh", "really",
-        "is", "does", "do", "can", "could", "should", "would", "are", "isnt", "doesnt", "explain"
+        "why", "what", "how", "when", "where", "which", "who", "whats", "hows", "huh", "really", "explain"
     ]
+    /// Words that ask only when they open the sentence ("is it sorted?"):
+    /// further in, as in "ten is bigger", they are in every statement, and
+    /// Buddy's own voice heard back would pass for a question.
+    private static let questionOpeningVerbs: Set<String> = [
+        "is", "does", "do", "can", "could", "should", "would", "are", "isnt", "doesnt"
+    ]
+    /// Ways of addressing Buddy before the question itself.
+    private static let addressWords: Set<String> = ["okay", "ok", "buddy", "hey", "alright", "right"]
 
     private static let holdPhrases: Set<String> = ["wait", "hold on", "hang on", "one sec", "one second", "pause", "wait a second", "wait a sec", "hold on a second", "just a second", "wait wait"]
     private static let resumePhrases: Set<String> = ["go on", "continue", "keep going", "carry on", "go ahead", "resume", "ok go on", "okay go on", "ok continue", "okay continue", "yes go on", "yeah go on", "go on please", "please continue"]
@@ -82,11 +89,14 @@ enum TalkOverHearing {
         }
         guard realWords.count <= maximumQuestionWords else { return .ignore(reason: "too long to be cutting in") }
         let opensWithCue = opensWithCue(realWords)
-        let asksSomething = utterance.contains("?") || realWords.prefix(3).contains { questionWords.contains($0) }
+        let wordsAfterAddress = realWords.drop { addressWords.contains($0) }
+        let asksSomething = utterance.contains("?")
+            || realWords.prefix(3).contains { questionWords.contains($0) }
+            || wordsAfterAddress.first.map { questionOpeningVerbs.contains($0) } == true
         if realWords.count >= minimumQuestionWords, opensWithCue || asksSomething {
             return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
         }
-        if realWords.count == 2, opensWithCue, questionWords.contains(realWords[1]) {
+        if realWords.count == 2, opensWithCue, questionWords.contains(realWords[1]) || questionOpeningVerbs.contains(realWords[1]) {
             return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return .ignore(reason: "not addressed to Buddy")
@@ -176,7 +186,15 @@ enum TalkOverHearing {
             let saidThen = sentences.contains { sentence in
                 couldBeEcho(heardIndex, of: sentence) && sentence.words.contains { sameWord(heardWords[heardIndex], $0) }
             }
-            if betweenBuddys && saidThen { isBuddys[heardIndex] = true }
+            // "ten is" heard back from "ten is bigger": the question word
+            // goes on Buddy's own sentence in order, right after a word of it.
+            let continuesBuddysSentence = heardIndex > 0 && isBuddys[heardIndex - 1] && sentences.contains { sentence in
+                couldBeEcho(heardIndex, of: sentence) && sentence.words.indices.dropLast().contains { spokenIndex in
+                    sameWord(heardWords[heardIndex - 1], sentence.words[spokenIndex])
+                        && sameWord(heardWords[heardIndex], sentence.words[spokenIndex + 1])
+                }
+            }
+            if (betweenBuddys && saidThen) || continuesBuddysSentence { isBuddys[heardIndex] = true }
         }
         return isBuddys
     }
@@ -211,6 +229,25 @@ enum TalkOverHearing {
             .replacingOccurrences(of: "\u{2019}", with: "")
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
+            .flatMap(spokenWords(forNumber:))
+    }
+
+    /// Buddy's sentences spell numbers out ("ten is bigger") and the
+    /// recognizer writes them as digits ("10 is"), so digits are compared
+    /// as the words that are said. Anything that is not a number of up to
+    /// three digits is left as it is.
+    static func spokenWords(forNumber token: String) -> [String] {
+        guard token.count <= 3, token.allSatisfy(\.isASCII), let number = Int(token) else { return [token] }
+        let ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+        let tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+        func belowHundred(_ value: Int) -> [String] {
+            if value < 20 { return [ones[value]] }
+            return value % 10 == 0 ? [tens[value / 10]] : [tens[value / 10], ones[value % 10]]
+        }
+        if number < 100 { return belowHundred(number) }
+        let hundreds = [ones[number / 100], "hundred"]
+        return number % 100 == 0 ? hundreds : hundreds + belowHundred(number % 100)
     }
 }
 

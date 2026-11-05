@@ -246,5 +246,23 @@ check("notch line: grows as words come", shown.wordsOfTheCutIn(recentlySpoken: s
 _ = shown.timePassed(to: 9, recentlySpoken: spokenThen, wasLoudEnough: true)
 check("notch line: empty once the question is sent", shown.wordsOfTheCutIn(recentlySpoken: spokenThen).isEmpty)
 
+// 9. The live test of the 2.0 build, laptop speakers at 38%: Buddy said
+// "ten is bigger than everything..." and the microphone heard its own voice
+// as "10 is The wild". The digits did not match Buddy's spelled-out words,
+// and "is" in second place made it a question, so the answer was cut off
+// for a question nobody asked.
+let echoSentence = "ten is bigger than everything, so low keeps moving right past the nine."
+check("digits are read as the words said", TalkOverHearing.words(of: "10 is 42") == ["ten", "is", "forty", "two"])
+check("a statement with is in second place is not a question", isIgnored(meaning("10 is the wild")))
+check("is opening the sentence still asks", isQuestion(meaning("is ten bigger than nine")))
+check("okay before is still asks", isQuestion(meaning("okay is that the last index")))
+var echoOfTen: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(echoSentence))]
+echoOfTen += levels(-30, from: 0, to: 6) + levels(-62, from: 6, to: 10)
+echoOfTen += [(1.2, .heard("10 is")), (2.4, .heard("10 is The wild"))]
+let echoOfTenActions = play(echoOfTen, until: 10, finalTextOnFlush: "10 is The wild")
+print("  echo of ten: " + describe(echoOfTenActions))
+check("echo of ten: Buddy's own voice heard back with digits is no question", question(in: echoOfTenActions) == nil)
+check("echo of ten: Buddy is never paused for it", firstYield(in: echoOfTenActions) == nil)
+
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)
