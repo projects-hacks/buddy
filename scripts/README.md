@@ -8,6 +8,7 @@
 | `learning_memory/` | Memory's blind recall test, timing at 5,000 ideas, and an end-to-end test of the real store |
 | `howto/` | Finding saved how-tos again from new wordings, and never for near misses |
 | `notebook/` | A sample notebook and its PDFs rendered offline from fixture lessons, with checks on cleaning, parsing and deleting |
+| `error_offer/` | Offering to explain an error only for real errors, never for near misses, and what watching costs |
 | `study_modes/` | Hint ladder and diagram review, checked on Sonnet and Argon |
 | `lecture_mode/` | Lecture mode offline: time reading, transcript finding, exclusions, the minute before a time on real lecture captions, the rolling buffer, and YouTube's caption tracks for real videos |
 | `route_race/` | The model race, blind judging and the routing table (`leanring-buddy/RouteTable.json`) |

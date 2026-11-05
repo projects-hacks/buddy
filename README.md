@@ -105,6 +105,7 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 | Hold <kbd>Control</kbd> + <kbd>Option</kbd> | Ask out loud; your words show under the notch |
 | <kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>T</kbd> | Type a question; <kbd>Return</kbd> sends, <kbd>Shift</kbd> + <kbd>Return</kbd> adds a line |
 | Hover the notch | The last lesson, the day's chat, Settings |
+| Tap <kbd>Control</kbd> + <kbd>Option</kbd>, or click the glow | When the notch glows with "explain this error?", explain the error that just appeared |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
 More in [docs/using-buddy.md](docs/using-buddy.md).
@@ -136,7 +137,8 @@ The model answers with a short drawing program, and the first sentence is spoken
 
 | What | Where it goes |
 |---|---|
-| **Screen** | Captured only while you hold the keys or ask, and dropped if no question follows, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Screen** | Captured whole only while you hold the keys or ask, and dropped if no question follows, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
+| **Errors** | While a terminal, editor, Xcode or a coding judge's page is in front, after Return, a run shortcut or a click, the front window alone is read on the Mac (its accessibility text, or text recognition on the part that changed) to spot an error. Nothing is stored; fingerprints of errors already seen stay in memory until Buddy quits, and nothing is sent until you accept the offer |
 | **Voice** | The microphone is open while the keys are held and, so you can talk over it, while an answer plays (Listen while explaining, in Settings). Heard by Deepgram when a Deepgram key is set; otherwise transcribed on the Mac |
 | **Lectures** | When you ask while a video is in front, the minute before the playback time is read from the page's transcript or YouTube's captions (only the video's id goes to YouTube). Where there is none, and once you allow System Audio Recording, the last 90 seconds of the front app's own sound are kept in memory while it plays, never on disk, emptied when you switch apps, and its newest 65 seconds transcribed only when you ask about the video, meaning a player's time is on screen or you ask what was said (by Deepgram with a key, on the Mac without). For a browser that is all its tabs. Never the microphone; never calls, meetings or music apps, and any app using a microphone counts as a call |
 | **Sent** | The screenshot and question, to the model that answers, with the lecture's last minute when there is one |

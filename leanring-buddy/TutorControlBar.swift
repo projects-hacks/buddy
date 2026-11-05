@@ -101,6 +101,10 @@ final class TutorControlBarModel: ObservableObject {
     /// Held open regardless of the mouse, while setup still needs the
     /// student (a missing permission).
     @Published var isPinnedOpen = false
+    /// Hook for ErrorOffer.swift: the black shape's size as last laid out,
+    /// so the error glow sits just under it. Not published, since it changes
+    /// every frame of an animation and nothing in the notch draws from it.
+    var laidOutShapeSize: CGSize = .zero
     /// What is typed in the chat box. Kept when the notch closes, so a
     /// question half written is still there when it opens again.
     @Published var chatDraft = ""
@@ -454,6 +458,8 @@ final class TutorControlBarController {
                     TutorDebugLog.write("🫥 notch shape laid out: \(Int(size.width))×\(Int(size.height))")
                 }
                 self?.notchShapeSize = size
+                // Hook for ErrorOffer.swift: its glow hangs under the shape.
+                self?.model.laidOutShapeSize = size
                 self?.updateHover()
             },
             onOpenRequested: { [weak self] in self?.openByStudent() },
