@@ -65,6 +65,9 @@ final class TutorControlBarModel: ObservableObject {
     /// Which brain is answering, when Auto picked it, so a surprising pick is
     /// visible at the moment it happens.
     @Published var answeredBy: String = ""
+    /// Teaching board hook (TeachingBoardSession): true while the board is
+    /// open, so the notch can say "On the board" for the whole session.
+    @Published var isBoardOpen = false
     /// What the student is saying, live while the keys are held, then the
     /// question as sent while the answer is prepared.
     @Published var heardWords: String = ""
@@ -742,6 +745,7 @@ struct TutorNotchView: View {
     private var isIdle: Bool {
         !model.isExpanded && model.activity == .ready && model.caption.isEmpty
             && (model.followUps.isEmpty || model.isSpeaking) && model.guideInstruction == nil
+            && !model.isBoardOpen   // Teaching board hook: never idle while the board is open.
     }
     /// Wide enough for a status either side of the camera.
     /// Wide enough for the longest stage ("reading your screen") on one
@@ -751,6 +755,8 @@ struct TutorNotchView: View {
     private var isAnswering: Bool { model.activity == .thinking || model.activity == .speaking }
 
     private var rightSideLabel: String {
+        // Teaching board hook: the board's label wins for the whole session.
+        if model.isBoardOpen { return "On the board" }
         if isAnswering, !model.answeredBy.isEmpty { return model.answeredBy }
         return currentLessonTitle ?? ""
     }

@@ -81,6 +81,8 @@ enum BoardProgramPrompt {
     - add only what is new. refer to what is there by its id: board.highlight("ring") while you mention the ring, board.link from an old element to a new one, board.update when a value changes.
     - never add an id that is already on the board. to change it, update it. to show the same idea again with different values, update the values or append rows, or rub out the part that changed and draw the new part.
     - a board that fills up is fine: it zooms out and scrolls by itself. still, keep each turn to the few elements the sentences need.
+    - link sparingly: an arrow only where the direction is the point, and at most three arrows touching any one element. for an exchange between two parties (a handshake, a request and its reply), keep the two parties apart and put the messages, in order, in a list or a group between them: never an arrow from every message to both parties.
+    - put a new element near what it belongs with, using near, so arrows stay short.
 
     HOW TO TEACH FROM SCRATCH
     - start from the problem the idea solves, in one plain sentence, then the smallest picture that shows it. build up one element per sentence, so every stroke arrives as it is explained.
@@ -97,18 +99,24 @@ enum BoardProgramPrompt {
     AFTER THE LAST BEAT
     button("short label", {ask: "the full question, in the student's voice"})   one or two, for the most useful next step: the next idea they will need, the case that breaks it, the same thing with different numbers.
     never offer to test or quiz them.
-    lessonTitle("three to six words naming what was learned")
+    lessonTitle("three to five words naming this part of the lesson")   every turn. it names the part in the board's list of parts, so name what this turn added: "servers on a ring", "when a server leaves".
     """
 
     /// The board's note for one turn: what is on the board, how much to say,
     /// and the question. No screenshot and no screen text: the board is the
     /// whole context, and leaving the screen out keeps a turn small.
-    static func turnNote(transcript: String, boardListing: String, turnNumber: Int, studentName: String?) -> String {
+    static func turnNote(transcript: String, boardListing: String, turnNumber: Int, studentName: String?,
+                         studyNotes: [String] = []) -> String {
         var lines: [String] = []
         var header = "[Board turn \(turnNumber)]"
         if let studentName, !studentName.isEmpty { header += " The student is called \(studentName)." }
         lines.append(header)
         lines.append(boardListing)
+        // What memory knows they learned before, as in the normal turn note.
+        for note in studyNotes where !note.isEmpty {
+            lines.append("")
+            lines.append(note)
+        }
         lines.append("")
         lines.append("HOW MUCH TO SAY: \(lengthInstruction(turnNumber: turnNumber))")
         lines.append("")

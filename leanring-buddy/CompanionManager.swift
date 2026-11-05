@@ -1451,6 +1451,19 @@ final class CompanionManager: ObservableObject {
         hooks.rememberExchange = { [weak self] question, answer in self?.rememberExchange(question: question, answer: answer) }
         hooks.questionNeedsNoAnswer = { [weak self] in self?.questionAwaitingAnswer = nil }
         hooks.reportFailure = { [weak self] error in await self?.speakLocalErrorFallback(for: error) }
+        // The same recall as a normal question, inside the same one-second
+        // wait, so the board builds on what the student already knows.
+        hooks.studyNotes = { [weak self] question in
+            guard let self, self.learningMemory.isEnabled else { return [] }
+            let startedAt = Date()
+            let recallTask = self.learningMemory.startRecall(
+                question: question, windowTitle: nil, questionVector: self.questionSorter.sentenceVector(for: question))
+            let recollections = await self.settleRecollections(
+                recallTask: recallTask, question: question, screenContext: "",
+                deadline: startedAt.addingTimeInterval(Self.memoryChooserFloorSeconds))
+            self.controlBar.model.buildsOn = recollections.map(\.concept.name)
+            return [LearningMemory.promptNote(for: recollections)]
+        }
         hooks.turnFinished = { [weak self] in
             self?.questionAwaitingAnswer = nil
             self?.scheduleTransientHideIfNeeded()
@@ -1465,7 +1478,16 @@ final class CompanionManager: ObservableObject {
         systemPrompt: String, history: [(userPlaceholder: String, assistantResponse: String)], turnNote: String,
         maximumTokens: Int, progress: BoardTurnProgress, onTextChunk: @escaping @MainActor @Sendable (String) -> Void
     ) async throws -> String {
-        let routing = routeQuestion(probabilities: [.teach: 1.0])
+        var routing = routeQuestion(probabilities: [.teach: 1.0])
+        // Under Auto a teach question goes to Argon, but a board turn goes to
+        // Sonnet first whenever there is an Anthropic key: on the board's
+        // long system prompt Argon took 7 to 25 seconds a turn and answered
+        // 429 mid-session (scripts/board/README.md), and a board turn is a
+        // student waiting at the board in silence. Argon stays the fallback.
+        if brainKind == .auto, canUseClaude {
+            routing.removeAll { $0 == .sonnet }
+            routing.insert(.sonnet, at: 0)
+        }
         var attempt = 0
         while true {
             if attempt < routing.count { activate(routing[attempt]) }
@@ -2438,7 +2460,7 @@ final class CompanionManager: ObservableObject {
     /// walkthrough. Closing the notch first and clearing on a second press
     /// read as Esc not working.
     private func handleEscape() {
-        teachingBoard.close(reason: "Esc")
+        teachingBoard.escapeWasPressed()
         stopGuide(reason: "Esc")
         let closedNotch = controlBar.closeFromKeyboard()
         let clearedDrawing = clearAnnotations()

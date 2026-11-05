@@ -60,6 +60,10 @@ final class TeachingBoardSession {
         var questionNeedsNoAnswer: () -> Void = {}
         var reportFailure: (Error) async -> Void = { _ in }
         var turnFinished: () -> Void = {}
+        /// What the student has learned before that this question touches,
+        /// from learning memory, as notes for the turn. Bounded by the same
+        /// wait as the normal path's recall.
+        var studyNotes: (_ question: String) async -> [String] = { _ in [] }
     }
 
     var hooks: Hooks
@@ -79,6 +83,9 @@ final class TeachingBoardSession {
     private var openingQuestion = ""
     private var lessonTitle: String?
     private var everySentenceSaid: [String] = []
+    /// One name per turn, the parts of the lesson so far: the turn's lesson
+    /// title once it is known, the question until then.
+    private var partTitles: [String] = []
     /// The board's own conversation: earlier board turns only.
     private var boardHistory: [(question: String, program: String, sentences: [String])] = []
 
@@ -91,6 +98,7 @@ final class TeachingBoardSession {
         self.player = player
         self.bar = bar
         self.hooks = hooks
+        TutorBoardLog.write = { line in TutorDebugLog.write(line) }
     }
 
     /// The board state, for a later feature to read (teach it back).
@@ -120,6 +128,25 @@ final class TeachingBoardSession {
         return true
     }
 
+    /// Esc, as the design has it: while Buddy is speaking it stops the
+    /// sentence and leaves the board up; when it is quiet it leaves.
+    func escapeWasPressed() {
+        guard isOpen else { return }
+        if player.isSpeaking || turnTask != nil {
+            TutorDebugLog.write("🧑‍🏫 board: Esc stops the turn, the board stays")
+            currentTurnIdentifier += 1
+            turnTask?.cancel()
+            turnTask = nil
+            player.stop()
+            overlay.callBoard("setSpeaking", argumentsJSON: "false")
+            bar.caption = ""
+            hooks.setVoiceState(.idle)
+            scheduleIdleClose()
+            return
+        }
+        close(reason: "Esc")
+    }
+
     /// Fades the board away and files its lesson. Safe to call when closed.
     func close(reason: String) {
         guard isOpen else { return }
@@ -133,6 +160,9 @@ final class TeachingBoardSession {
         player.stop()
         player.transformPieceBeforeRunning = nil
         overlay.callBoard("close", argumentsJSON: "0.6")
+        overlay.boardTakesTheMouse = false
+        overlay.onLeaveBoardRequested = nil
+        bar.isBoardOpen = false
         bar.caption = ""
         bar.followUps = []
         hooks.setVoiceState(.idle)
@@ -149,6 +179,7 @@ final class TeachingBoardSession {
         boardHistory = []
         everySentenceSaid = []
         lessonTitle = nil
+        partTitles = []
         turnNumber = 0
     }
 
@@ -167,6 +198,25 @@ final class TeachingBoardSession {
         self.openingQuestion = firstQuestion
         self.isOpen = true
         self.turnNumber = 0
+        // While the board is up it is the only surface: clicks land on it,
+        // never on an app the student cannot see, and the notch says so.
+        overlay.boardTakesTheMouse = true
+        overlay.onLeaveBoardRequested = { [weak self] in self?.close(reason: "Leave board") }
+        bar.isBoardOpen = true
+    }
+
+    /// A part's name for the bar and the parts card: the lesson title, or
+    /// the question cut to its first words while there is no title yet.
+    private static func partName(forQuestion question: String) -> String {
+        let words = question.split(separator: " ").prefix(6).joined(separator: " ")
+        return words.prefix(1).uppercased() + words.dropFirst()
+    }
+
+    private func showParts() {
+        let payload: [String: Any] = ["parts": partTitles, "current": partTitles.count - 1]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload),
+              let json = String(data: data, encoding: .utf8) else { return }
+        overlay.callBoard("setParts", argumentsJSON: json)
     }
 
     // MARK: - One turn
@@ -193,13 +243,17 @@ final class TeachingBoardSession {
             if thisTurnNumber == 1 { self.overlay.callBoard("open", argumentsJSON: surface.openArgumentsJSON) }
             self.overlay.callBoard("beginTurn", argumentsJSON: "")
             board.beginTurn()
+            self.partTitles.append(Self.partName(forQuestion: question))
+            self.showParts()
             self.player.transformPieceBeforeRunning = { [weak self] piece in
                 self?.translate(piece) ?? piece
             }
 
+            let studyNotes = await self.hooks.studyNotes(question)
+            guard !Task.isCancelled, self.currentTurnIdentifier == turnIdentifier else { return }
             let turnNote = BoardProgramPrompt.turnNote(
                 transcript: question, boardListing: board.state.compactListing(), turnNumber: thisTurnNumber,
-                studentName: UserDefaults.standard.string(forKey: "studentName"))
+                studentName: UserDefaults.standard.string(forKey: "studentName"), studyNotes: studyNotes)
             TutorDebugLog.write("🧑‍🏫 board turn \(thisTurnNumber): note is \(turnNote.count) characters")
 
             let progress = BoardTurnProgress()
@@ -212,7 +266,10 @@ final class TeachingBoardSession {
                     progress.hasReceivedText = true
                     if progress.answerIsProgram == nil, let isProgram = ProgramStream.looksLikeProgram(accumulatedText) {
                         progress.answerIsProgram = isProgram
-                        if isProgram { self.hooks.setVoiceState(.responding) }
+                        if isProgram {
+                            self.hooks.setVoiceState(.responding)
+                            self.overlay.callBoard("setSpeaking", argumentsJSON: "true")
+                        }
                     }
                     if progress.answerIsProgram == true { self.player.feed(accumulatedText: accumulatedText) }
                 }
@@ -235,6 +292,8 @@ final class TeachingBoardSession {
                 if let title = self.player.lessonTitle {
                     self.lessonTitle = title
                     self.bar.recordLessonTitle(title)
+                    if !self.partTitles.isEmpty { self.partTitles[self.partTitles.count - 1] = title }
+                    self.showParts()
                 }
                 await self.player.waitUntilSpoken()
             } catch is CancellationError {
@@ -245,10 +304,12 @@ final class TeachingBoardSession {
                 await self.hooks.reportFailure(error)
             }
             guard self.currentTurnIdentifier == turnIdentifier else { return }
+            self.overlay.callBoard("setSpeaking", argumentsJSON: "false")
             self.bar.caption = ""
             self.hooks.setVoiceState(.idle)
             self.hooks.turnFinished()
             self.scheduleIdleClose()
+            self.turnTask = nil
         }
     }
 
