@@ -31,6 +31,9 @@ final class DrawingOverlay: NSObject {
         var lessonTitle: String?
         var errors: [String] = []
         var newMarkCount = 0
+        /// Every anchor the engine holds so far: the listed items marked,
+        /// for MarkFollower to keep the marks on.
+        var anchorIds: [String] = []
     }
 
     private var panel: NSPanel?
@@ -67,7 +70,10 @@ final class DrawingOverlay: NSObject {
     /// Prepares the page for a new answer drawn over a screenshot of
     /// `canvasSize` pixels. `targets` maps listing ids to boxes in the same
     /// pixels, so the program can mark a line by id.
-    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], targetLabels: [String: String] = [:], screenInkHex: String) {
+    /// `screenMarksHidden` is for a replay over a screen that has changed:
+    /// its cards are drawn, its marks on the screen's content are not.
+    func beginAnswer(canvasSize: CGSize, targets: [String: [Double]], targetLabels: [String: String] = [:], screenInkHex: String,
+                     screenMarksHidden: Bool = false) {
         canvasSizeForCurrentAnswer = canvasSize
         let unitsPerPoint = screenFrame.width > 0 ? canvasSize.width / screenFrame.width : 1
         let options: [String: Any] = [
@@ -76,7 +82,8 @@ final class DrawingOverlay: NSObject {
             "targets": targets,
             "targetLabels": targetLabels,
             "screenInk": screenInkHex,
-            "unitsPerPoint": unitsPerPoint
+            "unitsPerPoint": unitsPerPoint,
+            "screenMarksHidden": screenMarksHidden
         ]
         callEngine("setup", argumentsJSON: Self.json(options))
     }
@@ -110,6 +117,7 @@ final class DrawingOverlay: NSObject {
             result.lessonTitle = object["lessonTitle"] as? String
             result.errors = object["newErrors"] as? [String] ?? []
             result.newMarkCount = object["newMarks"] as? Int ?? 0
+            result.anchorIds = object["anchors"] as? [String] ?? []
             return result
         } catch {
             return RunResult(errors: [error.localizedDescription])
@@ -156,6 +164,14 @@ final class DrawingOverlay: NSObject {
     func scrollScreenMarks(byPoints points: CGFloat) {
         guard screenFrame.height > 0 else { return }
         callEngine("scrollScreenMarks", argumentsJSON: "\(points)")
+    }
+
+    /// Moves the anchors of marked items to where those items are now.
+    func placeAnchors(_ placements: [AnchorPlacement], animate: Bool) {
+        let list = placements.map { placement -> [String: Any] in
+            ["id": placement.id, "dx": placement.dx, "dy": placement.dy, "visible": placement.visible]
+        }
+        callEngine("placeAnchors", argumentsJSON: "\(Self.json(list)), \(animate)")
     }
 
     // MARK: - Page

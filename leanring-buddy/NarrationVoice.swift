@@ -14,9 +14,26 @@
 //  the student is waiting in silence for; its length is estimated at first
 //  and corrected once its audio has all arrived.
 //
+//  The student can talk over an answer (TalkOverListener), so the voice can
+//  also pause where it is and go on, say the last sentence again, and slow
+//  down for the rest of the answer. Slower uses Aura-2's own `speed`
+//  parameter (0.7 to 1.5) for sentences not yet fetched, and a time
+//  stretch, which keeps the pitch, for audio already downloaded at the
+//  normal speed; the pen is paced by the stretched length.
+//
 
 import AVFoundation
 import Foundation
+
+/// One sentence as it was heard: its audio, kept in memory so the answer
+/// can be played again without asking Deepgram a second time.
+struct RecordedSentence {
+    let text: String
+    let audioChunks: [Data]
+    let totalFrames: AVAudioFramePosition
+    /// Spoken by the system voice the first time, which a replay does again.
+    let usedSystemVoice: Bool
+}
 
 @MainActor
 final class NarrationVoice {
@@ -40,6 +57,8 @@ final class NarrationVoice {
         var isDownloaded = false
         var downloadFailed = false
         var downloadTask: Task<Void, Never>?
+        /// The Aura speed this sentence's audio was made at.
+        var downloadedAtSpeed: Double = 1.0
         /// Wakes the player when more audio, or the end, arrives.
         var waitingForAudio: CheckedContinuation<Void, Never>?
         init(index: Int, text: String) { self.index = index; self.text = text }
@@ -53,7 +72,31 @@ final class NarrationVoice {
     private let session: URLSession
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
+    /// Bypassed at normal speed; stretches audio already downloaded at the
+    /// normal speed when the student asks for slower.
+    private let timeStretch = AVAudioUnitTimePitch()
     private var isEngineRunning = false
+    private var engineConfigurationObserver: NSObjectProtocol?
+
+    /// Paused by the student ("hold on"), not stopped: the sentence carries
+    /// on from where it was when they say "go on".
+    private(set) var isPaused = false
+    private var waitersForResume: [CheckedContinuation<Void, Never>] = []
+    /// Each "slower" moves one step down, to Aura's floor of 0.7.
+    private static let slowerSpeeds: [Double] = [1.0, 0.85, 0.72]
+    private var slowerStep = 0
+    private var speakingSpeed: Double { Self.slowerSpeeds[slowerStep] }
+    /// Set if Deepgram ever refuses the speed parameter, so slower falls
+    /// back to stretching every sentence instead of losing the voice.
+    private var speedParameterRefused = false
+    /// "Go back": the sentence to start again from once the current one is cut.
+    private var sentenceToRepeatFrom: Int?
+    private var currentLineIsBeingCut = false
+    /// Which play the scheduled buffers belong to, so a buffer finishing
+    /// late after a cut never counts toward the next sentence.
+    private var playToken = 0
+    /// The sentence being played, for the echo guard and "go back".
+    private(set) var currentLineIndex: Int?
     private let playbackFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false
     )!
@@ -73,6 +116,22 @@ final class NarrationVoice {
         configuration.httpMaximumConnectionsPerHost = 2
         session = URLSession(configuration: configuration)
         audioEngine.attach(playerNode)
+        audioEngine.attach(timeStretch)
+        timeStretch.bypass = true
+        // A device change (headphones, a microphone opening in call mode)
+        // stops the engine. Without noticing, the next sentence would play
+        // into a stopped engine, which throws and hangs the app; the cut
+        // sentence ends here and the next one starts the engine again.
+        engineConfigurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: audioEngine, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                TutorDebugLog.write("🔈 narration: audio device changed, restarting the voice")
+                self.isEngineRunning = false
+                self.cutCurrentLine()
+            }
+        }
     }
 
     /// Opens the connection to Deepgram while the student is still talking.
@@ -99,6 +158,37 @@ final class NarrationVoice {
         if playerTask == nil { startPlayer() }
     }
 
+    /// Plays a sentence from an earlier answer's audio: no request is made.
+    func enqueueRecorded(_ sentence: RecordedSentence) {
+        let line = Line(index: lines.count, text: sentence.text)
+        line.chunks = sentence.audioChunks
+        line.totalFrames = sentence.totalFrames
+        line.isDownloaded = !sentence.usedSystemVoice
+        line.downloadFailed = sentence.usedSystemVoice
+        lines.append(line)
+        if playerTask == nil { startPlayer() }
+    }
+
+    /// The sentences of this answer whose audio is complete, in order, up
+    /// to the first that is not: what can be played again exactly as heard.
+    /// Empty until a sentence has started, so an answer cut off before a
+    /// word of it was heard never replaces the one before it.
+    func recordedSentences() -> [RecordedSentence] {
+        guard currentLineIndex != nil || nextLineToPlay > 0 else { return [] }
+        var recorded: [RecordedSentence] = []
+        for line in lines {
+            if line.isDownloaded {
+                recorded.append(RecordedSentence(text: line.text, audioChunks: line.chunks,
+                                                 totalFrames: line.totalFrames, usedSystemVoice: false))
+            } else if line.downloadFailed && line.chunks.isEmpty {
+                recorded.append(RecordedSentence(text: line.text, audioChunks: [], totalFrames: 0, usedSystemVoice: true))
+            } else {
+                break
+            }
+        }
+        return recorded
+    }
+
     /// Stops speaking and forgets every sentence.
     func stop() {
         generation += 1
@@ -111,17 +201,109 @@ final class NarrationVoice {
         }
         lines.removeAll()
         nextLineToPlay = 0
-        if playerNode.isPlaying { playerNode.stop() }
+        if playerNode.isPlaying || isPaused { playerNode.stop() }
         fallbackVoice.stopPlayback()
         currentLineDrained?.resume()
         currentLineDrained = nil
         isSpeaking = false
+        isPaused = false
+        let waiters = waitersForResume
+        waitersForResume = []
+        waiters.forEach { $0.resume() }
+        slowerStep = 0
+        timeStretch.bypass = true
+        timeStretch.rate = 1
+        sentenceToRepeatFrom = nil
+        currentLineIsBeingCut = false
+        currentLineIndex = nil
+    }
+
+    // MARK: - The student's requests while it speaks
+
+    /// "Hold on": stops where it is, mid-sentence, until resumed.
+    func pause() {
+        guard isSpeaking, !isPaused else { return }
+        isPaused = true
+        if playerNode.isPlaying { playerNode.pause() }
+        fallbackVoice.pausePlayback()
+    }
+
+    /// "Go on": carries on from exactly where it paused.
+    func resume() {
+        guard isPaused else { return }
+        isPaused = false
+        if currentLineIndex != nil, audioEngine.isRunning { playerNode.play() }
+        fallbackVoice.resumePlayback()
+        let waiters = waitersForResume
+        waitersForResume = []
+        waiters.forEach { $0.resume() }
+    }
+
+    /// "Slower": the rest of this answer, the current sentence included.
+    func slowDown() {
+        guard slowerStep + 1 < Self.slowerSpeeds.count else { return }
+        slowerStep += 1
+        TutorDebugLog.write("🔈 narration: speaking at \(speakingSpeed)x for the rest of the answer")
+        if let currentLineIndex, currentLineIndex < lines.count {
+            let line = lines[currentLineIndex]
+            applyTimeStretch(for: line)
+            if line.isDownloaded { onLineDurationKnown?(line.index, playedSeconds(of: line)) }
+        }
+    }
+
+    /// "Go back": cuts the current sentence and says the one before it
+    /// again, then carries on from the cut one.
+    func repeatPreviousSentence() {
+        guard isSpeaking, let currentLineIndex else { return }
+        // Between two sentences the previous one is the one just finished.
+        let currentLineHasFinished = nextLineToPlay > currentLineIndex
+        sentenceToRepeatFrom = currentLineHasFinished ? currentLineIndex : max(0, currentLineIndex - 1)
+        if isPaused { resume() }
+        cutCurrentLine()
+    }
+
+    /// Ends the sentence being played now, wherever it is.
+    private func cutCurrentLine() {
+        guard currentLineIndex != nil else { return }
+        currentLineIsBeingCut = true
+        playToken += 1
+        if playerNode.isPlaying || isPaused { playerNode.stop() }
+        fallbackVoice.stopPlayback()
+        if let currentLineIndex, currentLineIndex < lines.count { wake(lines[currentLineIndex]) }
+        currentLineDrained?.resume()
+        currentLineDrained = nil
+    }
+
+    private func waitWhilePaused() async {
+        while isPaused {
+            await withCheckedContinuation { waitersForResume.append($0) }
+        }
+    }
+
+    /// Stretches a sentence whose audio was made faster than the speed now
+    /// asked for; bypassed when the audio already has the right speed.
+    private func applyTimeStretch(for line: Line) {
+        let rate = Float(speakingSpeed / line.downloadedAtSpeed)
+        if abs(rate - 1) < 0.01 {
+            timeStretch.bypass = true
+            timeStretch.rate = 1
+        } else {
+            timeStretch.rate = rate
+            timeStretch.bypass = false
+        }
+    }
+
+    /// How long a downloaded sentence takes to play at the current stretch.
+    private func playedSeconds(of line: Line) -> TimeInterval {
+        let rate = timeStretch.bypass ? 1 : Double(timeStretch.rate)
+        return seconds(line.totalFrames) / rate
     }
 
     // MARK: - Downloading
 
     private func startDownload(_ line: Line) {
-        guard line.downloadTask == nil else { return }
+        // A replayed sentence already has its audio, or speaks locally.
+        guard line.downloadTask == nil, !line.isDownloaded, !line.downloadFailed else { return }
         guard !deepgramUnavailable, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
             line.downloadFailed = true
             wake(line)
@@ -132,22 +314,40 @@ final class NarrationVoice {
         line.downloadTask = Task { [weak self] in
             guard let self else { return }
             do {
-                var components = URLComponents(string: "https://api.deepgram.com/v1/speak")!
-                components.queryItems = [
-                    URLQueryItem(name: "model", value: self.voiceName),
-                    URLQueryItem(name: "encoding", value: "linear16"),
-                    URLQueryItem(name: "sample_rate", value: String(Int(Self.sampleRate)))
-                ]
-                var request = URLRequest(url: components.url!)
-                request.httpMethod = "POST"
-                request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.httpBody = try JSONSerialization.data(withJSONObject: ["text": line.text])
+                let voiceNameForRequest = self.voiceName
+                let sampleRateForRequest = Int(Self.sampleRate)
+                func request(atSpeed speed: Double) throws -> URLRequest {
+                    var components = URLComponents(string: "https://api.deepgram.com/v1/speak")!
+                    components.queryItems = [
+                        URLQueryItem(name: "model", value: voiceNameForRequest),
+                        URLQueryItem(name: "encoding", value: "linear16"),
+                        URLQueryItem(name: "sample_rate", value: String(sampleRateForRequest))
+                    ]
+                    // Only when slowed, so an ordinary answer's request is
+                    // exactly what it always was.
+                    if speed != 1.0 {
+                        components.queryItems?.append(URLQueryItem(name: "speed", value: String(format: "%.2f", speed)))
+                    }
+                    var request = URLRequest(url: components.url!)
+                    request.httpMethod = "POST"
+                    request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = try JSONSerialization.data(withJSONObject: ["text": line.text])
+                    return request
+                }
 
-                let (bytes, response) = try await self.session.bytes(for: request)
+                var speed = self.speedParameterRefused ? 1.0 : self.speakingSpeed
+                var (bytes, response) = try await self.session.bytes(for: request(atSpeed: speed))
+                if speed != 1.0, (response as? HTTPURLResponse)?.statusCode == 400 {
+                    TutorDebugLog.write("🔈 narration: Deepgram refused the speed parameter, stretching the audio instead")
+                    self.speedParameterRefused = true
+                    speed = 1.0
+                    (bytes, response) = try await self.session.bytes(for: request(atSpeed: speed))
+                }
                 guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                     throw DeepgramError.httpStatus((response as? HTTPURLResponse)?.statusCode ?? -1)
                 }
+                line.downloadedAtSpeed = speed
                 SpendingMeter.record(APIPrices.deepgram(characters: line.text.count), for: .deepgram)
 
                 // About a fifth of a second per chunk: small enough that the
@@ -210,22 +410,38 @@ final class NarrationVoice {
                 let line = self.lines[self.nextLineToPlay]
                 await self.play(line)
                 guard generationAtStart == self.generation, !Task.isCancelled else { return }
+                if let sentenceToRepeatFrom = self.sentenceToRepeatFrom {
+                    // Cut for "go back": the previous sentence again, then
+                    // this one from its start.
+                    self.sentenceToRepeatFrom = nil
+                    self.nextLineToPlay = sentenceToRepeatFrom
+                    continue
+                }
                 self.onLineFinished?(line.index)
                 self.nextLineToPlay += 1
             }
             guard generationAtStart == self.generation else { return }
+            self.currentLineIndex = nil
             self.playerTask = nil
             self.isSpeaking = false
         }
     }
 
     private func play(_ line: Line) async {
+        // Paused between sentences: the next one waits too.
+        await waitWhilePaused()
+        // "Go back" between two sentences: the loop goes back before this one.
+        if sentenceToRepeatFrom != nil { return }
+        currentLineIndex = line.index
+        currentLineIsBeingCut = false
+        playToken += 1
         // Nothing has arrived yet: wait for the first audio or a failure.
         if line.chunks.isEmpty, !line.isDownloaded, !line.downloadFailed {
             if line.downloadTask == nil { startDownload(line) }
             await withCheckedContinuation { line.waitingForAudio = $0 }
         }
 
+        if currentLineIsBeingCut { return }
         if line.downloadFailed && line.chunks.isEmpty {
             let estimate = estimatedSeconds(for: line.text)
             onLineStarted?(line.index, estimate)
@@ -239,12 +455,15 @@ final class NarrationVoice {
             return
         }
 
+        applyTimeStretch(for: line)
         let lengthKnownAtStart = line.isDownloaded
-        onLineStarted?(line.index, lengthKnownAtStart ? seconds(line.totalFrames) : estimatedSeconds(for: line.text))
+        onLineStarted?(line.index, lengthKnownAtStart ? playedSeconds(of: line) : estimatedSeconds(for: line.text))
 
         framesScheduledForCurrentLine = 0
         framesPlayedForCurrentLine = 0
-        playerNode.play()
+        // Paused while the first audio was awaited: the buffers are
+        // scheduled below and play once resumed.
+        if !isPaused { playerNode.play() }
 
         var scheduledChunkCount = 0
         while true {
@@ -252,12 +471,13 @@ final class NarrationVoice {
                 schedule(line.chunks[scheduledChunkCount])
                 scheduledChunkCount += 1
             }
-            if line.isDownloaded || line.downloadFailed { break }
+            if line.isDownloaded || line.downloadFailed || currentLineIsBeingCut { break }
             await withCheckedContinuation { line.waitingForAudio = $0 }
-            if Task.isCancelled { return }
+            if Task.isCancelled || currentLineIsBeingCut { return }
         }
+        if currentLineIsBeingCut { return }
         if !lengthKnownAtStart, line.isDownloaded {
-            onLineDurationKnown?(line.index, seconds(line.totalFrames))
+            onLineDurationKnown?(line.index, playedSeconds(of: line))
         }
 
         // Wait for the last buffer of this sentence to finish playing.
@@ -280,9 +500,10 @@ final class NarrationVoice {
         }
         framesScheduledForCurrentLine += AVAudioFramePosition(frameCount)
         let generationAtSchedule = generation
+        let playTokenAtSchedule = playToken
         playerNode.scheduleBuffer(buffer) { [weak self] in
             Task { @MainActor [weak self] in
-                guard let self, generationAtSchedule == self.generation else { return }
+                guard let self, generationAtSchedule == self.generation, playTokenAtSchedule == self.playToken else { return }
                 self.framesPlayedForCurrentLine += AVAudioFramePosition(frameCount)
                 if self.framesPlayedForCurrentLine >= self.framesScheduledForCurrentLine {
                     self.currentLineDrained?.resume()
@@ -293,8 +514,9 @@ final class NarrationVoice {
     }
 
     private func startEngineIfNeeded() throws {
-        guard !isEngineRunning else { return }
-        audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: playbackFormat)
+        guard !(isEngineRunning && audioEngine.isRunning) else { return }
+        audioEngine.connect(playerNode, to: timeStretch, format: playbackFormat)
+        audioEngine.connect(timeStretch, to: audioEngine.mainMixerNode, format: playbackFormat)
         try audioEngine.start()
         isEngineRunning = true
     }
@@ -305,6 +527,6 @@ final class NarrationVoice {
 
     private func estimatedSeconds(for text: String) -> TimeInterval {
         let wordCount = text.split(whereSeparator: { $0.isWhitespace }).count
-        return max(0.8, Double(wordCount) / Self.wordsPerSecond)
+        return max(0.8, Double(wordCount) / (Self.wordsPerSecond * speakingSpeed))
     }
 }

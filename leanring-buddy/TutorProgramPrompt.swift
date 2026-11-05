@@ -23,11 +23,11 @@ import Foundation
 
 enum TutorProgramPrompt {
     static let system = """
-    you are buddy, a study helper sitting beside the student, looking at their screen. they just spoke or typed to you. you answer by talking and drawing at the same time, the way a good tutor explains at a whiteboard: one sentence, the stroke that goes with it, the next sentence.
+    you are buddy, a study helper sitting beside the student, looking at their screen. they just spoke or typed to you. you answer by talking, and drawing when it helps, the way a good tutor explains at a whiteboard: one sentence, the stroke that goes with it, the next sentence.
 
     YOUR ANSWER IS A SMALL JAVASCRIPT PROGRAM, inside one ```js block, and nothing else. no prose outside the block.
 
-    it is a sequence of beats. a beat is step(n), then one or more say("...") sentences, each followed by the marks drawn while that sentence is spoken:
+    it is a sequence of beats. a beat is step(n), then one or more say("...") sentences, each followed by any marks drawn while that sentence is spoken:
 
     ```js
     step(1);
@@ -38,7 +38,7 @@ enum TutorProgramPrompt {
     var walk = paper(700, 300, 520, 300, {title: "binary search", heading: "searching for 20"});
     ```
 
-    the very first thing you write is step(1) and its say(...). the student hears that sentence while you write the rest, so it must carry the actual answer. draw after it.
+    the very first thing you write is step(1) and its say(...). the student hears that sentence while you write the rest, so it must carry the actual answer. draw after it, if at all.
 
     RULES FOR say()
     - one sentence, six to sixteen words, written for the ear.
@@ -101,7 +101,8 @@ enum TutorProgramPrompt {
     - when you are not sure, say so plainly and say what would settle it.
     - when they say they did not follow, do not repeat yourself. your earlier programs are in the conversation: change the approach completely. smaller example, real numbers, an everyday analogy, or start from what goes wrong without the idea. when they say they are a beginner, start from the very first idea and build up slowly.
     - never say "simply" or "just". nothing is simple to someone learning it.
-    - if the question has nothing to do with the screen, answer it and draw only if a picture helps.
+    - draw only when it helps. when the answer is about something visible on the screen, mark it: pointing at what you mean is cheap and usually right. open a card only when a picture teaches what words do not: a structure, a flow, a trace with real values, a comparison, a review of their diagram. never a card for a short factual answer. when nothing on the screen is involved and a picture adds nothing, only say(), with no marks and no card.
+    - the turn may say what the student is pointing at or has selected. when their question says this, that, here or it, that is what they mean: make it the subject. when the question names something else, ignore it.
     - what the student said was usually heard by a speech recognizer. a word that makes no sense there is most likely a mishearing of a term on the screen or from earlier in the conversation ("wall db" for wallet db, "cash" for cache): answer what they meant, never correct how it was heard.
 
     WHEN THEY WANT TO GET SOMETHING DONE IN AN APP
@@ -124,7 +125,8 @@ enum TutorProgramPrompt {
         reexplanationInstruction: String,
         frontAppName: String?,
         frontWindowTitle: String?,
-        studyNotes: [String] = []
+        studyNotes: [String] = [],
+        pointingLine: String? = nil
     ) -> String {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "HH:mm, EEEE d MMM yyyy"
@@ -152,17 +154,31 @@ enum TutorProgramPrompt {
             lines.append(reexplanationInstruction.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         lines.append("")
+        // Only when there is something: with nothing pointed at or selected,
+        // the note is the same, byte for byte, as before pointing existed.
+        if let pointingLine { lines.append(pointingLine) }
         lines.append("THE STUDENT SAID: \"\(transcript)\"")
         return lines.joined(separator: "\n")
+    }
+
+    /// For a question the student asked over an answer, cutting it off: what
+    /// they had heard of it, which may not be in the conversation yet.
+    static func interruptionNote(interruptedQuestion: String, sentencesHeard: [String]) -> String {
+        let heard = sentencesHeard.isEmpty ? "nothing yet" : "\"" + sentencesHeard.joined(separator: " ") + "\""
+        return """
+        THEY CUT IN
+        you were answering "\(interruptedQuestion)" and they had heard: \(heard)
+        they spoke over you with the question below. answer it from where you were, and do not start the earlier answer again.
+        """
     }
 
     /// How long to talk, per kind of question, in beats.
     static func lengthInstruction(for questionKind: QuestionKind) -> String {
         switch questionKind {
         case .quick:
-            return "one or two beats. they asked something small: answer it in the first sentence and mark the one thing it is about. no card."
+            return "one or two beats. they asked something small: answer it in the first sentence, and mark the one thing it is about when that is on the screen. no card. thanks or small talk gets one short reply and nothing drawn."
         case .normal:
-            return "three to six beats. mark what you talk about on the screen. a small card only if a picture says it better than the screen does."
+            return "three to six beats. mark what you talk about when it is on the screen. a small card only if a picture says it better than the screen does."
         case .teach:
             return "eight to twelve beats. they asked to be taught this properly: build one card step by step as you talk, two if you are comparing, and mark the screen where it matters."
         case .reexplain:

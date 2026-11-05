@@ -52,6 +52,9 @@ struct CompanionPanelView: View {
                 interfaceSoundsToggleRow
                     .padding(.horizontal, 16)
 
+                talkOverToggleRow
+                    .padding(.horizontal, 16)
+
                 learningMemoryRow
                     .padding(.horizontal, 16)
 
@@ -349,6 +352,38 @@ struct CompanionPanelView: View {
     }
 
 
+
+    // MARK: - Talk Over Toggle
+
+    /// Speaking over an answer without the keys: the microphone is open
+    /// while an answer plays.
+    @AppStorage(TalkOverListener.enabledDefaultsKey) private var talkOverEnabled = true
+
+    private var talkOverToggleRow: some View {
+        HStack {
+            HStack(spacing: 8) {
+                Image(systemName: talkOverEnabled ? "mic" : "mic.slash")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(DS.Colors.textTertiary)
+                    .frame(width: 16)
+
+                Text("Listen while explaining")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(DS.Colors.textSecondary)
+            }
+            .help("Say \u{201C}wait, why?\u{201D}, \u{201C}hold on\u{201D} or \u{201C}slower\u{201D} over an answer without pressing the keys. The microphone is open while an answer plays.")
+
+            Spacer()
+
+            Toggle("", isOn: $talkOverEnabled)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .tint(DS.Colors.accent)
+                .scaleEffect(0.8)
+                .pointerCursor()
+        }
+        .padding(.vertical, 4)
+    }
 
     // MARK: - Sounds Toggle
 

@@ -348,7 +348,9 @@ final class CompanionManager: ObservableObject {
     ///
     /// Rebuilt per question rather than cached, because the screen has usually
     /// changed between one question and the next.
-    private let screenIndex = ScreenIndex()
+    /// Replaced by the index read while the student talked, when that one
+    /// is still current at release (EarlyScreenCapture).
+    private var screenIndex = ScreenIndex()
 
     /// Marks currently drawn on screen.
     @Published private(set) var activeAnnotations: [TeacherAnnotation] = []
@@ -544,6 +546,7 @@ final class CompanionManager: ObservableObject {
         qaHooks.start()
         #endif
         controlBar.model.onFixKeys = { [weak self] in self?.setupWindow.show(startingAt: .keys) }
+        controlBar.model.onReplayLastAnswer = { [weak self] in _ = self?.replayLastAnswer(startedBy: "Replay in the notch") }
         bindUpdater()
         if needsSetup {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
@@ -925,6 +928,17 @@ final class CompanionManager: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] isRecording, isFinalizing, isPreparing in
                 guard let self else { return }
+                // Listening ended after the keys went up. A question that was
+                // heard has claimed the early capture by now, since the
+                // transcript is handed over before this is reported; one
+                // still held was for nothing. Checked before the guard below,
+                // because a press that talks over an answer ends here too.
+                if !isRecording, !isFinalizing, !isPreparing,
+                   self.earlyScreenCapture.isHoldingCapture,
+                   self.earlyScreenCapture.keysWereReleasedForHeldCapture {
+                    self.earlyScreenCapture.discard(reason: "no question was heard")
+                    self.pointerRestsOfLastPress = []
+                }
                 // Don't override .responding, the AI response pipeline
                 // manages that state directly until streaming finishes.
                 guard self.voiceState != .responding else { return }
@@ -977,6 +991,9 @@ final class CompanionManager: ObservableObject {
         pendingKeyboardShortcutStartTask?.cancel()
         pendingKeyboardShortcutStartTask = nil
         buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
+        earlyScreenCapture.discard(reason: "the keys became Control + Option + T")
+        pointerRestWatcher.cancel()
+        pointerRestsOfLastPress = []
         controlBar.model.heardWords = ""
         controlBar.openChat()
     }
@@ -985,6 +1002,11 @@ final class CompanionManager: ObservableObject {
     /// spoken one is, out loud and drawn, and lands in the same conversation.
     private func askTypedQuestion(_ question: String) {
         TutorDebugLog.write("⌨️ typed: \(question.count) characters")
+        // The screen is read at send, not while typing: typing takes long
+        // enough that the student often goes back to the page meanwhile, to
+        // scroll to the part or copy an error, and the screen at send is the
+        // one the question is about. The notch holding the chat box is
+        // Buddy's own window, left out of every capture either way.
         // Timed from sending, not from the last time the talk keys were let go.
         shortcutReleasedAt = nil
         if APIKeyStore.hasKey(for: .anthropic) { claudeBrain.prewarmConnection() }
@@ -996,7 +1018,11 @@ final class CompanionManager: ObservableObject {
         }
         transientHideTask?.cancel()
         transientHideTask = nil
-        sendTranscriptToTutorWithScreenshot(transcript: question)
+        // Text selected in the app before typing is what a typed "this"
+        // means. There is no pointer to read: nothing was said while it rested.
+        let selection = SelectedTextReader.selectionInFrontApp()
+        sendTranscriptToTutorWithScreenshot(transcript: question,
+                                            studentPointing: StudentPointingClues(selection: selection))
     }
 
     private func handleShortcutTransition(_ transition: BuddyPushToTalkShortcut.ShortcutTransition) {
@@ -1032,6 +1058,27 @@ final class CompanionManager: ObservableObject {
     }
 
     private var pendingTalkStart: Task<Void, Never>?
+    /// The screen read while the keys are held, for the question they end in.
+    private let earlyScreenCapture = EarlyScreenCapture()
+    /// Where the pointer rested while the keys were held, and the rests of
+    /// the press just ended, until its question claims them.
+    private let pointerRestWatcher = PointerRestWatcher()
+    private var pointerRestsOfLastPress: [PointerRest] = []
+    /// Listens while an answer plays, for the student talking over it.
+    private lazy var talkOverListener: TalkOverListener = {
+        let listener = TalkOverListener()
+        listener.recentlySpokenSentences = { [weak self] in self?.lessonPlayer.recentlySpokenSentences ?? [] }
+        listener.onRequest = { [weak self] request in self?.handleTalkOver(request) }
+        return listener
+    }()
+    /// Paused by "hold on", as against paused while a question is heard.
+    private var isHeldByTalkOver = false
+    private var talkOverHoldTimeout: Task<Void, Never>?
+    /// Long enough to look something up; then the mic is not left open on
+    /// an answer that is never going to be resumed.
+    private static let talkOverHoldLimitSeconds: TimeInterval = 90
+    /// The question the current answer is for, for an answer cut off.
+    private var questionBeingAnswered: String?
     /// The last question, until its answer starts to be heard. A question
     /// asked before then continues it rather than replacing it.
     private var questionAwaitingAnswer: (text: String, askedAt: Date)?
@@ -1124,11 +1171,20 @@ final class CompanionManager: ObservableObject {
 
     private func beginTalking() {
             guard !buddyDictationManager.isDictationInProgress else { return }
+            // The talk keys work over an answer exactly as before: the
+            // talk-over microphone closes before listening for the question.
+            talkOverListener.stop()
             buddyDictationManager.updateContextualKeyterms(Self.speechHints(
                 screenLabels: Array(screenIndex.lastListedLabels.values),
                 recentAnswerPrograms: conversationHistory.suffix(3).map(\.assistantResponse),
                 recentlyLearnedConceptNames: learningMemory.recentlyExplainedConceptNames(limit: 15)))
             stopGuide(reason: "the student is talking")
+            // The screen is read now, while they talk, rather than after they
+            // let go; at release it is checked against the screen as it is then.
+            TutorDebugLog.write("⏱ keys down: reading the screen while the student talks")
+            earlyScreenCapture.start()
+            pointerRestsOfLastPress = []
+            pointerRestWatcher.start()
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.
             InterfaceSounds.shared.play(.listen)
@@ -1197,7 +1253,17 @@ final class CompanionManager: ObservableObject {
                         self?.lastTranscript = finalTranscript
                         print("🗣️ Companion received transcript: \(finalTranscript)")
                         ClickyAnalytics.trackUserMessageSent(transcript: finalTranscript)
-                        self?.sendTranscriptToTutorWithScreenshot(transcript: finalTranscript)
+                        guard let self else { return }
+                        // What "this" means: where the pointer rested while
+                        // they talked, and what is selected now.
+                        let studentPointing = StudentPointingClues(
+                            pointerRests: self.pointerRestsOfLastPress,
+                            selection: SelectedTextReader.selectionInFrontApp())
+                        self.pointerRestsOfLastPress = []
+                        self.sendTranscriptToTutorWithScreenshot(
+                            transcript: finalTranscript,
+                            earlyScreen: self.earlyScreenCapture.handOverToQuestion(),
+                            studentPointing: studentPointing)
                     }
                 )
             }
@@ -1212,6 +1278,8 @@ final class CompanionManager: ObservableObject {
             ClickyAnalytics.trackPushToTalkReleased()
             pendingKeyboardShortcutStartTask?.cancel()
             pendingKeyboardShortcutStartTask = nil
+            earlyScreenCapture.keysWereReleased()
+            pointerRestsOfLastPress = pointerRestWatcher.stop()
             buddyDictationManager.stopPushToTalkFromKeyboardShortcut()
     }
 
@@ -1426,11 +1494,38 @@ final class CompanionManager: ObservableObject {
     // Notebook hook: keeps each finished lesson as a notebook page.
     private lazy var notebookRecorder = NotebookRecorder(drawingOverlay: drawingOverlay)
     private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
+    /// Keeps an answer's marks on the things they mark as windows move and
+    /// pages scroll (MarkFollower.swift).
+    private lazy var markFollower: MarkFollower = {
+        let follower = MarkFollower()
+        follower.placeAnchors = { [weak self] placements, animate in
+            self?.lessonPlayer.placeAnchors(placements, animate: animate)
+        }
+        return follower
+    }()
+
+    /// Starts following the marks of the answer just begun on this screen.
+    private func followMarks(displayFrame: CGRect, canvasSize: CGSize, targets: [String: [Double]],
+                             labels: [String: String]) {
+        let accessibilityItemIds = Set(screenIndex.orderedTargets
+            .filter { target in target.locationSource == .accessibilityElement }
+            .map(\.id))
+        markFollower.begin(displayFrame: displayFrame, canvasSize: canvasSize, targets: targets,
+                           labels: labels, accessibilityItemIds: accessibilityItemIds)
+    }
+
     private lazy var lessonPlayer: LessonProgramPlayer = {
         let player = LessonProgramPlayer(overlay: drawingOverlay, voice: narrationVoice, bar: controlBar.model)
+        player.onAnchorsChanged = { [weak self] anchorIds in self?.markFollower.anchorsNow(anchorIds) }
+        player.onFirstSentenceReady = { [weak self] in
+            self?.logStage("first sentence ready for the voice")
+        }
         player.onFirstSentenceHeard = { [weak self] in
             self?.logStage("first sentence heard")
             self?.questionAwaitingAnswer = nil
+            // Only while an answer plays, and never while the keys are held.
+            if self?.buddyDictationManager.isDictationInProgress == false { self?.talkOverListener.start() }
+            self?.controlBar.model.canReplayLastAnswer = true
         }
         return player
     }()
@@ -1456,10 +1551,23 @@ final class CompanionManager: ObservableObject {
     /// a step: nobody spoke, so nothing goes in the transcript as theirs.
     /// `howToTakeover` is set when a saved how-to stopped matching the screen
     /// at that step and the model carries on from there.
+    /// `earlyScreen` is the screen read while the keys were held, checked at
+    /// release; it comes only with a spoken question, and nil (or a nil
+    /// result) means the screen is captured now, as before.
     private func sendTranscriptToTutorWithScreenshot(transcript spokenTranscript: String, guideStep: GuideStep? = nil,
-                                                     howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil) {
+                                                     howToTakeover: (howTo: HowTo, stepsDone: Int)? = nil,
+                                                     earlyScreen: Task<PreparedScreen?, Never>? = nil,
+                                                     studentPointing: StudentPointingClues? = nil,
+                                                     interruptedAnswerNote: String? = nil) {
         let isGuideContinuation = guideStep != nil
         var transcript = isGuideContinuation ? spokenTranscript : Self.questionWithoutGreeting(spokenTranscript)
+        // "Say that again" is not a question: the last answer is played
+        // again as it was, with no model, and is not counted or filed.
+        if !isGuideContinuation, howToTakeover == nil, TalkOverHearing.isReplayRequest(transcript),
+           replayLastAnswer(startedBy: "asked") {
+            earlyScreen?.cancel()
+            return
+        }
         currentResponseTask?.cancel()
         // Notebook hook: the answer just cancelled leaves no page.
         notebookRecorder.newQuestionStarted()
@@ -1487,6 +1595,7 @@ final class CompanionManager: ObservableObject {
             questionAwaitingAnswer = (transcript, Date())
         }
         answerStartedAt = Date()
+        questionBeingAnswered = transcript
         if howToTakeover == nil { SpendingMeter.shared.countQuestion(isGuideStep: isGuideContinuation) }
         logStage("question in")
 
@@ -1498,6 +1607,8 @@ final class CompanionManager: ObservableObject {
            front.bundleIdentifier != Bundle.main.bundleIdentifier,
            let howTo = howToMemory.match(question: transcript, appBundleIdentifier: front.bundleIdentifier,
                                          vectorFor: { [questionSorter] text in questionSorter.sentenceVector(for: text) }) {
+            // A replay reads the screen at each step itself.
+            earlyScreen?.cancel()
             currentResponseTask = Task { [weak self] in
                 guard let self else { return }
                 let replayed = await self.replayHowToStep(howTo, stepIndex: 0, question: transcript,
@@ -1546,25 +1657,38 @@ final class CompanionManager: ObservableObject {
             boardRevealFraction = 0
 
             do {
-                let screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
-                guard !Task.isCancelled, !screenCaptures.isEmpty else { return }
+                let screenCaptures: [CompanionScreenCapture]
+                let primaryCapture: CompanionScreenCapture
+                var screenWasReadWhileTheyTalked = false
+                if let preparedScreen = await earlyScreen?.value, !Task.isCancelled {
+                    screenWasReadWhileTheyTalked = true
+                    screenCaptures = preparedScreen.screenCaptures
+                    primaryCapture = preparedScreen.primaryCapture
+                    screenIndex = preparedScreen.screenIndex
+                    logStage("screen read while they talked, still current")
+                } else {
+                    guard !Task.isCancelled else { return }
+                    screenCaptures = try await CompanionScreenCaptureUtility.captureAllScreensAsJPEG()
+                    guard !Task.isCancelled, !screenCaptures.isEmpty else { return }
+                    logStage("screen captured")
 
-                // Index only the screen holding the cursor. Indexing every
-                // display would multiply the prompt for context the user is
-                // almost certainly not looking at.
-                let primaryCapture = screenCaptures.first(where: { capture in capture.isCursorScreen })
-                    ?? screenCaptures[0]
-                displayFrameForCurrentAnswer = primaryCapture.displayFrame
+                    // Index only the screen holding the cursor. Indexing every
+                    // display would multiply the prompt for context the user is
+                    // almost certainly not looking at.
+                    primaryCapture = screenCaptures.first(where: { capture in capture.isCursorScreen })
+                        ?? screenCaptures[0]
 
-                await screenIndex.rebuild(
-                    fromScreenshot: primaryCapture.imageData,
-                    displayIndex: 0,
-                    displayBoundsInPoints: CGSize(
-                        width: primaryCapture.displayWidthInPoints,
-                        height: primaryCapture.displayHeightInPoints
+                    await screenIndex.rebuild(
+                        fromScreenshot: primaryCapture.imageData,
+                        displayIndex: 0,
+                        displayBoundsInPoints: CGSize(
+                            width: primaryCapture.displayWidthInPoints,
+                            height: primaryCapture.displayHeightInPoints
+                        )
                     )
-                )
-                guard !Task.isCancelled else { return }
+                    guard !Task.isCancelled else { return }
+                }
+                displayFrameForCurrentAnswer = primaryCapture.displayFrame
                 logStage("screen captured and read")
                 controlBar.model.waitingStage = "thinking"
                 let screenReadAt = Date()
@@ -1576,6 +1700,7 @@ final class CompanionManager: ObservableObject {
                     classifierTask: classifierTask
                 )
                 guard !Task.isCancelled else { return }
+                logStage("question kind settled")
 
                 // Counted before the answer is built, so the instruction
                 // reflects how many times this idea has already failed to land.
@@ -1644,11 +1769,13 @@ final class CompanionManager: ObservableObject {
                     deadline: max(screenReadAt.addingTimeInterval(Self.classifierGraceSeconds),
                                   answerStartedAt.addingTimeInterval(Self.memoryChooserFloorSeconds)))
                 guard !Task.isCancelled else { return }
+                logStage("memory settled")
                 controlBar.model.buildsOn = recollections.map(\.concept.name)
                 var studyNotes = [LearningMemory.promptNote(for: recollections)]
                 if let howToTakeover, howToTakeover.stepsDone > 0 {
                     studyNotes.append(HowToMemory.takeoverNote(howToTakeover.howTo, stepsDone: howToTakeover.stepsDone))
                 }
+                if let interruptedAnswerNote { studyNotes.append(interruptedAnswerNote) }
                 if let guideStep {
                     studyNotes.append(GuideMode.continuationNote(
                         after: guideStep, stepNumber: guideStepsGiven,
@@ -1693,6 +1820,18 @@ final class CompanionManager: ObservableObject {
                 }
                 guard !Task.isCancelled else { return }
 
+                // The pointer's rests are places on the screen as it was while
+                // they talked. Read again because it moved, the screen no
+                // longer matches them, so only a selection is kept.
+                var pointingLine: String?
+                if let studentPointing, !studentPointing.isEmpty {
+                    pointingLine = StudentPointingNote.line(
+                        for: studentPointing, screenIndex: screenIndex,
+                        displayFrame: primaryCapture.displayFrame, canvasSize: canvasSize,
+                        includePointer: screenWasReadWhileTheyTalked)
+                    TutorDebugLog.write("👉 \(pointingLine.map { $0.hasPrefix("SELECTED") ? "selected text, \(studentPointing.selection?.text.count ?? 0) characters" : $0 } ?? "pointer rested on nothing listed")")
+                }
+
                 let turnPrompt = TutorProgramPrompt.turnContext(
                     transcript: transcript,
                     canvasSize: canvasSize,
@@ -1701,7 +1840,8 @@ final class CompanionManager: ObservableObject {
                     reexplanationInstruction: reexplanationInstruction(),
                     frontAppName: frontAppName,
                     frontWindowTitle: frontWindowTitle,
-                    studyNotes: studyNotes
+                    studyNotes: studyNotes,
+                    pointingLine: pointingLine
                 )
 
                 let screenForDrawing = NSScreen.screens.first { screen in
@@ -1713,8 +1853,13 @@ final class CompanionManager: ObservableObject {
                         canvasSize: canvasSize,
                         targets: screenBoxes,
                         targetLabels: screenIndex.lastListedLabels,
-                        screenInkHex: "#3380FF"
+                        screenInkHex: "#3380FF",
+                        // Kept with the answer, so a replay can tell whether
+                        // the screen under its marks has changed since.
+                        screenThumbnail: GuideWatcher.thumbnail(fromImageData: primaryCapture.imageData)
                     )
+                    followMarks(displayFrame: primaryCapture.displayFrame, canvasSize: canvasSize,
+                                targets: screenBoxes, labels: screenIndex.lastListedLabels)
                 }
                 currentAnswerFormat = .undecided
 
@@ -1940,6 +2085,7 @@ final class CompanionManager: ObservableObject {
                     // the content under it changing: it is the part worth
                     // looking at once the talking stops.
                     await lessonPlayer.waitUntilSpoken()
+                    talkOverListener.stop()
                     controlBar.model.caption = ""
                     if let currentGuideStep, let guideBaseline, !Task.isCancelled {
                         guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
@@ -2001,6 +2147,126 @@ final class CompanionManager: ObservableObject {
         sendTranscriptToTutorWithScreenshot(transcript: question)
     }
 
+    // MARK: - Talking over an answer
+
+    /// What the student said over the answer, without the keys.
+    private func handleTalkOver(_ request: TalkOverListener.Request) {
+        switch request {
+        case .yield:
+            lessonPlayer.pauseVoice()
+        case .endYield:
+            if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+        case .hold:
+            lessonPlayer.pauseVoice()
+            isHeldByTalkOver = true
+            controlBar.model.caption = "Paused. Say \u{201C}go on\u{201D} to continue."
+            talkOverHoldTimeout?.cancel()
+            talkOverHoldTimeout = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(Self.talkOverHoldLimitSeconds * 1_000_000_000))
+                guard !Task.isCancelled, let self, self.isHeldByTalkOver else { return }
+                TutorDebugLog.write("👂 talk-over: paused for \(Int(Self.talkOverHoldLimitSeconds))s, ending the answer")
+                self.stopAnswering()
+            }
+        case .resume:
+            releaseTalkOverHold()
+            lessonPlayer.resumeVoice()
+            if let currentSentence = lessonPlayer.currentSentence { controlBar.model.caption = currentSentence }
+        case .slower:
+            lessonPlayer.slowDown()
+            if !isHeldByTalkOver { lessonPlayer.resumeVoice() }
+        case .repeatPreviousSentence:
+            releaseTalkOverHold()
+            lessonPlayer.repeatPreviousSentence()
+        case .replayAnswer:
+            _ = replayLastAnswer(startedBy: "said over the answer")
+        case .question(let question):
+            // Cut off and answered with what was heard of this answer, which
+            // is not in the conversation until an answer finishes.
+            let note = TutorProgramPrompt.interruptionNote(
+                interruptedQuestion: questionBeingAnswered ?? "",
+                sentencesHeard: lessonPlayer.sentencesSpokenSoFar)
+            InterfaceSounds.shared.play(.sent)
+            shortcutReleasedAt = nil
+            questionAwaitingAnswer = nil
+            sendTranscriptToTutorWithScreenshot(
+                transcript: question,
+                studentPointing: StudentPointingClues(selection: SelectedTextReader.selectionInFrontApp()),
+                interruptedAnswerNote: note)
+        }
+    }
+
+    /// Plays the last answer again: the same audio and the same drawing, no
+    /// model and no speech request. When the screen has changed since, the
+    /// marks pinned to its content are left out and the cards are kept. Not
+    /// a lesson: nothing is filed, counted or added to the conversation.
+    /// False when there is no answer to replay.
+    private func replayLastAnswer(startedBy trigger: String) -> Bool {
+        guard let recording = lessonPlayer.recordingOfLastAnswer() else {
+            TutorDebugLog.write("🔁 replay (\(trigger)): no answer to play again yet")
+            return false
+        }
+        TutorDebugLog.write("🔁 replaying the last answer (\(trigger)): \(recording.sentences.count) sentences, no model")
+        stopGuide(reason: "replaying the last answer")
+        questionAwaitingAnswer = nil
+        currentResponseTask?.cancel()
+        cancelSpeechAndClearQueue()
+        transientHideTask?.cancel()
+        transientHideTask = nil
+        if !isOverlayVisible {
+            overlayWindowManager.hasShownOverlayBefore = true
+            overlayWindowManager.showOverlay(onScreens: NSScreen.screens, companionManager: self)
+            isOverlayVisible = true
+        }
+        currentResponseTask = Task { [weak self] in
+            guard let self else { return }
+            self.voiceState = .responding
+            let screenOfTheAnswer = NSScreen.screens.first { screen in screen.frame == recording.displayFrame }
+            var includeScreenMarks = false
+            if screenOfTheAnswer != nil, let thumbnailThen = recording.screenThumbnail,
+               let thumbnailNow = await GuideWatcher.captureThumbnail(of: recording.displayFrame) {
+                let (changedCells, _) = GuideWatcher.changes(thumbnailThen, thumbnailNow)
+                includeScreenMarks = changedCells < EarlyScreenCapture.changedCellsMeaningTheScreenMoved
+                TutorDebugLog.write("🔁 replay: \(changedCells) cells changed since, \(includeScreenMarks ? "marks kept" : "marks left out")")
+            }
+            guard !Task.isCancelled, let screenForReplay = screenOfTheAnswer ?? NSScreen.main else {
+                self.voiceState = .idle
+                return
+            }
+            self.currentAnswerFormat = .program
+            // Followed from before the program runs, so it hears of every anchor.
+            if includeScreenMarks {
+                self.markFollower.begin(displayFrame: recording.displayFrame, canvasSize: recording.canvasSize,
+                                        targets: recording.targets, labels: recording.targetLabels, accessibilityItemIds: [])
+            } else {
+                self.markFollower.stop()
+            }
+            await self.lessonPlayer.replay(recording, on: screenForReplay, includeScreenMarks: includeScreenMarks)
+            while self.speechConsumerTask != nil || self.isAnyVoicePlaying {
+                try? await Task.sleep(nanoseconds: 150_000_000)
+                if Task.isCancelled { break }
+            }
+            guard !Task.isCancelled else { return }
+            self.voiceState = .idle
+            await self.lessonPlayer.waitUntilSpoken()
+            self.talkOverListener.stop()
+            self.controlBar.model.caption = ""
+            self.scheduleTransientHideIfNeeded()
+        }
+        return true
+    }
+
+    private func releaseTalkOverHold() {
+        isHeldByTalkOver = false
+        talkOverHoldTimeout?.cancel()
+        talkOverHoldTimeout = nil
+    }
+
+    /// Closes the talk-over microphone and forgets any hold.
+    private func endTalkOver() {
+        talkOverListener.stop()
+        releaseTalkOverHold()
+    }
+
     /// Stop on the bar: stops talking and the answer being written, and
     /// leaves what is drawn.
     private func stopAnswering() {
@@ -2045,6 +2311,11 @@ final class CompanionManager: ObservableObject {
     /// to 1.1s in all, and the capture about 0.7s, so most answers arrive
     /// inside this and a slow one costs at most this much.
     private static let classifierGraceSeconds: Double = 0.35
+    /// The least time from the question Haiku is given: a typical capture
+    /// and read (0.35s to 0.55s in the log) plus the grace above. Without
+    /// it, a screen read during the talking left Haiku only the grace, and
+    /// most of its answers, right nine times in ten, would be dropped.
+    private static let classifierFloorSeconds: Double = 0.75
     private static let memoryChooserFloorSeconds: Double = 1.0
 
     /// How much Haiku's kind is trusted against the on-device probabilities:
@@ -2103,8 +2374,13 @@ final class CompanionManager: ObservableObject {
                         classifierTask.cancel()
                     })
                 }
+                // Haiku keeps the time it had when the screen was always read
+                // after release, even when it was read during the talking.
+                let classifierDeadline = max(Date().addingTimeInterval(Self.classifierGraceSeconds),
+                                             answerStartedAt.addingTimeInterval(Self.classifierFloorSeconds))
+                let classifierWaitSeconds = max(0, classifierDeadline.timeIntervalSinceNow)
                 group.addTask {
-                    try? await Task.sleep(nanoseconds: UInt64(Self.classifierGraceSeconds * 1_000_000_000))
+                    try? await Task.sleep(nanoseconds: UInt64(classifierWaitSeconds * 1_000_000_000))
                     return .timedOut
                 }
                 let first = await group.next() ?? .timedOut
@@ -2282,7 +2558,10 @@ final class CompanionManager: ObservableObject {
         clearAnnotations()
         if let screenForDrawing = screen.screen {
             lessonPlayer.begin(on: screenForDrawing, canvasSize: screen.canvasSize, targets: screen.boxes,
-                               targetLabels: screen.labels, screenInkHex: "#3380FF")
+                               targetLabels: screen.labels, screenInkHex: "#3380FF",
+                               screenThumbnail: GuideWatcher.thumbnail(fromImageData: screen.capture.imageData))
+            followMarks(displayFrame: screen.capture.displayFrame, canvasSize: screen.canvasSize,
+                        targets: screen.boxes, labels: screen.labels)
         }
         currentAnswerFormat = .program
         controlBar.model.answeredBy = "from memory"
@@ -2313,6 +2592,7 @@ final class CompanionManager: ObservableObject {
         }
         voiceState = .idle
         await lessonPlayer.waitUntilSpoken()
+        talkOverListener.stop()
         controlBar.model.caption = ""
         if !isLastStep, !Task.isCancelled, let currentGuideStep, let guideBaseline {
             guideWatcher.watch(step: currentGuideStep, baselineScreenshot: guideBaseline.imageData,
@@ -2407,6 +2687,19 @@ final class CompanionManager: ObservableObject {
     /// read as Esc not working.
     private func handleEscape() {
         stopGuide(reason: "Esc")
+        // Esc while the keys are held, or while the last words are still
+        // being transcribed, takes the question back: nothing is sent.
+        if pendingTalkStart != nil || buddyDictationManager.isDictationInProgress || earlyScreenCapture.isHoldingCapture {
+            pendingTalkStart?.cancel()
+            pendingTalkStart = nil
+            pendingKeyboardShortcutStartTask?.cancel()
+            pendingKeyboardShortcutStartTask = nil
+            buddyDictationManager.cancelCurrentDictation(preserveDraftText: false)
+            earlyScreenCapture.discard(reason: "Esc")
+            pointerRestWatcher.cancel()
+            pointerRestsOfLastPress = []
+            controlBar.model.heardWords = ""
+        }
         let closedNotch = controlBar.closeFromKeyboard()
         let clearedDrawing = clearAnnotations()
         TutorDebugLog.write("⎋ Esc: \(clearedDrawing ? "drawing cleared" : "nothing drawn")\(closedNotch ? ", notch closed" : "")")
@@ -2880,6 +3173,7 @@ final class CompanionManager: ObservableObject {
     }
 
     private func cancelSpeechAndClearQueue() {
+        endTalkOver()
         speechConsumerTask?.cancel()
         speechConsumerTask = nil
         pendingSpeechSegments.removeAll()
@@ -3310,8 +3604,9 @@ final class CompanionManager: ObservableObject {
         scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             let hasPreciseDeltas = event.hasPreciseScrollingDeltas
             let verticalDelta = event.scrollingDeltaY
+            let horizontalDelta = event.scrollingDeltaX
             Task { @MainActor in
-                self?.followScroll(verticalDelta: verticalDelta, hasPreciseDeltas: hasPreciseDeltas)
+                self?.followScroll(verticalDelta: verticalDelta, horizontalDelta: horizontalDelta, hasPreciseDeltas: hasPreciseDeltas)
             }
         }
 
@@ -3327,7 +3622,17 @@ final class CompanionManager: ObservableObject {
             // student leaving the content.
             let activatedApplication = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard activatedApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
-            Task { @MainActor in self?.clearScreenMarks() }
+            Task { @MainActor in
+                guard let self else { return }
+                // A drawing being followed is hidden while its window is
+                // away and shown when it is back (MarkFollower); the older
+                // marks are still cleared.
+                if self.markFollower.isActive {
+                    self.clearOlderMarksOnly()
+                } else {
+                    self.clearScreenMarks()
+                }
+            }
         }
     }
 
@@ -3338,7 +3643,11 @@ final class CompanionManager: ObservableObject {
     /// lines, whose size in points depends on the app, so rather than guess,
     /// the marks are cleared. Positive deltas move content down the screen,
     /// which is downward in AppKit's bottom-left coordinates.
-    private func followScroll(verticalDelta: CGFloat, hasPreciseDeltas: Bool) {
+    private func followScroll(verticalDelta: CGFloat, horizontalDelta: CGFloat, hasPreciseDeltas: Bool) {
+        if lessonPlayer.hasDrawing, markFollower.isActive {
+            markFollower.scrolled(deltaX: horizontalDelta, deltaY: verticalDelta, hasPreciseDeltas: hasPreciseDeltas)
+            return
+        }
         guard verticalDelta != 0 else { return }
         if lessonPlayer.hasDrawing {
             // The drawing page is top-left origin, so content moving down is
@@ -3364,8 +3673,18 @@ final class CompanionManager: ObservableObject {
         }
     }
 
+    /// Removes the older tag pipeline's marks only, leaving a followed drawing.
+    private func clearOlderMarksOnly() {
+        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            activeAnnotations.removeAll()
+            spotlightRectsInGlobalPoints.removeAll()
+        }
+    }
+
     /// Removes marks drawn over screen content, keeping the board.
     private func clearScreenMarks() {
+        markFollower.stop()
         lessonPlayer.clearScreenMarks()
         guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
         withAnimation(.easeOut(duration: 0.2)) {
@@ -3383,6 +3702,10 @@ final class CompanionManager: ObservableObject {
         // Notebook hook: clearing a lesson while it is still being spoken
         // (Esc, Clear) stops it, so it is not kept.
         if lessonPlayer.isSpeaking { notebookRecorder.answerWasDismissed() }
+
+        // Clearing stops the voice, so nothing is left to talk over.
+        endTalkOver()
+        markFollower.stop()
         let lessonHadDrawing = lessonPlayer.hasDrawing
         lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty
