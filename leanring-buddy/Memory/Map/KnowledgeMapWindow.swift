@@ -71,6 +71,11 @@ final class KnowledgeMapWindowController: NSObject, NSWindowDelegate {
         model.focusWhenLaidOut(onIdeaNamed: ideaName)
     }
 
+    /// The map's window closed, for the QA channel's scripts.
+    func close() {
+        window?.orderOut(nil)
+    }
+
     func show() {
         if let frontmost = NSWorkspace.shared.frontmostApplication,
            frontmost.processIdentifier != ProcessInfo.processInfo.processIdentifier {

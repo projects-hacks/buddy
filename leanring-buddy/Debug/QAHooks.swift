@@ -187,6 +187,8 @@ final class QAHooks {
                 to: URL(fileURLWithPath: info["value"] ?? NSTemporaryDirectory() + "buddy-qa-notebook.pdf"))
         case "openMap":
             companionManager.openKnowledgeMap()
+        case "closeMap":
+            companionManager.knowledgeMapWindow.close()
         case "forgetMemory":
             companionManager.forgetLearningMemory()
         default:

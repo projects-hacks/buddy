@@ -57,7 +57,7 @@ What "this" means comes from the same press (`StudentPointing.swift`). Text sele
 ```mermaid
 flowchart TD
     question([Question]):::input --> local[Sorter on the Mac<br/>nearest example phrasings]:::device
-    local -->|sure, over 95%| kind[Kind and its probability]:::logic
+    local -->|sure, over 95%, and like its examples| kind[Kind and its probability]:::logic
     local -->|unsure| haiku[Claude Haiku decides]:::cloud
     haiku --> kind
     kind --> table[Route table<br/>quality, wait and cost per kind]:::logic
@@ -74,6 +74,12 @@ flowchart TD
     classDef logic fill:#bfdbfe,stroke:#1d4ed8,color:#111
     classDef cloud fill:#e9d5ff,stroke:#7e22ce,color:#111
 ```
+
+The sorter compares a question with example phrasings, so it can only judge questions like them. A greeting, thanks or "what can you do" scored 0.69 to 0.89 against them, below every one of the 100 blind study questions (0.851 and up, 95 above 0.877), yet still came out 99% sure of whichever kind sat a hair closer: "Hello, Buddy." as teach, "thanks" as re-explain, which sent thanks to Opus. Below 0.89 its guess is now made five times softer, so it is never sure and Haiku decides; on the blind set that asks Haiku for 86 questions instead of 84, and none decided on the Mac alone is wrong either way.
+
+Haiku is shown the exchange before the message (what was asked and the start of what Buddy said) inside tags, so it can tell a new follow-up from "that did not land", and its prompt describes each kind by what the student needs from the answer, with the reason the size matters. Graded by `scripts/question_sorting/haiku_prompt_test.py`: 69 of 70 on everyday messages (greetings, thanks, questions about Buddy, tasks in apps, follow-ups, lessons, choices) and 90 of 100 on the blind study set, against 55 of 70 and 89 of 100 with the earlier prompt. Most remaining misses are short "what is this" questions sized one step larger, which costs a little time and nothing in the answer.
+
+The kind is a ceiling, not a target. The answer prompt (`TutorProgramPrompt.swift`, ANSWER WHAT THEY SAID) tells the model to answer what was actually said at its size: a greeting gets one natural sentence back with nothing drawn, a one-line question a one-line answer, and the screen is explained or marked only when what was said is about it or an error offer was accepted. HOW MUCH TO SAY is the most it may say.
 
 The route table comes from racing all three models on every kind of question and having two judges from different model families score the answers blind. The race, the judging and the sensitivity of the choice to how much waiting is worth are in [model-choice.md](model-choice.md).
 
@@ -293,7 +299,7 @@ Each guards against a hang, a crash or a silent answer.
 
 ## What it spends
 
-`SpendingMeter.swift` adds up what each paid call reports: the token counts in every Claude and Gemini reply, priced at the published rates in one table (Argon's introductory price doubles on 1 December 2026, and the meter changes with it), Deepgram's per-character price for every sentence spoken, and its per-minute price for listening (a question, talking over an answer, teaching back, a lecture's sound). It only listens: it reads the numbers after a reply has arrived, never delays or changes an answer, and saves a moment later off the main thread. Kept per day in `spending.json`.
+`SpendingMeter.swift` adds up what each paid call reports: the token counts in every Claude and Gemini reply, priced at the published rates in one table (Argon's introductory price doubles on 1 December 2026, and the meter changes with it), Deepgram's per-character price for every sentence spoken, and its per-minute price for listening (a question, talking over an answer, teaching back, a lecture's sound). It only listens: it reads the numbers after a reply has arrived, never delays or changes an answer, and saves a moment later off the main thread. Every cost is recorded with what it paid for (answers, voice, listening while it talks, hearing you, small helpers, lectures), so hovering Spent today in Settings shows today and this month by service and by purpose. Kept per day in `spending.json`; days from before the purposes keep their service split.
 
 ## Where things live
 
