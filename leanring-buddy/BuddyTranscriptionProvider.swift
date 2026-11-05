@@ -30,11 +30,11 @@ protocol BuddyTranscriptionProvider {
 }
 
 enum BuddyTranscriptionProviderFactory {
-    /// Apple Speech, on the Mac. Upstream's AssemblyAI and OpenAI providers
-    /// needed its Cloudflare Worker and are gone; speech never leaves the
-    /// Mac, and nothing else needs a key for it.
+    /// Deepgram Nova-3 when a Deepgram key is set, with Apple Speech hearing
+    /// the same audio as a backup; Apple Speech alone otherwise
+    /// (DeepgramTranscriptionProvider.swift).
     static func makeDefaultProvider() -> any BuddyTranscriptionProvider {
-        let provider = AppleSpeechTranscriptionProvider()
+        let provider = PreferredTranscriptionProvider()
         print("🎙️ Transcription: using \(provider.displayName)")
         return provider
     }

@@ -55,6 +55,7 @@ final class CompanionAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         companionManager.stop()
+        SpendingMeter.shared.saveNow()
     }
 
     /// Keeps the login item matching the student's choice. Nothing is

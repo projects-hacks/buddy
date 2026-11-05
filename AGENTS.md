@@ -16,7 +16,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 - **Framework**: SwiftUI (macOS native) with AppKit bridging for menu bar panel and cursor overlay
 - **Pattern**: MVVM with `@StateObject` / `@Published` state management
 - **Answers**: `gemini-4-argon` on Vertex AI, SSE streaming, authenticated with a gcloud access token so usage bills the project holding the credits. Falls back to Ollama if switched to local.
-- **Speech-to-Text**: Apple Speech on-device (`VoiceTranscriptionProvider` is `apple` in Info.plist)
+- **Speech-to-Text**: Deepgram Nova-3 streaming when a Deepgram key is set, with Apple Speech hearing the same audio as a backup; Apple Speech alone otherwise
 - **Text-to-Speech**: Deepgram `aura-2-hera-en`, streamed as PCM into `AVAudioEngine` so speech starts about 0.16s after the request. Falls back to Kokoro, then `AVSpeechSynthesizer`.
 - **Screen Capture**: ScreenCaptureKit (macOS 14.2+), multi-monitor support
 - **Voice Input**: Push-to-talk via `AVAudioEngine` + pluggable transcription-provider layer. System-wide keyboard shortcut via listen-only CGEvent tap.
@@ -32,7 +32,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 | Vision + reasoning | `gemini-4-argon` on Vertex AI | gcloud access token, cached 50 min |
 | Vision + reasoning, alternative | `claude-sonnet-5-5`, thinking off | Keychain |
 | Text-to-speech | Deepgram `aura-2-hera-en` | Keychain |
-| Speech-to-text | Apple Speech framework | on-device |
+| Speech-to-text | Deepgram Nova-3, Apple Speech as backup and without a key | Keychain / on-device |
 | Text recognition | Apple Vision framework | on-device |
 | Element rectangles | Accessibility API | on-device |
 
@@ -79,7 +79,8 @@ raw model response.
 | `CompanionResponseOverlay.swift` | ~217 | SwiftUI view for the response text bubble and waveform displayed next to the cursor in the overlay. |
 | `CompanionScreenCaptureUtility.swift` | ~132 | Multi-monitor screenshot capture using ScreenCaptureKit. Returns labeled image data for each connected display. |
 | `BuddyDictationManager.swift` | ~866 | Push-to-talk voice pipeline. Handles microphone capture via `AVAudioEngine`, provider-aware permission checks, keyboard/button dictation sessions, transcript finalization, shortcut parsing, contextual keyterms, and live audio-level reporting for waveform feedback. |
-| `BuddyTranscriptionProvider.swift` | ~40 | The transcription protocol, and a factory that returns Apple Speech: speech is transcribed on the Mac. |
+| `BuddyTranscriptionProvider.swift` | ~40 | The transcription protocol, and a factory that returns the Deepgram-first provider. |
+| `DeepgramTranscriptionProvider.swift` | ~320 | Nova-3 over a WebSocket while the keys are held, told the terms to expect (screen labels, recent card labels, recently learned ideas). Apple Speech hears the same audio; its text is used only when Deepgram fails. Costs about $0.009 a minute of speech, recorded in the meter. |
 | `AppleSpeechTranscriptionProvider.swift` | ~147 | Apple's Speech framework, on device, with live partial results for the notch. |
 | `BuddyAudioConversionSupport.swift` | ~108 | Audio conversion helpers. Converts live mic buffers to PCM16 mono audio and builds WAV payloads for upload-based providers. |
 | `GlobalPushToTalkShortcutMonitor.swift` | ~140 | System-wide push-to-talk monitor. Owns the listen-only `CGEvent` tap and publishes press/release transitions, and Control + Option + T for typing a question. |

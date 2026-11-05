@@ -135,6 +135,23 @@ final class ClaudeVisionProvider: TutorBrain {
 
         var accumulatedText = ""
         var inputUsageForCost: (fresh: Int, cached: Int, written: Int) = (0, 0, 0)
+        var sawMessageStart = false
+        var costRecorded = false
+        // An answer cut off by a new question, Esc or a dropped connection
+        // never reaches message_delta, but its input was still billed and so
+        // was what it had written. Counted here from message_start's usage and
+        // the text received, at about four characters a token.
+        defer {
+            if sawMessageStart && !costRecorded {
+                let cost = Self.estimatedCostInDollars(
+                    model: model, freshInput: inputUsageForCost.fresh,
+                    cachedInput: inputUsageForCost.cached, cacheWrites: inputUsageForCost.written,
+                    output: accumulatedText.count / 4
+                )
+                TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for an answer that was stopped")
+                SpendingMeter.record(cost, for: .claude)
+            }
+        }
 
         // Each `data:` line carries a typed event. Only text deltas are spoken;
         // thinking blocks, when a model writes them, are skipped by type.
@@ -156,6 +173,7 @@ final class ClaudeVisionProvider: TutorBrain {
                     let written = usage["cache_creation_input_tokens"] as? Int ?? 0
                     TutorDebugLog.write("💾 \(model): \(cached) cached, \(written) newly cached, \(fresh) fresh input tokens")
                     inputUsageForCost = (fresh, cached, written)
+                    sawMessageStart = true
                 }
 
             case "content_block_delta":
@@ -180,6 +198,7 @@ final class ClaudeVisionProvider: TutorBrain {
                     )
                     TutorDebugLog.write("💰 about $\(String(format: "%.4f", cost)) for this answer")
                     SpendingMeter.record(cost, for: .claude)
+                    costRecorded = true
                     if stopReason == "refusal" {
                         TutorDebugLog.write("⚠️ Claude declined to answer this one")
                     }

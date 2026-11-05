@@ -63,7 +63,7 @@ The setup window opens by itself and has four steps.
 |---|---|---|---|
 | Anthropic | Recommended | Claude Sonnet and Opus answer; Claude Haiku sorts questions and keeps learning memory | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
 | Google Gemini | Optional | Gemini 4 Argon, which answers most explanations under Auto | [aistudio.google.com](https://aistudio.google.com/apikey) |
-| Deepgram | Optional | A natural voice; without it macOS's own voice speaks | [console.deepgram.com](https://console.deepgram.com/) |
+| Deepgram | Optional | A natural voice, and hearing that gets technical words and long pauses right; without it macOS's own voice and recognizer are used | [console.deepgram.com](https://console.deepgram.com/) |
 
 At least one of Anthropic or Gemini is needed. With both, Auto picks the best model per question.
 

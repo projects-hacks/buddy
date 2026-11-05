@@ -93,6 +93,12 @@ final class LearningMemory {
     /// The ideas of the last lesson, which "I didn't follow" is about.
     private var lastLessonConceptIDs: [UUID] = []
     private(set) var isLoaded = false
+
+    /// The ideas explained most recently, for the speech recognizer to
+    /// expect: a student keeps using the words of what they are studying.
+    func recentlyExplainedConceptNames(limit: Int) -> [String] {
+        index.concepts.sorted { $0.lastExplainedAt > $1.lastExplainedAt }.prefix(limit).map(\.name)
+    }
     /// Bumped by forgetEverything, so work that started before it (a lesson
     /// waiting on Haiku, the re-embedding loop) never writes anything back.
     private var memoryGeneration = 0

@@ -85,7 +85,7 @@ The download window shows these same steps. macOS asks for **Open Anyway** once,
 <p>
   <a href="https://console.anthropic.com/settings/keys"><img alt="Anthropic key: recommended" src="https://img.shields.io/badge/Anthropic-recommended-111111"></a>
   <a href="https://aistudio.google.com/apikey"><img alt="Gemini key: optional" src="https://img.shields.io/badge/Gemini-optional-4285F4"></a>
-  <a href="https://console.deepgram.com/"><img alt="Deepgram key: optional, for a natural voice" src="https://img.shields.io/badge/Deepgram-optional%2C%20natural%20voice-13EF93?labelColor=111111"></a>
+  <a href="https://console.deepgram.com/"><img alt="Deepgram key: optional, for a natural voice and sharper hearing" src="https://img.shields.io/badge/Deepgram-optional%2C%20voice%20and%20hearing-13EF93?labelColor=111111"></a>
 </p>
 
 Or with Homebrew:
@@ -137,7 +137,7 @@ The model answers with a short drawing program, and the first sentence is spoken
 | What | Where it goes |
 |---|---|
 | **Screen** | Captured only when you ask, or after a click while a walkthrough waits; those checks are compared on the Mac and discarded |
-| **Voice** | Transcribed on the Mac |
+| **Voice** | Heard by Deepgram while the keys are held, when a Deepgram key is set; otherwise transcribed on the Mac |
 | **Sent** | The screenshot and question, to the model that answers |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
 | **Analytics** | None |

@@ -261,7 +261,7 @@ struct SetupView: View {
                             model: model, companionManager: companionManager)
                     GeminiCard(model: model, companionManager: companionManager)
                     KeyCard(service: .deepgram, title: "Deepgram", badge: "Optional",
-                            detail: "A natural voice. Without it, macOS's own voice reads the answers.",
+                            detail: "A natural voice, and sharper hearing for technical words. Without it, macOS's own voice and recognizer are used.",
                             model: model, companionManager: companionManager)
                 }
             }

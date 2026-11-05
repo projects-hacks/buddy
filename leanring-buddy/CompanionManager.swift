@@ -381,6 +381,48 @@ final class CompanionManager: ObservableObject {
     /// Conversation history so Claude remembers prior exchanges within a session.
     /// Each entry is the user's transcript and Claude's response.
     private var conversationHistory: [(userTranscript: String, assistantResponse: String)] = []
+    /// Recent answers are kept whole, so the next one can build on what was
+    /// drawn or explain it differently. Older ones keep only what was said,
+    /// about a tenth of the size, so a long session stays in view without
+    /// paying for every old drawing again.
+    private static let wholeAnswersKept = 10
+    private static let exchangesKept = 40
+    /// Older answers are shortened, and the oldest dropped, several at a
+    /// time rather than one per question: the cached history then stays the
+    /// same for several questions in a row instead of changing every time.
+    private static let historyTrimBatch = 6
+
+    private func rememberExchange(question: String, answer: String) {
+        conversationHistory.append((userTranscript: question, assistantResponse: answer))
+        let wholeAnswerCount = conversationHistory.filter { !$0.assistantResponse.hasPrefix(Self.spokenOnlyMarker) }.count
+        if wholeAnswerCount > Self.wholeAnswersKept {
+            var shortened = 0
+            for position in conversationHistory.indices where shortened < Self.historyTrimBatch {
+                let entry = conversationHistory[position]
+                guard !entry.assistantResponse.hasPrefix(Self.spokenOnlyMarker) else { continue }
+                conversationHistory[position].assistantResponse = Self.spokenPart(of: entry.assistantResponse)
+                shortened += 1
+            }
+        }
+        if conversationHistory.count > Self.exchangesKept {
+            conversationHistory.removeFirst(min(conversationHistory.count, Self.historyTrimBatch))
+        }
+    }
+
+    private static let spokenOnlyMarker = "(An earlier answer, only what was said; its drawing is left out.)"
+
+    /// The sentences of a drawing program, in order. A prose answer has no
+    /// say() lines and is kept as it is, cut to a length that still reads.
+    static func spokenPart(of answer: String) -> String {
+        let sayCall = try! NSRegularExpression(pattern: #"say\(\s*"((?:[^"\\]|\\.)*)""#)
+        let range = NSRange(answer.startIndex..., in: answer)
+        let sentences = sayCall.matches(in: answer, range: range).compactMap { match -> String? in
+            guard let sentenceRange = Range(match.range(at: 1), in: answer) else { return nil }
+            return String(answer[sentenceRange]).replacingOccurrences(of: #"\""#, with: "\"")
+        }
+        let spoken = sentences.isEmpty ? String(answer.prefix(800)) : sentences.joined(separator: " ")
+        return spokenOnlyMarker + " " + spoken
+    }
 
     /// The currently running AI response task, if any. Cancelled when the user
     /// speaks again so a new response can begin immediately.
@@ -995,37 +1037,84 @@ final class CompanionManager: ObservableObject {
     private static let joinUnansweredQuestionWithinSeconds: TimeInterval = 90
     private static let talkStartDelaySeconds: TimeInterval = 0.2
 
-    /// Words the recognizer should expect: the short labels and technical
-    /// terms from the last screen Buddy read ("Wallet DB", "Kafka", "O(n)").
-    /// It is usually the same screen, since questions follow each other there.
-    static func speechHints(from screenLabels: [String]) -> [String] {
-        var hints: [String] = []
+    /// Words the recognizer should expect, from three places, so jargon is
+    /// expected whether or not it is on screen right now:
+    /// the screen Buddy last read ("Wallet DB", "Kafka", "O(n)"), the labels
+    /// Buddy itself drew in the last few answers, and the ideas the student
+    /// has learned most recently. Deepgram takes about 60 terms, so each
+    /// source gets a share instead of the screen crowding the others out.
+    static func speechHints(
+        screenLabels: [String],
+        recentAnswerPrograms: [String],
+        recentlyLearnedConceptNames: [String]
+    ) -> [String] {
         var seen = Set<String>()
-        func add(_ hint: String) {
+        func cleaned(_ hint: String) -> String? {
             let trimmed = hint.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-            guard trimmed.count >= 2, trimmed.count <= 40, seen.insert(trimmed.lowercased()).inserted else { return }
-            hints.append(trimmed)
+            guard trimmed.count >= 2, trimmed.count <= 40, trimmed.split(separator: " ").count <= 4 else { return nil }
+            return trimmed
         }
+
+        var screenHints: [String] = []
         for label in screenLabels {
             let words = label.split(separator: " ")
             // A short label is usually a name: a box, a button, a heading.
-            if words.count <= 4 { add(label) }
+            if words.count <= 4, let hint = cleaned(label) { screenHints.append(hint) }
             // Inside longer text, keep the words a recognizer would not guess:
             // capitals after the first letter, digits, acronyms.
             for word in words where word.count >= 3 {
                 let text = String(word)
                 let hasInnerCapital = text.dropFirst().contains(where: \.isUppercase)
                 let hasDigit = text.contains(where: \.isNumber)
-                if hasInnerCapital || hasDigit { add(text) }
+                if hasInnerCapital || hasDigit, let hint = cleaned(text) { screenHints.append(hint) }
             }
-            if hints.count >= 100 { break }
         }
+
+        // The short quoted strings in Buddy's own programs are its card
+        // labels and headings: the terms of the topic being discussed.
+        var answerHints: [String] = []
+        let quotedString = try! NSRegularExpression(pattern: #""([^"\n]{2,40})""#)
+        // Spoken sentences are skipped: they are not terms, and a quote
+        // inside one would split it into fragments.
+        let drawingLines = recentAnswerPrograms.reversed().flatMap { $0.split(separator: "\n") }
+            .map(String.init).filter { !$0.contains("say(") }
+        for line in drawingLines {
+            let range = NSRange(line.startIndex..., in: line)
+            for match in quotedString.matches(in: line, range: range) {
+                guard let textRange = Range(match.range(at: 1), in: line) else { continue }
+                let text = String(line[textRange])
+                // Colours, pixel sizes and style names are not words.
+                guard text.contains(where: \.isLetter), !text.hasPrefix("#"), text != text.lowercased() || text.contains(" ") else { continue }
+                if let hint = cleaned(text) { answerHints.append(hint) }
+            }
+        }
+
+        let conceptHints = recentlyLearnedConceptNames.compactMap(cleaned)
+
+        var hints: [String] = []
+        func take(_ source: [String], upTo limit: Int) {
+            var taken = 0
+            for hint in source where taken < limit {
+                if seen.insert(hint.lowercased()).inserted {
+                    hints.append(hint)
+                    taken += 1
+                }
+            }
+        }
+        take(screenHints, upTo: 30)
+        take(answerHints, upTo: 15)
+        take(conceptHints, upTo: 15)
+        // Whatever share a source did not use goes to the screen.
+        take(screenHints, upTo: 100)
         return Array(hints.prefix(100))
     }
 
     private func beginTalking() {
             guard !buddyDictationManager.isDictationInProgress else { return }
-            buddyDictationManager.updateContextualKeyterms(Self.speechHints(from: Array(screenIndex.lastListedLabels.values)))
+            buddyDictationManager.updateContextualKeyterms(Self.speechHints(
+                screenLabels: Array(screenIndex.lastListedLabels.values),
+                recentAnswerPrograms: conversationHistory.suffix(3).map(\.assistantResponse),
+                recentlyLearnedConceptNames: learningMemory.recentlyExplainedConceptNames(limit: 15)))
             stopGuide(reason: "the student is talking")
             // First, so it lands the instant the keys go down: the student
             // hears that the mic is live without looking for the red dot.
@@ -1739,13 +1828,7 @@ final class CompanionManager: ObservableObject {
                     // The whole program, not only what was said: the next
                     // answer has to know what it drew to build on it or to
                     // explain it differently.
-                    conversationHistory.append((
-                        userTranscript: transcript,
-                        assistantResponse: fullResponseText
-                    ))
-                    if conversationHistory.count > 10 {
-                        conversationHistory.removeFirst(conversationHistory.count - 10)
-                    }
+                    rememberExchange(question: transcript, answer: fullResponseText)
                     print("🧠 Answered in \(String(format: "%.1f", duration))s as a drawing program")
                 } else {
 
@@ -1787,15 +1870,9 @@ final class CompanionManager: ObservableObject {
                         )
                     }
                 }
-                conversationHistory.append((
-                    userTranscript: transcript,
-                    assistantResponse: spokenOnlyText
-                ))
+                rememberExchange(question: transcript, answer: spokenOnlyText)
                 fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
                                    questionKind: questionKind)
-                if conversationHistory.count > 10 {
-                    conversationHistory.removeFirst(conversationHistory.count - 10)
-                }
 
                 print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversationHistory.count) exchanges")
                 }
@@ -2169,8 +2246,7 @@ final class CompanionManager: ObservableObject {
         voiceState = .responding
         lessonPlayer.feed(accumulatedText: program)
         await lessonPlayer.finish(fullText: program)
-        conversationHistory.append((userTranscript: question, assistantResponse: program))
-        if conversationHistory.count > 10 { conversationHistory.removeFirst(conversationHistory.count - 10) }
+        rememberExchange(question: question, answer: program)
 
         let isLastStep = stepIndex + 1 >= howTo.steps.count || step.instruction == nil
         if isLastStep {

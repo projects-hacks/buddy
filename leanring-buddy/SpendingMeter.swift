@@ -137,17 +137,37 @@ final class SpendingMeter: ObservableObject {
     }
 
     /// Written a moment after the last change, so a streaming answer's
-    /// several reports become one write.
+    /// several reports become one write. Writes go through one serial queue,
+    /// so an older snapshot can never land after a newer one, and each is
+    /// atomic (a temporary file renamed over the old), so a crash mid-write
+    /// leaves the previous day totals intact rather than half a file.
     private func scheduleSave() {
         saveTask?.cancel()
+        saveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled, let self else { return }
+            let snapshot = self.days
+            let file = self.file
+            Self.writeQueue.async { Self.write(snapshot, to: file) }
+        }
+    }
+
+    /// At quit: the change still waiting out its moment is written before
+    /// the app exits, so the last answer of the day is never lost.
+    func saveNow() {
+        saveTask?.cancel()
+        saveTask = nil
         let snapshot = days
         let file = self.file
-        saveTask = Task.detached(priority: .utility) {
-            try? await Task.sleep(nanoseconds: 800_000_000)
-            guard !Task.isCancelled, let data = try? JSONEncoder().encode(snapshot) else { return }
-            try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? data.write(to: file, options: .atomic)
-        }
+        Self.writeQueue.sync { Self.write(snapshot, to: file) }
+    }
+
+    private static let writeQueue = DispatchQueue(label: "buddy.spending-save", qos: .utility)
+
+    private nonisolated static func write(_ snapshot: [Day], to file: URL) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: file, options: .atomic)
     }
 
     private static func dayName(_ moment: Date) -> String {
