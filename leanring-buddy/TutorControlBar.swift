@@ -95,6 +95,9 @@ final class TutorControlBarModel: ObservableObject {
     /// last lesson.
     @Published var canReplayLastAnswer = false
     var onReplayLastAnswer: () -> Void = {}
+    /// Opens the map of what the student knows in its own window
+    /// (KnowledgeMapWindow.swift).
+    var onOpenKnowledgeMap: () -> Void = {}
     @Published private(set) var transcript: [TranscriptEntry] = []
     @Published var isExpanded = false
     @Published var selectedTab: NotchTab = .lesson
@@ -960,6 +963,12 @@ struct TutorNotchView: View {
                 tabButton(.lesson, systemImage: "book.closed", help: "Last lesson")
                 tabButton(.transcript, systemImage: "text.bubble", help: "Chat: today's conversation")
                 Spacer()
+                // Not a tab: the map opens in its own window, which can take
+                // the keyboard for search where the notch never does.
+                NotchTabButton(systemImage: "point.3.connected.trianglepath.dotted", isSelected: false,
+                               indicatorNamespace: tabIndicator, help: "Map of what you know") {
+                    model.onOpenKnowledgeMap()
+                }
                 tabButton(.settings, systemImage: "gearshape", help: "Settings")
             }
             .padding(.horizontal, 18)

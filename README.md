@@ -104,7 +104,7 @@ Step by step, with troubleshooting: [docs/install.md](docs/install.md).
 |---|---|
 | Hold <kbd>Control</kbd> + <kbd>Option</kbd> | Ask out loud; your words show under the notch |
 | <kbd>Control</kbd> + <kbd>Option</kbd> + <kbd>T</kbd> | Type a question; <kbd>Return</kbd> sends, <kbd>Shift</kbd> + <kbd>Return</kbd> adds a line |
-| Hover the notch | The last lesson, the day's chat, Settings |
+| Hover the notch | The last lesson, the day's chat, the map of what you know, Settings |
 | Tap <kbd>Control</kbd> + <kbd>Option</kbd>, or click the glow | When the notch glows with "explain this error?", explain the error that just appeared |
 | <kbd>Esc</kbd> | Clear the drawing, or stop a walkthrough |
 
@@ -144,6 +144,7 @@ The model answers with a short drawing program, and the first sentence is spoken
 | **Sent** | The screenshot and question, to the model that answers, with the lecture's last minute when there is one |
 | **Kept** | Transcripts, memory and how-tos in `~/Library/Application Support/Buddy`; keys in the Keychain |
 | **Notebook** | Each finished lesson as a page in `~/Library/Application Support/Buddy/Notebook`: the question, what was said, the cards drawn, and a small JPEG of only the part of the screen that was marked, cut from that question's screenshot (never the whole screen). About 40 to 80 KB a page, under 2 KB for an answer without a drawing. A cancelled question keeps nothing. Never uploaded; the Notebook window shows each page's size, deletes a page, a day or everything, and can stop keeping new lessons |
+| **Map** | Drawn on the Mac from memory. The first time it opens, ideas with no links on record yet (memory from before 1.6) have only their names and one-sentence summaries sent to Claude Haiku, 20 ideas a call, once, to find how they relate; no lesson, question or screen goes with them |
 | **Analytics** | None |
 
 <details>

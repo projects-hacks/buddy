@@ -1,0 +1,5546 @@
+{
+ "version": 1,
+ "embeddingModel": null,
+ "concepts": [
+  {
+   "id": "E1026B4B-9DA6-498E-B301-A90B02B38275",
+   "name": "webhooks",
+   "aliases": [],
+   "cues": [],
+   "summary": "Webhooks, explained with a doorbell instead of checking the door.",
+   "lastAngle": "a doorbell instead of checking the door",
+   "firstExplainedAt": "2025-09-26T13:26:38Z",
+   "lastExplainedAt": "2026-08-29T16:44:38Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 350.13,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "3E237CD6-770B-4A08-B6EA-B993F49C168D",
+   "name": "sorted arrays",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sorted arrays, explained with a dictionary's alphabetical pages.",
+   "lastAngle": "a dictionary's alphabetical pages",
+   "firstExplainedAt": "2025-10-01T22:11:24Z",
+   "lastExplainedAt": "2026-08-09T00:34:08Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 779.97,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "935A6C82-0C9F-415A-ACFD-C110E55D0945",
+   "name": "dependency injection",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dependency injection, explained with handing a chef their knives.",
+   "lastAngle": "handing a chef their knives",
+   "firstExplainedAt": "2025-09-29T04:10:58Z",
+   "lastExplainedAt": "2026-08-20T07:21:57Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 477.54,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "B8130EEB-14E1-4CA4-ABB0-8367099671EC",
+   "name": "immutability",
+   "aliases": [],
+   "cues": [],
+   "summary": "Immutability, explained with writing in pen.",
+   "lastAngle": "writing in pen",
+   "firstExplainedAt": "2025-09-30T21:11:51Z",
+   "lastExplainedAt": "2026-09-21T20:30:12Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 37.67,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "663BAC62-283E-46E6-8279-9AD2DF4843D0",
+   "name": "np completeness",
+   "aliases": [],
+   "cues": [],
+   "summary": "Np completeness, explained with a puzzle checked fast but solved slowly.",
+   "lastAngle": "a puzzle checked fast but solved slowly",
+   "firstExplainedAt": "2025-10-05T03:54:04Z",
+   "lastExplainedAt": "2026-09-16T16:51:11Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 480.46,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "668FD5A8-5299-4478-BB94-3CE8975063E2",
+   "name": "context switching",
+   "aliases": [],
+   "cues": [],
+   "summary": "Context switching, explained with a juggler swapping balls.",
+   "lastAngle": "a juggler swapping balls",
+   "firstExplainedAt": "2025-10-09T07:26:37Z",
+   "lastExplainedAt": "2026-09-07T03:34:33Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 714.45,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D353752A-F8B8-4C20-B120-CC833903992E"
+    }
+   ]
+  },
+  {
+   "id": "44C147F7-AF55-4F05-9BEC-0B41A7B7976F",
+   "name": "dynamic programming",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dynamic programming, explained with a staircase climbed once.",
+   "lastAngle": "a staircase climbed once",
+   "firstExplainedAt": "2025-10-09T02:41:59Z",
+   "lastExplainedAt": "2026-10-27T14:12:20Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "7947D7DC-CFB5-4BFD-89FF-12D16D52800B",
+   "name": "floating point error",
+   "aliases": [],
+   "cues": [],
+   "summary": "Floating point error, explained with measuring with a stretchy ruler.",
+   "lastAngle": "measuring with a stretchy ruler",
+   "firstExplainedAt": "2025-10-13T12:57:31Z",
+   "lastExplainedAt": "2026-11-04T04:57:11Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 12.64,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "DFFF4B3A-0C6E-45CF-9D27-401FD3C71196",
+   "name": "use effect",
+   "aliases": [],
+   "cues": [],
+   "summary": "Use effect, explained with a chore after cleaning up.",
+   "lastAngle": "a chore after cleaning up",
+   "firstExplainedAt": "2025-10-12T05:01:30Z",
+   "lastExplainedAt": "2026-10-21T15:28:19Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 154.93,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "66BDD2E4-899D-4D5E-B95A-2F2B8FAE5A39",
+   "name": "merge sort",
+   "aliases": [],
+   "cues": [],
+   "summary": "Merge sort, explained with merging two sorted hands of cards.",
+   "lastAngle": "merging two sorted hands of cards",
+   "firstExplainedAt": "2025-10-16T10:38:53Z",
+   "lastExplainedAt": "2026-10-07T23:40:31Z",
+   "timesExplained": 6,
+   "timesLost": 1,
+   "stabilityDays": 19.81,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "B8C56B4C-B77A-4210-905D-3633A532DBE6"
+    }
+   ]
+  },
+  {
+   "id": "4AFCE6FF-B451-458E-BAB6-8B9DAF87DEEC",
+   "name": "garbage collection",
+   "aliases": [],
+   "cues": [],
+   "summary": "Garbage collection, explained with a cleaner after the party.",
+   "lastAngle": "a cleaner after the party",
+   "firstExplainedAt": "2025-10-18T12:13:08Z",
+   "lastExplainedAt": "2026-08-24T16:51:25Z",
+   "timesExplained": 2,
+   "timesLost": 1,
+   "stabilityDays": 562.46,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "3F23FAD0-4A22-4DB2-890F-B578B4B9CE4D"
+    }
+   ]
+  },
+  {
+   "id": "A06FF0B2-EE5A-4930-800B-9477F1A23D2A",
+   "name": "pub sub",
+   "aliases": [],
+   "cues": [],
+   "summary": "Pub sub, explained with a radio broadcast.",
+   "lastAngle": "a radio broadcast",
+   "firstExplainedAt": "2025-10-17T17:29:37Z",
+   "lastExplainedAt": "2026-08-07T22:04:20Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 477.07,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "66506998-4F98-4DD7-AB72-06357C8CABA0",
+   "name": "observability",
+   "aliases": [],
+   "cues": [],
+   "summary": "Observability, explained with a car's dashboard.",
+   "lastAngle": "a car's dashboard",
+   "firstExplainedAt": "2025-10-17T11:27:58Z",
+   "lastExplainedAt": "2026-09-04T18:16:31Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 380.88,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "C17E8653-B2D8-407C-92E6-30AC6A848A46",
+   "name": "debouncing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Debouncing, explained with the search box firing on every key.",
+   "lastAngle": "the search box firing on every key",
+   "firstExplainedAt": "2025-10-23T15:55:50Z",
+   "lastExplainedAt": "2026-10-05T18:38:34Z",
+   "timesExplained": 2,
+   "timesLost": 1,
+   "stabilityDays": 175.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "739FFA1B-54B7-450B-8B0C-9FD6145BF25C",
+   "name": "vector clocks",
+   "aliases": [],
+   "cues": [],
+   "summary": "Vector clocks, explained with everyone's own diary dates.",
+   "lastAngle": "everyone's own diary dates",
+   "firstExplainedAt": "2025-10-21T08:08:47Z",
+   "lastExplainedAt": "2026-11-02T16:10:56Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 3.44,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "1F81199A-80C3-4060-BAE6-6E38D3735A5C",
+   "name": "udp",
+   "aliases": [],
+   "cues": [],
+   "summary": "Udp, explained with postcards without tracking.",
+   "lastAngle": "postcards without tracking",
+   "firstExplainedAt": "2025-10-23T22:53:12Z",
+   "lastExplainedAt": "2026-09-18T06:23:40Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 544.42,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "2E3320F2-1270-4E20-ACF5-C259AAE89E8E",
+   "name": "composite index",
+   "aliases": [],
+   "cues": [],
+   "summary": "Composite index, explained with sorting by surname then first name.",
+   "lastAngle": "sorting by surname then first name",
+   "firstExplainedAt": "2025-10-28T19:14:50Z",
+   "lastExplainedAt": "2026-10-02T02:49:13Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 3.25,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "D8766AB6-7E19-4E62-AB44-BB9A0435904F"
+    }
+   ]
+  },
+  {
+   "id": "1EACE79B-496F-4D12-90CB-7D21EC856196",
+   "name": "virtual nodes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Virtual nodes, explained with each server on the ring many times.",
+   "lastAngle": "each server on the ring many times",
+   "firstExplainedAt": "2025-10-29T13:17:34Z",
+   "lastExplainedAt": "2026-08-12T15:55:16Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 507.29,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "C24DE941-4889-49AF-8D3F-608D70721CEE",
+   "name": "crdts",
+   "aliases": [],
+   "cues": [],
+   "summary": "Crdts, explained with a shopping list two phones edit.",
+   "lastAngle": "a shopping list two phones edit",
+   "firstExplainedAt": "2025-10-31T00:08:38Z",
+   "lastExplainedAt": "2026-10-16T03:22:57Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 85.98,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "CBA6B179-B555-43E4-BA0D-B87430F004B7",
+   "name": "cache invalidation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cache invalidation, explained with a stale menu board.",
+   "lastAngle": "a stale menu board",
+   "firstExplainedAt": "2025-11-01T21:24:59Z",
+   "lastExplainedAt": "2026-10-12T04:00:09Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 148.97,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "09176EB8-E7EE-4BFA-B1D2-DF9EE28BF524",
+   "name": "css grid",
+   "aliases": [],
+   "cues": [],
+   "summary": "Css grid, explained with a spreadsheet of boxes.",
+   "lastAngle": "a spreadsheet of boxes",
+   "firstExplainedAt": "2025-11-04T13:26:38Z",
+   "lastExplainedAt": "2026-08-23T07:33:08Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 639.36,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "191B078B-3FEC-4757-B87C-F0D90AC69D3D"
+    }
+   ]
+  },
+  {
+   "id": "03382CAD-18B2-4EF4-8046-D1CCBB06C925",
+   "name": "fenwick trees",
+   "aliases": [],
+   "cues": [],
+   "summary": "Fenwick trees, explained with a clever running total.",
+   "lastAngle": "a clever running total",
+   "firstExplainedAt": "2025-11-04T21:12:28Z",
+   "lastExplainedAt": "2026-08-31T22:27:49Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 726.84,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "A10C18A4-0E02-4F80-898A-6D05F5B06C5B",
+   "name": "merkle trees",
+   "aliases": [],
+   "cues": [],
+   "summary": "Merkle trees, explained with a checksum of checksums.",
+   "lastAngle": "a checksum of checksums",
+   "firstExplainedAt": "2025-11-02T17:58:53Z",
+   "lastExplainedAt": "2026-08-14T01:19:22Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 856.38,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "63C2218F-E9DC-4ACB-9B0B-1A6F0B1ED2B1",
+   "name": "big data joins",
+   "aliases": [],
+   "cues": [],
+   "summary": "Big data joins, explained with matching two guest lists.",
+   "lastAngle": "matching two guest lists",
+   "firstExplainedAt": "2025-11-07T14:53:13Z",
+   "lastExplainedAt": "2026-10-02T19:54:18Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 249.16,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9E1CFDFC-1C7F-481F-A2F9-BF2CE9281F30",
+   "name": "resharding",
+   "aliases": [],
+   "cues": [],
+   "summary": "Resharding, explained with moving house with labelled boxes.",
+   "lastAngle": "moving house with labelled boxes",
+   "firstExplainedAt": "2025-11-07T06:45:47Z",
+   "lastExplainedAt": "2026-09-29T23:03:16Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 361.67,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "AA78DD9A-463A-4AFA-B5AB-D2E9B93904B3",
+   "name": "time zones",
+   "aliases": [],
+   "cues": [],
+   "summary": "Time zones, explained with clocks on a hotel wall.",
+   "lastAngle": "clocks on a hotel wall",
+   "firstExplainedAt": "2025-11-10T16:18:01Z",
+   "lastExplainedAt": "2026-10-17T05:25:37Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 2.06,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "967A3894-832B-4FD5-BD7C-D3B48CB1AD86",
+   "name": "mocking",
+   "aliases": [],
+   "cues": [],
+   "summary": "Mocking, explained with a stunt double.",
+   "lastAngle": "a stunt double",
+   "firstExplainedAt": "2025-11-14T13:04:09Z",
+   "lastExplainedAt": "2026-09-28T01:23:48Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 215.9,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "41EB4AD3-5764-4543-B5E0-70880B211ABD"
+    }
+   ]
+  },
+  {
+   "id": "04630B0E-8B01-4689-846D-C5157B5933E3",
+   "name": "sliding window",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sliding window, explained with a train window passing a view.",
+   "lastAngle": "a train window passing a view",
+   "firstExplainedAt": "2025-11-11T20:54:03Z",
+   "lastExplainedAt": "2026-09-17T04:02:59Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 324.43,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "A39CCA1A-D752-40A8-AD0A-77ED46274669",
+   "name": "dead letter queue",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dead letter queue, explained with the post office's undeliverable shelf.",
+   "lastAngle": "the post office's undeliverable shelf",
+   "firstExplainedAt": "2025-11-17T18:38:28Z",
+   "lastExplainedAt": "2026-09-26T12:45:03Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "BA1CBB87-52F3-44AA-9C6C-89D44EC7EDF8",
+   "name": "eventual consistency",
+   "aliases": [],
+   "cues": [],
+   "summary": "Eventual consistency, explained with a rumour reaching everyone.",
+   "lastAngle": "a rumour reaching everyone",
+   "firstExplainedAt": "2025-11-16T07:50:46Z",
+   "lastExplainedAt": "2026-09-14T04:28:59Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 6.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "8DF5A475-4BAD-433F-A695-A04E8F8413C6",
+   "name": "at least once delivery",
+   "aliases": [],
+   "cues": [],
+   "summary": "At least once delivery, explained with a courier who rings twice.",
+   "lastAngle": "a courier who rings twice",
+   "firstExplainedAt": "2025-11-18T00:11:06Z",
+   "lastExplainedAt": "2026-09-30T17:28:02Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 327.97,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "AE6E9810-251F-4552-A26A-77451E31A5B2",
+   "name": "segment trees",
+   "aliases": [],
+   "cues": [],
+   "summary": "Segment trees, explained with a tournament of range sums.",
+   "lastAngle": "a tournament of range sums",
+   "firstExplainedAt": "2025-11-18T11:22:59Z",
+   "lastExplainedAt": "2026-08-20T01:03:06Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 898.68,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "63606A3C-50E2-4698-9347-0BD3D5A10EAB",
+   "name": "covering index",
+   "aliases": [],
+   "cues": [],
+   "summary": "Covering index, explained with an index card with the answer on it.",
+   "lastAngle": "an index card with the answer on it",
+   "firstExplainedAt": "2025-11-21T08:33:43Z",
+   "lastExplainedAt": "2026-08-25T20:29:57Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 676.79,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "3421017A-3F78-4F7A-A5EB-42F786D49E71",
+   "name": "probability",
+   "aliases": [],
+   "cues": [],
+   "summary": "Probability, explained with rain given clouds.",
+   "lastAngle": "rain given clouds",
+   "firstExplainedAt": "2025-11-27T11:16:47Z",
+   "lastExplainedAt": "2026-09-18T09:06:56Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 65.9,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "96EC3A69-EDDF-4380-8970-21C2AE7A2192",
+   "name": "circuit breakers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Circuit breakers, explained with a fuse box for services.",
+   "lastAngle": "a fuse box for services",
+   "firstExplainedAt": "2025-11-25T20:16:58Z",
+   "lastExplainedAt": "2026-08-13T23:05:30Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 593.42,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9F155848-EF3D-4689-8F5D-B248EF2FD007",
+   "name": "hash maps",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash maps, explained with a coat check numbering coats.",
+   "lastAngle": "a coat check numbering coats",
+   "firstExplainedAt": "2025-11-26T06:03:54Z",
+   "lastExplainedAt": "2026-09-10T13:28:02Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 305.86,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "86DCB02B-C95C-4051-B76C-0259F32B5D59",
+   "name": "vectors",
+   "aliases": [],
+   "cues": [],
+   "summary": "Vectors, explained with an arrow on a map.",
+   "lastAngle": "an arrow on a map",
+   "firstExplainedAt": "2025-11-30T02:27:03Z",
+   "lastExplainedAt": "2026-10-31T21:56:32Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 45.67,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF1E136-541B-4F92-855B-9C5FF00ECEDF"
+    }
+   ]
+  },
+  {
+   "id": "BEC71290-C58A-4630-8787-B6E2B32DE51F",
+   "name": "dns",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dns, explained with a phone book for websites.",
+   "lastAngle": "a phone book for websites",
+   "firstExplainedAt": "2025-11-29T04:04:15Z",
+   "lastExplainedAt": "2026-10-15T18:21:22Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 25.9,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9A31CF53-4F14-40AB-AA5F-164351478586",
+   "name": "lru eviction",
+   "aliases": [],
+   "cues": [],
+   "summary": "Lru eviction, explained with the fridge's oldest leftovers.",
+   "lastAngle": "the fridge's oldest leftovers",
+   "firstExplainedAt": "2025-12-05T19:47:03Z",
+   "lastExplainedAt": "2026-10-16T21:39:34Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 173.59,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "38265A8B-F2C3-4517-8F26-C41AAA513800",
+   "name": "independence",
+   "aliases": [],
+   "cues": [],
+   "summary": "Independence, explained with two coin flips.",
+   "lastAngle": "two coin flips",
+   "firstExplainedAt": "2025-12-04T09:22:55Z",
+   "lastExplainedAt": "2026-10-29T17:43:00Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 63.52,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3421017A-3F78-4F7A-A5EB-42F786D49E71"
+    }
+   ]
+  },
+  {
+   "id": "A658E3AA-BBAA-4027-8A66-45E797E83816",
+   "name": "prefix search",
+   "aliases": [],
+   "cues": [],
+   "summary": "Prefix search, explained with typing the start of a contact's name.",
+   "lastAngle": "typing the start of a contact's name",
+   "firstExplainedAt": "2025-12-05T10:48:29Z",
+   "lastExplainedAt": "2026-08-23T02:18:11Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 17.31,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "D048CA20-C069-46FE-9619-5DBDD5F4EA1F"
+    }
+   ]
+  },
+  {
+   "id": "AB08F88C-4230-494C-9B61-000C99331927",
+   "name": "observer pattern",
+   "aliases": [],
+   "cues": [],
+   "summary": "Observer pattern, explained with a newsletter subscription.",
+   "lastAngle": "a newsletter subscription",
+   "firstExplainedAt": "2025-12-05T15:43:21Z",
+   "lastExplainedAt": "2026-10-29T21:48:52Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 74.13,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "33F58049-D763-4A47-96FC-B7FF84E1BC19",
+   "name": "chaining",
+   "aliases": [],
+   "cues": [],
+   "summary": "Chaining, explained with a hook with several coats.",
+   "lastAngle": "a hook with several coats",
+   "firstExplainedAt": "2025-12-07T14:31:52Z",
+   "lastExplainedAt": "2026-09-10T08:32:31Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 54.65,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "742F7827-15C1-40DA-84C2-1F2679247BFD",
+   "name": "shard keys",
+   "aliases": [],
+   "cues": [],
+   "summary": "Shard keys, explained with filing cabinets by surname.",
+   "lastAngle": "filing cabinets by surname",
+   "firstExplainedAt": "2025-12-14T17:29:29Z",
+   "lastExplainedAt": "2026-10-29T22:33:00Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 45.13,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF2315B-53F4-474B-A96F-9981816E241D"
+    }
+   ]
+  },
+  {
+   "id": "1ACF5B1F-432C-4666-9FD6-8410EAF1691F",
+   "name": "blue green deploys",
+   "aliases": [],
+   "cues": [],
+   "summary": "Blue green deploys, explained with two stages, one lit.",
+   "lastAngle": "two stages, one lit",
+   "firstExplainedAt": "2025-12-12T08:56:34Z",
+   "lastExplainedAt": "2026-09-24T14:59:07Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 361.71,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "972C0177-A6EC-4B40-8C8A-CF837C3140F0",
+   "name": "hash functions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash functions, explained with a coat check numbering coats.",
+   "lastAngle": "a coat check numbering coats",
+   "firstExplainedAt": "2025-12-17T12:08:16Z",
+   "lastExplainedAt": "2026-10-15T23:49:41Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 1.62,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "FE601CAD-7068-4021-BADD-76879012FDCE",
+   "name": "expected value",
+   "aliases": [],
+   "cues": [],
+   "summary": "Expected value, explained with the average payout of a game.",
+   "lastAngle": "the average payout of a game",
+   "firstExplainedAt": "2025-12-17T19:09:05Z",
+   "lastExplainedAt": "2026-09-06T12:43:58Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 82.33,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3421017A-3F78-4F7A-A5EB-42F786D49E71"
+    }
+   ]
+  },
+  {
+   "id": "8ED16DF3-BF6B-43DC-A474-99C45B7EE94C",
+   "name": "public key cryptography",
+   "aliases": [],
+   "cues": [],
+   "summary": "Public key cryptography, explained with a padlock anyone can close.",
+   "lastAngle": "a padlock anyone can close",
+   "firstExplainedAt": "2025-12-20T09:55:32Z",
+   "lastExplainedAt": "2026-09-11T21:12:34Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 30.48,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "AC085AED-75D8-4B34-BC03-EC90C6647F27",
+   "name": "health checks",
+   "aliases": [],
+   "cues": [],
+   "summary": "Health checks, explained with a nurse's ward round.",
+   "lastAngle": "a nurse's ward round",
+   "firstExplainedAt": "2025-12-22T20:41:48Z",
+   "lastExplainedAt": "2026-09-21T17:39:05Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 36.71,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "260D5DD0-B229-4288-B985-05A1939638EA",
+   "name": "modulo hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Modulo hashing, explained with key mod server count.",
+   "lastAngle": "key mod server count",
+   "firstExplainedAt": "2025-12-22T11:07:48Z",
+   "lastExplainedAt": "2026-08-10T08:43:41Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 116.02,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "41F98F6A-9094-4983-BE6F-BFE105BD9B85",
+   "name": "backpropagation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Backpropagation, explained with blame passed back down a chain.",
+   "lastAngle": "blame passed back down a chain",
+   "firstExplainedAt": "2025-12-22T03:50:15Z",
+   "lastExplainedAt": "2026-10-09T10:53:21Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 193.58,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "695E8E80-3C64-4D5B-B127-179B00FD82D0"
+    }
+   ]
+  },
+  {
+   "id": "4033B309-717E-4C9F-9099-44D5130287E9",
+   "name": "memo table",
+   "aliases": [],
+   "cues": [],
+   "summary": "Memo table, explained with a notebook of solved steps.",
+   "lastAngle": "a notebook of solved steps",
+   "firstExplainedAt": "2025-12-25T22:24:24Z",
+   "lastExplainedAt": "2026-10-16T15:23:00Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 104.35,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "44C147F7-AF55-4F05-9BEC-0B41A7B7976F"
+    }
+   ]
+  },
+  {
+   "id": "5A417847-8FDF-4798-8C55-6A5BCA20A944",
+   "name": "async await",
+   "aliases": [],
+   "cues": [],
+   "summary": "Async await, explained with pausing a recipe while the oven heats.",
+   "lastAngle": "pausing a recipe while the oven heats",
+   "firstExplainedAt": "2025-12-26T16:20:04Z",
+   "lastExplainedAt": "2026-09-13T20:13:51Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 280.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "A289EC3C-F14F-49F7-9656-6FE7849C03D4"
+    }
+   ]
+  },
+  {
+   "id": "9E42E5B8-6114-4F76-AD0F-90E9E2A63756",
+   "name": "testing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Testing, explained with checking each brick.",
+   "lastAngle": "checking each brick",
+   "firstExplainedAt": "2025-12-29T07:59:21Z",
+   "lastExplainedAt": "2026-10-19T20:58:57Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 175.06,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "C7CC1F63-C743-49C8-839C-8B60BF4D1182",
+   "name": "hash ring",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash ring, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2025-12-29T22:50:53Z",
+   "lastExplainedAt": "2026-10-25T02:20:11Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 64.75,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "C2DCA91F-AF05-45CD-819B-AF4B0E82B620",
+   "name": "dot product",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dot product, explained with how much two arrows agree.",
+   "lastAngle": "how much two arrows agree",
+   "firstExplainedAt": "2026-01-03T09:31:32Z",
+   "lastExplainedAt": "2026-10-31T03:51:48Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "86DCB02B-C95C-4051-B76C-0259F32B5D59"
+    }
+   ]
+  },
+  {
+   "id": "FC20274E-2E99-4634-8BD2-5302D9DB106A",
+   "name": "sql injection",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sql injection, explained with a form that rewrites the question.",
+   "lastAngle": "a form that rewrites the question",
+   "firstExplainedAt": "2026-01-02T07:06:20Z",
+   "lastExplainedAt": "2026-09-07T05:34:58Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 4.86,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "2D5CC0C2-F51D-4077-8E3E-9A09E0073434",
+   "name": "binary heap",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary heap, explained with a tournament bracket.",
+   "lastAngle": "a tournament bracket",
+   "firstExplainedAt": "2026-01-06T22:21:47Z",
+   "lastExplainedAt": "2026-10-22T17:14:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 101.48,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92"
+    }
+   ]
+  },
+  {
+   "id": "1139EDC7-86F2-496C-8A63-DDE6B728D851",
+   "name": "unicode",
+   "aliases": [],
+   "cues": [],
+   "summary": "Unicode, explained with a world atlas of letters.",
+   "lastAngle": "a world atlas of letters",
+   "firstExplainedAt": "2026-01-08T21:25:06Z",
+   "lastExplainedAt": "2026-08-17T04:06:25Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 576.91,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "7B865675-1416-4E5B-A2DF-6276293EC8F9",
+   "name": "pagination",
+   "aliases": [],
+   "cues": [],
+   "summary": "Pagination, explained with chapters in a long book.",
+   "lastAngle": "chapters in a long book",
+   "firstExplainedAt": "2026-01-10T16:37:05Z",
+   "lastExplainedAt": "2026-09-25T03:10:21Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 5.33,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92",
+   "name": "sorting",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sorting, explained with picking a pivot player.",
+   "lastAngle": "picking a pivot player",
+   "firstExplainedAt": "2026-01-11T20:49:16Z",
+   "lastExplainedAt": "2026-08-18T00:40:56Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 18.94,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "F6F747F5-312D-4626-AD24-3FE94AA5674B",
+   "name": "big endian",
+   "aliases": [],
+   "cues": [],
+   "summary": "Big endian, explained with writing the date year first.",
+   "lastAngle": "writing the date year first",
+   "firstExplainedAt": "2026-01-11T17:21:27Z",
+   "lastExplainedAt": "2026-10-20T06:46:32Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 2.57,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "3B4D2605-ABDC-4B97-B239-E4C4F9D49F30",
+   "name": "monads",
+   "aliases": [],
+   "cues": [],
+   "summary": "Monads, explained with a lunchbox with rules.",
+   "lastAngle": "a lunchbox with rules",
+   "firstExplainedAt": "2026-01-12T17:21:34Z",
+   "lastExplainedAt": "2026-10-30T07:24:12Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.1,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "34D1778A-67B7-4E5B-8A47-DC5D9D344670",
+   "name": "p values",
+   "aliases": [],
+   "cues": [],
+   "summary": "P values, explained with how surprised to be.",
+   "lastAngle": "how surprised to be",
+   "firstExplainedAt": "2026-01-13T00:24:19Z",
+   "lastExplainedAt": "2026-09-10T04:00:41Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 62.0,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "ADC805EF-FEC3-4AC1-9907-FB0C30F71C73",
+   "name": "cache stampede",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cache stampede, explained with everyone refreshing at midnight.",
+   "lastAngle": "everyone refreshing at midnight",
+   "firstExplainedAt": "2026-01-17T05:23:33Z",
+   "lastExplainedAt": "2026-08-26T19:02:50Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 98.72,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "D62438BE-F13F-40B8-BAEE-EB8A2A04C349",
+   "name": "rebase",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rebase, explained with rewriting a diary neatly.",
+   "lastAngle": "rewriting a diary neatly",
+   "firstExplainedAt": "2026-01-19T08:46:46Z",
+   "lastExplainedAt": "2026-10-14T03:41:58Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 13.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "67499EEA-6DE0-44C1-96DA-6E9340B4DBC3"
+    }
+   ]
+  },
+  {
+   "id": "D109BD3E-A8E6-498E-8B97-D1A740D64898",
+   "name": "compilers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Compilers, explained with cutting a sentence into words.",
+   "lastAngle": "cutting a sentence into words",
+   "firstExplainedAt": "2026-01-20T05:08:00Z",
+   "lastExplainedAt": "2026-09-14T06:26:13Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 54.68,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8AF1E136-541B-4F92-855B-9C5FF00ECEDF",
+   "name": "linear algebra",
+   "aliases": [],
+   "cues": [],
+   "summary": "Linear algebra, explained with an arrow on a map.",
+   "lastAngle": "an arrow on a map",
+   "firstExplainedAt": "2026-01-20T02:48:41Z",
+   "lastExplainedAt": "2026-08-23T19:54:05Z",
+   "timesExplained": 2,
+   "timesLost": 1,
+   "stabilityDays": 38.86,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "1FBDCDC3-ACC2-4834-AE3F-BFCFB2F482B0",
+   "name": "websockets",
+   "aliases": [],
+   "cues": [],
+   "summary": "Websockets, explained with a phone call instead of letters.",
+   "lastAngle": "a phone call instead of letters",
+   "firstExplainedAt": "2026-01-24T20:18:02Z",
+   "lastExplainedAt": "2026-11-03T22:18:28Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 2.02,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "67BA443D-9724-4622-9795-B38FC47762F0",
+   "name": "isolation levels",
+   "aliases": [],
+   "cues": [],
+   "summary": "Isolation levels, explained with how much of a draft others see.",
+   "lastAngle": "how much of a draft others see",
+   "firstExplainedAt": "2026-01-25T19:36:11Z",
+   "lastExplainedAt": "2026-09-23T13:43:55Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 4.2,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "F203D105-569E-41F5-9CFC-1C7D851052C3",
+   "name": "utf 8 encoding",
+   "aliases": [],
+   "cues": [],
+   "summary": "Utf 8 encoding, explained with variable sized parcels.",
+   "lastAngle": "variable sized parcels",
+   "firstExplainedAt": "2026-01-25T08:19:44Z",
+   "lastExplainedAt": "2026-10-07T07:27:02Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 16.74,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "90772F38-53FA-4705-A92D-302C6263EFC2",
+   "name": "singleton pattern",
+   "aliases": [],
+   "cues": [],
+   "summary": "Singleton pattern, explained with the one office printer.",
+   "lastAngle": "the one office printer",
+   "firstExplainedAt": "2026-01-31T08:30:33Z",
+   "lastExplainedAt": "2026-08-23T01:50:48Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 672.82,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "F6FBC592-7851-44AB-859B-27CE1DB8DC7E",
+   "name": "token bucket",
+   "aliases": [],
+   "cues": [],
+   "summary": "Token bucket, explained with a jar refilled with coins.",
+   "lastAngle": "a jar refilled with coins",
+   "firstExplainedAt": "2026-01-28T19:03:55Z",
+   "lastExplainedAt": "2026-09-07T10:03:07Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 260.7,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9"
+    }
+   ]
+  },
+  {
+   "id": "4F296D67-1F0C-4555-9569-ABC32D5BF244",
+   "name": "greedy algorithms",
+   "aliases": [],
+   "cues": [],
+   "summary": "Greedy algorithms, explained with taking the biggest coin first.",
+   "lastAngle": "taking the biggest coin first",
+   "firstExplainedAt": "2026-01-30T13:56:06Z",
+   "lastExplainedAt": "2026-10-17T18:39:09Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 3.14,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "30E9453E-C73B-4A58-9AD7-B69AED589D16",
+   "name": "radix tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "Radix tree, explained with a trie with shortcuts.",
+   "lastAngle": "a trie with shortcuts",
+   "firstExplainedAt": "2026-01-31T19:27:28Z",
+   "lastExplainedAt": "2026-10-29T19:20:38Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 6.93,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "D048CA20-C069-46FE-9619-5DBDD5F4EA1F"
+    }
+   ]
+  },
+  {
+   "id": "3C18E12D-EB33-4B52-8A45-330A629CE674",
+   "name": "collisions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Collisions, explained with two coats on one hook.",
+   "lastAngle": "two coats on one hook",
+   "firstExplainedAt": "2026-02-08T03:50:31Z",
+   "lastExplainedAt": "2026-11-04T12:19:20Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 9.3,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "51A84517-9593-4DD5-99CD-FD47AE8F99BB",
+   "name": "acid",
+   "aliases": [],
+   "cues": [],
+   "summary": "Acid, explained with a bank transfer.",
+   "lastAngle": "a bank transfer",
+   "firstExplainedAt": "2026-02-08T23:38:52Z",
+   "lastExplainedAt": "2026-10-04T20:43:21Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 290.14,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "CA120FD1-190B-4AB0-B649-DA219FABB448",
+   "name": "read replicas",
+   "aliases": [],
+   "cues": [],
+   "summary": "Read replicas, explained with photocopies in each classroom.",
+   "lastAngle": "photocopies in each classroom",
+   "firstExplainedAt": "2026-02-09T21:29:07Z",
+   "lastExplainedAt": "2026-09-23T18:25:07Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 315.35,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "DA656EDA-7DCA-4B02-92AD-4616847C7611",
+   "name": "cookies",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cookies, explained with a coat check ticket.",
+   "lastAngle": "a coat check ticket",
+   "firstExplainedAt": "2026-02-08T16:56:58Z",
+   "lastExplainedAt": "2026-09-17T19:09:43Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 58.23,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "015B2B9D-A46A-44DA-A337-4DAEC4971930",
+   "name": "transactions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Transactions, explained with a bank transfer.",
+   "lastAngle": "a bank transfer",
+   "firstExplainedAt": "2026-02-13T14:02:38Z",
+   "lastExplainedAt": "2026-11-01T05:10:47Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 41.4,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "33178A0A-1789-4824-9331-4DD2C4D3443C",
+   "name": "cqrs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cqrs, explained with a separate counter for orders and pickups.",
+   "lastAngle": "a separate counter for orders and pickups",
+   "firstExplainedAt": "2026-02-13T07:19:50Z",
+   "lastExplainedAt": "2026-09-06T07:22:08Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 587.64,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "4898502B-3B08-4220-A0F4-42051313F9D3",
+   "name": "closures",
+   "aliases": [],
+   "cues": [],
+   "summary": "Closures, explained with a backpack a function carries.",
+   "lastAngle": "a backpack a function carries",
+   "firstExplainedAt": "2026-02-18T09:13:30Z",
+   "lastExplainedAt": "2026-09-28T06:01:01Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 33.43,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8AF2315B-53F4-474B-A96F-9981816E241D",
+   "name": "sharding",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sharding, explained with filing cabinets by surname.",
+   "lastAngle": "filing cabinets by surname",
+   "firstExplainedAt": "2026-02-15T10:37:55Z",
+   "lastExplainedAt": "2026-08-14T03:07:34Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 745.47,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "4E1E8934-5D17-452E-9AD5-F8CE37D50396",
+   "name": "authentication",
+   "aliases": [],
+   "cues": [],
+   "summary": "Authentication, explained with a fingerprint, not a photo.",
+   "lastAngle": "a fingerprint, not a photo",
+   "firstExplainedAt": "2026-02-20T15:42:03Z",
+   "lastExplainedAt": "2026-10-28T08:39:10Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 4.31,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "48A5128C-73BC-46F9-9A3E-D2099A263A7A",
+   "name": "jwt",
+   "aliases": [],
+   "cues": [],
+   "summary": "Jwt, explained with a wristband at a festival.",
+   "lastAngle": "a wristband at a festival",
+   "firstExplainedAt": "2026-02-20T22:37:40Z",
+   "lastExplainedAt": "2026-11-01T01:52:14Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 44.47,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "4E1E8934-5D17-452E-9AD5-F8CE37D50396"
+    }
+   ]
+  },
+  {
+   "id": "5F2C160E-BDB2-4002-A751-DA6C5B3FD4D4",
+   "name": "heap sort",
+   "aliases": [],
+   "cues": [],
+   "summary": "Heap sort, explained with always taking the tallest.",
+   "lastAngle": "always taking the tallest",
+   "firstExplainedAt": "2026-02-20T11:22:04Z",
+   "lastExplainedAt": "2026-11-01T16:26:14Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 4.8,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "2D5CC0C2-F51D-4077-8E3E-9A09E0073434"
+    }
+   ]
+  },
+  {
+   "id": "0E99E9B8-0FFA-4353-A0C3-3C4DC8DEB312",
+   "name": "geohashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Geohashing, explained with postcodes for the planet.",
+   "lastAngle": "postcodes for the planet",
+   "firstExplainedAt": "2026-02-25T06:21:35Z",
+   "lastExplainedAt": "2026-10-22T02:07:13Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 120.36,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "AFABFD9E-505C-48E7-A428-5D5790F9F2E8",
+   "name": "overfitting",
+   "aliases": [],
+   "cues": [],
+   "summary": "Overfitting, explained with memorising the answers to last year's exam.",
+   "lastAngle": "memorising the answers to last year's exam",
+   "firstExplainedAt": "2026-02-25T12:56:21Z",
+   "lastExplainedAt": "2026-10-06T02:58:01Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 35.1,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB"
+    }
+   ]
+  },
+  {
+   "id": "D8766AB6-7E19-4E62-AB44-BB9A0435904F",
+   "name": "b tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "B tree, explained with a library's card catalogue.",
+   "lastAngle": "a library's card catalogue",
+   "firstExplainedAt": "2026-02-26T20:05:06Z",
+   "lastExplainedAt": "2026-08-26T18:56:42Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 6.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "F7B9DACD-F29D-45F2-84A8-B6D361A37246",
+   "name": "load balancing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Load balancing, explained with dealing cards around a table.",
+   "lastAngle": "dealing cards around a table",
+   "firstExplainedAt": "2026-02-28T03:18:44Z",
+   "lastExplainedAt": "2026-09-07T02:45:51Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 443.55,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "431A289A-0757-411B-970A-D57C21EFBE57",
+   "name": "lambda calculus",
+   "aliases": [],
+   "cues": [],
+   "summary": "Lambda calculus, explained with maths of only functions.",
+   "lastAngle": "maths of only functions",
+   "firstExplainedAt": "2026-03-05T08:35:28Z",
+   "lastExplainedAt": "2026-10-30T01:18:33Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 31.68,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "30BC023B-9C58-4558-A0B7-E280D71B722D",
+   "name": "virtual memory",
+   "aliases": [],
+   "cues": [],
+   "summary": "Virtual memory, explained with a hotel's room numbers.",
+   "lastAngle": "a hotel's room numbers",
+   "firstExplainedAt": "2026-03-04T11:52:53Z",
+   "lastExplainedAt": "2026-08-30T18:29:22Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 83.77,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D353752A-F8B8-4C20-B120-CC833903992E"
+    }
+   ]
+  },
+  {
+   "id": "CF736ADB-49C0-4CF5-974B-418BBC872B76",
+   "name": "bayes theorem",
+   "aliases": [],
+   "cues": [],
+   "summary": "Bayes theorem, explained with a doctor reading a test result.",
+   "lastAngle": "a doctor reading a test result",
+   "firstExplainedAt": "2026-03-06T20:17:49Z",
+   "lastExplainedAt": "2026-09-25T21:12:59Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 2.51,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "4612EA0D-5F10-452E-8EED-FBE32DEF3FF5"
+    }
+   ]
+  },
+  {
+   "id": "3C3832AB-34F8-40F6-9C4C-57606928F314",
+   "name": "halting problem",
+   "aliases": [],
+   "cues": [],
+   "summary": "Halting problem, explained with a program predicting itself.",
+   "lastAngle": "a program predicting itself",
+   "firstExplainedAt": "2026-03-11T12:16:23Z",
+   "lastExplainedAt": "2026-09-15T03:11:49Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 482.91,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A",
+   "name": "graph traversal",
+   "aliases": [],
+   "cues": [],
+   "summary": "Graph traversal, explained with ripples in a pond.",
+   "lastAngle": "ripples in a pond",
+   "firstExplainedAt": "2026-03-12T22:53:03Z",
+   "lastExplainedAt": "2026-08-12T08:13:33Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 101.2,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "056FEE04-D99E-41EF-91C8-2487BF8FD268",
+   "name": "database indexes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Database indexes, explained with a library's card catalogue.",
+   "lastAngle": "a library's card catalogue",
+   "firstExplainedAt": "2026-03-14T15:58:51Z",
+   "lastExplainedAt": "2026-10-29T03:16:28Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 8.45,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "74836A47-0E5F-4A52-85D1-4B8DF860DC43",
+   "name": "stable sorting",
+   "aliases": [],
+   "cues": [],
+   "summary": "Stable sorting, explained with keeping a queue's order for ties.",
+   "lastAngle": "keeping a queue's order for ties",
+   "firstExplainedAt": "2026-03-14T20:15:40Z",
+   "lastExplainedAt": "2026-08-12T00:30:47Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 17.1,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92"
+    }
+   ]
+  },
+  {
+   "id": "C1079990-3CC3-47A7-8BF7-741FEC630781",
+   "name": "open addressing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Open addressing, explained with taking the next free parking spot.",
+   "lastAngle": "taking the next free parking spot",
+   "firstExplainedAt": "2026-03-16T00:22:24Z",
+   "lastExplainedAt": "2026-09-28T23:05:09Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 39.77,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "33F58049-D763-4A47-96FC-B7FF84E1BC19"
+    }
+   ]
+  },
+  {
+   "id": "65363F85-998F-418A-9549-784CA18549BB",
+   "name": "cycle detection",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cycle detection, explained with a loop in a family tree.",
+   "lastAngle": "a loop in a family tree",
+   "firstExplainedAt": "2026-03-17T22:31:11Z",
+   "lastExplainedAt": "2026-10-22T00:38:25Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 100.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "0B6E431C-9456-43F7-8F6C-CEB32B58D347"
+    }
+   ]
+  },
+  {
+   "id": "62592736-B3D8-446B-811E-E081934A1D68",
+   "name": "monotonic stack",
+   "aliases": [],
+   "cues": [],
+   "summary": "Monotonic stack, explained with people in a queue looking over heads.",
+   "lastAngle": "people in a queue looking over heads",
+   "firstExplainedAt": "2026-03-20T18:06:54Z",
+   "lastExplainedAt": "2026-08-12T13:34:52Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 489.34,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "890D54C5-4B89-4B0C-AE49-ECC3D25130AF",
+   "name": "optimistic locking",
+   "aliases": [],
+   "cues": [],
+   "summary": "Optimistic locking, explained with editing a wiki page.",
+   "lastAngle": "editing a wiki page",
+   "firstExplainedAt": "2026-03-22T10:56:56Z",
+   "lastExplainedAt": "2026-09-06T09:27:43Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 619.08,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "E2A3DF70-2C5F-4DA3-B9E9-403DD8E76969"
+    }
+   ]
+  },
+  {
+   "id": "BE2111C0-A410-45A7-808A-8B583679F2FD",
+   "name": "css layout",
+   "aliases": [],
+   "cues": [],
+   "summary": "Css layout, explained with books on a shelf.",
+   "lastAngle": "books on a shelf",
+   "firstExplainedAt": "2026-03-23T05:33:35Z",
+   "lastExplainedAt": "2026-09-22T09:34:38Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 302.32,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "F0998F58-A447-4192-A5AF-FF22AA06ABBA",
+   "name": "cors",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cors, explained with a guest list at the door.",
+   "lastAngle": "a guest list at the door",
+   "firstExplainedAt": "2026-03-24T04:32:43Z",
+   "lastExplainedAt": "2026-09-18T02:33:23Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 27.36,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "8C22952F-9B1D-446D-BD77-EAE75E7BD4C0",
+   "name": "futures",
+   "aliases": [],
+   "cues": [],
+   "summary": "Futures, explained with a receipt for a coat being repaired.",
+   "lastAngle": "a receipt for a coat being repaired",
+   "firstExplainedAt": "2026-03-25T10:04:50Z",
+   "lastExplainedAt": "2026-10-05T03:01:42Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 186.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4"
+    }
+   ]
+  },
+  {
+   "id": "E43157DE-1791-419C-A958-A6A47192CA4D",
+   "name": "bit manipulation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Bit manipulation, explained with light switches in a row.",
+   "lastAngle": "light switches in a row",
+   "firstExplainedAt": "2026-03-28T10:10:58Z",
+   "lastExplainedAt": "2026-10-23T08:23:54Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 11.19,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5EA23182-8150-440E-9C58-99CDC561B3D3",
+   "name": "split brain",
+   "aliases": [],
+   "cues": [],
+   "summary": "Split brain, explained with two captains on one ship.",
+   "lastAngle": "two captains on one ship",
+   "firstExplainedAt": "2026-03-27T17:13:56Z",
+   "lastExplainedAt": "2026-10-20T16:57:10Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 14.71,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530",
+   "name": "recursion",
+   "aliases": [],
+   "cues": [],
+   "summary": "Recursion, explained with the last doll in a matryoshka.",
+   "lastAngle": "the last doll in a matryoshka",
+   "firstExplainedAt": "2026-03-29T12:14:27Z",
+   "lastExplainedAt": "2026-11-03T23:37:04Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 11.03,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "A1967400-D2B5-4D12-96BC-B24E8A05743E",
+   "name": "backtracking",
+   "aliases": [],
+   "cues": [],
+   "summary": "Backtracking, explained with a maze with chalk marks.",
+   "lastAngle": "a maze with chalk marks",
+   "firstExplainedAt": "2026-03-30T03:48:36Z",
+   "lastExplainedAt": "2026-09-18T10:48:44Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 532.07,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "A3C56222-FB22-4E7D-8A6A-C883288A0420",
+   "name": "bloom filters",
+   "aliases": [],
+   "cues": [],
+   "summary": "Bloom filters, explained with a guest list that can only say maybe.",
+   "lastAngle": "a guest list that can only say maybe",
+   "firstExplainedAt": "2026-04-05T03:37:13Z",
+   "lastExplainedAt": "2026-10-31T01:19:07Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 66.28,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5F0E2274-573C-4417-9327-9A60D8AEC057",
+   "name": "quadtrees",
+   "aliases": [],
+   "cues": [],
+   "summary": "Quadtrees, explained with zooming into a map's squares.",
+   "lastAngle": "zooming into a map's squares",
+   "firstExplainedAt": "2026-04-04T07:05:25Z",
+   "lastExplainedAt": "2026-11-03T07:03:53Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 26.21,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9C68EA8D-1AFC-43A6-8A5B-57270226FA45",
+   "name": "reconciliation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Reconciliation, explained with spot the difference.",
+   "lastAngle": "spot the difference",
+   "firstExplainedAt": "2026-04-06T10:43:59Z",
+   "lastExplainedAt": "2026-08-21T08:10:16Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 535.7,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "81FCF2A2-7076-475F-8D0E-2375C3078A64"
+    }
+   ]
+  },
+  {
+   "id": "FC7763DF-1DFD-4EC0-A4BC-4091438CF32A",
+   "name": "raft consensus",
+   "aliases": [],
+   "cues": [],
+   "summary": "Raft consensus, explained with a class electing a monitor.",
+   "lastAngle": "a class electing a monitor",
+   "firstExplainedAt": "2026-04-07T18:07:42Z",
+   "lastExplainedAt": "2026-08-27T14:43:36Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 653.69,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9",
+   "name": "rate limiting",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rate limiting, explained with a jar refilled with coins.",
+   "lastAngle": "a jar refilled with coins",
+   "firstExplainedAt": "2026-04-13T00:56:22Z",
+   "lastExplainedAt": "2026-11-04T03:40:29Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 13.95,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "7611D0F9-68FB-4B21-BEEE-8A219C74BF54",
+   "name": "breadth first search",
+   "aliases": [],
+   "cues": [],
+   "summary": "Breadth first search, explained with ripples in a pond.",
+   "lastAngle": "ripples in a pond",
+   "firstExplainedAt": "2026-04-14T01:13:16Z",
+   "lastExplainedAt": "2026-08-16T12:36:57Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 502.48,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "CB4B82DD-EB57-4C9C-AAB3-7C156C09A264",
+   "name": "activation functions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Activation functions, explained with a dimmer switch.",
+   "lastAngle": "a dimmer switch",
+   "firstExplainedAt": "2026-04-15T19:05:03Z",
+   "lastExplainedAt": "2026-10-28T01:44:36Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 5.53,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB"
+    }
+   ]
+  },
+  {
+   "id": "E0C36777-220D-4B6D-86A7-537DA27D0D79",
+   "name": "topological sort",
+   "aliases": [],
+   "cues": [],
+   "summary": "Topological sort, explained with getting dressed in order.",
+   "lastAngle": "getting dressed in order",
+   "firstExplainedAt": "2026-04-15T17:03:14Z",
+   "lastExplainedAt": "2026-10-27T09:46:06Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 11.5,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "0B6E431C-9456-43F7-8F6C-CEB32B58D347"
+    }
+   ]
+  },
+  {
+   "id": "3E595457-B6E5-4E55-8176-88CC46F38676",
+   "name": "stream processing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Stream processing, explained with a conveyor belt.",
+   "lastAngle": "a conveyor belt",
+   "firstExplainedAt": "2026-04-18T03:15:49Z",
+   "lastExplainedAt": "2026-10-30T03:57:18Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "3EF40CA1-CA61-45F2-83A1-CFD86CCE83CC",
+   "name": "mutex",
+   "aliases": [],
+   "cues": [],
+   "summary": "Mutex, explained with a single bathroom key.",
+   "lastAngle": "a single bathroom key",
+   "firstExplainedAt": "2026-04-20T14:16:20Z",
+   "lastExplainedAt": "2026-10-22T01:45:24Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 1.48,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "7A4BCA42-7ED9-40CF-A1EA-5D69A9E57CD1"
+    }
+   ]
+  },
+  {
+   "id": "1BC00DAB-3323-4645-82C3-31A6E20C4260",
+   "name": "two pointers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Two pointers, explained with walking in from both ends.",
+   "lastAngle": "walking in from both ends",
+   "firstExplainedAt": "2026-04-20T21:54:57Z",
+   "lastExplainedAt": "2026-09-27T05:23:29Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 5.76,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796",
+   "name": "event loop",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event loop, explained with a stack of plates.",
+   "lastAngle": "a stack of plates",
+   "firstExplainedAt": "2026-04-24T22:46:47Z",
+   "lastExplainedAt": "2026-08-31T14:35:43Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 441.01,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165",
+   "name": "caching",
+   "aliases": [],
+   "cues": [],
+   "summary": "Caching, explained with a stale menu board.",
+   "lastAngle": "a stale menu board",
+   "firstExplainedAt": "2026-04-21T15:18:35Z",
+   "lastExplainedAt": "2026-08-30T10:18:13Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 277.63,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "73D3CEB6-2F8F-48F8-9C13-88F130409AD3",
+   "name": "skip lists",
+   "aliases": [],
+   "cues": [],
+   "summary": "Skip lists, explained with express stops on a train line.",
+   "lastAngle": "express stops on a train line",
+   "firstExplainedAt": "2026-04-24T13:24:10Z",
+   "lastExplainedAt": "2026-09-27T20:40:21Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 4.43,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "FDBD9EFF-87BB-482D-A626-7654EA3BF7A7",
+   "name": "throttling",
+   "aliases": [],
+   "cues": [],
+   "summary": "Throttling, explained with a turnstile letting one through a second.",
+   "lastAngle": "a turnstile letting one through a second",
+   "firstExplainedAt": "2026-04-26T11:27:35Z",
+   "lastExplainedAt": "2026-08-28T09:08:47Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 46.9,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "C17E8653-B2D8-407C-92E6-30AC6A848A46"
+    }
+   ]
+  },
+  {
+   "id": "E3C39902-DC47-4E45-B67C-5C828514B9E1",
+   "name": "property based testing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Property based testing, explained with a fuzzing inspector.",
+   "lastAngle": "a fuzzing inspector",
+   "firstExplainedAt": "2026-04-28T11:00:25Z",
+   "lastExplainedAt": "2026-08-15T20:40:54Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 17.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "41EB4AD3-5764-4543-B5E0-70880B211ABD"
+    }
+   ]
+  },
+  {
+   "id": "36DEE8CC-86B8-48E7-8E62-D22F09DDA7CA",
+   "name": "tls",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tls, explained with a sealed envelope with a signature.",
+   "lastAngle": "a sealed envelope with a signature",
+   "firstExplainedAt": "2026-05-03T08:23:01Z",
+   "lastExplainedAt": "2026-08-13T11:18:01Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 84.9,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "56734BF3-9E62-4A4D-A5C9-1D3332D67A8E",
+   "name": "tail recursion",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tail recursion, explained with passing the baton forward.",
+   "lastAngle": "passing the baton forward",
+   "firstExplainedAt": "2026-05-02T00:47:41Z",
+   "lastExplainedAt": "2026-09-19T13:35:22Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 10.93,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "675A0F6F-2D26-4DAE-988F-5D15F29A08A1",
+   "name": "write back cache",
+   "aliases": [],
+   "cues": [],
+   "summary": "Write back cache, explained with a notepad copied later.",
+   "lastAngle": "a notepad copied later",
+   "firstExplainedAt": "2026-05-03T18:29:43Z",
+   "lastExplainedAt": "2026-08-11T05:36:54Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 16.27,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "6F8F43E7-7422-4DF8-B6D6-DE915D4262DC",
+   "name": "hot partitions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hot partitions, explained with the busiest till at lunch.",
+   "lastAngle": "the busiest till at lunch",
+   "firstExplainedAt": "2026-05-09T07:59:05Z",
+   "lastExplainedAt": "2026-10-09T06:46:10Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 224.04,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF2315B-53F4-474B-A96F-9981816E241D"
+    }
+   ]
+  },
+  {
+   "id": "EDD3FEC9-4797-4E32-BE17-15244094DF86",
+   "name": "a b testing",
+   "aliases": [],
+   "cues": [],
+   "summary": "A b testing, explained with two shop window displays.",
+   "lastAngle": "two shop window displays",
+   "firstExplainedAt": "2026-05-10T20:42:28Z",
+   "lastExplainedAt": "2026-10-10T13:39:27Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.92,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "A79EC8D4-8781-4502-AC97-8883714C2611",
+   "name": "exponential backoff",
+   "aliases": [],
+   "cues": [],
+   "summary": "Exponential backoff, explained with waiting longer each time a friend is busy.",
+   "lastAngle": "waiting longer each time a friend is busy",
+   "firstExplainedAt": "2026-05-11T13:59:00Z",
+   "lastExplainedAt": "2026-08-10T13:15:29Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 924.39,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "695E8E80-3C64-4D5B-B127-179B00FD82D0",
+   "name": "gradient descent",
+   "aliases": [],
+   "cues": [],
+   "summary": "Gradient descent, explained with walking downhill in fog.",
+   "lastAngle": "walking downhill in fog",
+   "firstExplainedAt": "2026-05-10T14:21:07Z",
+   "lastExplainedAt": "2026-09-05T04:10:01Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 544.86,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB"
+    }
+   ]
+  },
+  {
+   "id": "A416FC10-B086-490A-8785-C12E2175642F",
+   "name": "event sourcing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event sourcing, explained with a bank statement instead of a balance.",
+   "lastAngle": "a bank statement instead of a balance",
+   "firstExplainedAt": "2026-05-12T03:12:53Z",
+   "lastExplainedAt": "2026-08-23T18:29:55Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 672.6,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "479AA1A5-CDB2-489A-9441-A0FD2F05A417",
+   "name": "session tokens",
+   "aliases": [],
+   "cues": [],
+   "summary": "Session tokens, explained with a coat check stub.",
+   "lastAngle": "a coat check stub",
+   "firstExplainedAt": "2026-05-12T11:08:43Z",
+   "lastExplainedAt": "2026-10-09T21:50:41Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 293.54,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "48A5128C-73BC-46F9-9A3E-D2099A263A7A"
+    }
+   ]
+  },
+  {
+   "id": "8FE31BD4-5F43-4377-866F-893E669457B6",
+   "name": "password hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Password hashing, explained with a fingerprint, not a photo.",
+   "lastAngle": "a fingerprint, not a photo",
+   "firstExplainedAt": "2026-05-17T12:40:45Z",
+   "lastExplainedAt": "2026-09-09T11:53:04Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 7.26,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "4E1E8934-5D17-452E-9AD5-F8CE37D50396"
+    }
+   ]
+  },
+  {
+   "id": "B54645C3-5718-4118-BD62-927E57074237",
+   "name": "eigenvectors",
+   "aliases": [],
+   "cues": [],
+   "summary": "Eigenvectors, explained with a spinning top's axis.",
+   "lastAngle": "a spinning top's axis",
+   "firstExplainedAt": "2026-05-21T12:28:12Z",
+   "lastExplainedAt": "2026-09-06T04:46:01Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 319.77,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "406F8E73-CA6E-46B7-99BC-D6B1D76DC335"
+    }
+   ]
+  },
+  {
+   "id": "A9E8BFF6-7C69-44DD-9256-FEA36189FC70",
+   "name": "tokenizer",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tokenizer, explained with cutting a sentence into words.",
+   "lastAngle": "cutting a sentence into words",
+   "firstExplainedAt": "2026-05-19T12:27:05Z",
+   "lastExplainedAt": "2026-10-24T00:55:59Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.35,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D109BD3E-A8E6-498E-8B97-D1A740D64898"
+    }
+   ]
+  },
+  {
+   "id": "8D036679-37EC-4E90-A6C1-357C6398A6AC",
+   "name": "branches",
+   "aliases": [],
+   "cues": [],
+   "summary": "Branches, explained with parallel drafts of an essay.",
+   "lastAngle": "parallel drafts of an essay",
+   "firstExplainedAt": "2026-05-23T01:14:45Z",
+   "lastExplainedAt": "2026-10-02T17:36:47Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 7.59,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E"
+    }
+   ]
+  },
+  {
+   "id": "141877E3-4603-4208-802F-1B2EB53D9DE4",
+   "name": "429 responses",
+   "aliases": [],
+   "cues": [],
+   "summary": "429 responses, explained with a bouncer saying come back later.",
+   "lastAngle": "a bouncer saying come back later",
+   "firstExplainedAt": "2026-05-22T03:30:24Z",
+   "lastExplainedAt": "2026-10-31T13:19:53Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 57.25,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9"
+    }
+   ]
+  },
+  {
+   "id": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9",
+   "name": "replication",
+   "aliases": [],
+   "cues": [],
+   "summary": "Replication, explained with a teacher and note takers.",
+   "lastAngle": "a teacher and note takers",
+   "firstExplainedAt": "2026-05-24T09:26:50Z",
+   "lastExplainedAt": "2026-09-19T05:14:21Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 29.52,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E",
+   "name": "git",
+   "aliases": [],
+   "cues": [],
+   "summary": "Git, explained with save points in a game.",
+   "lastAngle": "save points in a game",
+   "firstExplainedAt": "2026-05-25T05:03:19Z",
+   "lastExplainedAt": "2026-10-05T08:13:30Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 187.92,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "FEBBC1E6-1845-4EF0-9202-7FEB089585ED",
+   "name": "keys in lists",
+   "aliases": [],
+   "cues": [],
+   "summary": "Keys in lists, explained with name tags at a party.",
+   "lastAngle": "name tags at a party",
+   "firstExplainedAt": "2026-05-30T15:27:17Z",
+   "lastExplainedAt": "2026-10-01T22:41:34Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 360.71,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9C68EA8D-1AFC-43A6-8A5B-57270226FA45"
+    }
+   ]
+  },
+  {
+   "id": "81FCF2A2-7076-475F-8D0E-2375C3078A64",
+   "name": "virtual dom",
+   "aliases": [],
+   "cues": [],
+   "summary": "Virtual dom, explained with a sketch before the painting.",
+   "lastAngle": "a sketch before the painting",
+   "firstExplainedAt": "2026-06-02T12:31:18Z",
+   "lastExplainedAt": "2026-08-29T07:40:26Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 76.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "B59E532C-A589-4FAF-9301-39C6ACCD5CEE",
+   "name": "microtask queue",
+   "aliases": [],
+   "cues": [],
+   "summary": "Microtask queue, explained with promises cutting the line.",
+   "lastAngle": "promises cutting the line",
+   "firstExplainedAt": "2026-05-29T21:04:45Z",
+   "lastExplainedAt": "2026-10-05T04:53:18Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 143.21,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "3EBC316F-EDC8-4F3B-8778-B1657B99420A",
+   "name": "service discovery",
+   "aliases": [],
+   "cues": [],
+   "summary": "Service discovery, explained with a reception desk directory.",
+   "lastAngle": "a reception desk directory",
+   "firstExplainedAt": "2026-06-02T21:50:20Z",
+   "lastExplainedAt": "2026-10-19T00:04:18Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 3.26,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "68DB2870-FF89-4348-865C-6EA9C58D1F19",
+   "name": "lower bound",
+   "aliases": [],
+   "cues": [],
+   "summary": "Lower bound, explained with the first seat that fits.",
+   "lastAngle": "the first seat that fits",
+   "firstExplainedAt": "2026-06-04T21:20:09Z",
+   "lastExplainedAt": "2026-08-13T11:33:27Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 5.34,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "2C731E35-EC3A-4211-A301-C0E0D19BCD32",
+   "name": "canary releases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Canary releases, explained with a taste tester.",
+   "lastAngle": "a taste tester",
+   "firstExplainedAt": "2026-06-07T05:02:13Z",
+   "lastExplainedAt": "2026-09-22T01:11:12Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 372.98,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "DCBE3FCB-8B14-4B34-AC9A-03B40B70CA1E",
+   "name": "full table scan",
+   "aliases": [],
+   "cues": [],
+   "summary": "Full table scan, explained with reading every page of the book.",
+   "lastAngle": "reading every page of the book",
+   "firstExplainedAt": "2026-06-08T16:16:09Z",
+   "lastExplainedAt": "2026-09-29T19:20:32Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 8.94,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "03D4B85A-3542-4A1C-8272-86F85DA56381",
+   "name": "merge conflicts",
+   "aliases": [],
+   "cues": [],
+   "summary": "Merge conflicts, explained with two people editing one sentence.",
+   "lastAngle": "two people editing one sentence",
+   "firstExplainedAt": "2026-06-07T08:29:28Z",
+   "lastExplainedAt": "2026-10-03T01:15:47Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 295.41,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "67499EEA-6DE0-44C1-96DA-6E9340B4DBC3"
+    }
+   ]
+  },
+  {
+   "id": "538EE02D-0E57-445C-A7C3-990AF5F8800F",
+   "name": "autocomplete",
+   "aliases": [],
+   "cues": [],
+   "summary": "Autocomplete, explained with a phone keyboard's guesses.",
+   "lastAngle": "a phone keyboard's guesses",
+   "firstExplainedAt": "2026-06-09T22:48:32Z",
+   "lastExplainedAt": "2026-09-16T17:25:49Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 47.1,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "A658E3AA-BBAA-4027-8A66-45E797E83816"
+    }
+   ]
+  },
+  {
+   "id": "7052A0A7-4730-40AF-B6BA-0522CD982FA3",
+   "name": "round robin",
+   "aliases": [],
+   "cues": [],
+   "summary": "Round robin, explained with dealing cards around a table.",
+   "lastAngle": "dealing cards around a table",
+   "firstExplainedAt": "2026-06-13T08:58:22Z",
+   "lastExplainedAt": "2026-10-09T15:32:47Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 33.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "DB0555A2-AD56-44A9-99D5-BE1FA2B3D7F5",
+   "name": "tcp handshake",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tcp handshake, explained with a three step phone greeting.",
+   "lastAngle": "a three step phone greeting",
+   "firstExplainedAt": "2026-06-13T18:30:32Z",
+   "lastExplainedAt": "2026-10-04T04:40:17Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 7.33,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "3C465A4B-DDE4-4706-8CD5-FD02E657A544",
+   "name": "stack overflow",
+   "aliases": [],
+   "cues": [],
+   "summary": "Stack overflow, explained with mirrors facing mirrors.",
+   "lastAngle": "mirrors facing mirrors",
+   "firstExplainedAt": "2026-06-17T23:48:37Z",
+   "lastExplainedAt": "2026-10-16T03:54:45Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 191.05,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "9043C6F1-CF96-4F53-B68C-55C6844EF865",
+   "name": "threads",
+   "aliases": [],
+   "cues": [],
+   "summary": "Threads, explained with cooks sharing one kitchen.",
+   "lastAngle": "cooks sharing one kitchen",
+   "firstExplainedAt": "2026-06-16T14:26:17Z",
+   "lastExplainedAt": "2026-09-19T05:28:24Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 371.45,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9114DBEC-6036-43A9-9694-4119A32D9810"
+    }
+   ]
+  },
+  {
+   "id": "AE8F0A88-1500-4E47-B6D0-C2BC0CE22DFD",
+   "name": "sticky sessions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sticky sessions, explained with the same barista every morning.",
+   "lastAngle": "the same barista every morning",
+   "firstExplainedAt": "2026-06-23T00:52:02Z",
+   "lastExplainedAt": "2026-09-03T16:15:35Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 488.5,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "5A4CA766-0EF1-4987-9330-6DD9B554CE26",
+   "name": "call stack",
+   "aliases": [],
+   "cues": [],
+   "summary": "Call stack, explained with a stack of plates.",
+   "lastAngle": "a stack of plates",
+   "firstExplainedAt": "2026-06-25T01:30:47Z",
+   "lastExplainedAt": "2026-08-31T10:21:42Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 90.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "BB13537F-8449-4070-A77B-C9BBB1501773",
+   "name": "cursor pagination",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cursor pagination, explained with a bookmark instead of page numbers.",
+   "lastAngle": "a bookmark instead of page numbers",
+   "firstExplainedAt": "2026-06-21T08:08:41Z",
+   "lastExplainedAt": "2026-09-22T00:49:02Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 278.14,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "E2A3DF70-2C5F-4DA3-B9E9-403DD8E76969",
+   "name": "pessimistic locking",
+   "aliases": [],
+   "cues": [],
+   "summary": "Pessimistic locking, explained with a library book checked out.",
+   "lastAngle": "a library book checked out",
+   "firstExplainedAt": "2026-06-24T16:49:35Z",
+   "lastExplainedAt": "2026-08-26T12:37:09Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 393.76,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "71E846CD-D808-4C39-82CB-67AA088F5171",
+   "name": "learning rate",
+   "aliases": [],
+   "cues": [],
+   "summary": "Learning rate, explained with the size of each step downhill.",
+   "lastAngle": "the size of each step downhill",
+   "firstExplainedAt": "2026-06-24T22:01:47Z",
+   "lastExplainedAt": "2026-10-28T16:20:01Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "695E8E80-3C64-4D5B-B127-179B00FD82D0"
+    }
+   ]
+  },
+  {
+   "id": "C5D3C572-8FCD-467B-A31D-F571EB9D4B03",
+   "name": "currying",
+   "aliases": [],
+   "cues": [],
+   "summary": "Currying, explained with ordering a meal one choice at a time.",
+   "lastAngle": "ordering a meal one choice at a time",
+   "firstExplainedAt": "2026-06-26T02:39:39Z",
+   "lastExplainedAt": "2026-10-30T04:27:52Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "0790440C-1023-44F0-83C7-E1C87ECAF64C",
+   "name": "prefix sums",
+   "aliases": [],
+   "cues": [],
+   "summary": "Prefix sums, explained with mile markers on a road.",
+   "lastAngle": "mile markers on a road",
+   "firstExplainedAt": "2026-07-03T06:00:34Z",
+   "lastExplainedAt": "2026-10-28T02:24:50Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.06,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "FC1A6740-A86E-4D66-952F-32987871823C",
+   "name": "dijkstra's algorithm",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dijkstra's algorithm, explained with the cheapest train route.",
+   "lastAngle": "the cheapest train route",
+   "firstExplainedAt": "2026-07-03T08:50:34Z",
+   "lastExplainedAt": "2026-08-11T20:22:07Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 780.49,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "7611D0F9-68FB-4B21-BEEE-8A219C74BF54"
+    }
+   ]
+  },
+  {
+   "id": "8B56643D-CDED-4F55-AD7C-96AB44EF5145",
+   "name": "kadane's algorithm",
+   "aliases": [],
+   "cues": [],
+   "summary": "Kadane's algorithm, explained with deciding to drop a losing streak.",
+   "lastAngle": "deciding to drop a losing streak",
+   "firstExplainedAt": "2026-07-02T00:24:41Z",
+   "lastExplainedAt": "2026-10-16T11:17:53Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 144.38,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "B8C56B4C-B77A-4210-905D-3633A532DBE6",
+   "name": "quicksort",
+   "aliases": [],
+   "cues": [],
+   "summary": "Quicksort, explained with picking a pivot player.",
+   "lastAngle": "picking a pivot player",
+   "firstExplainedAt": "2026-07-06T02:11:42Z",
+   "lastExplainedAt": "2026-08-08T22:53:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 462.36,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92"
+    }
+   ]
+  },
+  {
+   "id": "A80677A9-1702-4623-A93F-3D6C9FDC5A41",
+   "name": "load factor",
+   "aliases": [],
+   "cues": [],
+   "summary": "Load factor, explained with how full the cloakroom is.",
+   "lastAngle": "how full the cloakroom is",
+   "firstExplainedAt": "2026-07-05T23:15:16Z",
+   "lastExplainedAt": "2026-10-19T10:32:53Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 20.17,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "02BBB294-F33D-4811-B6F5-2E54AE9E0014",
+   "name": "leader follower replication",
+   "aliases": [],
+   "cues": [],
+   "summary": "Leader follower replication, explained with a teacher and note takers.",
+   "lastAngle": "a teacher and note takers",
+   "firstExplainedAt": "2026-07-07T09:04:27Z",
+   "lastExplainedAt": "2026-08-23T12:47:41Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 66.58,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "926EF10D-AFAD-4BF2-9768-CF5584FD1971",
+   "name": "deadlock",
+   "aliases": [],
+   "cues": [],
+   "summary": "Deadlock, explained with two cars at a narrow bridge.",
+   "lastAngle": "two cars at a narrow bridge",
+   "firstExplainedAt": "2026-07-09T07:46:52Z",
+   "lastExplainedAt": "2026-08-23T00:55:22Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 858.03,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "F68B40BB-2947-4265-921B-987EC21368ED",
+   "name": "status codes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Status codes, explained with traffic lights for requests.",
+   "lastAngle": "traffic lights for requests",
+   "firstExplainedAt": "2026-07-15T03:25:06Z",
+   "lastExplainedAt": "2026-08-27T22:55:02Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 94.84,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "EF4D58D6-7177-4064-8EFE-C022ED818DD4",
+   "name": "memoization",
+   "aliases": [],
+   "cues": [],
+   "summary": "Memoization, explained with a cheat sheet of past answers.",
+   "lastAngle": "a cheat sheet of past answers",
+   "firstExplainedAt": "2026-07-12T12:55:07Z",
+   "lastExplainedAt": "2026-09-23T21:05:30Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 26.87,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "4612EA0D-5F10-452E-8EED-FBE32DEF3FF5",
+   "name": "conditional probability",
+   "aliases": [],
+   "cues": [],
+   "summary": "Conditional probability, explained with rain given clouds.",
+   "lastAngle": "rain given clouds",
+   "firstExplainedAt": "2026-07-16T01:12:42Z",
+   "lastExplainedAt": "2026-08-16T23:42:58Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 682.17,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3421017A-3F78-4F7A-A5EB-42F786D49E71"
+    }
+   ]
+  },
+  {
+   "id": "521F68C5-0618-42A6-BAF1-AA037843C505",
+   "name": "regular expressions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Regular expressions, explained with a bouncer with a pattern list.",
+   "lastAngle": "a bouncer with a pattern list",
+   "firstExplainedAt": "2026-07-19T01:38:16Z",
+   "lastExplainedAt": "2026-09-05T04:35:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 52.42,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "0B6E431C-9456-43F7-8F6C-CEB32B58D347",
+   "name": "depth first search",
+   "aliases": [],
+   "cues": [],
+   "summary": "Depth first search, explained with exploring a cave to its end.",
+   "lastAngle": "exploring a cave to its end",
+   "firstExplainedAt": "2026-07-22T06:20:07Z",
+   "lastExplainedAt": "2026-10-01T06:26:08Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 343.87,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "2B133743-DF1D-4D4E-8A7D-D66BA97F9556",
+   "name": "regularization",
+   "aliases": [],
+   "cues": [],
+   "summary": "Regularization, explained with a speed limit on the model.",
+   "lastAngle": "a speed limit on the model",
+   "firstExplainedAt": "2026-07-23T16:36:30Z",
+   "lastExplainedAt": "2026-09-14T20:36:38Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 215.57,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "AFABFD9E-505C-48E7-A428-5D5790F9F2E8"
+    }
+   ]
+  },
+  {
+   "id": "601596E8-C4C8-4C49-A48E-4EBA90E74C8F",
+   "name": "docker containers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Docker containers, explained with shipping containers for code.",
+   "lastAngle": "shipping containers for code",
+   "firstExplainedAt": "2026-07-24T02:17:51Z",
+   "lastExplainedAt": "2026-10-25T18:31:12Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 14.16,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "A693D428-4239-425F-AF5C-559F0CACBB6A",
+   "name": "integration tests",
+   "aliases": [],
+   "cues": [],
+   "summary": "Integration tests, explained with checking the wall stands.",
+   "lastAngle": "checking the wall stands",
+   "firstExplainedAt": "2026-07-23T16:30:45Z",
+   "lastExplainedAt": "2026-10-10T21:49:06Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 279.89,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9E42E5B8-6114-4F76-AD0F-90E9E2A63756"
+    }
+   ]
+  },
+  {
+   "id": "C7492C91-9740-4C52-9564-95797F444234",
+   "name": "state lifting",
+   "aliases": [],
+   "cues": [],
+   "summary": "State lifting, explained with a shared family calendar.",
+   "lastAngle": "a shared family calendar",
+   "firstExplainedAt": "2026-07-25T07:37:14Z",
+   "lastExplainedAt": "2026-10-15T09:24:21Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 234.6,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "B14F9C98-FB72-4DF7-AA01-A19057204072",
+   "name": "feature flags",
+   "aliases": [],
+   "cues": [],
+   "summary": "Feature flags, explained with a dimmer for a new feature.",
+   "lastAngle": "a dimmer for a new feature",
+   "firstExplainedAt": "2026-07-25T23:32:20Z",
+   "lastExplainedAt": "2026-09-29T18:06:26Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 375.76,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8131D64F-CD6D-41F7-AA12-E333CD433F1F",
+   "name": "least connections",
+   "aliases": [],
+   "cues": [],
+   "summary": "Least connections, explained with the shortest supermarket queue.",
+   "lastAngle": "the shortest supermarket queue",
+   "firstExplainedAt": "2026-07-30T12:37:10Z",
+   "lastExplainedAt": "2026-10-02T16:06:52Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 7.18,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "7052A0A7-4730-40AF-B6BA-0522CD982FA3"
+    }
+   ]
+  },
+  {
+   "id": "C1C53B4E-905D-418B-BCC6-FC406547D5D6",
+   "name": "abstract syntax tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "Abstract syntax tree, explained with a sentence diagram.",
+   "lastAngle": "a sentence diagram",
+   "firstExplainedAt": "2026-08-01T15:18:47Z",
+   "lastExplainedAt": "2026-10-16T01:21:54Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 124.11,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D109BD3E-A8E6-498E-8B97-D1A740D64898"
+    }
+   ]
+  },
+  {
+   "id": "80F64A9E-4828-4A52-BFE4-6273414D8F14",
+   "name": "binary search",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search, explained with a dictionary's alphabetical pages.",
+   "lastAngle": "a dictionary's alphabetical pages",
+   "firstExplainedAt": "2026-07-31T04:55:42Z",
+   "lastExplainedAt": "2026-10-05T15:22:20Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 35.3,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "7A4BCA42-7ED9-40CF-A1EA-5D69A9E57CD1",
+   "name": "race conditions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Race conditions, explained with two people grabbing the last seat.",
+   "lastAngle": "two people grabbing the last seat",
+   "firstExplainedAt": "2026-08-02T03:08:27Z",
+   "lastExplainedAt": "2026-08-10T13:11:12Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 706.24,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "9043C6F1-CF96-4F53-B68C-55C6844EF865"
+    }
+   ]
+  },
+  {
+   "id": "5AA0163E-529F-4D1C-975D-FC73CD502523",
+   "name": "salting",
+   "aliases": [],
+   "cues": [],
+   "summary": "Salting, explained with a pinch of salt per user.",
+   "lastAngle": "a pinch of salt per user",
+   "firstExplainedAt": "2026-08-05T07:57:58Z",
+   "lastExplainedAt": "2026-09-30T03:18:34Z",
+   "timesExplained": 6,
+   "timesLost": 1,
+   "stabilityDays": 7.96,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8FE31BD4-5F43-4377-866F-893E669457B6"
+    }
+   ]
+  },
+  {
+   "id": "65D49184-4AE0-43A5-B48D-6DC901F0280E",
+   "name": "map reduce",
+   "aliases": [],
+   "cues": [],
+   "summary": "Map reduce, explained with counting votes by district.",
+   "lastAngle": "counting votes by district",
+   "firstExplainedAt": "2026-08-08T05:16:47Z",
+   "lastExplainedAt": "2026-08-26T00:46:38Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 11.66,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7",
+   "name": "react rendering",
+   "aliases": [],
+   "cues": [],
+   "summary": "React rendering, explained with a sketch before the painting.",
+   "lastAngle": "a sketch before the painting",
+   "firstExplainedAt": "2026-08-11T08:50:03Z",
+   "lastExplainedAt": "2026-08-26T07:57:59Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 10.38,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "63A9A065-5958-4AF0-9479-0CB3ECA02EE7",
+   "name": "actor model",
+   "aliases": [],
+   "cues": [],
+   "summary": "Actor model, explained with pen pals who never share a desk.",
+   "lastAngle": "pen pals who never share a desk",
+   "firstExplainedAt": "2026-08-10T22:53:18Z",
+   "lastExplainedAt": "2026-10-18T13:35:52Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 21.64,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "73DFD15B-4873-4419-B329-699D82A14CAF"
+    }
+   ]
+  },
+  {
+   "id": "A289EC3C-F14F-49F7-9656-6FE7849C03D4",
+   "name": "promises",
+   "aliases": [],
+   "cues": [],
+   "summary": "Promises, explained with an order ticket at a cafe.",
+   "lastAngle": "an order ticket at a cafe",
+   "firstExplainedAt": "2026-08-15T15:51:20Z",
+   "lastExplainedAt": "2026-09-15T03:59:44Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 543.55,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "B59E532C-A589-4FAF-9301-39C6ACCD5CEE"
+    }
+   ]
+  },
+  {
+   "id": "DA43FD40-E317-401D-80F6-52F0B3F93F45",
+   "name": "idempotency keys",
+   "aliases": [],
+   "cues": [],
+   "summary": "Idempotency keys, explained with retrying a payment without paying twice.",
+   "lastAngle": "retrying a payment without paying twice",
+   "firstExplainedAt": "2026-08-14T11:03:28Z",
+   "lastExplainedAt": "2026-08-31T17:39:27Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 68.3,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "85BBC69F-4AB5-46AA-9A86-ED3D9F1A51F1"
+    }
+   ]
+  },
+  {
+   "id": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB",
+   "name": "neural networks",
+   "aliases": [],
+   "cues": [],
+   "summary": "Neural networks, explained with walking downhill in fog.",
+   "lastAngle": "walking downhill in fog",
+   "firstExplainedAt": "2026-08-14T06:44:33Z",
+   "lastExplainedAt": "2026-09-23T04:19:21Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 481.13,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "4355FA42-57B6-40AC-B9A9-D0F815D3235C",
+   "name": "base case",
+   "aliases": [],
+   "cues": [],
+   "summary": "Base case, explained with the last doll in a matryoshka.",
+   "lastAngle": "the last doll in a matryoshka",
+   "firstExplainedAt": "2026-08-15T23:29:50Z",
+   "lastExplainedAt": "2026-10-01T08:27:53Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 25.73,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "01B82163-8247-471D-AE0C-992E2325E1E5",
+   "name": "type checking",
+   "aliases": [],
+   "cues": [],
+   "summary": "Type checking, explained with a spell checker for meaning.",
+   "lastAngle": "a spell checker for meaning",
+   "firstExplainedAt": "2026-08-17T02:41:28Z",
+   "lastExplainedAt": "2026-10-29T10:27:36Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 54.38,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "C1C53B4E-905D-418B-BCC6-FC406547D5D6"
+    }
+   ]
+  },
+  {
+   "id": "D1B61C81-0D1E-41FB-939F-1ECCAE9C35F8",
+   "name": "write through cache",
+   "aliases": [],
+   "cues": [],
+   "summary": "Write through cache, explained with writing in pen and pencil.",
+   "lastAngle": "writing in pen and pencil",
+   "firstExplainedAt": "2026-08-21T14:16:50Z",
+   "lastExplainedAt": "2026-09-21T09:51:52Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 6.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "675A0F6F-2D26-4DAE-988F-5D15F29A08A1"
+    }
+   ]
+  },
+  {
+   "id": "E3DC9E59-ED56-4218-A7B1-1B86EC4BD080",
+   "name": "standard deviation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Standard deviation, explained with how spread out a class's heights are.",
+   "lastAngle": "how spread out a class's heights are",
+   "firstExplainedAt": "2026-08-20T13:14:06Z",
+   "lastExplainedAt": "2026-10-10T22:34:09Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 15.75,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "B3D71FDE-6431-4C11-B4F4-C661CAF1351D",
+   "name": "rebalancing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rebalancing, explained with adding a fourth cache box.",
+   "lastAngle": "adding a fourth cache box",
+   "firstExplainedAt": "2026-08-25T22:53:00Z",
+   "lastExplainedAt": "2026-09-07T12:15:16Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 76.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "C7CC1F63-C743-49C8-839C-8B60BF4D1182"
+    }
+   ]
+  },
+  {
+   "id": "7D804A6C-49BA-4380-AA97-05F6E46FCBC6",
+   "name": "kafka partitions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Kafka partitions, explained with checkout lanes at a store.",
+   "lastAngle": "checkout lanes at a store",
+   "firstExplainedAt": "2026-08-29T14:12:05Z",
+   "lastExplainedAt": "2026-10-27T10:37:49Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 1.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "52BA7BC0-C5BC-46CA-8C9E-583612915205",
+   "name": "producer consumer",
+   "aliases": [],
+   "cues": [],
+   "summary": "Producer consumer, explained with a bakery and its shop.",
+   "lastAngle": "a bakery and its shop",
+   "firstExplainedAt": "2026-08-26T18:41:57Z",
+   "lastExplainedAt": "2026-08-31T11:11:07Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 10.85,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4"
+    }
+   ]
+  },
+  {
+   "id": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1",
+   "name": "http",
+   "aliases": [],
+   "cues": [],
+   "summary": "Http, explained with traffic lights for requests.",
+   "lastAngle": "traffic lights for requests",
+   "firstExplainedAt": "2026-08-29T04:30:22Z",
+   "lastExplainedAt": "2026-08-30T06:19:17Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 91.72,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "19165C5F-0723-4EC4-9485-E6A73937316B",
+   "name": "box model",
+   "aliases": [],
+   "cues": [],
+   "summary": "Box model, explained with a framed picture with a mat.",
+   "lastAngle": "a framed picture with a mat",
+   "firstExplainedAt": "2026-08-30T12:20:11Z",
+   "lastExplainedAt": "2026-11-04T04:01:51Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 8.5,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "BE2111C0-A410-45A7-808A-8B583679F2FD"
+    }
+   ]
+  },
+  {
+   "id": "4D7C5192-3F45-44C7-91B9-83363C2326D5",
+   "name": "big o notation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Big o notation, explained with how the line at the bank grows.",
+   "lastAngle": "how the line at the bank grows",
+   "firstExplainedAt": "2026-09-03T23:41:51Z",
+   "lastExplainedAt": "2026-09-25T01:01:19Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 250.1,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "D048CA20-C069-46FE-9619-5DBDD5F4EA1F",
+   "name": "tries",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tries, explained with typing the start of a contact's name.",
+   "lastAngle": "typing the start of a contact's name",
+   "firstExplainedAt": "2026-09-02T05:01:57Z",
+   "lastExplainedAt": "2026-09-16T04:36:40Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 227.65,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "41EB4AD3-5764-4543-B5E0-70880B211ABD",
+   "name": "unit tests",
+   "aliases": [],
+   "cues": [],
+   "summary": "Unit tests, explained with checking each brick.",
+   "lastAngle": "checking each brick",
+   "firstExplainedAt": "2026-09-08T15:18:49Z",
+   "lastExplainedAt": "2026-09-09T07:39:07Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 289.73,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9E42E5B8-6114-4F76-AD0F-90E9E2A63756"
+    }
+   ]
+  },
+  {
+   "id": "85BBC69F-4AB5-46AA-9A86-ED3D9F1A51F1",
+   "name": "rest apis",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rest apis, explained with a restaurant menu.",
+   "lastAngle": "a restaurant menu",
+   "firstExplainedAt": "2026-09-08T21:53:34Z",
+   "lastExplainedAt": "2026-09-14T00:35:09Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 3.3,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "97FCF2CF-C8D6-4289-9883-FF23EB36ECFE",
+   "name": "graphql",
+   "aliases": [],
+   "cues": [],
+   "summary": "Graphql, explained with a buffet instead of set courses.",
+   "lastAngle": "a buffet instead of set courses",
+   "firstExplainedAt": "2026-09-09T21:08:10Z",
+   "lastExplainedAt": "2026-09-25T14:21:19Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 199.63,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "85BBC69F-4AB5-46AA-9A86-ED3D9F1A51F1"
+    }
+   ]
+  },
+  {
+   "id": "1DA5A195-EC00-48A9-B113-CB9E293010EB",
+   "name": "binary search tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search tree, explained with a guessing game tree.",
+   "lastAngle": "a guessing game tree",
+   "firstExplainedAt": "2026-09-12T23:20:53Z",
+   "lastExplainedAt": "2026-10-01T21:42:25Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 18.9,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "23F1E436-2EED-4690-A425-AB4BCF33D246",
+   "name": "cron jobs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cron jobs, explained with an alarm clock for scripts.",
+   "lastAngle": "an alarm clock for scripts",
+   "firstExplainedAt": "2026-09-14T22:20:14Z",
+   "lastExplainedAt": "2026-09-22T13:04:00Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 8.25,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "F42A23B5-325A-4D8D-96B3-2A3279FA3413",
+   "name": "callback hell",
+   "aliases": [],
+   "cues": [],
+   "summary": "Callback hell, explained with nested phone trees.",
+   "lastAngle": "nested phone trees",
+   "firstExplainedAt": "2026-09-15T06:57:55Z",
+   "lastExplainedAt": "2026-09-29T17:15:04Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 251.87,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "5A417847-8FDF-4798-8C55-6A5BCA20A944"
+    }
+   ]
+  },
+  {
+   "id": "5AE52E41-41CA-4C47-857D-4F93F9346520",
+   "name": "structured logging",
+   "aliases": [],
+   "cues": [],
+   "summary": "Structured logging, explained with a form instead of a diary.",
+   "lastAngle": "a form instead of a diary",
+   "firstExplainedAt": "2026-09-14T02:15:51Z",
+   "lastExplainedAt": "2026-10-18T15:26:14Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 119.38,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "557BCA99-67EE-4153-99B5-10DF3C02C25B",
+   "name": "specificity",
+   "aliases": [],
+   "cues": [],
+   "summary": "Specificity, explained with who wins an argument.",
+   "lastAngle": "who wins an argument",
+   "firstExplainedAt": "2026-09-20T02:38:12Z",
+   "lastExplainedAt": "2026-10-25T03:41:48Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 2.55,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "BE2111C0-A410-45A7-808A-8B583679F2FD"
+    }
+   ]
+  },
+  {
+   "id": "728D761F-A2E8-4FD2-8B22-F247B19798EE",
+   "name": "percentiles",
+   "aliases": [],
+   "cues": [],
+   "summary": "Percentiles, explained with the slowest in a race of a hundred.",
+   "lastAngle": "the slowest in a race of a hundred",
+   "firstExplainedAt": "2026-09-19T19:12:40Z",
+   "lastExplainedAt": "2026-11-02T09:17:49Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 16.2,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "191B078B-3FEC-4757-B87C-F0D90AC69D3D",
+   "name": "flexbox",
+   "aliases": [],
+   "cues": [],
+   "summary": "Flexbox, explained with books on a shelf.",
+   "lastAngle": "books on a shelf",
+   "firstExplainedAt": "2026-09-22T15:41:20Z",
+   "lastExplainedAt": "2026-09-24T20:22:10Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 448.61,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "BE2111C0-A410-45A7-808A-8B583679F2FD"
+    }
+   ]
+  },
+  {
+   "id": "51C9EB63-9AE1-4BEF-A392-AE7586861D86",
+   "name": "csrf",
+   "aliases": [],
+   "cues": [],
+   "summary": "Csrf, explained with a forged permission slip.",
+   "lastAngle": "a forged permission slip",
+   "firstExplainedAt": "2026-09-20T17:40:00Z",
+   "lastExplainedAt": "2026-10-17T00:54:15Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 21.52,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "3476F0DA-9271-491D-80B3-44B50DF20BAF",
+   "name": "cdn",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cdn, explained with a corner shop stocking bestsellers.",
+   "lastAngle": "a corner shop stocking bestsellers",
+   "firstExplainedAt": "2026-09-27T10:04:41Z",
+   "lastExplainedAt": "2026-10-08T10:08:32Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 127.72,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "AA3103C8-A463-4598-9241-072B849C7F59",
+   "name": "adjacency list",
+   "aliases": [],
+   "cues": [],
+   "summary": "Adjacency list, explained with a contacts list per person.",
+   "lastAngle": "a contacts list per person",
+   "firstExplainedAt": "2026-09-26T19:40:56Z",
+   "lastExplainedAt": "2026-10-19T23:33:56Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 21.44,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "3F23FAD0-4A22-4DB2-890F-B578B4B9CE4D",
+   "name": "manual memory management",
+   "aliases": [],
+   "cues": [],
+   "summary": "Manual memory management, explained with washing your own dishes.",
+   "lastAngle": "washing your own dishes",
+   "firstExplainedAt": "2026-09-30T05:51:45Z",
+   "lastExplainedAt": "2026-10-06T09:27:56Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 240.97,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D109BD3E-A8E6-498E-8B97-D1A740D64898"
+    }
+   ]
+  },
+  {
+   "id": "0E71091C-83F2-4CA3-8854-726E86A15DB1",
+   "name": "two phase commit",
+   "aliases": [],
+   "cues": [],
+   "summary": "Two phase commit, explained with two signatures on one contract.",
+   "lastAngle": "two signatures on one contract",
+   "firstExplainedAt": "2026-09-28T15:04:10Z",
+   "lastExplainedAt": "2026-09-28T20:40:35Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 23.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "23CE9F1C-9D8D-407B-BB28-F0CA7B34F1A1",
+   "name": "finite state machines",
+   "aliases": [],
+   "cues": [],
+   "summary": "Finite state machines, explained with a vending machine.",
+   "lastAngle": "a vending machine",
+   "firstExplainedAt": "2026-10-03T03:46:42Z",
+   "lastExplainedAt": "2026-11-02T16:47:31Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 25.33,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "67499EEA-6DE0-44C1-96DA-6E9340B4DBC3",
+   "name": "merge commits",
+   "aliases": [],
+   "cues": [],
+   "summary": "Merge commits, explained with two rivers joining.",
+   "lastAngle": "two rivers joining",
+   "firstExplainedAt": "2026-10-04T08:39:17Z",
+   "lastExplainedAt": "2026-10-26T15:13:09Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 116.2,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E"
+    }
+   ]
+  },
+  {
+   "id": "53448226-A491-4A1C-831F-4981F01047CC",
+   "name": "message queues",
+   "aliases": [],
+   "cues": [],
+   "summary": "Message queues, explained with a radio broadcast.",
+   "lastAngle": "a radio broadcast",
+   "firstExplainedAt": "2026-10-04T12:49:45Z",
+   "lastExplainedAt": "2026-10-20T22:17:36Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 70.51,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9114DBEC-6036-43A9-9694-4119A32D9810",
+   "name": "processes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Processes, explained with separate kitchens.",
+   "lastAngle": "separate kitchens",
+   "firstExplainedAt": "2026-10-08T06:21:08Z",
+   "lastExplainedAt": "2026-10-10T13:49:54Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 202.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D353752A-F8B8-4C20-B120-CC833903992E"
+    }
+   ]
+  },
+  {
+   "id": "DC019FCE-210E-469C-89E1-76459AADE872",
+   "name": "query planner",
+   "aliases": [],
+   "cues": [],
+   "summary": "Query planner, explained with a sat nav picking a route.",
+   "lastAngle": "a sat nav picking a route",
+   "firstExplainedAt": "2026-10-08T00:58:56Z",
+   "lastExplainedAt": "2026-10-15T03:06:32Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 19.8,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "1406EEB7-0C3B-4E12-AA17-D7D37DA7F036",
+   "name": "leaky bucket",
+   "aliases": [],
+   "cues": [],
+   "summary": "Leaky bucket, explained with a bucket dripping at a steady rate.",
+   "lastAngle": "a bucket dripping at a steady rate",
+   "firstExplainedAt": "2026-10-09T12:20:29Z",
+   "lastExplainedAt": "2026-11-01T05:02:21Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.62,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "F6FBC592-7851-44AB-859B-27CE1DB8DC7E"
+    }
+   ]
+  },
+  {
+   "id": "127E7164-D933-4706-B5DC-0F884A5FC738",
+   "name": "sliding window counter",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sliding window counter, explained with counting the last minute of visitors.",
+   "lastAngle": "counting the last minute of visitors",
+   "firstExplainedAt": "2026-10-10T15:36:28Z",
+   "lastExplainedAt": "2026-10-19T23:16:48Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 102.86,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "F6FBC592-7851-44AB-859B-27CE1DB8DC7E"
+    }
+   ]
+  },
+  {
+   "id": "73DFD15B-4873-4419-B329-699D82A14CAF",
+   "name": "thread pools",
+   "aliases": [],
+   "cues": [],
+   "summary": "Thread pools, explained with a taxi rank.",
+   "lastAngle": "a taxi rank",
+   "firstExplainedAt": "2026-10-16T03:39:42Z",
+   "lastExplainedAt": "2026-10-27T04:21:25Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4"
+    }
+   ]
+  },
+  {
+   "id": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4",
+   "name": "concurrency patterns",
+   "aliases": [],
+   "cues": [],
+   "summary": "Concurrency patterns, explained with a bakery and its shop.",
+   "lastAngle": "a bakery and its shop",
+   "firstExplainedAt": "2026-10-16T01:47:42Z",
+   "lastExplainedAt": "2026-10-19T16:38:09Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 3.29,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "D353752A-F8B8-4C20-B120-CC833903992E",
+   "name": "operating systems",
+   "aliases": [],
+   "cues": [],
+   "summary": "Operating systems, explained with separate kitchens.",
+   "lastAngle": "separate kitchens",
+   "firstExplainedAt": "2026-10-16T03:07:01Z",
+   "lastExplainedAt": "2026-10-19T02:59:18Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.02,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "BFFEB38A-7DE1-4B69-A718-B8760B48D9F4",
+   "name": "union find",
+   "aliases": [],
+   "cues": [],
+   "summary": "Union find, explained with merging friend groups.",
+   "lastAngle": "merging friend groups",
+   "firstExplainedAt": "2026-10-21T10:54:09Z",
+   "lastExplainedAt": "2026-10-24T05:32:40Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.82,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "E72AF63E-3BB1-4FB6-846F-C4EE4E3BADC0",
+   "name": "quorum reads",
+   "aliases": [],
+   "cues": [],
+   "summary": "Quorum reads, explained with a jury majority.",
+   "lastAngle": "a jury majority",
+   "firstExplainedAt": "2026-10-23T22:48:39Z",
+   "lastExplainedAt": "2026-10-29T22:19:56Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "2D04B35F-1EE9-425C-97D7-6D37E9A1744A",
+   "name": "xss",
+   "aliases": [],
+   "cues": [],
+   "summary": "Xss, explained with graffiti that runs.",
+   "lastAngle": "graffiti that runs",
+   "firstExplainedAt": "2026-10-21T23:53:44Z",
+   "lastExplainedAt": "2026-10-22T19:50:18Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.89,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "35A91969-3774-4182-AA44-1E95367EFEFE",
+   "name": "oauth",
+   "aliases": [],
+   "cues": [],
+   "summary": "Oauth, explained with a valet key for your car.",
+   "lastAngle": "a valet key for your car",
+   "firstExplainedAt": "2026-10-22T15:29:02Z",
+   "lastExplainedAt": "2026-10-30T16:04:48Z",
+   "timesExplained": 4,
+   "timesLost": 1,
+   "stabilityDays": 66.16,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "48A5128C-73BC-46F9-9A3E-D2099A263A7A"
+    }
+   ]
+  },
+  {
+   "id": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A",
+   "name": "consistent hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2026-10-23T23:17:19Z",
+   "lastExplainedAt": "2026-11-03T04:09:30Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 2.34,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "AC935216-8EFD-46F3-91B8-3B1289808EBA",
+   "name": "backpressure",
+   "aliases": [],
+   "cues": [],
+   "summary": "Backpressure, explained with a funnel overflowing.",
+   "lastAngle": "a funnel overflowing",
+   "firstExplainedAt": "2026-10-31T06:36:15Z",
+   "lastExplainedAt": "2026-11-04T05:28:52Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "BEBEBC12-E484-4806-91AC-A07F8157465F",
+   "name": "commits",
+   "aliases": [],
+   "cues": [],
+   "summary": "Commits, explained with save points in a game.",
+   "lastAngle": "save points in a game",
+   "firstExplainedAt": "2026-10-27T09:47:03Z",
+   "lastExplainedAt": "2026-11-05T10:16:58Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E"
+    }
+   ]
+  },
+  {
+   "id": "406F8E73-CA6E-46B7-99BC-D6B1D76DC335",
+   "name": "matrix multiplication",
+   "aliases": [],
+   "cues": [],
+   "summary": "Matrix multiplication, explained with a recipe scaled for a crowd.",
+   "lastAngle": "a recipe scaled for a crowd",
+   "firstExplainedAt": "2026-10-31T21:59:06Z",
+   "lastExplainedAt": "2026-11-01T20:28:15Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF1E136-541B-4F92-855B-9C5FF00ECEDF"
+    }
+   ]
+  },
+  {
+   "id": "15533A99-4FF1-4D4F-A079-E640A38D686D",
+   "name": "consistent hashing edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing edge cases, explained with a worked consistent hashing problem.",
+   "lastAngle": "a worked consistent hashing problem",
+   "firstExplainedAt": "2025-09-29T19:35:44Z",
+   "lastExplainedAt": "2026-10-23T19:53:29Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 11.38,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "B4EADC3E-36ED-4319-ADD8-96B48BB529C1",
+   "name": "event loop edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event loop edge cases, explained with a worked event loop problem.",
+   "lastAngle": "a worked event loop problem",
+   "firstExplainedAt": "2025-10-06T00:36:16Z",
+   "lastExplainedAt": "2026-08-30T07:34:50Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 605.17,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "B8FB7552-C38B-4737-B7CB-FFCD48C5A116",
+   "name": "binary search edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search edge cases, explained with a worked binary search problem.",
+   "lastAngle": "a worked binary search problem",
+   "firstExplainedAt": "2025-10-09T18:49:47Z",
+   "lastExplainedAt": "2026-10-16T17:00:59Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 2.61,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "B4884B2F-54EF-4B27-BE1A-BDE2C520A444",
+   "name": "caching edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Caching edge cases, explained with a worked caching problem.",
+   "lastAngle": "a worked caching problem",
+   "firstExplainedAt": "2025-10-14T01:03:36Z",
+   "lastExplainedAt": "2026-10-24T10:01:18Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 133.31,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "9767DAB2-A5B3-47A9-94BB-A2141F465AAD",
+   "name": "database indexes edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Database indexes edge cases, explained with a worked database indexes problem.",
+   "lastAngle": "a worked database indexes problem",
+   "firstExplainedAt": "2025-10-19T04:23:39Z",
+   "lastExplainedAt": "2026-08-21T13:05:54Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 591.03,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "37BC16B1-F627-471F-9E0B-0CA8A57A8B2D",
+   "name": "transactions edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Transactions edge cases, explained with a worked transactions problem.",
+   "lastAngle": "a worked transactions problem",
+   "firstExplainedAt": "2025-10-25T11:34:29Z",
+   "lastExplainedAt": "2026-08-09T07:53:26Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 7.06,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "E990D4B6-2D59-46AF-84E9-D40765BFD3C5",
+   "name": "rate limiting edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rate limiting edge cases, explained with a worked rate limiting problem.",
+   "lastAngle": "a worked rate limiting problem",
+   "firstExplainedAt": "2025-10-31T00:06:41Z",
+   "lastExplainedAt": "2026-09-04T11:50:05Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 350.43,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9"
+    }
+   ]
+  },
+  {
+   "id": "A054D609-90DA-427F-8723-C4858CF57C70",
+   "name": "react rendering edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "React rendering edge cases, explained with a worked react rendering problem.",
+   "lastAngle": "a worked react rendering problem",
+   "firstExplainedAt": "2025-11-07T17:11:25Z",
+   "lastExplainedAt": "2026-09-05T14:10:50Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 41.65,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "E873A353-0142-45C7-93BC-0A40A2A8A278",
+   "name": "recursion edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Recursion edge cases, explained with a worked recursion problem.",
+   "lastAngle": "a worked recursion problem",
+   "firstExplainedAt": "2025-11-16T02:27:16Z",
+   "lastExplainedAt": "2026-09-01T02:52:29Z",
+   "timesExplained": 2,
+   "timesLost": 1,
+   "stabilityDays": 691.61,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "84C484DB-08FC-4CBD-99C5-5FEAF539B15F",
+   "name": "graph traversal edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Graph traversal edge cases, explained with a worked graph traversal problem.",
+   "lastAngle": "a worked graph traversal problem",
+   "firstExplainedAt": "2025-11-22T14:26:14Z",
+   "lastExplainedAt": "2026-08-20T07:27:24Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 525.08,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "8B0282F7-1DC5-49F1-A63D-5683AF0F5357",
+   "name": "load balancing edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Load balancing edge cases, explained with a worked load balancing problem.",
+   "lastAngle": "a worked load balancing problem",
+   "firstExplainedAt": "2025-11-25T04:09:42Z",
+   "lastExplainedAt": "2026-09-08T09:31:47Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 576.08,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "103B2C01-982D-46DF-AC25-00A01F500410",
+   "name": "http edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Http edge cases, explained with a worked http problem.",
+   "lastAngle": "a worked http problem",
+   "firstExplainedAt": "2025-11-30T05:01:29Z",
+   "lastExplainedAt": "2026-11-02T11:46:13Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 3.58,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "E0A43143-2251-4EC4-A7C7-B27F9D8532D1",
+   "name": "hash maps edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash maps edge cases, explained with a worked hash maps problem.",
+   "lastAngle": "a worked hash maps problem",
+   "firstExplainedAt": "2025-12-04T09:13:56Z",
+   "lastExplainedAt": "2026-08-22T04:46:23Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 419.04,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "A110B5A8-42C8-4DE8-A7C1-E13078ADDF30",
+   "name": "message queues edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Message queues edge cases, explained with a worked message queues problem.",
+   "lastAngle": "a worked message queues problem",
+   "firstExplainedAt": "2025-12-15T14:49:49Z",
+   "lastExplainedAt": "2026-08-10T13:14:03Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 791.07,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "8F5614B8-A5B0-4C64-BF8F-29B830D3BB02",
+   "name": "git edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Git edge cases, explained with a worked git problem.",
+   "lastAngle": "a worked git problem",
+   "firstExplainedAt": "2025-12-18T06:14:14Z",
+   "lastExplainedAt": "2026-10-07T11:27:51Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 284.11,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E"
+    }
+   ]
+  },
+  {
+   "id": "198FC391-ED89-4149-9534-A0ED0EE0B657",
+   "name": "neural networks edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Neural networks edge cases, explained with a worked neural networks problem.",
+   "lastAngle": "a worked neural networks problem",
+   "firstExplainedAt": "2025-12-24T21:18:59Z",
+   "lastExplainedAt": "2026-09-05T07:41:16Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 3.69,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB"
+    }
+   ]
+  },
+  {
+   "id": "5E263A76-E53F-466B-B5E4-28601E8071A5",
+   "name": "probability edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Probability edge cases, explained with a worked probability problem.",
+   "lastAngle": "a worked probability problem",
+   "firstExplainedAt": "2025-12-30T16:28:35Z",
+   "lastExplainedAt": "2026-09-18T10:39:50Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 5.15,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3421017A-3F78-4F7A-A5EB-42F786D49E71"
+    }
+   ]
+  },
+  {
+   "id": "235CB4FB-378F-4C6A-96D1-AD1212B46AE0",
+   "name": "operating systems edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Operating systems edge cases, explained with a worked operating systems problem.",
+   "lastAngle": "a worked operating systems problem",
+   "firstExplainedAt": "2026-01-04T02:40:21Z",
+   "lastExplainedAt": "2026-09-05T00:00:00Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 657.99,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D353752A-F8B8-4C20-B120-CC833903992E"
+    }
+   ]
+  },
+  {
+   "id": "6592A091-428C-4900-845D-F13EDB82E5DE",
+   "name": "sorting edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sorting edge cases, explained with a worked sorting problem.",
+   "lastAngle": "a worked sorting problem",
+   "firstExplainedAt": "2026-01-09T22:02:54Z",
+   "lastExplainedAt": "2026-10-12T02:34:24Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 268.27,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92"
+    }
+   ]
+  },
+  {
+   "id": "B747EEA0-B159-40F9-8FC8-BB567C912971",
+   "name": "authentication edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Authentication edge cases, explained with a worked authentication problem.",
+   "lastAngle": "a worked authentication problem",
+   "firstExplainedAt": "2026-01-18T03:22:49Z",
+   "lastExplainedAt": "2026-11-02T01:27:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 4.66,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "4E1E8934-5D17-452E-9AD5-F8CE37D50396"
+    }
+   ]
+  },
+  {
+   "id": "BD21BC61-7569-46B1-B6C9-5858953F6F79",
+   "name": "css layout edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Css layout edge cases, explained with a worked css layout problem.",
+   "lastAngle": "a worked css layout problem",
+   "firstExplainedAt": "2026-01-23T11:06:49Z",
+   "lastExplainedAt": "2026-09-21T15:36:34Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 302.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "BE2111C0-A410-45A7-808A-8B583679F2FD"
+    }
+   ]
+  },
+  {
+   "id": "A58DB048-9016-4680-B056-6B015C1B7578",
+   "name": "replication edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Replication edge cases, explained with a worked replication problem.",
+   "lastAngle": "a worked replication problem",
+   "firstExplainedAt": "2026-01-29T16:10:38Z",
+   "lastExplainedAt": "2026-09-12T13:51:25Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 45.57,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "B6BE5C53-FE93-44BF-B511-60D721C97CC3",
+   "name": "sharding edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sharding edge cases, explained with a worked sharding problem.",
+   "lastAngle": "a worked sharding problem",
+   "firstExplainedAt": "2026-02-01T07:33:15Z",
+   "lastExplainedAt": "2026-10-15T22:59:35Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.49,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF2315B-53F4-474B-A96F-9981816E241D"
+    }
+   ]
+  },
+  {
+   "id": "AC2C15EC-F64A-4B8D-875D-1BE98784792A",
+   "name": "tries edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tries edge cases, explained with a worked tries problem.",
+   "lastAngle": "a worked tries problem",
+   "firstExplainedAt": "2026-02-11T06:56:05Z",
+   "lastExplainedAt": "2026-08-28T13:18:33Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 347.46,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D048CA20-C069-46FE-9619-5DBDD5F4EA1F"
+    }
+   ]
+  },
+  {
+   "id": "718714C5-8788-4E7D-B331-F6FDF9A85E8E",
+   "name": "concurrency patterns edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Concurrency patterns edge cases, explained with a worked concurrency patterns problem.",
+   "lastAngle": "a worked concurrency patterns problem",
+   "firstExplainedAt": "2026-02-14T20:50:10Z",
+   "lastExplainedAt": "2026-09-02T01:05:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 697.56,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4"
+    }
+   ]
+  },
+  {
+   "id": "2A95025D-070A-4152-A209-6BB2EDECD933",
+   "name": "linear algebra edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Linear algebra edge cases, explained with a worked linear algebra problem.",
+   "lastAngle": "a worked linear algebra problem",
+   "firstExplainedAt": "2026-02-20T12:04:00Z",
+   "lastExplainedAt": "2026-10-24T00:48:11Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 2.52,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF1E136-541B-4F92-855B-9C5FF00ECEDF"
+    }
+   ]
+  },
+  {
+   "id": "0A289509-D317-42B7-BF21-E3FDB54E6112",
+   "name": "compilers edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Compilers edge cases, explained with a worked compilers problem.",
+   "lastAngle": "a worked compilers problem",
+   "firstExplainedAt": "2026-02-27T16:42:57Z",
+   "lastExplainedAt": "2026-09-15T10:07:42Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 3.16,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D109BD3E-A8E6-498E-8B97-D1A740D64898"
+    }
+   ]
+  },
+  {
+   "id": "F561418B-89AB-4641-8C5C-1ADCE3481BE6",
+   "name": "testing edge cases",
+   "aliases": [],
+   "cues": [],
+   "summary": "Testing edge cases, explained with a worked testing problem.",
+   "lastAngle": "a worked testing problem",
+   "firstExplainedAt": "2026-03-03T17:57:37Z",
+   "lastExplainedAt": "2026-08-07T13:46:57Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 741.24,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9E42E5B8-6114-4F76-AD0F-90E9E2A63756"
+    }
+   ]
+  },
+  {
+   "id": "4D066EF0-D5A2-4ED2-A7CF-8E053FB36C9D",
+   "name": "consistent hashing tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing tradeoffs, explained with a worked consistent hashing problem.",
+   "lastAngle": "a worked consistent hashing problem",
+   "firstExplainedAt": "2026-03-06T23:34:48Z",
+   "lastExplainedAt": "2026-10-29T12:43:43Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 3.85,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "FAB473EB-9368-49B5-BB8B-F1C13CF336B7",
+   "name": "event loop tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event loop tradeoffs, explained with a worked event loop problem.",
+   "lastAngle": "a worked event loop problem",
+   "firstExplainedAt": "2026-03-18T09:12:04Z",
+   "lastExplainedAt": "2026-11-04T18:20:06Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 10.98,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "3E06FC2B-B76F-4DB5-807B-C83280A7144F",
+   "name": "binary search tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search tradeoffs, explained with a worked binary search problem.",
+   "lastAngle": "a worked binary search problem",
+   "firstExplainedAt": "2026-03-18T22:51:01Z",
+   "lastExplainedAt": "2026-09-18T11:40:33Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 327.39,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "0E7CD2D6-66ED-440D-A540-F0E295A7C142",
+   "name": "caching tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Caching tradeoffs, explained with a worked caching problem.",
+   "lastAngle": "a worked caching problem",
+   "firstExplainedAt": "2026-03-24T21:57:49Z",
+   "lastExplainedAt": "2026-08-20T04:45:13Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 589.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "C25F5BAB-8EA4-4E93-917B-1329DB9E2ED6",
+   "name": "database indexes tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Database indexes tradeoffs, explained with a worked database indexes problem.",
+   "lastAngle": "a worked database indexes problem",
+   "firstExplainedAt": "2026-04-02T23:20:41Z",
+   "lastExplainedAt": "2026-10-11T12:37:41Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 183.13,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "BA46FF1C-E635-4BFA-8A21-2A5800074471",
+   "name": "transactions tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Transactions tradeoffs, explained with a worked transactions problem.",
+   "lastAngle": "a worked transactions problem",
+   "firstExplainedAt": "2026-04-07T18:05:56Z",
+   "lastExplainedAt": "2026-10-20T10:27:35Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 11.12,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "0D86D1E8-68BE-4439-8FC6-8E8F80EBD93C",
+   "name": "rate limiting tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rate limiting tradeoffs, explained with a worked rate limiting problem.",
+   "lastAngle": "a worked rate limiting problem",
+   "firstExplainedAt": "2026-04-13T21:34:55Z",
+   "lastExplainedAt": "2026-09-21T10:41:21Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 492.39,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9"
+    }
+   ]
+  },
+  {
+   "id": "8B7078F8-0B42-4A5A-9A03-8C719813B464",
+   "name": "react rendering tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "React rendering tradeoffs, explained with a worked react rendering problem.",
+   "lastAngle": "a worked react rendering problem",
+   "firstExplainedAt": "2026-04-17T11:35:38Z",
+   "lastExplainedAt": "2026-10-02T21:28:44Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 23.06,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "E27EAF6D-26DC-45B6-8ECF-AD7DC62681C7",
+   "name": "recursion tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Recursion tradeoffs, explained with a worked recursion problem.",
+   "lastAngle": "a worked recursion problem",
+   "firstExplainedAt": "2026-04-23T14:25:05Z",
+   "lastExplainedAt": "2026-08-15T09:39:10Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 736.23,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "F01AE170-FAE0-471A-841F-89243827DD28",
+   "name": "graph traversal tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Graph traversal tradeoffs, explained with a worked graph traversal problem.",
+   "lastAngle": "a worked graph traversal problem",
+   "firstExplainedAt": "2026-04-28T21:24:16Z",
+   "lastExplainedAt": "2026-09-06T02:31:35Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 10.11,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "3CD984AA-AEC1-4E2A-9233-FD8EBFEF10A0",
+   "name": "load balancing tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Load balancing tradeoffs, explained with a worked load balancing problem.",
+   "lastAngle": "a worked load balancing problem",
+   "firstExplainedAt": "2026-05-05T01:18:18Z",
+   "lastExplainedAt": "2026-10-03T03:28:40Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 42.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "40E9451E-B551-4A26-AABE-956B734C8F6E",
+   "name": "http tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Http tradeoffs, explained with a worked http problem.",
+   "lastAngle": "a worked http problem",
+   "firstExplainedAt": "2026-05-11T14:04:44Z",
+   "lastExplainedAt": "2026-10-20T01:58:22Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 80.96,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "21DF9FC7-ED4B-4768-8946-6564E9F3FDB1",
+   "name": "hash maps tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash maps tradeoffs, explained with a worked hash maps problem.",
+   "lastAngle": "a worked hash maps problem",
+   "firstExplainedAt": "2026-05-15T18:15:22Z",
+   "lastExplainedAt": "2026-09-13T03:41:25Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 271.17,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  },
+  {
+   "id": "44839217-C473-493E-8D28-DAA5F652D53F",
+   "name": "message queues tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Message queues tradeoffs, explained with a worked message queues problem.",
+   "lastAngle": "a worked message queues problem",
+   "firstExplainedAt": "2026-05-24T17:27:41Z",
+   "lastExplainedAt": "2026-08-24T21:55:31Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 17.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "53448226-A491-4A1C-831F-4981F01047CC"
+    }
+   ]
+  },
+  {
+   "id": "3F56E830-C963-48D3-AC49-8CE05465C2A7",
+   "name": "git tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Git tradeoffs, explained with a worked git problem.",
+   "lastAngle": "a worked git problem",
+   "firstExplainedAt": "2026-05-27T04:08:12Z",
+   "lastExplainedAt": "2026-10-28T12:48:16Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 1.35,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "52D13B4F-FD75-42AD-A1A5-609CB7C0FD5E"
+    }
+   ]
+  },
+  {
+   "id": "66833E9F-AFE5-41F0-B716-8626D5692380",
+   "name": "neural networks tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Neural networks tradeoffs, explained with a worked neural networks problem.",
+   "lastAngle": "a worked neural networks problem",
+   "firstExplainedAt": "2026-06-05T23:50:47Z",
+   "lastExplainedAt": "2026-11-05T06:00:51Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 5.27,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F11EA1D1-2147-4026-963B-99EBE3EE4EAB"
+    }
+   ]
+  },
+  {
+   "id": "66597375-41A6-490C-B53B-DDAB44D1CD64",
+   "name": "probability tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Probability tradeoffs, explained with a worked probability problem.",
+   "lastAngle": "a worked probability problem",
+   "firstExplainedAt": "2026-06-12T09:43:34Z",
+   "lastExplainedAt": "2026-09-18T07:53:19Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 53.96,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3421017A-3F78-4F7A-A5EB-42F786D49E71"
+    }
+   ]
+  },
+  {
+   "id": "9A7C1CC7-2BFE-49A0-89D5-C8EBE4C83E1E",
+   "name": "operating systems tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Operating systems tradeoffs, explained with a worked operating systems problem.",
+   "lastAngle": "a worked operating systems problem",
+   "firstExplainedAt": "2026-06-18T23:18:27Z",
+   "lastExplainedAt": "2026-10-29T08:27:36Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 51.63,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D353752A-F8B8-4C20-B120-CC833903992E"
+    }
+   ]
+  },
+  {
+   "id": "C640DADD-ED9D-4576-9CA2-865503023B57",
+   "name": "sorting tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sorting tradeoffs, explained with a worked sorting problem.",
+   "lastAngle": "a worked sorting problem",
+   "firstExplainedAt": "2026-06-22T11:25:08Z",
+   "lastExplainedAt": "2026-09-30T05:36:20Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 2.54,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8B3C7270-4605-4205-98B5-2E9FDD6D4F92"
+    }
+   ]
+  },
+  {
+   "id": "5513B912-EA97-4CE7-BBB6-FFBA457521C9",
+   "name": "authentication tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Authentication tradeoffs, explained with a worked authentication problem.",
+   "lastAngle": "a worked authentication problem",
+   "firstExplainedAt": "2026-06-27T21:48:54Z",
+   "lastExplainedAt": "2026-09-30T16:20:46Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 42.64,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "4E1E8934-5D17-452E-9AD5-F8CE37D50396"
+    }
+   ]
+  },
+  {
+   "id": "CD95F5DC-0CC7-422F-A055-8832B9E149E5",
+   "name": "css layout tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Css layout tradeoffs, explained with a worked css layout problem.",
+   "lastAngle": "a worked css layout problem",
+   "firstExplainedAt": "2026-07-01T10:57:14Z",
+   "lastExplainedAt": "2026-09-28T20:12:38Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 50.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "BE2111C0-A410-45A7-808A-8B583679F2FD"
+    }
+   ]
+  },
+  {
+   "id": "D35B7377-CD77-47AF-8165-CD878E15CB03",
+   "name": "replication tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Replication tradeoffs, explained with a worked replication problem.",
+   "lastAngle": "a worked replication problem",
+   "firstExplainedAt": "2026-07-08T00:44:24Z",
+   "lastExplainedAt": "2026-08-09T12:00:51Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 476.73,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "B1B788E1-F3C6-4186-915F-AB8C9412ABA9"
+    }
+   ]
+  },
+  {
+   "id": "C743028E-9AF3-4C46-BF5F-B123FB90753C",
+   "name": "sharding tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sharding tradeoffs, explained with a worked sharding problem.",
+   "lastAngle": "a worked sharding problem",
+   "firstExplainedAt": "2026-07-14T18:13:58Z",
+   "lastExplainedAt": "2026-10-14T03:13:38Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 22.67,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF2315B-53F4-474B-A96F-9981816E241D"
+    }
+   ]
+  },
+  {
+   "id": "9B080240-BBE7-48C0-8EEB-9B8887255439",
+   "name": "tries tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Tries tradeoffs, explained with a worked tries problem.",
+   "lastAngle": "a worked tries problem",
+   "firstExplainedAt": "2026-07-22T12:19:39Z",
+   "lastExplainedAt": "2026-08-09T09:50:06Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 506.67,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D048CA20-C069-46FE-9619-5DBDD5F4EA1F"
+    }
+   ]
+  },
+  {
+   "id": "E44C1FC1-6E14-4727-98B9-48EE710C4B25",
+   "name": "concurrency patterns tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Concurrency patterns tradeoffs, explained with a worked concurrency patterns problem.",
+   "lastAngle": "a worked concurrency patterns problem",
+   "firstExplainedAt": "2026-07-29T08:06:10Z",
+   "lastExplainedAt": "2026-08-28T03:02:09Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 8.59,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "3479FA9B-D1B6-48F7-8F91-149BE77B02C4"
+    }
+   ]
+  },
+  {
+   "id": "79196E7A-06D7-48DB-A9E6-BCD0594196E0",
+   "name": "linear algebra tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Linear algebra tradeoffs, explained with a worked linear algebra problem.",
+   "lastAngle": "a worked linear algebra problem",
+   "firstExplainedAt": "2026-08-01T09:32:55Z",
+   "lastExplainedAt": "2026-08-13T04:34:23Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 383.63,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8AF1E136-541B-4F92-855B-9C5FF00ECEDF"
+    }
+   ]
+  },
+  {
+   "id": "3296B671-BE26-445D-AE62-D1F0FDFF1721",
+   "name": "compilers tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Compilers tradeoffs, explained with a worked compilers problem.",
+   "lastAngle": "a worked compilers problem",
+   "firstExplainedAt": "2026-08-09T09:10:27Z",
+   "lastExplainedAt": "2026-09-21T13:48:11Z",
+   "timesExplained": 3,
+   "timesLost": 1,
+   "stabilityDays": 255.6,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D109BD3E-A8E6-498E-8B97-D1A740D64898"
+    }
+   ]
+  },
+  {
+   "id": "4380B6BE-3B11-4458-88CC-90913D3B93C9",
+   "name": "testing tradeoffs",
+   "aliases": [],
+   "cues": [],
+   "summary": "Testing tradeoffs, explained with a worked testing problem.",
+   "lastAngle": "a worked testing problem",
+   "firstExplainedAt": "2026-08-15T05:53:31Z",
+   "lastExplainedAt": "2026-10-12T23:33:09Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 281.6,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9E42E5B8-6114-4F76-AD0F-90E9E2A63756"
+    }
+   ]
+  },
+  {
+   "id": "22AE30D5-4987-4E58-97BB-C4F2DA4D870E",
+   "name": "consistent hashing at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing at scale, explained with a worked consistent hashing problem.",
+   "lastAngle": "a worked consistent hashing problem",
+   "firstExplainedAt": "2026-08-20T14:49:45Z",
+   "lastExplainedAt": "2026-09-04T20:16:12Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 8.62,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "99C67FF6-F6B6-4934-9449-EDB1B9BBBF2A"
+    }
+   ]
+  },
+  {
+   "id": "514BCEEE-90F9-4592-8A7F-94FFED6A4BB9",
+   "name": "event loop at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event loop at scale, explained with a worked event loop problem.",
+   "lastAngle": "a worked event loop problem",
+   "firstExplainedAt": "2026-08-22T16:01:21Z",
+   "lastExplainedAt": "2026-09-07T07:26:46Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 649.13,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "0DE6E2CE-7EFE-4A4B-9B8D-48EFCC0F2796"
+    }
+   ]
+  },
+  {
+   "id": "4C4D7644-2D54-4D14-A2CB-693909C36512",
+   "name": "binary search at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search at scale, explained with a worked binary search problem.",
+   "lastAngle": "a worked binary search problem",
+   "firstExplainedAt": "2026-08-29T08:27:32Z",
+   "lastExplainedAt": "2026-09-13T02:36:04Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 5.64,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "80F64A9E-4828-4A52-BFE4-6273414D8F14"
+    }
+   ]
+  },
+  {
+   "id": "3C0BA463-6E10-4A39-A1E9-DE89A5859B35",
+   "name": "caching at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Caching at scale, explained with a worked caching problem.",
+   "lastAngle": "a worked caching problem",
+   "firstExplainedAt": "2026-09-03T02:37:30Z",
+   "lastExplainedAt": "2026-09-11T03:45:00Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 34.48,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5EB3EA4F-1F14-4199-AD50-C12FF6BD5165"
+    }
+   ]
+  },
+  {
+   "id": "BD61EA78-D4A2-4902-B9EF-99DC045A541A",
+   "name": "database indexes at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Database indexes at scale, explained with a worked database indexes problem.",
+   "lastAngle": "a worked database indexes problem",
+   "firstExplainedAt": "2026-09-12T23:58:33Z",
+   "lastExplainedAt": "2026-10-03T17:03:17Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 191.82,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "056FEE04-D99E-41EF-91C8-2487BF8FD268"
+    }
+   ]
+  },
+  {
+   "id": "CF38F713-ABA2-4321-A720-36C4E7068952",
+   "name": "transactions at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Transactions at scale, explained with a worked transactions problem.",
+   "lastAngle": "a worked transactions problem",
+   "firstExplainedAt": "2026-09-17T19:16:48Z",
+   "lastExplainedAt": "2026-10-31T20:42:14Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "015B2B9D-A46A-44DA-A337-4DAEC4971930"
+    }
+   ]
+  },
+  {
+   "id": "3049E372-77DF-41C1-B223-1E3A481E3F8B",
+   "name": "rate limiting at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rate limiting at scale, explained with a worked rate limiting problem.",
+   "lastAngle": "a worked rate limiting problem",
+   "firstExplainedAt": "2026-09-24T21:16:04Z",
+   "lastExplainedAt": "2026-10-20T01:50:54Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 82.07,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "5A68E08B-B6BD-43D9-9A6F-5FEB3D7296E9"
+    }
+   ]
+  },
+  {
+   "id": "D862203A-28CE-43E3-810A-E623AA82A84F",
+   "name": "react rendering at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "React rendering at scale, explained with a worked react rendering problem.",
+   "lastAngle": "a worked react rendering problem",
+   "firstExplainedAt": "2026-09-27T22:57:15Z",
+   "lastExplainedAt": "2026-10-25T14:20:55Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 14.4,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "8F2CBEE9-54CC-4748-9C69-FE3CA1C957D7"
+    }
+   ]
+  },
+  {
+   "id": "6DA28768-DB17-4440-BC03-F4D0D1E6BD40",
+   "name": "recursion at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Recursion at scale, explained with a worked recursion problem.",
+   "lastAngle": "a worked recursion problem",
+   "firstExplainedAt": "2026-10-02T18:34:19Z",
+   "lastExplainedAt": "2026-10-27T19:46:51Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 9.72,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F0B86DDB-6BF6-4690-A384-8A8CFE9BF530"
+    }
+   ]
+  },
+  {
+   "id": "831B9DE8-EBF1-43DE-9E59-E88AF801BD72",
+   "name": "graph traversal at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Graph traversal at scale, explained with a worked graph traversal problem.",
+   "lastAngle": "a worked graph traversal problem",
+   "firstExplainedAt": "2026-10-08T21:36:08Z",
+   "lastExplainedAt": "2026-11-01T18:22:45Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 18.95,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "EB16ACEA-7409-4D86-8959-CBCA39F85B0A"
+    }
+   ]
+  },
+  {
+   "id": "E29BCCE2-C9C8-4F0B-A63F-1E71570F6D8D",
+   "name": "load balancing at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Load balancing at scale, explained with a worked load balancing problem.",
+   "lastAngle": "a worked load balancing problem",
+   "firstExplainedAt": "2026-10-14T01:00:11Z",
+   "lastExplainedAt": "2026-10-16T22:10:07Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 21.52,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "F7B9DACD-F29D-45F2-84A8-B6D361A37246"
+    }
+   ]
+  },
+  {
+   "id": "C8A1E4ED-4AB5-4D8C-9F05-2444FE35766B",
+   "name": "http at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Http at scale, explained with a worked http problem.",
+   "lastAngle": "a worked http problem",
+   "firstExplainedAt": "2026-10-21T10:28:05Z",
+   "lastExplainedAt": "2026-10-26T19:32:12Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 83.05,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "D12318E7-E10C-41B1-B9A4-E218F2E3BDF1"
+    }
+   ]
+  },
+  {
+   "id": "3A89817B-70C3-4D5D-99C4-6B1E7E3D73D0",
+   "name": "hash maps at scale",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash maps at scale, explained with a worked hash maps problem.",
+   "lastAngle": "a worked hash maps problem",
+   "firstExplainedAt": "2026-10-29T00:47:03Z",
+   "lastExplainedAt": "2026-11-04T10:45:16Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 14.08,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9F155848-EF3D-4689-8F5D-B248EF2FD007"
+    }
+   ]
+  }
+ ]
+}

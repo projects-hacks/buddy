@@ -113,6 +113,8 @@ Buddy remembers the ideas it explains, across days. When a new question touches 
 
 Memory keeps only the latest explanation of each idea, estimates how well you still remember it, and sets aside ideas met once and unseen for months. It stays on this Mac. Turn it off or **Forget all** in Settings.
 
+**The map of what you know.** The map button in the open notch (beside the gear), or **Map** under Learning memory in Settings, opens every idea Buddy has taught you as a map: each idea a dot, related ideas joined ("async await" uses "promises"), each topic tinted its own colour. Ideas you are probably forgetting fade and say **review soon**. Hover an idea for how it was last explained and when you learned it; drag or scroll to move around, pinch or Command and scroll to zoom, Command F to search by name. Click an idea for **Re-teach this**, which asks Buddy to teach it again with a different example from last time: the map steps aside and the answer is spoken and drawn as usual. **Forget this idea** removes just that one, after you confirm. The first time the map opens on memory from before 1.6, Buddy finds the links between older ideas once in the background, sending only their names and one-sentence summaries.
+
 ## Settings
 
 Hover the notch and open the gear tab.
@@ -122,7 +124,7 @@ Hover the notch and open the gear tab.
 | Brain | **Auto** picks Sonnet, Opus or Argon per question; or always use Claude, Gemini, or a local model |
 | Spent today | What Buddy has spent on your keys today and this month, with how many questions it answered |
 | Sounds | Soft tones when the mic opens and a question is sent, key taps when the chat box opens, a water drop when the notch opens |
-| Learning memory | On or off, how many ideas and how-tos are remembered, Forget all |
+| Learning memory | On or off, how many ideas and how-tos are remembered, Map, Forget all |
 | Name and API keys | Reopens setup on the keys |
 | Open at login | Whether Buddy starts when you log in |
 | Check for updates | The daily check for a newer Buddy, and Check now |

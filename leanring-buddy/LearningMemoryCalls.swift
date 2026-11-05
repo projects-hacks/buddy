@@ -7,8 +7,9 @@
 //
 //  Filing (LessonConceptPrompt.txt) runs after an answer has been spoken and
 //  names the ideas it taught, matched against the nearest ones already
-//  known, with the plain-words cues retrieval later matches on. About $0.002
-//  a lesson.
+//  known, with the plain-words cues retrieval later matches on, and how each
+//  relates to those known ones, which the map of what the student knows
+//  draws. About $0.002 a lesson.
 //
 //  Choosing (MemoryRecallPrompt.txt) runs while the screen is captured and
 //  picks, from an on-device shortlist, the ideas a question is about. On the
@@ -112,7 +113,9 @@ extension ClaudeVisionProvider {
                 aliases: (entry["aliases"] as? [String]) ?? [],
                 cues: (entry["cues"] as? [String]) ?? [],
                 summary: (entry["summary"] as? String) ?? "",
-                angle: entry["angle"] as? String
+                angle: entry["angle"] as? String,
+                relations: ConceptRelationReading.filingRelations(
+                    in: entry["related"], idsByShortID: idsByShortID, sameAsID: sameAs)
             )
         }
     }
@@ -143,8 +146,9 @@ extension ClaudeVisionProvider {
     }
 
     /// One short Haiku reply, or nil. No key, a timeout or an error all mean
-    /// nil, and the caller carries on without it.
-    private func quickHaikuReply(system: String, message: String, maximumTokens: Int, timeout: TimeInterval) async -> String? {
+    /// nil, and the caller carries on without it. Not private so the map's
+    /// one-time relation pass (KnowledgeMapRelations.swift) shares it.
+    func quickHaikuReply(system: String, message: String, maximumTokens: Int, timeout: TimeInterval) async -> String? {
         guard let apiKey = APIKeyStore.key(for: .anthropic),
               let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
         let body: [String: Any] = [

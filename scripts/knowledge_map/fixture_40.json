@@ -1,0 +1,741 @@
+{
+ "version": 1,
+ "embeddingModel": null,
+ "concepts": [
+  {
+   "id": "4F09F3D0-8538-407D-A9A0-645F4F69A816",
+   "name": "modulo hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Modulo hashing, explained with key mod server count.",
+   "lastAngle": "key mod server count",
+   "firstExplainedAt": "2025-09-27T07:50:57Z",
+   "lastExplainedAt": "2026-08-26T21:28:23Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 616.48,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "A2F4A3BD-BC9B-473D-8E6F-C52507E470A3"
+    }
+   ]
+  },
+  {
+   "id": "956EB6DC-2BB9-4C2F-907C-687B842E25DA",
+   "name": "microtask queue",
+   "aliases": [],
+   "cues": [],
+   "summary": "Microtask queue, explained with promises cutting the line.",
+   "lastAngle": "promises cutting the line",
+   "firstExplainedAt": "2025-10-10T06:28:55Z",
+   "lastExplainedAt": "2026-11-04T16:40:06Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 8.18,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "1EC193B9-53B9-4AEA-BAD6-8E108BB4EB76"
+    }
+   ]
+  },
+  {
+   "id": "196AFB70-7425-479E-B61A-E20A3DAB60B0",
+   "name": "feature flags",
+   "aliases": [],
+   "cues": [],
+   "summary": "Feature flags, explained with a dimmer for a new feature.",
+   "lastAngle": "a dimmer for a new feature",
+   "firstExplainedAt": "2025-10-18T16:07:09Z",
+   "lastExplainedAt": "2026-08-18T21:53:36Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 71.35,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "CA5D5568-FD04-41CE-92A7-E3C4E9A10EAF",
+   "name": "async await",
+   "aliases": [],
+   "cues": [],
+   "summary": "Async await, explained with pausing a recipe while the oven heats.",
+   "lastAngle": "pausing a recipe while the oven heats",
+   "firstExplainedAt": "2025-10-30T00:25:37Z",
+   "lastExplainedAt": "2026-08-24T23:27:39Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 48.46,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "390DBCF3-2285-4325-877D-7378BB03D101"
+    }
+   ]
+  },
+  {
+   "id": "BBFF5E48-D75A-4DD5-9B9E-5DE6724899E0",
+   "name": "callback hell",
+   "aliases": [],
+   "cues": [],
+   "summary": "Callback hell, explained with nested phone trees.",
+   "lastAngle": "nested phone trees",
+   "firstExplainedAt": "2025-11-08T00:05:39Z",
+   "lastExplainedAt": "2026-09-28T20:53:19Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 26.96,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "CA5D5568-FD04-41CE-92A7-E3C4E9A10EAF"
+    }
+   ]
+  },
+  {
+   "id": "31961D9C-B971-46E0-8C61-6E92C82A00DF",
+   "name": "throttling",
+   "aliases": [],
+   "cues": [],
+   "summary": "Throttling, explained with a turnstile letting one through a second.",
+   "lastAngle": "a turnstile letting one through a second",
+   "firstExplainedAt": "2025-11-19T11:19:59Z",
+   "lastExplainedAt": "2026-10-13T18:04:36Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 241.28,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "0D7103DD-6F2D-4C2D-A49D-3C69EDDEF96E"
+    }
+   ]
+  },
+  {
+   "id": "2FC8BC4C-3DEE-4EB8-8EB9-1A503FC9E24C",
+   "name": "cache stampede",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cache stampede, explained with everyone refreshing at midnight.",
+   "lastAngle": "everyone refreshing at midnight",
+   "firstExplainedAt": "2025-11-30T03:59:13Z",
+   "lastExplainedAt": "2026-10-17T07:55:40Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 26.77,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "CD0C141A-0803-4CB5-BF9D-15D38313D412"
+    }
+   ]
+  },
+  {
+   "id": "CD0C141A-0803-4CB5-BF9D-15D38313D412",
+   "name": "caching",
+   "aliases": [],
+   "cues": [],
+   "summary": "Caching, explained with a stale menu board.",
+   "lastAngle": "a stale menu board",
+   "firstExplainedAt": "2025-12-06T15:50:03Z",
+   "lastExplainedAt": "2026-08-29T11:40:02Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 12.4,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "4DA0F820-0773-4F9D-8AF3-6466C1CC04B4",
+   "name": "unicode",
+   "aliases": [],
+   "cues": [],
+   "summary": "Unicode, explained with a world atlas of letters.",
+   "lastAngle": "a world atlas of letters",
+   "firstExplainedAt": "2025-12-18T07:44:48Z",
+   "lastExplainedAt": "2026-08-27T21:32:24Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 683.33,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "4192B1E4-850A-43B4-9E70-8C5AE854EDBF",
+   "name": "floating point error",
+   "aliases": [],
+   "cues": [],
+   "summary": "Floating point error, explained with measuring with a stretchy ruler.",
+   "lastAngle": "measuring with a stretchy ruler",
+   "firstExplainedAt": "2025-12-26T23:26:41Z",
+   "lastExplainedAt": "2026-09-03T00:57:19Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 61.87,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "5D8F20B5-9388-4BB3-8A85-9E69F89CB314",
+   "name": "full table scan",
+   "aliases": [],
+   "cues": [],
+   "summary": "Full table scan, explained with reading every page of the book.",
+   "lastAngle": "reading every page of the book",
+   "firstExplainedAt": "2026-01-07T19:23:13Z",
+   "lastExplainedAt": "2026-11-02T04:41:34Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 4.41,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "contrasts with",
+     "targetID": "9016EC97-7998-4091-8117-AB34BB801909"
+    }
+   ]
+  },
+  {
+   "id": "F7035E70-42D0-4C6D-84E6-F08F4E2BA9A3",
+   "name": "dns",
+   "aliases": [],
+   "cues": [],
+   "summary": "Dns, explained with a phone book for websites.",
+   "lastAngle": "a phone book for websites",
+   "firstExplainedAt": "2026-01-18T18:28:50Z",
+   "lastExplainedAt": "2026-09-13T16:10:14Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 569.79,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9A198EC4-E8B0-461B-961E-B59E332496AE",
+   "name": "cdn",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cdn, explained with a corner shop stocking bestsellers.",
+   "lastAngle": "a corner shop stocking bestsellers",
+   "firstExplainedAt": "2026-01-27T00:36:38Z",
+   "lastExplainedAt": "2026-08-30T04:36:02Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 532.72,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "CD0C141A-0803-4CB5-BF9D-15D38313D412"
+    }
+   ]
+  },
+  {
+   "id": "43B6021F-7AC2-46F5-BC49-DE2A72262844",
+   "name": "query planner",
+   "aliases": [],
+   "cues": [],
+   "summary": "Query planner, explained with a sat nav picking a route.",
+   "lastAngle": "a sat nav picking a route",
+   "firstExplainedAt": "2026-02-03T00:11:39Z",
+   "lastExplainedAt": "2026-09-25T19:21:16Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 32.4,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "9016EC97-7998-4091-8117-AB34BB801909"
+    }
+   ]
+  },
+  {
+   "id": "EE9DAB1F-730E-4FF2-9FB6-90C0ECA6C3D9",
+   "name": "lower bound",
+   "aliases": [],
+   "cues": [],
+   "summary": "Lower bound, explained with the first seat that fits.",
+   "lastAngle": "the first seat that fits",
+   "firstExplainedAt": "2026-02-14T03:48:15Z",
+   "lastExplainedAt": "2026-11-03T08:52:23Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 17.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9"
+    }
+   ]
+  },
+  {
+   "id": "0D7103DD-6F2D-4C2D-A49D-3C69EDDEF96E",
+   "name": "debouncing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Debouncing, explained with the search box firing on every key.",
+   "lastAngle": "the search box firing on every key",
+   "firstExplainedAt": "2026-02-25T06:06:01Z",
+   "lastExplainedAt": "2026-09-13T06:12:29Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 283.83,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "1EC193B9-53B9-4AEA-BAD6-8E108BB4EB76"
+    }
+   ]
+  },
+  {
+   "id": "1EC193B9-53B9-4AEA-BAD6-8E108BB4EB76",
+   "name": "event loop",
+   "aliases": [],
+   "cues": [],
+   "summary": "Event loop, explained with a stack of plates.",
+   "lastAngle": "a stack of plates",
+   "firstExplainedAt": "2026-03-09T06:29:28Z",
+   "lastExplainedAt": "2026-09-27T04:09:39Z",
+   "timesExplained": 6,
+   "timesLost": 0,
+   "stabilityDays": 2.46,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "224BBE61-C0F1-4FC5-9DB0-165DE8EDB57B",
+   "name": "lru eviction",
+   "aliases": [],
+   "cues": [],
+   "summary": "Lru eviction, explained with the fridge's oldest leftovers.",
+   "lastAngle": "the fridge's oldest leftovers",
+   "firstExplainedAt": "2026-03-19T12:19:21Z",
+   "lastExplainedAt": "2026-09-14T22:04:56Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 36.09,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "CD0C141A-0803-4CB5-BF9D-15D38313D412"
+    }
+   ]
+  },
+  {
+   "id": "4B5D4985-10AA-45FF-B193-8E35026A5558",
+   "name": "b tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "B tree, explained with a library's card catalogue.",
+   "lastAngle": "a library's card catalogue",
+   "firstExplainedAt": "2026-03-28T16:39:34Z",
+   "lastExplainedAt": "2026-10-02T21:41:26Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 198.69,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9016EC97-7998-4091-8117-AB34BB801909"
+    }
+   ]
+  },
+  {
+   "id": "98A9E799-1474-43D9-A873-2BFB62B01999",
+   "name": "call stack",
+   "aliases": [],
+   "cues": [],
+   "summary": "Call stack, explained with a stack of plates.",
+   "lastAngle": "a stack of plates",
+   "firstExplainedAt": "2026-04-04T08:00:13Z",
+   "lastExplainedAt": "2026-09-16T01:59:50Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 362.78,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "1EC193B9-53B9-4AEA-BAD6-8E108BB4EB76"
+    }
+   ]
+  },
+  {
+   "id": "7E6195E3-A1AF-4E8F-8C10-DD8F1DFCAFCE",
+   "name": "cache invalidation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Cache invalidation, explained with a stale menu board.",
+   "lastAngle": "a stale menu board",
+   "firstExplainedAt": "2026-04-15T20:05:08Z",
+   "lastExplainedAt": "2026-10-23T04:50:38Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 104.56,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "CD0C141A-0803-4CB5-BF9D-15D38313D412"
+    }
+   ]
+  },
+  {
+   "id": "0CA36284-9196-4C4D-BA4D-E5BDCDC2B9FD",
+   "name": "hash ring",
+   "aliases": [],
+   "cues": [],
+   "summary": "Hash ring, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2026-04-28T18:06:18Z",
+   "lastExplainedAt": "2026-10-26T02:36:44Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 96.88,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "A2F4A3BD-BC9B-473D-8E6F-C52507E470A3"
+    }
+   ]
+  },
+  {
+   "id": "3E599C4C-B67B-4E39-96B5-1B4BEADAD2FB",
+   "name": "rebalancing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Rebalancing, explained with adding a fourth cache box.",
+   "lastAngle": "adding a fourth cache box",
+   "firstExplainedAt": "2026-05-06T02:56:20Z",
+   "lastExplainedAt": "2026-09-23T07:13:02Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 448.18,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "0CA36284-9196-4C4D-BA4D-E5BDCDC2B9FD"
+    }
+   ]
+  },
+  {
+   "id": "6CF538FF-1D39-4F1E-ABD9-3FDC03752BB2",
+   "name": "bloom filters",
+   "aliases": [],
+   "cues": [],
+   "summary": "Bloom filters, explained with a guest list that can only say maybe.",
+   "lastAngle": "a guest list that can only say maybe",
+   "firstExplainedAt": "2026-05-13T16:32:00Z",
+   "lastExplainedAt": "2026-10-03T03:14:03Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 318.63,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "C1C65B84-91F9-4250-934C-4A1554683E3B",
+   "name": "binary search tree",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search tree, explained with a guessing game tree.",
+   "lastAngle": "a guessing game tree",
+   "firstExplainedAt": "2026-05-24T08:00:00Z",
+   "lastExplainedAt": "2026-10-24T14:19:26Z",
+   "timesExplained": 4,
+   "timesLost": 0,
+   "stabilityDays": 1.7,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9"
+    }
+   ]
+  },
+  {
+   "id": "A2F4A3BD-BC9B-473D-8E6F-C52507E470A3",
+   "name": "consistent hashing",
+   "aliases": [],
+   "cues": [],
+   "summary": "Consistent hashing, explained with a clock face of servers.",
+   "lastAngle": "a clock face of servers",
+   "firstExplainedAt": "2026-06-06T06:10:52Z",
+   "lastExplainedAt": "2026-09-13T12:52:43Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 12.24,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "9016EC97-7998-4091-8117-AB34BB801909",
+   "name": "database indexes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Database indexes, explained with a library's card catalogue.",
+   "lastAngle": "a library's card catalogue",
+   "firstExplainedAt": "2026-06-15T04:01:42Z",
+   "lastExplainedAt": "2026-10-04T01:03:24Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 41.22,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "33E1463E-A236-4CFC-96DB-8091F636C7E5",
+   "name": "sorted arrays",
+   "aliases": [],
+   "cues": [],
+   "summary": "Sorted arrays, explained with a dictionary's alphabetical pages.",
+   "lastAngle": "a dictionary's alphabetical pages",
+   "firstExplainedAt": "2026-06-26T10:32:24Z",
+   "lastExplainedAt": "2026-10-20T14:08:42Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 1.74,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9"
+    }
+   ]
+  },
+  {
+   "id": "24DBED6F-0FE1-4F1C-9601-B94DA07DECFC",
+   "name": "write back cache",
+   "aliases": [],
+   "cues": [],
+   "summary": "Write back cache, explained with a notepad copied later.",
+   "lastAngle": "a notepad copied later",
+   "firstExplainedAt": "2026-07-02T20:57:27Z",
+   "lastExplainedAt": "2026-09-18T04:04:12Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 49.68,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "CD0C141A-0803-4CB5-BF9D-15D38313D412"
+    }
+   ]
+  },
+  {
+   "id": "4F26AE82-971A-4724-AC15-ED872BF2F6B8",
+   "name": "composite index",
+   "aliases": [],
+   "cues": [],
+   "summary": "Composite index, explained with sorting by surname then first name.",
+   "lastAngle": "sorting by surname then first name",
+   "firstExplainedAt": "2026-07-18T07:55:16Z",
+   "lastExplainedAt": "2026-11-01T01:31:08Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 27.35,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "4B5D4985-10AA-45FF-B193-8E35026A5558"
+    }
+   ]
+  },
+  {
+   "id": "649D39A4-1285-4D39-85CB-CBE7913BFA5A",
+   "name": "regular expressions",
+   "aliases": [],
+   "cues": [],
+   "summary": "Regular expressions, explained with a bouncer with a pattern list.",
+   "lastAngle": "a bouncer with a pattern list",
+   "firstExplainedAt": "2026-07-26T13:36:45Z",
+   "lastExplainedAt": "2026-08-11T02:25:28Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 100.94,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "CD9DA41B-44C0-40A0-A048-D1B490EAAC36",
+   "name": "write through cache",
+   "aliases": [],
+   "cues": [],
+   "summary": "Write through cache, explained with writing in pen and pencil.",
+   "lastAngle": "writing in pen and pencil",
+   "firstExplainedAt": "2026-08-04T00:50:57Z",
+   "lastExplainedAt": "2026-10-03T21:51:07Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 356.58,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "24DBED6F-0FE1-4F1C-9601-B94DA07DECFC"
+    }
+   ]
+  },
+  {
+   "id": "390DBCF3-2285-4325-877D-7378BB03D101",
+   "name": "promises",
+   "aliases": [],
+   "cues": [],
+   "summary": "Promises, explained with an order ticket at a cafe.",
+   "lastAngle": "an order ticket at a cafe",
+   "firstExplainedAt": "2026-08-12T06:41:34Z",
+   "lastExplainedAt": "2026-08-17T17:30:22Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 18.02,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "uses",
+     "targetID": "956EB6DC-2BB9-4C2F-907C-687B842E25DA"
+    }
+   ]
+  },
+  {
+   "id": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9",
+   "name": "binary search",
+   "aliases": [],
+   "cues": [],
+   "summary": "Binary search, explained with a dictionary's alphabetical pages.",
+   "lastAngle": "a dictionary's alphabetical pages",
+   "firstExplainedAt": "2026-08-21T22:01:48Z",
+   "lastExplainedAt": "2026-10-02T17:13:46Z",
+   "timesExplained": 3,
+   "timesLost": 0,
+   "stabilityDays": 143.17,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "E1FEF5F8-4022-4AA8-A6A3-D55770F7B610",
+   "name": "big o notation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Big o notation, explained with how the line at the bank grows.",
+   "lastAngle": "how the line at the bank grows",
+   "firstExplainedAt": "2026-09-05T09:29:54Z",
+   "lastExplainedAt": "2026-10-06T02:35:10Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 233.61,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "prerequisite of",
+     "targetID": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9"
+    }
+   ]
+  },
+  {
+   "id": "767E4B98-9C7E-4952-8FE7-50778A225CB6",
+   "name": "two pointers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Two pointers, explained with walking in from both ends.",
+   "lastAngle": "walking in from both ends",
+   "firstExplainedAt": "2026-09-10T21:31:22Z",
+   "lastExplainedAt": "2026-11-02T07:11:54Z",
+   "timesExplained": 1,
+   "timesLost": 0,
+   "stabilityDays": 23.77,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "alternative to",
+     "targetID": "841AC8F2-70C3-4FC8-8D8B-ED8A300B06F9"
+    }
+   ]
+  },
+  {
+   "id": "ECBDC45B-14FE-46AC-9393-9C21B3B7DF5F",
+   "name": "virtual nodes",
+   "aliases": [],
+   "cues": [],
+   "summary": "Virtual nodes, explained with each server on the ring many times.",
+   "lastAngle": "each server on the ring many times",
+   "firstExplainedAt": "2026-09-25T23:27:28Z",
+   "lastExplainedAt": "2026-10-14T14:27:48Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 230.6,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "A2F4A3BD-BC9B-473D-8E6F-C52507E470A3"
+    }
+   ]
+  },
+  {
+   "id": "93BE6CAD-17A3-43D3-B808-297071786181",
+   "name": "bit manipulation",
+   "aliases": [],
+   "cues": [],
+   "summary": "Bit manipulation, explained with light switches in a row.",
+   "lastAngle": "light switches in a row",
+   "firstExplainedAt": "2026-10-01T04:06:53Z",
+   "lastExplainedAt": "2026-11-03T17:55:50Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 23.96,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "8E6BF5C0-4FCD-4295-8069-B7976B76953A",
+   "name": "docker containers",
+   "aliases": [],
+   "cues": [],
+   "summary": "Docker containers, explained with shipping containers for code.",
+   "lastAngle": "shipping containers for code",
+   "firstExplainedAt": "2026-10-11T17:48:29Z",
+   "lastExplainedAt": "2026-10-24T08:13:24Z",
+   "timesExplained": 2,
+   "timesLost": 0,
+   "stabilityDays": 13.46,
+   "lessonTitles": [],
+   "relations": []
+  },
+  {
+   "id": "7405F172-BB90-4854-8B6E-44FF18392796",
+   "name": "covering index",
+   "aliases": [],
+   "cues": [],
+   "summary": "Covering index, explained with an index card with the answer on it.",
+   "lastAngle": "an index card with the answer on it",
+   "firstExplainedAt": "2026-10-23T22:39:31Z",
+   "lastExplainedAt": "2026-11-05T03:52:50Z",
+   "timesExplained": 1,
+   "timesLost": 1,
+   "stabilityDays": 1.0,
+   "lessonTitles": [],
+   "relations": [
+    {
+     "kind": "part of",
+     "targetID": "9016EC97-7998-4091-8117-AB34BB801909"
+    }
+   ]
+  }
+ ]
+}

@@ -40,8 +40,11 @@
 import Accelerate
 import Foundation
 
+// Plain data and pure helpers here are nonisolated: the map of what the
+// student knows lays ideas out off the main actor.
+
 /// An idea Buddy has explained, as remembered.
-struct RememberedConcept: Codable, Identifiable, Equatable {
+nonisolated struct RememberedConcept: Codable, Identifiable, Equatable {
     var id: UUID
     /// "consistent hashing", lower case.
     var name: String
@@ -69,6 +72,23 @@ struct RememberedConcept: Codable, Identifiable, Equatable {
     var stabilityDays: Double
     /// The lessons it came up in, newest last, at most a handful.
     var lessonTitles: [String]
+    /// How it relates to other known ideas, for the map of what the student
+    /// knows. Nil means never asked (a store from before relations, or a
+    /// lesson filed without a key); empty means asked and none found.
+    var relations: [ConceptRelation]? = nil
+}
+
+/// One link from a concept to another known one: "debouncing contrasts with
+/// throttling" is stored on debouncing, pointing at throttling.
+nonisolated struct ConceptRelation: Codable, Equatable, Hashable {
+    /// One of `ConceptRelation.kinds`. A string rather than an enum so a
+    /// store written by a later version with a new kind still loads.
+    var kind: String
+    var targetID: UUID
+
+    /// The only kinds the filing call may choose from, read as
+    /// "this idea <kind> that idea".
+    static let kinds = ["uses", "part of", "alternative to", "prerequisite of", "contrasts with"]
 }
 
 /// A concept found for a question, with why.
@@ -79,7 +99,7 @@ struct ConceptRecollection: Equatable {
     let retrievability: Double
 }
 
-enum ConceptText {
+nonisolated enum ConceptText {
     /// Words that say nothing about which idea a question is about.
     private static let stopwords: Set<String> = [
         "a", "an", "the", "of", "in", "on", "for", "to", "and", "or", "with", "by", "at", "from", "as", "into",
@@ -152,7 +172,7 @@ enum ConceptText {
 /// `elapsedDays` after it was last learned, given its stability. Power law
 /// rather than exponential because a mix of memories of different strength
 /// forgets that way (expertium.github.io/Algorithm.html).
-enum ForgettingCurve {
+nonisolated enum ForgettingCurve {
     static let decay = -0.5
     static let factor = 19.0 / 81.0
 

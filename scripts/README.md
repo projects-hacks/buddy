@@ -6,6 +6,7 @@
 | `make-release.sh` | The downloadable disk image ([docs/releasing.md](../docs/releasing.md)) |
 | `qa/` | End-to-end runs of the real app, and the fresh-install test |
 | `learning_memory/` | Memory's blind recall test, timing at 5,000 ideas, and an end-to-end test of the real store |
+| `knowledge_map/` | The map of what you know: layout checks and pictures at 5, 40 and 300 ideas, and the relations Haiku names |
 | `howto/` | Finding saved how-tos again from new wordings, and never for near misses |
 | `notebook/` | A sample notebook and its PDFs rendered offline from fixture lessons, with checks on cleaning, parsing and deleting |
 | `error_offer/` | Offering to explain an error only for real errors, never for near misses, and what watching costs |
