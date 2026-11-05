@@ -64,8 +64,8 @@ final class PermissionMonitor: ObservableObject {
             TutorDebugLog.write("🔑 accessibility: \(hasAccessibilityPermission), screen: \(hasScreenRecordingPermission), mic: \(hasMicrophonePermission), screenContent: \(hasScreenContentPermission)")
         }
 
-        // Screen content permission is persisted, once the user has approved the
-        // SCShareableContent picker, we don't need to re-check it.
+        // Screen content permission is persisted: once the user has approved the
+        // SCShareableContent picker, it never needs checking again.
         if !hasScreenContentPermission {
             hasScreenContentPermission = UserDefaults.standard.bool(forKey: "hasScreenContentPermission")
         }
