@@ -20,6 +20,14 @@
 // viewBox is the screenshot's size and fills the screen, so a mark at the
 // pixel where text sits in the image lands on that text on screen.
 //
+// Marks stay on the thing they mark. Every screen mark drawn on a listed item
+// goes into that item's anchor group, and marks drawn by coordinates into the
+// anchor of the item under them, or the window's. The app moves an anchor
+// when its item moves (the window dragged, the page scrolled) and fades it
+// while the item is out of view or covered. An arrow between two items is
+// drawn again from both ends' new places. A card is moved off any marked
+// item that ends up under it.
+//
 // Runs in a page with no network access (see the content security policy in
 // the page and the navigation policy in DrawingOverlay.swift). The only way
 // out is the `clicky` message handler, which carries buttons, a lesson title
@@ -58,6 +66,10 @@
     roughSvg: null, seed: 1,
     scrollOffset: 0,
     markCount: 0,
+    screenRoot: null,            // the real screen layer; screenLayer is swapped to an anchor while a mark is drawn
+    anchors: {},                 // anchor id -> {id, group, rect: [x, y, w, h] as listed, dx, dy, visible}
+    links: [],                   // arrows between two items: {group, from, to, options, fromId, toId}
+    drawInstantly: false,        // set while an arrow is drawn again at its ends' new places
     cards: []                    // {x, y, w, h, sheets: [rect elements that grow with it]}
   };
 
@@ -86,6 +98,7 @@
     state.svg = svg;
     state.defs = svg.querySelector('defs');
     state.screenLayer = document.getElementById('screen-layer');
+    state.screenRoot = state.screenLayer;
     state.cardLayer = document.getElementById('card-layer');
     // A replay over a screen that changed draws its cards but not its
     // marks: what they pointed at is no longer where it was.
@@ -113,6 +126,8 @@
   function clearAll() {
     state.cards = [];
     state.pillRects = [];
+    state.anchors = {};
+    state.links = [];
     reportCards();
     for (const layer of [state.screenLayer, state.cardLayer]) {
       while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
@@ -124,6 +139,8 @@
 
   function clearScreenMarks() {
     state.pillRects = [];
+    state.anchors = {};
+    state.links = [];
     const layer = state.screenLayer;
     while (layer && layer.firstChild) layer.removeChild(layer.firstChild);
     state.scrollOffset = 0;
@@ -152,12 +169,14 @@
     } catch (error) {
       state.errors.push(String(error && error.message || error));
     }
+    keepCardsOffMarkedItems();
     return {
       newLines: state.lines.slice(linesBefore).map(line => ({ id: line.id, text: line.text })),
       newButtons: state.buttons.slice(buttonsBefore),
       lessonTitle: state.lessonTitle,
       newErrors: state.errors.slice(errorsBefore),
-      newMarks: state.markCount - marksBefore
+      newMarks: state.markCount - marksBefore,
+      anchors: Object.keys(state.anchors)
     };
   }
 
@@ -252,6 +271,11 @@
   // Every mark is a group with a reveal function. Strokes draw along their
   // length, words write left to right, washes and cards fade in.
   function makeMark(group, naturalSeconds, reveal) {
+    // An arrow drawn again at new places appears finished, with no pen.
+    if (state.drawInstantly) {
+      for (const animation of reveal(0.01) || []) { try { animation.finish(); } catch (_) {} }
+      return { group, naturalSeconds, reveal, state: 'done', animations: [] };
+    }
     group.style.visibility = 'hidden';
     if (state.cards.some(card => card.content === group.parentNode)) growCardToFit(group);
     const mark = { group, naturalSeconds, reveal, state: 'waiting', animations: [] };
@@ -481,7 +505,10 @@
   const centreOf = target => {
     if (Array.isArray(target)) return { x: target[0], y: target[1] };
     if (typeof target === 'string' && state.targets[targetIdFor(target)]) {
-      const [x, y, w, h] = state.targets[targetIdFor(target)];
+      const id = targetIdFor(target);
+      const anchor = state.anchors[id];
+      const [x0, y0, w, h] = state.targets[id];
+      const x = x0 + (anchor ? anchor.dx : 0), y = y0 + (anchor ? anchor.dy : 0);
       return { x: x + w / 2, y: y + h / 2, rect: { x, y, w, h } };
     }
     if (target && typeof target === 'object' && 'x' in target) return { x: target.x + (target.w || 0) / 2, y: target.y + (target.h || 0) / 2 };
@@ -693,6 +720,25 @@
 
     // A curved arrow from one thing to another: ids, [x, y] points, or card boxes.
     connect(from, to, options = {}) {
+      const fromId = typeof from === 'string' ? targetIdFor(from) : null;
+      const toId = typeof to === 'string' ? targetIdFor(to) : null;
+      // Between screen items: in a group of its own, drawn again whenever
+      // either end moves. On a card it moves with the card instead.
+      if (!options.onCard && (fromId || toId) && state.screenLayer === state.screenRoot) {
+        // Both ends are tracked, so the app moves them, even an end that
+        // carries no mark of its own.
+        for (const id of [fromId, toId]) if (id && state.targets[id]) anchorFor(id);
+        const group = svgElement('g', { class: 'link' });
+        state.screenRoot.appendChild(group);
+        const link = { group, from, to, options, fromId, toId };
+        state.links.push(link);
+        return drawInto(group, () => drawConnect(from, to, options));
+      }
+      return drawConnect(from, to, options);
+    },
+
+    // Kept apart from connect so a moved arrow can be drawn again.
+    __drawConnect(from, to, options = {}) {
       const a = centreOf(from), b = centreOf(to);
       if (!a || !b) { state.errors.push('connect needs two targets'); return; }
       const start = edgePoint(a, b), end = edgePoint(b, a);
@@ -969,6 +1015,147 @@
     }
   };
 
+  function drawConnect(from, to, options) { return api.__drawConnect(from, to, options); }
+
+  // ------------------------------------------------------------ anchors
+
+  // Draws into `group` as if it were the screen layer, so every part of a
+  // mark (its stroke, its arrow head, its name pill) lands in it.
+  function drawInto(group, draw) {
+    const saved = state.screenLayer;
+    state.screenLayer = group;
+    try { return draw(); } finally { state.screenLayer = saved; }
+  }
+
+  // The anchor of a listed item, made on first use. '__window' holds marks
+  // drawn by coordinates over nothing listed: they follow the window only.
+  function anchorFor(id) {
+    if (state.anchors[id]) return state.anchors[id];
+    const group = svgElement('g', { class: 'anchor' });
+    group.style.transition = 'transform 0.22s ease-out, opacity 0.2s ease-out';
+    state.screenRoot.appendChild(group);
+    const anchor = { id, group, rect: state.targets[id] || null, dx: 0, dy: 0, visible: true };
+    state.anchors[id] = anchor;
+    return anchor;
+  }
+
+  // The listed item under a point, the smallest when several overlap.
+  function targetIdAt(x, y) {
+    let best = null;
+    for (const [id, [tx, ty, tw, th]] of Object.entries(state.targets)) {
+      if (x >= tx - 4 && x <= tx + tw + 4 && y >= ty - 4 && y <= ty + th + 4 && (!best || tw * th < best.area)) {
+        best = { id, area: tw * th };
+      }
+    }
+    return best ? best.id : null;
+  }
+
+  // Which anchor a mark belongs to, from the arguments it was called with.
+  function anchorIdForCall(name, args) {
+    if (typeof args[0] === 'string') {
+      const id = targetIdFor(args[0]);
+      return id && state.targets[id] ? id : null;
+    }
+    let x, y;
+    if ((name === 'line' || name === 'arrow') && Array.isArray(args[0]) && Array.isArray(args[0][0])) {
+      [x, y] = args[0][0].map(Number);
+    } else {
+      [x, y] = args.map(Number);
+      const w = Number(args[2]), h = Number(args[3]);
+      if (['ring', 'frame', 'highlight', 'suggest', 'spotlight'].includes(name) && Number.isFinite(w) && Number.isFinite(h)) {
+        x += w / 2; y += h / 2;
+      }
+    }
+    if (![x, y].every(Number.isFinite)) return null;
+    // Drawn on a card: it moves with the card, not with the screen.
+    if (cardAt(x, y)) return null;
+    return targetIdAt(x, y) || '__window';
+  }
+
+  // Every mark that can land on the screen is drawn into its anchor. A mark
+  // drawn by another (a ring's name pill) stays in the anchor it was in.
+  for (const name of ['ring', 'underline', 'strike', 'highlight', 'frame', 'num', 'point', 'label', 'spotlight',
+                      'check', 'cross', 'text', 'write', 'line', 'arrow', 'suggest']) {
+    const draw = api[name];
+    api[name] = function (...args) {
+      if (state.screenLayer !== state.screenRoot) return draw.apply(api, args);
+      const id = anchorIdForCall(name, args);
+      if (!id) return draw.apply(api, args);
+      return drawInto(anchorFor(id).group, () => draw.apply(api, args));
+    };
+  }
+
+  // Where each anchor is now, from the app: offsets in canvas pixels from
+  // where its item was listed, and whether it is in view. `animate` for a
+  // settled move (a scroll that stopped); off while a window is dragged or
+  // a page scrolls, so the marks keep up.
+  function placeAnchors(placements, animate) {
+    const movedIds = new Set();
+    for (const placement of placements || []) {
+      const anchor = state.anchors[placement.id];
+      if (!anchor) continue;
+      anchor.group.style.transition = animate
+        ? 'transform 0.22s ease-out, opacity 0.2s ease-out'
+        : 'transform 0.05s linear, opacity 0.2s ease-out';
+      if (anchor.dx !== placement.dx || anchor.dy !== placement.dy) movedIds.add(anchor.id);
+      anchor.dx = placement.dx; anchor.dy = placement.dy;
+      anchor.visible = !!placement.visible;
+      anchor.group.style.transform = `translate(${anchor.dx}px, ${anchor.dy}px)`;
+      anchor.group.style.opacity = anchor.visible ? '1' : '0';
+    }
+    for (const link of state.links) {
+      const ends = [link.fromId, link.toId].filter(Boolean).map(id => state.anchors[id]);
+      const bothInView = ends.every(anchor => !anchor || anchor.visible);
+      link.group.style.transition = 'opacity 0.2s ease-out';
+      link.group.style.opacity = bothInView ? '1' : '0';
+      if (!bothInView || ![link.fromId, link.toId].some(id => id && movedIds.has(id))) continue;
+      while (link.group.firstChild) link.group.removeChild(link.group.firstChild);
+      state.drawInstantly = true;
+      try { drawInto(link.group, () => drawConnect(link.from, link.to, link.options)); } finally { state.drawInstantly = false; }
+    }
+    keepCardsOffMarkedItems();
+  }
+
+  // A card stays where it was put unless a marked item ends up under it
+  // (the page scrolled the item there, or the card was drawn over it). Then
+  // it moves to the nearest place that covers no marked item and no other
+  // card, inside the screen's margins.
+  function keepCardsOffMarkedItems() {
+    const marked = Object.values(state.anchors)
+      .filter(anchor => anchor.visible && anchor.rect)
+      .map(anchor => ({ x: anchor.rect[0] + anchor.dx - 6, y: anchor.rect[1] + anchor.dy - 6,
+                        w: anchor.rect[2] + 12, h: anchor.rect[3] + 12 }));
+    if (!marked.length) return;
+    const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    let moved = false;
+    for (const card of state.cards) {
+      const here = { x: card.x + card.dx, y: card.y + card.dy, w: card.w, h: card.h };
+      if (!marked.some(item => overlaps(here, item))) continue;
+      const others = state.cards.filter(other => other !== card)
+        .map(other => ({ x: other.x + other.dx, y: other.y + other.dy, w: other.w, h: other.h }));
+      const xs = [here.x, EDGE, state.canvasWidth - EDGE - card.w];
+      const ys = [here.y, topLimit(), bottomLimit() - card.h];
+      for (const item of marked) {
+        xs.push(item.x - card.w - 16, item.x + item.w + 16);
+        ys.push(item.y - card.h - 16, item.y + item.h + 16);
+      }
+      let best = null;
+      for (const x of xs) for (const y of ys) {
+        if (x < EDGE || x + card.w > state.canvasWidth - EDGE || y < topLimit() || y + card.h > bottomLimit()) continue;
+        const spot = { x, y, w: card.w, h: card.h };
+        if (marked.some(item => overlaps(spot, item)) || others.some(other => overlaps(spot, other))) continue;
+        const distance = Math.hypot(x - here.x, y - here.y);
+        if (!best || distance < best.distance) best = { x, y, distance };
+      }
+      if (!best) continue;
+      card.dx = best.x - card.x;
+      card.dy = best.y - card.y;
+      card.container.setAttribute('transform', `translate(${card.dx} ${card.dy})`);
+      moved = true;
+    }
+    if (moved) reportCards();
+  }
+
   // Marks a program places inside a card belong to that card, so they stay
   // put when the screen scrolls, and move, scroll and close with the card.
   // Coordinates are the program's own, from before any drag.
@@ -1039,7 +1226,7 @@
 
   window.BuddyEngine = {
     setup, run, playLine, updateLineDuration, finishLine, finishAll,
-    clearAll, clearScreenMarks, scrollScreenMarks, resetTurn,
+    clearAll, clearScreenMarks, scrollScreenMarks, resetTurn, placeAnchors,
     lineCount: () => state.lines.length
   };
 })();

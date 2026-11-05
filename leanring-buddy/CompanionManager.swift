@@ -1491,8 +1491,29 @@ final class CompanionManager: ObservableObject {
     /// Where drawing programs are drawn, who speaks them, and what ties the two.
     private lazy var drawingOverlay = DrawingOverlay()
     private lazy var narrationVoice = NarrationVoice(fallbackVoice: speechClient)
+    /// Keeps an answer's marks on the things they mark as windows move and
+    /// pages scroll (MarkFollower.swift).
+    private lazy var markFollower: MarkFollower = {
+        let follower = MarkFollower()
+        follower.placeAnchors = { [weak self] placements, animate in
+            self?.lessonPlayer.placeAnchors(placements, animate: animate)
+        }
+        return follower
+    }()
+
+    /// Starts following the marks of the answer just begun on this screen.
+    private func followMarks(displayFrame: CGRect, canvasSize: CGSize, targets: [String: [Double]],
+                             labels: [String: String]) {
+        let accessibilityItemIds = Set(screenIndex.orderedTargets
+            .filter { target in target.locationSource == .accessibilityElement }
+            .map(\.id))
+        markFollower.begin(displayFrame: displayFrame, canvasSize: canvasSize, targets: targets,
+                           labels: labels, accessibilityItemIds: accessibilityItemIds)
+    }
+
     private lazy var lessonPlayer: LessonProgramPlayer = {
         let player = LessonProgramPlayer(overlay: drawingOverlay, voice: narrationVoice, bar: controlBar.model)
+        player.onAnchorsChanged = { [weak self] anchorIds in self?.markFollower.anchorsNow(anchorIds) }
         player.onFirstSentenceReady = { [weak self] in
             self?.logStage("first sentence ready for the voice")
         }
@@ -1819,6 +1840,8 @@ final class CompanionManager: ObservableObject {
                         // the screen under its marks has changed since.
                         screenThumbnail: GuideWatcher.thumbnail(fromImageData: primaryCapture.imageData)
                     )
+                    followMarks(displayFrame: primaryCapture.displayFrame, canvasSize: canvasSize,
+                                targets: screenBoxes, labels: screenIndex.lastListedLabels)
                 }
                 currentAnswerFormat = .undecided
 
@@ -2179,6 +2202,13 @@ final class CompanionManager: ObservableObject {
                 return
             }
             self.currentAnswerFormat = .program
+            // Followed from before the program runs, so it hears of every anchor.
+            if includeScreenMarks {
+                self.markFollower.begin(displayFrame: recording.displayFrame, canvasSize: recording.canvasSize,
+                                        targets: recording.targets, labels: recording.targetLabels, accessibilityItemIds: [])
+            } else {
+                self.markFollower.stop()
+            }
             await self.lessonPlayer.replay(recording, on: screenForReplay, includeScreenMarks: includeScreenMarks)
             while self.speechConsumerTask != nil || self.isAnyVoicePlaying {
                 try? await Task.sleep(nanoseconds: 150_000_000)
@@ -2499,6 +2529,8 @@ final class CompanionManager: ObservableObject {
             lessonPlayer.begin(on: screenForDrawing, canvasSize: screen.canvasSize, targets: screen.boxes,
                                targetLabels: screen.labels, screenInkHex: "#3380FF",
                                screenThumbnail: GuideWatcher.thumbnail(fromImageData: screen.capture.imageData))
+            followMarks(displayFrame: screen.capture.displayFrame, canvasSize: screen.canvasSize,
+                        targets: screen.boxes, labels: screen.labels)
         }
         currentAnswerFormat = .program
         controlBar.model.answeredBy = "from memory"
@@ -3541,8 +3573,9 @@ final class CompanionManager: ObservableObject {
         scrollWheelMonitor = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             let hasPreciseDeltas = event.hasPreciseScrollingDeltas
             let verticalDelta = event.scrollingDeltaY
+            let horizontalDelta = event.scrollingDeltaX
             Task { @MainActor in
-                self?.followScroll(verticalDelta: verticalDelta, hasPreciseDeltas: hasPreciseDeltas)
+                self?.followScroll(verticalDelta: verticalDelta, horizontalDelta: horizontalDelta, hasPreciseDeltas: hasPreciseDeltas)
             }
         }
 
@@ -3558,7 +3591,17 @@ final class CompanionManager: ObservableObject {
             // student leaving the content.
             let activatedApplication = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard activatedApplication?.bundleIdentifier != Bundle.main.bundleIdentifier else { return }
-            Task { @MainActor in self?.clearScreenMarks() }
+            Task { @MainActor in
+                guard let self else { return }
+                // A drawing being followed is hidden while its window is
+                // away and shown when it is back (MarkFollower); the older
+                // marks are still cleared.
+                if self.markFollower.isActive {
+                    self.clearOlderMarksOnly()
+                } else {
+                    self.clearScreenMarks()
+                }
+            }
         }
     }
 
@@ -3569,7 +3612,11 @@ final class CompanionManager: ObservableObject {
     /// lines, whose size in points depends on the app, so rather than guess,
     /// the marks are cleared. Positive deltas move content down the screen,
     /// which is downward in AppKit's bottom-left coordinates.
-    private func followScroll(verticalDelta: CGFloat, hasPreciseDeltas: Bool) {
+    private func followScroll(verticalDelta: CGFloat, horizontalDelta: CGFloat, hasPreciseDeltas: Bool) {
+        if lessonPlayer.hasDrawing, markFollower.isActive {
+            markFollower.scrolled(deltaX: horizontalDelta, deltaY: verticalDelta, hasPreciseDeltas: hasPreciseDeltas)
+            return
+        }
         guard verticalDelta != 0 else { return }
         if lessonPlayer.hasDrawing {
             // The drawing page is top-left origin, so content moving down is
@@ -3595,8 +3642,18 @@ final class CompanionManager: ObservableObject {
         }
     }
 
+    /// Removes the older tag pipeline's marks only, leaving a followed drawing.
+    private func clearOlderMarksOnly() {
+        guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
+        withAnimation(.easeOut(duration: 0.2)) {
+            activeAnnotations.removeAll()
+            spotlightRectsInGlobalPoints.removeAll()
+        }
+    }
+
     /// Removes marks drawn over screen content, keeping the board.
     private func clearScreenMarks() {
+        markFollower.stop()
         lessonPlayer.clearScreenMarks()
         guard !activeAnnotations.isEmpty || !spotlightRectsInGlobalPoints.isEmpty else { return }
         withAnimation(.easeOut(duration: 0.2)) {
@@ -3613,6 +3670,7 @@ final class CompanionManager: ObservableObject {
     func clearAnnotations() -> Bool {
         // Clearing stops the voice, so nothing is left to talk over.
         endTalkOver()
+        markFollower.stop()
         let lessonHadDrawing = lessonPlayer.hasDrawing
         lessonPlayer.clear()
         let hasNothingToClear = activeAnnotations.isEmpty

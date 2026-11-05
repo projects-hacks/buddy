@@ -67,6 +67,9 @@ final class LessonProgramPlayer {
 
     var isSpeaking: Bool { voice.isSpeaking }
 
+    /// The anchors of marked items, whenever a piece of the program adds one.
+    var onAnchorsChanged: (([String]) -> Void)?
+
     /// For the stage timings: the moment the first sentence has closed and
     /// goes to the voice, and the moment the student starts hearing it.
     var onFirstSentenceReady: (() -> Void)?
@@ -257,6 +260,7 @@ final class LessonProgramPlayer {
     }
 
     func clearScreenMarks() { overlay.clearScreenMarks() }
+    func placeAnchors(_ placements: [AnchorPlacement], animate: Bool) { overlay.placeAnchors(placements, animate: animate) }
     func scrollScreenMarks(byPoints points: CGFloat) { overlay.scrollScreenMarks(byPoints: points) }
 
     // MARK: -
@@ -292,6 +296,7 @@ final class LessonProgramPlayer {
                     self.bar.followUps.append(contentsOf: result.newButtons.prefix(3))
                 }
                 if let title = result.lessonTitle { self.lessonTitle = title }
+                if !result.anchorIds.isEmpty { self.onAnchorsChanged?(result.anchorIds) }
                 // Anything drawn makes Clear worth showing.
                 if result.newMarkCount > 0 && !self.hasDrawing {
                     self.hasDrawing = true

@@ -315,12 +315,13 @@ final class NarrationVoice {
             guard let self else { return }
             do {
                 let voiceNameForRequest = self.voiceName
+                let sampleRateForRequest = Int(Self.sampleRate)
                 func request(atSpeed speed: Double) throws -> URLRequest {
                     var components = URLComponents(string: "https://api.deepgram.com/v1/speak")!
                     components.queryItems = [
                         URLQueryItem(name: "model", value: voiceNameForRequest),
                         URLQueryItem(name: "encoding", value: "linear16"),
-                        URLQueryItem(name: "sample_rate", value: String(Int(Self.sampleRate)))
+                        URLQueryItem(name: "sample_rate", value: String(sampleRateForRequest))
                     ]
                     // Only when slowed, so an ordinary answer's request is
                     // exactly what it always was.

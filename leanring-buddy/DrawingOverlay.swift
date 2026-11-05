@@ -31,6 +31,9 @@ final class DrawingOverlay: NSObject {
         var lessonTitle: String?
         var errors: [String] = []
         var newMarkCount = 0
+        /// Every anchor the engine holds so far: the listed items marked,
+        /// for MarkFollower to keep the marks on.
+        var anchorIds: [String] = []
     }
 
     private var panel: NSPanel?
@@ -114,6 +117,7 @@ final class DrawingOverlay: NSObject {
             result.lessonTitle = object["lessonTitle"] as? String
             result.errors = object["newErrors"] as? [String] ?? []
             result.newMarkCount = object["newMarks"] as? Int ?? 0
+            result.anchorIds = object["anchors"] as? [String] ?? []
             return result
         } catch {
             return RunResult(errors: [error.localizedDescription])
@@ -151,6 +155,14 @@ final class DrawingOverlay: NSObject {
     func scrollScreenMarks(byPoints points: CGFloat) {
         guard screenFrame.height > 0 else { return }
         callEngine("scrollScreenMarks", argumentsJSON: "\(points)")
+    }
+
+    /// Moves the anchors of marked items to where those items are now.
+    func placeAnchors(_ placements: [AnchorPlacement], animate: Bool) {
+        let list = placements.map { placement -> [String: Any] in
+            ["id": placement.id, "dx": placement.dx, "dy": placement.dy, "visible": placement.visible]
+        }
+        callEngine("placeAnchors", argumentsJSON: "\(Self.json(list)), \(animate)")
     }
 
     // MARK: - Page
