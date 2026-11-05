@@ -34,9 +34,11 @@ The sorter's kinds, `QuestionKindExamples.json` and `QuestionSorterPrompt.txt` a
 ```bash
 swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
     leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
-    leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift
+    leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift \
+    leanring-buddy/Notebook/NotebookStore.swift leanring-buddy/App/AppIdentity.swift
 /tmp/board_harness build/board-runs sonnet     # or opus, argon, or offline for a free drawing check
 /tmp/board_harness build/board-runs replay build/board-runs/sonnet   # earlier answers, current layout, no calls
+/tmp/board_harness build/board-runs replay scripts/board/live_tcp     # the live TCP board, below
 python3 -I scripts/board/overlap_check.py build/board-runs/sonnet
 ```
 
@@ -66,3 +68,5 @@ Argon, where Auto sends teach questions, drew every turn without a failed call, 
 Caching on Sonnet: the system prompt is written once (2,318 tokens) and read by every later turn and topic. Shortening one old turn per turn had rewritten about 2,000 tokens of cached history at every turn from the fifth; shortening in fours (`BoardProgramPrompt.keepsWholeProgram`) keeps turn 5's write at 500 to 600 tokens.
 
 Layout, checked by `overlap_check.py` on the Sonnet answers drawn with the final layout: 0 overlaps in 15 boards. The same answers drawn with the layout before the review had labels on group titles, across group borders and on each other (8 overlaps); the first stub version piled tags on each other around a node with many links (48), which is what led to fanning tags along each side and, when an element is boxed in, badges on its corners.
+
+`live_tcp/` is a board from a live test, "teach me how TCP works from scratch" on Sonnet, rebuilt from its notebook page and what was said: a table right of a group at the board's right edge, a label `{near: "segs", side: "below"}` and a second label below that one. Drawn with the old layout the two labels sat side by side on one row, below and to the left of the table: the table was already past the paper that shows without zooming, so the only spot under it inside that paper was one slid 105 points left, and the spot straight under the first label was refused by float rounding at exactly the gap. Now a spot reaching no further than its anchor counts as on the paper, below a wider-than-anchor element is tried flush with the anchor's right edge, and both labels stack under the table. 0 overlaps before and after; the `offline` turns are drawn identically by both layouts.

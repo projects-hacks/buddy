@@ -12,7 +12,8 @@
 //
 //   swiftc -O -parse-as-library -o /tmp/board_harness scripts/board/board_harness.swift \
 //       leanring-buddy/Drawing/Board/BoardState.swift leanring-buddy/Drawing/Board/BoardLayout.swift leanring-buddy/Drawing/Board/TeachingBoard.swift \
-//       leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift
+//       leanring-buddy/Drawing/Board/BoardProgramTranslator.swift leanring-buddy/Drawing/Board/BoardProgramPrompt.swift leanring-buddy/Drawing/ProgramStream.swift \
+//       leanring-buddy/Notebook/NotebookStore.swift leanring-buddy/App/AppIdentity.swift
 //   /tmp/board_harness <out_dir> [sonnet|opus|argon|offline] [topic ...]
 //
 // "argon" calls Gemini 4 Argon on Vertex the way GeminiVisionProvider does:
@@ -139,8 +140,13 @@ struct BoardHarness {
         let brain = makesNoCalls ? Brain(name: isOffline ? "offline" : "replay", model: "none", thinking: [:], effort: "",
                                          thinkingHeadroom: 0, inputPrice: 0, cachedPrice: 0, outputPrice: 0)
             : (brains[arguments.count > 2 ? arguments[2] : "sonnet"] ?? brains["sonnet"]!)
+        // A replay redraws only the topics its folder holds, so a folder with
+        // one saved board (scripts/board/live_tcp) replays just that board.
+        let replayedTopics = replayDirectory.map { directory in
+            topics.filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0.name).path) }
+        }
         let chosenTopics = isOffline ? [Topic(name: "offline-check", questions: offlinePrograms.map(\.question))]
-            : (replayDirectory == nil && arguments.count > 3 ? topics.filter { arguments[3...].contains($0.name) } : topics)
+            : replayedTopics ?? (arguments.count > 3 ? topics.filter { arguments[3...].contains($0.name) } : topics)
         let apiKey = makesNoCalls ? "" : try readAnthropicKey()
         let vertexProject = brain.isArgon ? try readVertexProject() : ""
         var vertexToken = brain.isArgon ? try mintVertexToken() : ""
@@ -162,6 +168,9 @@ struct BoardHarness {
 
             for (index, question) in topic.questions.enumerated() {
                 let turnNumber = index + 1
+                // A saved board of fewer turns than the topic ends where it ends.
+                if let replayDirectory, !FileManager.default.fileExists(atPath: replayDirectory
+                    .appendingPathComponent(topic.name).appendingPathComponent("turn\(turnNumber).program.js").path) { break }
                 board.beginTurn()
                 let note = BoardProgramPrompt.turnNote(transcript: question, boardListing: board.state.compactListing(),
                                                        turnNumber: turnNumber, studentName: nil)
@@ -529,7 +538,10 @@ final class BoardRenderer: NSObject, WKNavigationDelegate {
         window.contentView = webView
         super.init()
         webView.navigationDelegate = self
-        window.orderFrontRegardless()
+        // Ordered in behind every other window, never in front: the web view
+        // only draws in a window on the window list, and this one must never
+        // come up over whatever is open on the screen.
+        window.orderBack(nil)
 
         let engineDirectory = repository.appendingPathComponent("leanring-buddy/Drawing/DrawingEngine")
         func read(_ name: String) throws -> String { try String(contentsOf: engineDirectory.appendingPathComponent(name), encoding: .utf8) }

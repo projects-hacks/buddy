@@ -655,6 +655,39 @@ struct BoardLayoutTests {
         #expect(board.state.elements.filter { $0.identifier == "b" }.count == 1)
         #expect(board.state.elements.first { $0.identifier == "b" }?.text == "B left")
     }
+
+    /// The live TCP board (scripts/board/live_tcp): a table right of a group
+    /// at the board's right edge, a label asked to sit below it and a second
+    /// below that. Both once sat on one row below and left of the table.
+    @Test func labelsAskedToSitBelowATableStackUnderIt() {
+        let surface = BoardSurface(canvasWidth: 1512, canvasHeight: 982)
+        let board = TeachingBoard(layout: surface.layout)
+        board.beginTurn()
+        _ = BoardProgramTranslator.translate("""
+            board.title("how tcp works");
+            board.box("client", "client", {tone: "sky"});
+            board.box("server", "server", {tone: "mint", near: "client", side: "right"});
+            board.note("loss", "network can lose or shuffle packets", {tone: "coral", near: "client", side: "below"});
+            board.group("hs", "the three way handshake", {near: "loss", side: "below"});
+            board.box("syn", "1. SYN, seq 100", {in: "hs", tone: "sky"});
+            board.box("synack", "2. SYN-ACK, seq 300, ack 101", {in: "hs", tone: "mint"});
+            board.box("ack", "3. ACK, ack 301", {in: "hs", tone: "sky"});
+            board.table("segs", "data segments", [["seq", "bytes"], ["101", "100 bytes"], ["201", "100 bytes"], ["301", "100 bytes"]], {near: "hs", side: "right"});
+            board.label("ackrule", "ack = next byte I expect", {near: "segs", side: "below", tone: "mint"});
+            board.label("retry", "no ack in time? resend", {near: "ackrule", side: "below", tone: "butter"});
+            """, on: board)
+        guard let table = board.state.element("segs")?.frame, let ackRule = board.state.element("ackrule")?.frame,
+              let retry = board.state.element("retry")?.frame else {
+            Issue.record("an element was not placed")
+            return
+        }
+        func sitsUnder(_ upper: BoardRect, _ lower: BoardRect) -> Bool {
+            lower.minY >= upper.maxY && lower.minY - upper.maxY <= BoardLayout.gapBetweenElements + 1
+                && lower.minX < upper.maxX && lower.maxX > upper.minX
+        }
+        #expect(sitsUnder(table, ackRule), "ackrule \(ackRule) is not under segs \(table)")
+        #expect(sitsUnder(ackRule, retry), "retry \(retry) is not under ackrule \(ackRule)")
+    }
 }
 
 // MARK: - The drawing engine
