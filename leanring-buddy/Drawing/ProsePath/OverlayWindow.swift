@@ -703,6 +703,12 @@ class OverlayWindowManager {
             )
 
             let hostingView = NSHostingView(rootView: contentView)
+            // The window is always the screen's size. Left to size it from
+            // the cursor's content, SwiftUI re-proposes window size limits
+            // during AppKit's constraint pass as that content changes, which
+            // loops until AppKit throws and the app quits (seen live as the
+            // talk keys were tapped to accept an error offer).
+            hostingView.sizingOptions = []
             hostingView.frame = screen.frame
             window.contentView = hostingView
 

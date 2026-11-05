@@ -90,7 +90,11 @@ final class NotebookWindowController: NSObject, NSWindowDelegate {
         window.backgroundColor = NSColor(DS.Colors.background)
         window.appearance = NSAppearance(named: .darkAqua)
         window.delegate = self
-        window.contentView = NSHostingView(rootView: NotebookView(model: model))
+        let hostingView = NSHostingView(rootView: NotebookView(model: model))
+        // The window's own minSize below sets its limits; SwiftUI resetting
+        // them from its content during layout can loop until AppKit throws.
+        hostingView.sizingOptions = []
+        window.contentView = hostingView
         listenForPageKeys(in: window)
         return window
     }
