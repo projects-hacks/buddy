@@ -268,10 +268,12 @@ final class LessonProgramPlayer {
             guard index < sentences.count, let startedAt = sentenceStartTimes[index] else { return nil }
             return SpokenSentence(text: sentences[index], startedAt: startedAt, endedAt: sentenceEndTimes[index])
         }
-        // The answer before, only while its echo can still arrive.
+        // The answer before, for as long as words heard during it are still
+        // in the transcript: each heard word is matched only against what was
+        // being said when it arrived, so keeping them longer marks nothing new.
         let now = TalkOverListener.now
         let echoOfPreviousAnswer = previousAnswerSentences.filter { sentence in
-            (sentence.endedAt ?? now) + TalkOverHearing.echoArrivesWithinSeconds + 1 >= now
+            (sentence.endedAt ?? now) + TalkOverTranscript.keptForSeconds + TalkOverHearing.echoArrivesWithinSeconds >= now
         }
         return echoOfPreviousAnswer + thisAnswer
     }
