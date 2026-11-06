@@ -17,10 +17,25 @@
 <p align="center"><b>Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.</b><br>
 2.0 is the biggest release yet: learn, get things done, fix errors, review your work, and remember all of it.</p>
 
-> [!TIP]
-> **New in 2.0.2: Buddy follows the lecture as it plays.** While a video plays in front, Buddy turns its sound into words on your Mac, so "what did he just say?" is answered at once and nothing is sent anywhere for it. It files the words by the video's time, so asking after a pause, a rewind or a look at another app gets the minute before where you are. The lecturer on your speakers is no longer taken for you, whether Buddy is talking or you are holding the keys. And to cut in while Buddy talks, you now say its name first, "Buddy, wait…", so talking to a friend no longer stops it. With AirPods in, you can now cut in too: Buddy listens through your Mac's own microphone while it talks, so your headphones keep full sound. And the first question after Buddy starts is now sized properly: it used to be guessed before Haiku could answer.
->
-> **2.0.1: small talk is just small talk.** Say "thanks, that's helpful" and Buddy says something like "Anytime, Rajeev, glad it helped." and leaves it there: no drawing, no notebook page. Questions are also sized more accurately: 94 or 95 of 100 blind study questions over three runs, up from 90.
+## <img src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/icons/lecture.png" width="24" height="24" align="top"> New in 2.0.2: follows the lecture, stops only for you
+
+Buddy now turns a video's sound into words on your Mac as it plays, and only stops talking when you say its name.
+
+| | Before | Now |
+|:--|:--|:--|
+| "What did he just say?" | The last minute of sound sent to be transcribed first | Answered from words already heard on your Mac, with nothing sent |
+| Asking after a pause, a rewind or a look at another app | Only the last minute it happened to hear | The minute before where you are, for any part Buddy heard play, at any speed |
+| A lecturer on your speakers | Could be taken for your question | Left out of what you said |
+| Talking to a friend while Buddy explains | "Wait" or "sorry" stopped Buddy | Ignored. Say **"Buddy, wait…"** to cut in |
+| AirPods in | Couldn't cut in by voice | Buddy listens through your Mac's own microphone, so your headphones keep full sound |
+| Drawing while the video plays | Rings drifted off as the video moved | Explained on a card instead |
+| "What did he explain?" | Sometimes taken as "explain your answer again" | Understood as a question about the video |
+| The first question after Buddy starts | Sometimes sized before Haiku could answer | Sized by Haiku |
+
+> [!NOTE]
+> Lecture mode still needs **System Audio Recording**, asked once. The words stay in memory for that video while Buddy runs and are never written to disk; calls, chats and music apps are never heard.
+
+**2.0.1** made small talk small: "thanks, that's helpful" gets "Anytime, glad it helped." and no notebook page.
 
 Everything below is what 2.0 brought, for anyone updating from 1.5 or earlier.
 
