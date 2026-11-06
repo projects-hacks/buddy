@@ -118,7 +118,8 @@ final class TalkOverListener {
             defer { if self.sessionGeneration == generation { self.startTask = nil } }
             do {
                 let session = try await self.transcriptionProvider.startStreamingSession(
-                    keyterms: [],
+                    // A cut-in counts only with Buddy's name in it.
+                    keyterms: ["Buddy"],
                     onTranscriptUpdate: { [weak self] text in
                         Task { @MainActor in
                             guard let self, self.sessionGeneration == generation else { return }

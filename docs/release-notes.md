@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-dark.png">
-  <img alt="Buddy 2.0, your screen, explained. Asking while Buddy is still talking: in 1.5 you held Control and Option again, which stopped the answer; in 2.0 you just say: Wait, why does high start at the length of the list?" src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-light.png">
+  <img alt="Buddy 2.0, your screen, explained. Asking while Buddy is still talking: in 1.5 you held Control and Option again, which stopped the answer; in 2.0 you just say: Buddy, wait, why does high start at the length?" src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-light.png">
 </picture>
 
 <p align="center">
@@ -18,7 +18,7 @@
 2.0 is the biggest release yet: learn, get things done, fix errors, review your work, and remember all of it.</p>
 
 > [!TIP]
-> **New in 2.0.2: Buddy follows the lecture as it plays.** While a video plays in front, Buddy turns its sound into words on your Mac, so "what did he just say?" is answered at once and nothing is sent anywhere for it. It files the words by the video's time, so asking after a pause, a rewind or a look at another app gets the minute before where you are. The lecturer on your speakers is no longer taken for you, whether Buddy is talking or you are holding the keys. And the first question after Buddy starts is now sized properly: it used to be guessed before Haiku could answer.
+> **New in 2.0.2: Buddy follows the lecture as it plays.** While a video plays in front, Buddy turns its sound into words on your Mac, so "what did he just say?" is answered at once and nothing is sent anywhere for it. It files the words by the video's time, so asking after a pause, a rewind or a look at another app gets the minute before where you are. The lecturer on your speakers is no longer taken for you, whether Buddy is talking or you are holding the keys. And to cut in while Buddy talks, you now say its name first, "Buddy, wait…", so talking to a friend no longer stops it. And the first question after Buddy starts is now sized properly: it used to be guessed before Haiku could answer.
 >
 > **2.0.1: small talk is just small talk.** Say "thanks, that's helpful" and Buddy says something like "Anytime, Rajeev, glad it helped." and leaves it there: no drawing, no notebook page. Questions are also sized more accurately: 94 or 95 of 100 blind study questions over three runs, up from 90.
 
@@ -26,16 +26,16 @@ Everything below is what 2.0 brought, for anyone updating from 1.5 or earlier.
 
 ## <img src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/icons/talk.png" width="24" height="24" align="top"> Talk over it
 
-While Buddy explains, just speak. No keys, nothing to switch on.
+While Buddy explains, say its name and speak. No keys, nothing to switch on. Without the name it keeps going, so a friend in the room or a video playing never interrupts it.
 
 | Say | Buddy |
 |:--|:--|
-| "Wait, why does high start at the length?" | Stops and answers your question |
-| "Hold on" | Pauses mid-sentence |
+| "Buddy, wait, why does high start at the length?" | Stops and answers your question |
+| "Buddy, hold on" | Pauses mid-sentence |
 | "Go on" | Carries on from where it stopped |
-| "Slower" | Slows the rest of the answer |
-| "Go back" | Says the last sentence again |
-| "Say that again" | Replays the whole answer, free |
+| "Buddy, slower" | Slows the rest of the answer |
+| "Buddy, go back" | Says the last sentence again |
+| "Buddy, say that again" | Replays the whole answer, free |
 
 > [!NOTE]
 > The microphone is open only while an answer plays, and the notch shows a mic whenever it is. Esc or Stop closes it. Buddy's own voice is filtered out, so it never cuts itself off.

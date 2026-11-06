@@ -28,18 +28,28 @@ func meaning(_ heard: String, loud: Bool = true) -> TalkOverHearing.Meaning {
 func isQuestion(_ meaning: TalkOverHearing.Meaning) -> Bool { if case .question = meaning { return true }; return false }
 func isIgnored(_ meaning: TalkOverHearing.Meaning) -> Bool { if case .ignore = meaning { return true }; return false }
 
-check("wait, why? is a question", isQuestion(meaning("wait, why?")))
+check("buddy, wait, why? is a question", isQuestion(meaning("buddy, wait, why?")))
+check("wait, why? without the name is not for Buddy", isIgnored(meaning("wait, why?")))
 // Overlaps take Buddy's words out first and then judge without the echo
 // share, so a follow-up may share the answer's words.
 check("a follow-up sharing the answer's words is a question",
-      isQuestion(TalkOverHearing.meaning(ofUtterance: "Wait. Why does the database only see misses?", recentlySpoken: [], wasLoudEnough: true)))
-check("hold on holds", meaning("hold on") == .hold)
-check("okay, go on please resumes", meaning("okay, go on please") == .resume)
-check("slow down slows", meaning("slow down") == .slower)
-check("go back repeats the sentence", meaning("go back") == .repeatPreviousSentence)
-check("say that again replays", meaning("Say that again.") == .replayAnswer)
+      isQuestion(TalkOverHearing.meaning(ofUtterance: "Buddy, wait. Why does the database only see misses?", recentlySpoken: [], wasLoudEnough: true)))
+check("buddy, hold on holds", meaning("buddy, hold on") == .hold)
+check("hold on on its own is said to someone else", isIgnored(meaning("hold on")))
+check("hold on, buddy holds", meaning("hold on, buddy") == .hold)
+check("okay, go on please resumes, with no name needed", meaning("okay, go on please") == .resume)
+check("buddy, slow down slows", meaning("buddy, slow down") == .slower)
+check("buddy, go back repeats the sentence", meaning("buddy, go back") == .repeatPreviousSentence)
+check("what was that? to a friend changes nothing", isIgnored(meaning("what was that?")))
+check("buddy, say that again replays", meaning("Buddy, say that again.") == .replayAnswer)
+check("buddy, tell me more about the lock is a question", isQuestion(meaning("buddy, tell me more about the lock")))
+check("the name alone asks nothing", isIgnored(meaning("buddy?")))
+check("a friend: wait, did you see the game last night?", isIgnored(meaning("wait, did you see the game last night?")))
+check("a friend: sorry, what did you say?", isIgnored(meaning("sorry, what did you say?")))
+check("a friend: but why would he do that", isIgnored(meaning("but why would he do that")))
+check("a friend named bud is not Buddy", isIgnored(meaning("bud, wait, why did you leave")))
 check("a clean echo is ignored", isIgnored(meaning("the cache absorbs most reads so the database only sees misses")))
-check("a quiet voice is ignored", isIgnored(meaning("wait, why?", loud: false)))
+check("a quiet voice is ignored", isIgnored(meaning("buddy, wait, why?", loud: false)))
 check("video narration is ignored", isIgnored(meaning("and in tonight's news the council voted to approve the new budget for the coming year after a long debate")))
 check("someone on the phone is ignored", isIgnored(meaning("yeah I'll call you back later")))
 
@@ -123,20 +133,20 @@ let live: [(at: Double, event: Event)] = [
     (1.0, .heard("Picture the list")),
     (2.0, .heard("Picture the list as a row of seats")),
     (3.0, .heard("Picture the list as a row of seats at a long dinner table.")),
-    (4.4, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does")),
+    (4.4, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does")),
     (4.9, .sentenceStarts(liveSentenceTwo)),
-    (5.0, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start")),
-    (5.5, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start the guests")),
-    (6.0, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start the guests sit in")),
-    (6.6, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start the guests sit in at the length")),
-    (7.2, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start the guests sit in at the length the list?")),
-    (7.8, .heard("Picture the list as a row of seats at a long dinner table. Wait, why does high start the guests sit in at the length the list? The guests.")),
+    (5.0, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start")),
+    (5.5, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start the guests")),
+    (6.0, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start the guests sit in")),
+    (6.6, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start the guests sit in at the length")),
+    (7.2, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start the guests sit in at the length the list?")),
+    (7.8, .heard("Picture the list as a row of seats at a long dinner table. Buddy, wait, why does high start the guests sit in at the length the list? The guests.")),
 ]
 let liveActions = play(live, until: 12)
 print("  live: " + describe(liveActions))
-check("live: Buddy pauses at \"wait, why\"", (firstYield(in: liveActions) ?? 99) <= 4.6, "at \(firstYield(in: liveActions).map { String(format: "%.1fs", $0) } ?? "never")")
+check("live: Buddy pauses at \"buddy, wait\"", (firstYield(in: liveActions) ?? 99) <= 4.6, "at \(firstYield(in: liveActions).map { String(format: "%.1fs", $0) } ?? "never")")
 check("live: one question, the student's whole sentence, Buddy's words taken out",
-      question(in: liveActions)?.text == "Wait, why does high start at the length the list?", question(in: liveActions)?.text ?? "none")
+      question(in: liveActions)?.text == "Buddy, wait, why does high start at the length the list?", question(in: liveActions)?.text ?? "none")
 check("live: nothing before the question was dropped as not addressed or judged in pieces",
       !liveActions.contains { if case .ignored = $0.action { return true }; return false })
 
@@ -145,9 +155,9 @@ let sentence = "binary search halves the range on every step until one item is l
 let holdOn: [(at: Double, event: Event)] = [
     (0.0, .sentenceStarts(sentence)),
     (0.8, .heard("Binary search halves")),
-    (1.4, .heard("Binary search halves the range hold")),
-    (1.7, .heard("Binary search halves the range hold on on every")),
-    (2.3, .heard("Binary search halves the range hold on on every step")),
+    (1.4, .heard("Binary search halves the range buddy hold")),
+    (1.7, .heard("Binary search halves the range buddy hold on on every")),
+    (2.3, .heard("Binary search halves the range buddy hold on on every step")),
 ]
 let holdActions = play(holdOn, until: 6)
 print("  hold on: " + describe(holdActions))
@@ -163,17 +173,17 @@ let idempotent: [(at: Double, event: Event)] = [
     (0.9, .heard("A retry sends the same")),
     (1.8, .heard("A retry sends the same request again after a timeout.")),
     (2.6, .sentenceStarts(sentenceB)),
-    (2.9, .heard("A retry sends the same request again after a timeout. What does idempotent")),
-    (3.4, .heard("A retry sends the same request again after a timeout. What does idempotent the server has")),
-    (3.9, .heard("A retry sends the same request again after a timeout. What does idempotent the server has mean here?")),
-    (4.6, .heard("A retry sends the same request again after a timeout. What does idempotent the server has mean here? To treat both copies")),
-    (5.4, .heard("A retry sends the same request again after a timeout. What does idempotent the server has mean here? To treat both copies as one, or the card")),
-    (6.2, .heard("A retry sends the same request again after a timeout. What does idempotent the server has mean here? To treat both copies as one, or the card is charged twice.")),
+    (2.9, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent")),
+    (3.4, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent the server has")),
+    (3.9, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent the server has mean here?")),
+    (4.6, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent the server has mean here? To treat both copies")),
+    (5.4, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent the server has mean here? To treat both copies as one, or the card")),
+    (6.2, .heard("A retry sends the same request again after a timeout. Buddy, what does idempotent the server has mean here? To treat both copies as one, or the card is charged twice.")),
 ]
 let idempotentActions = play(idempotent, until: 11)
 print("  idempotent: " + describe(idempotentActions))
 check("idempotent: the question without Buddy's words",
-      question(in: idempotentActions)?.text == "What does idempotent mean here?", question(in: idempotentActions)?.text ?? "none")
+      question(in: idempotentActions)?.text == "Buddy, what does idempotent mean here?", question(in: idempotentActions)?.text ?? "none")
 
 // 4. A video in the room over Buddy: never pauses, never asks.
 let video: [(at: Double, event: Event)] = [
@@ -202,7 +212,7 @@ check("echo only: nothing at all", echoActions.isEmpty, describe(echoActions))
 // That build took the lone "Wait." as a hold and then sent "Why does high".
 // Buddy's voice is loud at the microphone until it pauses at "Wait".
 let sentenceSaid = "the guests sit in seats zero to four, and there is no seat five."
-let wholeQuestion = "Wait. Why does high start at the length of the list?"
+let wholeQuestion = "Buddy, wait. Why does high start at the length of the list?"
 func sayOverBuddy(stallAfterWait: Double) -> [(at: Double, event: Event)] {
     let firstWords = 5.3, secondWords = firstWords + stallAfterWait, wholeSentence = secondWords + 0.7
     var events: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(sentenceSaid))]
@@ -210,7 +220,7 @@ func sayOverBuddy(stallAfterWait: Double) -> [(at: Double, event: Event)] {
     events += levels(-24, from: 5.0, to: 5.45) + levels(-48, from: 5.45, to: 5.6)   // "Wait", the comma
     events += levels(-24, from: 5.6, to: wholeSentence + 0.3)                  // the rest, without a break
     events += levels(-62, from: wholeSentence + 0.3, to: 14)                   // the room, Buddy paused
-    events += [(firstWords, .heard("Wait.")), (secondWords, .heard("Wait. Why does high")), (wholeSentence, .heard(wholeQuestion))]
+    events += [(firstWords, .heard("Buddy, wait.")), (secondWords, .heard("Buddy, wait. Why does high")), (wholeSentence, .heard(wholeQuestion))]
     return events
 }
 for stall in [0.8, 1.3] {
@@ -228,8 +238,8 @@ for stall in [0.8, 1.3] {
 // 7. A real "wait" on its own still holds, once nothing follows it.
 var waitAlone: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(sentenceSaid))]
 waitAlone += levels(-30, from: 0, to: 5.3) + levels(-24, from: 5.0, to: 5.45) + levels(-62, from: 5.45, to: 10)
-waitAlone += [(5.3, .heard("Wait."))]
-let waitActions = play(waitAlone, until: 10, finalTextOnFlush: "Wait.")
+waitAlone += [(5.3, .heard("Buddy, wait."))]
+let waitActions = play(waitAlone, until: 10, finalTextOnFlush: "Buddy, wait.")
 print("  wait alone: " + describe(waitActions))
 check("wait alone: holds, and only after it was left alone for 1.5s",
       waitActions.first { $0.action == .hold }.map { $0.at >= 5.45 + TalkOverTranscript.holdConfirmSeconds } ?? false)
@@ -239,10 +249,10 @@ check("wait alone: no question", question(in: waitActions) == nil)
 // for them, Buddy's words left out, and nothing once the question is sent.
 var shown = TalkOverTranscript()
 let spokenThen = [SpokenSentence(text: sentenceSaid, startedAt: 0, endedAt: nil)]
-_ = shown.heard("the guests sit in Wait.", at: 5.3, recentlySpoken: spokenThen, wasLoudEnough: true)
-check("notch line: the cue alone at first", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Wait.", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
-_ = shown.heard("the guests sit in Wait. Why does high", at: 6.1, recentlySpoken: spokenThen, wasLoudEnough: true)
-check("notch line: grows as words come", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Wait. Why does high", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
+_ = shown.heard("the guests sit in Buddy, wait.", at: 5.3, recentlySpoken: spokenThen, wasLoudEnough: true)
+check("notch line: the cue alone at first", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Buddy, wait.", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
+_ = shown.heard("the guests sit in Buddy, wait. Why does high", at: 6.1, recentlySpoken: spokenThen, wasLoudEnough: true)
+check("notch line: grows as words come", shown.wordsOfTheCutIn(recentlySpoken: spokenThen) == "Buddy, wait. Why does high", shown.wordsOfTheCutIn(recentlySpoken: spokenThen))
 _ = shown.timePassed(to: 9, recentlySpoken: spokenThen, wasLoudEnough: true)
 check("notch line: empty once the question is sent", shown.wordsOfTheCutIn(recentlySpoken: spokenThen).isEmpty)
 
@@ -254,8 +264,8 @@ check("notch line: empty once the question is sent", shown.wordsOfTheCutIn(recen
 let echoSentence = "ten is bigger than everything, so low keeps moving right past the nine."
 check("digits are read as the words said", TalkOverHearing.words(of: "10 is 42") == ["ten", "is", "forty", "two"])
 check("a statement with is in second place is not a question", isIgnored(meaning("10 is the wild")))
-check("is opening the sentence still asks", isQuestion(meaning("is ten bigger than nine")))
-check("okay before is still asks", isQuestion(meaning("okay is that the last index")))
+check("is opening the sentence still asks", isQuestion(meaning("buddy, is ten bigger than nine")))
+check("okay before is still asks", isQuestion(meaning("okay buddy is that the last index")))
 var echoOfTen: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(echoSentence))]
 echoOfTen += levels(-30, from: 0, to: 6) + levels(-62, from: 6, to: 10)
 echoOfTen += [(1.2, .heard("10 is")), (2.4, .heard("10 is The wild"))]
@@ -293,19 +303,19 @@ let lectureActions = play(lectureInTheRoom, until: 12, lecture: roadmapLecture)
 print("  lecture in the room: " + describe(lectureActions))
 check("lecture in the room: the video's words are no question", question(in: lectureActions) == nil)
 check("lecture in the room: Buddy is never paused for them", firstYield(in: lectureActions) == nil)
-check("lecture in the room: without the lecture's words the same sound was answered, as it was live",
-      question(in: play(lectureInTheRoom, until: 12)) != nil)
+// Since the name rule, the lecture's words would be ignored without the
+// filter too; the filter still keeps them out of a question that names Buddy.
 
 // 12. The student cuts in while the lecture plays: the lecturer's words go,
 // the student's stay.
 let apiLecture = [lecturePhrase("so the next step is the api, the endpoints", 1.0, 3.5)]
 var cutInOverLecture: [(at: Double, event: Event)] = [(0.0, .sentenceStarts("core entities are the nouns of the system."))]
 cutInOverLecture += levels(-30, from: 0, to: 9)
-cutInOverLecture += [(2.5, .heard("so the next step is the api")), (4.2, .heard("so the next step is the api wait why do we need an api"))]
+cutInOverLecture += [(2.5, .heard("so the next step is the api")), (4.2, .heard("so the next step is the api buddy wait why do we need an api"))]
 let cutInOverLectureActions = play(cutInOverLecture, until: 12, lecture: apiLecture)
 print("  cut in over the lecture: " + describe(cutInOverLectureActions))
 check("cut in over the lecture: the student's question is kept, the lecturer's words are not",
-      question(in: cutInOverLectureActions)?.text.lowercased() == "wait why do we need an api")
+      question(in: cutInOverLectureActions)?.text.lowercased() == "buddy wait why do we need an api")
 
 // 13. Quoting the lecture is the student's own: two or three of its words
 // in a row are a term, not the video.
@@ -324,6 +334,16 @@ check("the same run heard while the video said it is taken out", onTimeMask.allS
 // 15. Lecture phrases never count as Buddy's own voice.
 let lectureOnlyMask = TalkOverHearing.buddyWordMask(echoedLate, heardAt: echoedLate.map { _ in 5.0 }, spoken: roadmapLecture)
 check("lecture phrases are not Buddy's echo", !lectureOnlyMask.contains(true))
+
+// 16. Talking to a friend while Buddy explains, the 2.0.2 report: "wait",
+// "sorry" and "but why" said to someone else used to pause Buddy.
+var friendInTheRoom: [(at: Double, event: Event)] = [(0.0, .sentenceStarts(sentenceSaid))]
+friendInTheRoom += levels(-30, from: 0, to: 6) + levels(-24, from: 6, to: 9) + levels(-62, from: 9, to: 14)
+friendInTheRoom += [(6.4, .heard("Wait,")), (7.2, .heard("Wait, did you see the")), (8.6, .heard("Wait, did you see the game last night? Sorry, but why"))]
+let friendActions = play(friendInTheRoom, until: 14, finalTextOnFlush: "Wait, did you see the game last night? Sorry, but why")
+print("  a friend in the room: " + describe(friendActions))
+check("a friend in the room: Buddy never pauses", firstYield(in: friendActions) == nil)
+check("a friend in the room: nothing is asked", question(in: friendActions) == nil)
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

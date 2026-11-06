@@ -31,67 +31,73 @@
 
 ## What it does
 
+Hold <kbd>Control</kbd> + <kbd>Option</kbd> and ask, or type. Buddy answers out loud and draws on your screen while it talks. To cut in, just say **"Buddy, wait…"**.
+
 <table>
   <tr>
-    <td width="25%" valign="top">
+    <td width="50%" valign="top">
       <sub><b>LEARN</b></sub><br>
-      <b>Explains anything on screen</b><br>
-      <sub>Code, a paper, a dashboard, a config file. It rings what it is talking about, one sentence at a time.</sub>
+      <b>Explains anything on your screen</b><br>
+      Code, a paper, a dashboard, a lecture video. It rings what it is talking about, one sentence at a time, and on LeetCode gives a hint before the answer.<br>
+      <sub>Try: <i>"why does this crash on the last element?"</i></sub>
     </td>
-    <td width="25%" valign="top">
-      <sub><b>GET IT DONE</b></sub><br>
-      <b>Walks you through any app</b><br>
-      <sub>"How do I export this?" One step at a time, pointing at each button. Ask again later and it replays from memory.</sub>
-    </td>
-    <td width="25%" valign="top">
-      <sub><b>FIX</b></sub><br>
-      <b>Explains the error you just hit</b><br>
-      <sub>An error in a terminal or editor makes the notch glow. One tap and it rings the line that caused it.</sub>
-    </td>
-    <td width="25%" valign="top">
-      <sub><b>REVIEW</b></sub><br>
-      <b>Reviews your own work</b><br>
-      <sub>In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches additions beside them.</sub>
+    <td width="50%" valign="top">
+      <sub><b>LEARN</b></sub><br>
+      <b>Teaches a topic from scratch, then checks you</b><br>
+      The screen turns into a whiteboard and Buddy teaches it part by part. Explain it back and it marks what you missed.<br>
+      <sub>Try: <i>"teach me TCP from scratch"</i></sub>
     </td>
   </tr>
   <tr>
     <td valign="top">
-      <sub><b>LEARN</b></sub><br>
-      <b>Teaches from scratch</b><br>
-      <sub>"Teach me TCP from scratch" turns the screen into a whiteboard. Then teach it back to check yourself.</sub>
+      <sub><b>GET IT DONE</b></sub><br>
+      <b>Walks you through any app</b><br>
+      One step at a time, pointing at each button, and waits while you click. Ask again later and it replays from memory.<br>
+      <sub>Try: <i>"how do I export this as a PDF?"</i></sub>
     </td>
     <td valign="top">
-      <sub><b>LEARN</b></sub><br>
-      <b>Hints before answers</b><br>
-      <sub>On LeetCode and similar sites: a nudge, then the approach, then the code only when you ask.</sub>
+      <sub><b>FIX</b></sub><br>
+      <b>Explains the error you just hit</b><br>
+      An error in a terminal or editor makes the notch glow. One tap and Buddy rings the line that caused it.<br>
+      <sub>Try: tap <kbd>Control</kbd> + <kbd>Option</kbd> when it glows</sub>
     </td>
+  </tr>
+  <tr>
     <td valign="top">
-      <sub><b>LEARN</b></sub><br>
-      <b>Knows what the lecture said</b><br>
-      <sub>Ask about a video lecture and it knows the last minute of what was said.</sub>
+      <sub><b>REVIEW</b></sub><br>
+      <b>Reviews your own work</b><br>
+      In Excalidraw, draw.io, Miro or Freeform it marks your boxes and sketches what is missing beside them.<br>
+      <sub>Try: <i>"what am I missing in this design?"</i></sub>
     </td>
     <td valign="top">
       <sub><b>REMEMBER</b></sub><br>
       <b>Remembers what you learn</b><br>
-      <sub>Answers build on earlier lessons; every lesson is a notebook page, and a map shows what is fading. On your Mac.</sub>
+      Every lesson becomes a notebook page, and a map shows which ideas are fading. All on your Mac.<br>
+      <sub>Try: open <b>Map</b> from the notch</sub>
     </td>
   </tr>
 </table>
 
-Each question goes to Sonnet, Opus or Gemini Argon, whichever measured best for that kind of question, and Settings shows what you have spent today. A question costs one to six cents.
-
 <table>
   <tr>
-    <td width="33%"><img src="docs/images/practice-hint.png" alt="On a LeetCode problem, Buddy rings the inner loop and gives the first hint in the notch, without the solution"></td>
-    <td width="33%"><img src="docs/images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw: the app servers ringed as the bottleneck, a cache and a read replica proposed in dashed purple"></td>
-    <td width="33%"><img src="docs/images/lesson-card.png" alt="The open notch showing the last lesson, which builds on hash map lookup, beside a hand-drawn walk through"></td>
+    <td width="50%"><img src="docs/images/whats-new/2.0/board.png" alt="A whiteboard titled How tcp works: client and server boxes, the three-way handshake, and the part being taught"></td>
+    <td width="50%"><img src="docs/images/whats-new/2.0/teach-back.png" alt="The student's explanation of binary search drawn in purple, with the mistake ringed in red and the missing stopping rules dashed"></td>
   </tr>
   <tr>
-    <td align="center"><sub>A first hint, no solution</sub></td>
-    <td align="center"><sub>A review of your own design</sub></td>
-    <td align="center"><sub>A lesson that builds on an earlier one</sub></td>
+    <td align="center"><sub>Taught from scratch on a whiteboard</sub></td>
+    <td align="center"><sub>Your explanation back, gaps marked in red</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/whats-new/2.0/notebook.png" alt="The Notebook window: lessons grouped by day and a page with its trace card"></td>
+    <td><img src="docs/images/whats-new/2.0/map.png" alt="The map of what you know: ideas joined to related ideas, coloured by how well you remember them"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub>Every lesson, a notebook page</sub></td>
+    <td align="center"><sub>A map of what you know</sub></td>
   </tr>
 </table>
+
+Each question goes to the model measured best for it, Claude Sonnet, Opus or Gemini Argon. A question costs one to six cents; hover **Spent today** in Settings to see where it went.
 
 ## Install
 

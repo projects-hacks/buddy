@@ -30,8 +30,8 @@ BANNER = {
     "card_label": "ASKING WHILE BUDDY IS STILL TALKING",
     "before_label": "Buddy 1.5",
     "before": [("Hold Control + Option again, ", None), ("which stops the answer", "wrong")],
-    "after_label": "Buddy 2.0, heard in the live test",
-    "after": [("Just say: ", None), ("\u201cWait, why does high start at the length of the list?\u201d", "right")],
+    "after_label": "Buddy 2.0",
+    "after": [("Just say: ", None), ("\u201cBuddy, wait, why does high start at the length?\u201d", "right")],
 }
 
 THEMES = {

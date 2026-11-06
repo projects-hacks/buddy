@@ -39,9 +39,6 @@ enum TalkOverHearing {
     /// up); a student's own question shares a topic noun or two with the
     /// sentence, and its question words never, so it stays well below.
     static let echoShareThreshold = 0.6
-    /// A real question has at least this many words, unless it is two
-    /// words opened by a cue, like "wait, why?".
-    static let minimumQuestionWords = 3
     /// Past this it is a conversation or a video, not a question cutting in.
     static let maximumQuestionWords = 40
 
@@ -57,12 +54,6 @@ enum TalkOverHearing {
     private static let questionWords: Set<String> = [
         "why", "what", "how", "when", "where", "which", "who", "whats", "hows", "huh", "really", "explain"
     ]
-    /// Words that ask only when they open the sentence ("is it sorted?"):
-    /// further in, as in "ten is bigger", they are in every statement, and
-    /// Buddy's own voice heard back would pass for a question.
-    private static let questionOpeningVerbs: Set<String> = [
-        "is", "does", "do", "can", "could", "should", "would", "are", "isnt", "doesnt"
-    ]
     /// Ways of addressing Buddy before the question itself.
     private static let addressWords: Set<String> = ["okay", "ok", "buddy", "hey", "alright", "right"]
 
@@ -72,6 +63,20 @@ enum TalkOverHearing {
     private static let replayPhrases: Set<String> = ["say that again", "say it again", "can you say that again", "could you say that again", "say all that again", "repeat the answer", "repeat your answer", "repeat the whole thing", "one more time", "from the top", "start again", "play that again"]
     private static let repeatPhrases: Set<String> = ["go back", "go back one", "back", "repeat that", "repeat", "repeat that sentence", "say that sentence again", "what was that", "come again"]
 
+    /// How the recognizers write Buddy's name.
+    private static let nameWords: Set<String> = ["buddy", "buddie", "budy", "buddys"]
+
+    /// Where Buddy's name is, if the words are said to Buddy: among the
+    /// first three ("hey buddy, why", "wait, buddy") or last ("hold on,
+    /// buddy"). Since 2.0.2 nothing said over an answer counts without it:
+    /// "wait", "sorry" and "but why" are said to friends in the room and by
+    /// lecturers in videos all the time, and each paused Buddy.
+    static func nameIndex(in realWords: [String]) -> Int? {
+        if let index = realWords.prefix(3).firstIndex(where: nameWords.contains) { return index }
+        if let last = realWords.last, nameWords.contains(last) { return realWords.count - 1 }
+        return nil
+    }
+
     /// The whole of something heard, once its speaker paused.
     static func meaning(ofUtterance utterance: String, recentlySpoken: [String], wasLoudEnough: Bool) -> Meaning {
         let words = Self.words(of: utterance)
@@ -79,8 +84,11 @@ enum TalkOverHearing {
         guard wasLoudEnough else { return .ignore(reason: "too quiet to be the student at the Mac") }
 
         let phrase = commandPhrase(from: words)
-        if holdPhrases.contains(phrase) { return .hold }
+        // "Go on" after a hold needs no name, and on its own changes nothing.
         if resumePhrases.contains(phrase) { return .resume }
+        let namedWords = words.filter { !fillerWords.contains($0) }
+        guard nameIndex(in: namedWords) != nil else { return .ignore(reason: "not said to Buddy by name") }
+        if holdPhrases.contains(phrase) { return .hold }
         if slowerPhrases.contains(phrase) { return .slower }
         if repeatPhrases.contains(phrase) { return .repeatPreviousSentence }
         if replayPhrases.contains(phrase) { return .replayAnswer }
@@ -90,18 +98,13 @@ enum TalkOverHearing {
             return .ignore(reason: "Buddy's own voice")
         }
         guard realWords.count <= maximumQuestionWords else { return .ignore(reason: "too long to be cutting in") }
-        let opensWithCue = opensWithCue(realWords)
-        let wordsAfterAddress = realWords.drop { addressWords.contains($0) }
-        let asksSomething = utterance.contains("?")
-            || realWords.prefix(3).contains { questionWords.contains($0) }
-            || wordsAfterAddress.first.map { questionOpeningVerbs.contains($0) } == true
-        if realWords.count >= minimumQuestionWords, opensWithCue || asksSomething {
-            return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
+        // Said to Buddy by name: whatever follows is for Buddy, question
+        // word or not ("buddy, tell me more about the lock").
+        let wordsBesidesTheName = realWords.filter { !nameWords.contains($0) && !addressWords.contains($0) && !cueOpenings.contains($0) }
+        guard wordsBesidesTheName.count >= 2 || wordsBesidesTheName.contains(where: questionWords.contains) else {
+            return .ignore(reason: "only the name")
         }
-        if realWords.count == 2, opensWithCue, questionWords.contains(realWords[1]) || questionOpeningVerbs.contains(realWords[1]) {
-            return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
-        }
-        return .ignore(reason: "not addressed to Buddy")
+        return .question(utterance.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     /// Whether a question asked the usual way is only asking to hear the
@@ -133,10 +136,6 @@ enum TalkOverHearing {
         return first.prefix(5) == second.prefix(5)
     }
 
-    /// Cues that open a cut-in and stop Buddy at once. Narrower than the
-    /// openings that make a question count: "so" and "but" alone are in
-    /// every other sentence of a video, "but why" is not.
-    private static let yieldCues = ["wait", "hold on", "hang on", "sorry", "excuse me", "but why", "but how", "but what", "but wait"]
     /// Never taken for Buddy's words, so a cut-in keeps its opening and its
     /// question even when Buddy happens to say "what" or "wait" too.
     private static let protectedWords: Set<String> = ["wait", "hold", "hang", "sorry", "excuse", "why", "how", "what", "when",
@@ -264,18 +263,20 @@ enum TalkOverHearing {
 
     /// Where in the student's words a cut-in cue starts, if one does.
     static func yieldCueStart(inStudentWords studentWords: [String]) -> Int? {
-        let realWords = studentWords.map { fillerWords.contains($0) ? "" : $0 }
-        for index in realWords.indices where !realWords[index].isEmpty {
-            let opening = realWords[index...].filter { !$0.isEmpty }.prefix(2).joined(separator: " ")
-            if yieldCues.contains(where: { cue in opening == cue || opening.hasPrefix(cue + " ") }) { return index }
+        // Buddy's name pauses it; a word just before the name that goes
+        // with it ("hey", "wait", "sorry") is part of the cut-in.
+        guard let nameAt = studentWords.firstIndex(where: nameWords.contains) else { return nil }
+        var start = nameAt
+        while start > 0, fillerWords.contains(studentWords[start - 1])
+                || addressWords.contains(studentWords[start - 1]) || yieldCueWords.contains(studentWords[start - 1]) {
+            start -= 1
         }
-        return nil
+        return start
     }
 
-    private static func opensWithCue(_ realWords: [String]) -> Bool {
-        let opening = realWords.prefix(2).joined(separator: " ")
-        return cueOpenings.contains { cue in opening == cue || opening.hasPrefix(cue + " ") }
-    }
+    /// Words that open a cut-in together with the name: "wait, buddy",
+    /// "hold on buddy".
+    private static let yieldCueWords: Set<String> = ["wait", "hold", "on", "hang", "sorry", "excuse", "me", "but", "actually", "so"]
 
     /// The words with "okay", "buddy" and "please" around a command taken
     /// off, so "okay buddy, go on please" is "go on".

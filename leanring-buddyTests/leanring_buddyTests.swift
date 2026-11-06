@@ -597,16 +597,18 @@ struct TalkOverHearingTests {
         TalkOverHearing.meaning(ofUtterance: heard, recentlySpoken: recentlySpoken, wasLoudEnough: loud)
     }
 
-    @Test func controlsAreRead() {
-        #expect(meaning("hold on") == .hold)
+    @Test func controlsAreReadWhenSaidToBuddy() {
+        #expect(meaning("buddy, hold on") == .hold)
         #expect(meaning("okay, go on please") == .resume)
-        #expect(meaning("slow down") == .slower)
-        #expect(meaning("go back") == .repeatPreviousSentence)
-        #expect(meaning("Say that again.") == .replayAnswer)
+        #expect(meaning("buddy, slow down") == .slower)
+        #expect(meaning("buddy, go back") == .repeatPreviousSentence)
+        #expect(meaning("Buddy, say that again.") == .replayAnswer)
     }
 
-    @Test func aQuestionCutsIn() {
-        if case .question = meaning("wait, why?") {} else { Issue.record("\"wait, why?\" should be a question") }
+    @Test func aQuestionCutsInOnlyWithTheName() {
+        if case .question = meaning("buddy, wait, why?") {} else { Issue.record("\"buddy, wait, why?\" should be a question") }
+        if case .ignore = meaning("wait, why?") {} else { Issue.record("\"wait, why?\" to someone else should be ignored") }
+        if case .ignore = meaning("hold on") {} else { Issue.record("\"hold on\" to someone else should be ignored") }
     }
 
     @Test func echoesQuietVoicesAndOtherPeopleAreIgnored() {
