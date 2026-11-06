@@ -105,8 +105,10 @@ final class LectureLiveTranscript {
         tasksByIdentifier[identifier] = recognizer.recognitionTask(with: request) { [weak self] result, error in
             let text = result?.bestTranscription.formattedString
             let isDone = result?.isFinal == true || error != nil
+            let errorText = error.map { ($0 as NSError).domain + " \(($0 as NSError).code): " + $0.localizedDescription }
             Task { @MainActor in
                 guard let self else { return }
+                if let errorText, text == nil { TutorDebugLog.write("🎓 lecture: the Mac's recognizer stopped a request (\(errorText))") }
                 if let text { self.logs[owner, default: LectureHeardWordLog()].update(request: identifier, text: text, at: TalkOverListener.now) }
                 if isDone { self.tasksByIdentifier[identifier] = nil }
             }

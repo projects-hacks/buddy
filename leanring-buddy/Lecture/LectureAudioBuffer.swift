@@ -171,8 +171,14 @@ final class LectureAudioBuffer {
     /// it playing there, however long ago.
     func liveWords(atPlayback position: LecturePlaybackPosition, videoKey: String) -> (passage: String, secondsCovered: Int)? {
         guard let front = NSWorkspace.shared.frontmostApplication else { return nil }
-        return liveTranscript.log(for: front.processIdentifier)
-            .passage(endingAtPlayback: Double(position.currentSeconds), videoKey: videoKey)
+        let heard = liveTranscript.log(for: front.processIdentifier)
+        guard let placed = heard.passage(endingAtPlayback: Double(position.currentSeconds), videoKey: videoKey) else {
+            if !heard.allWords.isEmpty {
+                TutorDebugLog.write("🎓 lecture: no words placed before \(LectureClock.clockText(fromSeconds: position.currentSeconds)): \(heard.placementSummary(videoKey: videoKey))")
+            }
+            return nil
+        }
+        return placed
     }
 
     /// The last minute Buddy heard the app in front say, for a player whose

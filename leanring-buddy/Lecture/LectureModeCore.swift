@@ -582,6 +582,11 @@ nonisolated enum LectureNote {
         return assemble(heading: heading, passage: passage)
     }
 
+    /// Added while the video plays: rings on its frame are drawn on one
+    /// moment of it, and the 2.0.2 live test showed them left over the
+    /// wrong things a few seconds later as the lecturer's canvas moved.
+    static let videoIsPlayingNote = "THE VIDEO IS STILL PLAYING: what is inside its frame moves and changes while you talk, so do not ring, underline or point at anything inside the video. explain on a card instead, and mark only things outside the video."
+
     /// When macOS has just asked the student to let Buddy hear the video.
     static let permissionJustAskedNote = "LECTURE: you cannot hear the video in front of them yet. macOS is asking them right now to let Buddy hear the sound of the app in front. if their question needs what the lecturer just said, answer from the screen and say in one short sentence that once they allow it you will know what was just said."
 
@@ -756,8 +761,11 @@ nonisolated struct LectureHeardWordLog {
     /// A recognised word reaches the log about this long after it was said.
     static let recognitionLagSeconds: Double = 1.0
     /// Two anchors are one stretch of playing when the video's clock moved
-    /// as far as the wall clock did, give or take this.
+    /// forward at a playback speed a player offers (half to two and a half
+    /// times), give or take this.
     static let continuityToleranceSeconds: Double = 3
+    static let slowestPlaybackRate = 0.5
+    static let fastestPlaybackRate = 2.5
     /// A word belongs to a stretch when heard this close to its anchors.
     static let reachBeyondAnchorsSeconds: Double = 8
 
@@ -856,7 +864,9 @@ nonisolated struct LectureHeardWordLog {
             if let previous = stretches.last?.last {
                 let wallMoved = anchor.heardAt - previous.heardAt
                 let videoMoved = anchor.playbackSeconds - previous.playbackSeconds
-                if abs(videoMoved - wallMoved) <= Self.continuityToleranceSeconds {
+                let tolerance = Self.continuityToleranceSeconds
+                if videoMoved >= wallMoved * Self.slowestPlaybackRate - tolerance,
+                   videoMoved <= wallMoved * Self.fastestPlaybackRate + tolerance {
                     stretches[stretches.count - 1].append(anchor)
                     continue
                 }
@@ -873,7 +883,16 @@ nonisolated struct LectureHeardWordLog {
               heardAt >= first.heardAt - reachBeyondAnchorsSeconds,
               heardAt <= last.heardAt + reachBeyondAnchorsSeconds else { return nil }
         let nearest = stretch.min { abs($0.heardAt - heardAt) < abs($1.heardAt - heardAt) }!
-        return nearest.playbackSeconds + (heardAt - nearest.heardAt) - recognitionLagSeconds
+        // Lectures are often watched faster than they were recorded.
+        let rate = playbackRate(of: stretch)
+        return nearest.playbackSeconds + (heardAt - recognitionLagSeconds - nearest.heardAt) * rate
+    }
+
+    /// How fast the video's clock ran against the wall's over a stretch.
+    static func playbackRate(of stretch: [Anchor]) -> Double {
+        guard let first = stretch.first, let last = stretch.last, last.heardAt - first.heardAt >= 4 else { return 1 }
+        let rate = (last.playbackSeconds - first.playbackSeconds) / (last.heardAt - first.heardAt)
+        return min(fastestPlaybackRate, max(slowestPlaybackRate, rate))
     }
 
     /// What the video said in the `seconds` before `playbackSeconds`, from
@@ -910,6 +929,18 @@ nonisolated struct LectureHeardWordLog {
     /// A sentence or two at least; fewer is a clip, a jingle or a tap that
     /// only just started.
     static let fewestWordsForAPassage = 12
+
+    /// For the log when no words were placed at a time: what was heard and
+    /// which stretches of playing there are.
+    func placementSummary(videoKey: String) -> String {
+        let words = allWords
+        let stretchText = stretches(of: videoKey).suffix(3).map { stretch -> String in
+            let first = stretch.first!, last = stretch.last!
+            return "\(Int(first.playbackSeconds))-\(Int(last.playbackSeconds))s of video over \(Int(last.heardAt - first.heardAt))s (\(stretch.count) times, rate \(String(format: "%.2f", Self.playbackRate(of: stretch))))"
+        }.joined(separator: "; ")
+        let span = words.first.map { "words heard \(Int((words.last?.heardAt ?? 0) - $0.heardAt))s apart" } ?? "no words"
+        return "\(span); stretches: \(stretchText.isEmpty ? "none" : stretchText)"
+    }
 }
 
 extension LectureVideoPage {

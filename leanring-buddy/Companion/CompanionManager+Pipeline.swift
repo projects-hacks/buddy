@@ -515,6 +515,9 @@ extension CompanionManager {
                     for: lectureGatheringTask, question: transcript, screenListing: screenListing,
                     waitingUntil: answerStartedAt.addingTimeInterval(LectureMode.longestWaitAfterQuestionSeconds)) {
                     studyNotes.append(lectureNote)
+                    if LectureMode.shared.frontAppPlayedSound(withinSeconds: 3) {
+                        studyNotes.append(LectureNote.videoIsPlayingNote)
+                    }
                     // Lecture mode hook: the notch says where this answer's words came from.
                     controlBar.model.lectureSourceLabel = LectureMode.shared.lastNoteSourceLabel
                 }

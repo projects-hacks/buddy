@@ -310,6 +310,19 @@ check(timeline.passage(endingAtPlayback: 104, videoKey: "youtube:other") == nil,
 let at10m40 = timeline.passage(endingAtPlayback: 640, videoKey: "youtube:x")
 check(at10m40?.passage.hasSuffix("c639") == true && at10m40?.secondsCovered == 40, "the latest stretch, covering forty seconds")
 check(timeline.lastHeard()?.passage.hasSuffix("c639") == true, "with no player time, the last thing heard")
+// Watched at 1.5 times: 90 seconds of video, 60 of wall clock, a word
+// said every video second.
+var fasterLog = LectureHeardWordLog()
+var fasterText = ""
+for second in 0..<90 {
+    fasterText += (fasterText.isEmpty ? "" : " ") + "f\(1000 + second)"
+    fasterLog.update(request: 1, text: fasterText, at: 5000 + Double(second) / 1.5 + LectureHeardWordLog.recognitionLagSeconds)
+}
+for wall in stride(from: 0.0, through: 60, by: 5) { fasterLog.noteAnchor(playbackSeconds: 1000 + wall * 1.5, videoKey: "youtube:x", at: 5000 + wall) }
+check(fasterLog.stretches(of: "youtube:x").count == 1, "watched at 1.5 times is one stretch of playing")
+let fasterPassage = fasterLog.passage(endingAtPlayback: 1080, videoKey: "youtube:x")?.passage
+check((fasterPassage?.hasPrefix("f1020") == true || fasterPassage?.hasPrefix("f1021") == true) && fasterPassage?.hasSuffix("f1080") == true,
+      "at 1.5 times, the minute of video before 18:00 (\(fasterPassage?.prefix(6) ?? "none")...\(fasterPassage?.suffix(5) ?? ""))")
 check(LectureVideoPage.key(pageURL: URL(string: "https://www.youtube.com/watch?v=fhdPyoO6aXI&t=104s"), windowTitle: nil) == "youtube:fhdPyoO6aXI",
       "the time in a YouTube link does not change the video")
 var cappedLog = LectureHeardWordLog()

@@ -34,6 +34,13 @@ extension CompanionManager {
     /// sized a greeting as a lesson. A late answer now costs at most 0.35s
     /// more, and only when Haiku is slow.
     private static let classifierFloorSeconds: Double = 1.1
+    /// When the on-device guess is unsure, its kind is close to a coin toss
+    /// (teach 0.46 and re-explain 0.24 in the 2.0.2 lecture test, both
+    /// wrong), so Haiku is waited for longer. A slow Haiku there costs up to
+    /// this much from the question, and only when the Mac had no good guess.
+    private static let unsureClassifierFloorSeconds: Double = 2.0
+    /// Below this the on-device guess counts as unsure.
+    private static let onDeviceSureEnough = 0.5
     static let memoryChooserFloorSeconds: Double = 1.0
 
     /// How much Haiku's kind is trusted against the on-device probabilities:
@@ -66,8 +73,10 @@ extension CompanionManager {
                 }
                 // Haiku keeps the time it had when the screen was always read
                 // after release, even when it was read during the talking.
+                let onDeviceIsUnsure = (localProbabilities?.values.max() ?? 0) < Self.onDeviceSureEnough
+                let floorSeconds = onDeviceIsUnsure ? Self.unsureClassifierFloorSeconds : Self.classifierFloorSeconds
                 let classifierDeadline = max(Date().addingTimeInterval(Self.classifierGraceSeconds),
-                                             answerStartedAt.addingTimeInterval(Self.classifierFloorSeconds))
+                                             answerStartedAt.addingTimeInterval(floorSeconds))
                 let classifierWaitSeconds = max(0, classifierDeadline.timeIntervalSinceNow)
                 group.addTask {
                     try? await Task.sleep(nanoseconds: UInt64(classifierWaitSeconds * 1_000_000_000))
@@ -95,6 +104,14 @@ extension CompanionManager {
             probabilities = fallback.mapValues { $0 * (1 - Self.classifierWeight) }
             probabilities[classifierKind, default: 0] += Self.classifierWeight
             source = "haiku"
+        }
+        // "Your last answer failed" is the costly mistake: it changes tack
+        // and counts the idea as not understood. Without Haiku, a guess that
+        // unsure is taken as an ordinary question instead.
+        if classifierKind == nil, let pushBack = probabilities[.reexplain], pushBack > 0,
+           probabilities.max(by: { $0.value < $1.value })?.key == .reexplain, pushBack < Self.onDeviceSureEnough {
+            probabilities[.reexplain] = 0
+            probabilities[.normal, default: 0] += pushBack
         }
         if !hasPreviousAnswer, let pushBack = probabilities[.reexplain], pushBack > 0 {
             probabilities[.reexplain] = 0
