@@ -727,3 +727,63 @@ nonisolated final class LectureAudioDownsampler {
         monoSamples.withUnsafeBufferPointer { downsample($0) }
     }
 }
+
+// MARK: - The lecture's words as they were heard
+
+/// The words recognised from the video's own sound while it played, each
+/// stamped with when it was first heard, kept for `keptSeconds`. The
+/// recognizer is restarted every minute or so, so words come in requests;
+/// a request's text is revised while it runs, and a revised word keeps the
+/// time it was first heard. Pure, so the offline check covers it.
+nonisolated struct LectureHeardWordLog {
+    struct Word: Equatable {
+        let raw: String
+        let heardAt: Double
+    }
+
+    static let keptSeconds: Double = 120
+
+    private var requests: [(identifier: Int, words: [Word])] = []
+
+    /// A request's whole text so far.
+    mutating func update(request identifier: Int, text: String, at time: Double) {
+        let raws = text.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let index = requests.firstIndex { $0.identifier == identifier } ?? {
+            requests.append((identifier, []))
+            requests.sort { $0.identifier < $1.identifier }
+            return requests.firstIndex { $0.identifier == identifier }!
+        }()
+        let earlier = requests[index].words
+        requests[index].words = raws.enumerated().map { position, raw in
+            Word(raw: raw, heardAt: position < earlier.count ? earlier[position].heardAt : time)
+        }
+    }
+
+    mutating func forget(before time: Double) {
+        for index in requests.indices {
+            requests[index].words.removeAll { $0.heardAt < time }
+        }
+        requests.removeAll { $0.words.isEmpty }
+    }
+
+    mutating func removeAll() { requests.removeAll() }
+
+    func words(since time: Double) -> [Word] {
+        requests.flatMap(\.words).filter { $0.heardAt >= time }
+    }
+
+    /// What was said since `time`, as one passage.
+    func passage(since time: Double) -> String {
+        words(since: time).map(\.raw).joined(separator: " ")
+    }
+
+    /// The words since `time` in short phrases with the times their first
+    /// and last word were heard, for telling them apart from the student's.
+    func phrases(since time: Double, wordsPerPhrase: Int = 8) -> [(text: String, startedAt: Double, endedAt: Double)] {
+        let recent = words(since: time)
+        return stride(from: 0, to: recent.count, by: wordsPerPhrase).map { start in
+            let chunk = recent[start..<min(start + wordsPerPhrase, recent.count)]
+            return (chunk.map(\.raw).joined(separator: " "), chunk.first!.heardAt, chunk.last!.heardAt)
+        }
+    }
+}

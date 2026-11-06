@@ -189,6 +189,23 @@ final class QAHooks {
             companionManager.openKnowledgeMap()
         case "closeMap":
             companionManager.knowledgeMapWindow.close()
+        case "readPage":
+            // What lecture mode can read of the page in front, timed.
+            guard let front = NSWorkspace.shared.frontmostApplication else { break }
+            let processIdentifier = front.processIdentifier
+            let bundleIdentifier = front.bundleIdentifier
+            Task.detached {
+                let application = AXUIElementCreateApplication(processIdentifier)
+                var windowValue: CFTypeRef?
+                let windowError = AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &windowValue)
+                var windowsValue: CFTypeRef?
+                let windowsError = AXUIElementCopyAttributeValue(application, kAXWindowsAttribute as CFString, &windowsValue)
+                TutorDebugLog.write("🧪 qa: readPage trusted \(AXIsProcessTrusted()), focused window error \(windowError.rawValue), windows error \(windowsError.rawValue) count \((windowsValue as? [AnyObject])?.count ?? -1)")
+                let started = Date()
+                let reading = LecturePageReader.readFrontWindow(processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier)
+                let seconds = Date().timeIntervalSince(started)
+                TutorDebugLog.write("🧪 qa: readPage \(bundleIdentifier ?? "-") in \(String(format: "%.2f", seconds))s: title \(reading.windowTitle ?? "none"), page \(reading.pageURL?.absoluteString.prefix(60) ?? "none"), time \(reading.playbackPosition.map { "\($0.currentSeconds)/\($0.totalSeconds ?? -1)" } ?? "none"), \(reading.transcriptCues.count) transcript lines")
+            }
         case "forgetMemory":
             companionManager.forgetLearningMemory()
         default:

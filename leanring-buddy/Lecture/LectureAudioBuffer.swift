@@ -59,6 +59,8 @@ final class LectureAudioBuffer {
 
     private let ringBuffer = LectureAudioRingBuffer(sampleRate: LectureAudioBuffer.sampleRate,
                                                     capacitySeconds: LectureAudioBuffer.keptSeconds)
+    /// The same sound recognised on the Mac as it plays.
+    let liveTranscript = LectureLiveTranscript()
     private var watchTimer: Timer?
     private var activeTap: LectureProcessTap? {
         didSet {
@@ -124,6 +126,33 @@ final class LectureAudioBuffer {
         return Date().timeIntervalSince(frontApplicationLastPlayedSoundAt) <= seconds
     }
 
+    /// What the buffer holds, in words, for the log line each lecture
+    /// question writes: a question answered without the sound says why.
+    func stateForLog() -> String {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return "no app in front" }
+        guard activeTap != nil else { return "not listening" }
+        guard front.processIdentifier == bufferOwnerProcessIdentifier else {
+            return "kept for \(bufferOwnerName), not \(front.localizedName ?? "the app in front")"
+        }
+        let samples = ringBuffer.newestSamples(seconds: Self.transcribedSeconds)
+        let seconds = LectureAudioRingBuffer.secondsWithSound(in: samples, sampleRate: Self.sampleRate)
+        return "\(Int(seconds))s with sound in the last \(Int(Self.transcribedSeconds))s"
+    }
+
+    /// What the app in front said in the last `seconds`, recognised as it
+    /// played, if that is enough words to be a passage.
+    func liveWordsForQuestion(seconds: Double = 60) -> (passage: String, secondsCovered: Int)? {
+        guard let front = NSWorkspace.shared.frontmostApplication,
+              front.processIdentifier == bufferOwnerProcessIdentifier else { return nil }
+        let since = TalkOverListener.now - seconds
+        let words = liveTranscript.log.words(since: since)
+        // A sentence or two at least; fewer is a clip, a jingle or a tap
+        // that only just started.
+        guard words.count >= 12, let first = words.first else { return nil }
+        let covered = Int(min(seconds, TalkOverListener.now - first.heardAt + 1))
+        return (words.map(\.raw).joined(separator: " "), covered)
+    }
+
     /// The buffered sound, if there is enough of it to be worth hearing.
     func snapshotForQuestion() -> LectureAudioSnapshot? {
         guard let front = NSWorkspace.shared.frontmostApplication,
@@ -154,11 +183,16 @@ final class LectureAudioBuffer {
 
     private func startTap(on familyProcesses: [LectureAudioProcess]) {
         activeTap?.stop()
+        let liveTranscript = self.liveTranscript
         activeTap = LectureProcessTap(
             processObjectIdentifiers: Array(Set(familyProcesses.map(\.audioObjectIdentifier))),
-            ringBuffer: ringBuffer, targetSampleRate: Double(Self.sampleRate))
+            ringBuffer: ringBuffer, targetSampleRate: Double(Self.sampleRate),
+            onSamples: { samples in liveTranscript.append(samples) })
         secondsPlayedWhileTapped = 0
-        if activeTap != nil { lastLoggedSkipReason = nil }
+        if activeTap != nil {
+            lastLoggedSkipReason = nil
+            liveTranscript.start()
+        }
     }
 
     /// Seconds the app played sound while the current tap was running, for
@@ -240,9 +274,11 @@ final class LectureAudioBuffer {
             if secondsSincePlayed > 4, Date().timeIntervalSince(activeTap.startedAt) > 4 {
                 activeTap.stop()
                 self.activeTap = nil
+                liveTranscript.stop()
             }
         } else if let frontApplicationLastPlayedSoundAt, Date().timeIntervalSince(frontApplicationLastPlayedSoundAt) > 600 {
             ringBuffer.removeAll()
+            liveTranscript.forgetEverything()
         }
     }
 
@@ -250,6 +286,7 @@ final class LectureAudioBuffer {
         activeTap?.stop()
         activeTap = nil
         ringBuffer.removeAll()
+        liveTranscript.forgetEverything()
         if let reason, reason != lastLoggedSkipReason {
             TutorDebugLog.write("🎓 lecture: not listening, \(reason)")
             lastLoggedSkipReason = reason
@@ -359,7 +396,8 @@ nonisolated final class LectureProcessTap {
         return heardSound
     }
 
-    init?(processObjectIdentifiers: [AudioObjectID], ringBuffer: LectureAudioRingBuffer, targetSampleRate: Double) {
+    init?(processObjectIdentifiers: [AudioObjectID], ringBuffer: LectureAudioRingBuffer, targetSampleRate: Double,
+          onSamples: (@Sendable ([Int16]) -> Void)? = nil) {
         tappedObjectIdentifiers = Set(processObjectIdentifiers)
         guard !processObjectIdentifiers.isEmpty else { return nil }
 
@@ -426,7 +464,9 @@ nonisolated final class LectureProcessTap {
             if let self, monoSamples.contains(where: { $0 != 0 }) {
                 self.heardSoundLock.lock(); self.heardSound = true; self.heardSoundLock.unlock()
             }
-            ringBuffer.append(downsampler.downsample(monoSamples))
+            let downsampled = downsampler.downsample(monoSamples)
+            ringBuffer.append(downsampled)
+            onSamples?(downsampled)
         }
         guard status == noErr else {
             TutorDebugLog.write("🎓 lecture: could not attach to the tap (\(status))")

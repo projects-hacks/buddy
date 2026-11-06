@@ -24,15 +24,21 @@ extension CompanionManager {
     /// to 1.1s in all, and the capture about 0.7s, so most answers arrive
     /// inside this and a slow one costs at most this much.
     static let classifierGraceSeconds: Double = 0.35
-    /// The least time from the question Haiku is given: a typical capture
-    /// and read (0.35s to 0.55s in the log) plus the grace above. Without
-    /// it, a screen read during the talking left Haiku only the grace, and
-    /// most of its answers, right nine times in ten, would be dropped.
-    private static let classifierFloorSeconds: Double = 0.75
+    /// The least time from the question Haiku is given. Without it, a screen
+    /// read during the talking left Haiku only the grace, and most of its
+    /// answers would be dropped. Timed one at a time on a warm connection
+    /// with the shipped prompt (scripts/question_sorting/haiku_latency.py),
+    /// it took 0.71s median, 0.83s at the slowest tenth and over 1.0s for 2
+    /// of 47; the 0.75s this used to be dropped 16 of those 47, a third, and
+    /// the first question after launch went to the on-device guess, which
+    /// sized a greeting as a lesson. A late answer now costs at most 0.35s
+    /// more, and only when Haiku is slow.
+    private static let classifierFloorSeconds: Double = 1.1
     static let memoryChooserFloorSeconds: Double = 1.0
 
     /// How much Haiku's kind is trusted against the on-device probabilities:
-    /// its accuracy on the blind spoken set, 90 of 100.
+    /// its accuracy on the blind spoken set, 90 of 100 when this was set and
+    /// 94 or 95 with the current prompt.
     private static let classifierWeight = 0.9
 
     /// The question's kind, and how likely each kind is, from the on-device

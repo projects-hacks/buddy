@@ -62,7 +62,7 @@ func levels(_ decibels: Float, from start: Double, to end: Double) -> [(at: Doub
 /// `finalTextOnFlush` is what Deepgram sends back a quarter of a second
 /// after it is asked to finalize, as it does once the student stops.
 func play(_ events: [(at: Double, event: Event)], until end: Double, loud: Bool = true,
-          finalTextOnFlush: String? = nil) -> [(at: Double, action: TalkOverTranscript.Action)] {
+          finalTextOnFlush: String? = nil, lecture: [SpokenSentence] = []) -> [(at: Double, action: TalkOverTranscript.Action)] {
     var transcript = TalkOverTranscript()
     var sentences: [SpokenSentence] = []
     var actions: [(Double, TalkOverTranscript.Action)] = []
@@ -80,14 +80,14 @@ func play(_ events: [(at: Double, event: Event)], until end: Double, loud: Bool 
             case .sentenceEnds:
                 if let last = sentences.last { sentences[sentences.count - 1] = SpokenSentence(text: last.text, startedAt: last.startedAt, endedAt: next.at) }
             case .heard(let text):
-                for action in transcript.heard(text, at: next.at, recentlySpoken: Array(sentences.suffix(3)), wasLoudEnough: loud) {
+                for action in transcript.heard(text, at: next.at, recentlySpoken: Array(sentences.suffix(3)) + lecture, wasLoudEnough: loud) {
                     actions.append((next.at, action))
                 }
             case .level(let decibels):
                 transcript.levelHeard(decibels, at: next.at)
             }
         }
-        for action in transcript.timePassed(to: clock, recentlySpoken: Array(sentences.suffix(3)), wasLoudEnough: loud) {
+        for action in transcript.timePassed(to: clock, recentlySpoken: Array(sentences.suffix(3)) + lecture, wasLoudEnough: loud) {
             actions.append((clock, action))
             if action == .flushRecognizer, let finalTextOnFlush {
                 pending.append((clock + 0.25, .heard(finalTextOnFlush)))
@@ -275,6 +275,55 @@ describedEcho += [(1.0, .heard("Here is what")), (2.2, .heard("Here is what you 
 let describedActions = play(describedEcho, until: 8, finalTextOnFlush: "Here is what you described. knee")
 print("  echo of here's: " + describe(describedActions))
 check("echo of here's: Buddy's own sentence written out in full is no question", question(in: describedActions) == nil)
+
+// 11. Lecture mode's live test of 2.0.1: a lecture on the speakers while
+// Buddy answered, and the microphone's "data that's persisted and exchanged
+// throughout our system?" was taken for the student and answered. The
+// lecture's own recognizer had heard the same words a moment before.
+func lecturePhrase(_ text: String, _ start: Double, _ end: Double) -> SpokenSentence {
+    SpokenSentence(text: text, startedAt: start, endedAt: end, isFromTheLecture: true)
+}
+let roadmapLecture = [lecturePhrase("these are the core entities, the data that's persisted", 2.5, 4.5),
+                      lecturePhrase("and exchanged throughout our system.", 4.5, 6.0)]
+var lectureInTheRoom: [(at: Double, event: Event)] = [(0.0, .sentenceStarts("the road map is five steps in order.")), (2.0, .sentenceEnds),
+                                                      (2.1, .sentenceStarts("first, requirements: what it must do."))]
+lectureInTheRoom += levels(-30, from: 0, to: 9)
+lectureInTheRoom += [(4.0, .heard("data that's persisted")), (5.6, .heard("data that's persisted and exchanged throughout our system?"))]
+let lectureActions = play(lectureInTheRoom, until: 12, lecture: roadmapLecture)
+print("  lecture in the room: " + describe(lectureActions))
+check("lecture in the room: the video's words are no question", question(in: lectureActions) == nil)
+check("lecture in the room: Buddy is never paused for them", firstYield(in: lectureActions) == nil)
+check("lecture in the room: without the lecture's words the same sound was answered, as it was live",
+      question(in: play(lectureInTheRoom, until: 12)) != nil)
+
+// 12. The student cuts in while the lecture plays: the lecturer's words go,
+// the student's stay.
+let apiLecture = [lecturePhrase("so the next step is the api, the endpoints", 1.0, 3.5)]
+var cutInOverLecture: [(at: Double, event: Event)] = [(0.0, .sentenceStarts("core entities are the nouns of the system."))]
+cutInOverLecture += levels(-30, from: 0, to: 9)
+cutInOverLecture += [(2.5, .heard("so the next step is the api")), (4.2, .heard("so the next step is the api wait why do we need an api"))]
+let cutInOverLectureActions = play(cutInOverLecture, until: 12, lecture: apiLecture)
+print("  cut in over the lecture: " + describe(cutInOverLectureActions))
+check("cut in over the lecture: the student's question is kept, the lecturer's words are not",
+      question(in: cutInOverLectureActions)?.text.lowercased() == "wait why do we need an api")
+
+// 13. Quoting the lecture is the student's own: two or three of its words
+// in a row are a term, not the video.
+let termLecture = [lecturePhrase("we use eventual consistency for the search index", 1.0, 3.5)]
+let quotedWords = TalkOverHearing.words(of: "what does eventual consistency mean")
+let quotedMask = TalkOverHearing.lectureWordMask(quotedWords, heardAt: quotedWords.map { _ in 5.0 }, spoken: termLecture)
+check("a term quoted from the lecture stays the student's", !quotedMask.contains(true))
+
+// 14. The same words long after the lecture said them are the student's.
+let echoedLate = TalkOverHearing.words(of: "the data that's persisted and exchanged")
+let lateMask = TalkOverHearing.lectureWordMask(echoedLate, heardAt: echoedLate.map { _ in 40.0 }, spoken: roadmapLecture)
+check("lecture words said long before are not taken out", !lateMask.contains(true))
+let onTimeMask = TalkOverHearing.lectureWordMask(echoedLate, heardAt: echoedLate.map { _ in 5.0 }, spoken: roadmapLecture)
+check("the same run heard while the video said it is taken out", onTimeMask.allSatisfy { $0 })
+
+// 15. Lecture phrases never count as Buddy's own voice.
+let lectureOnlyMask = TalkOverHearing.buddyWordMask(echoedLate, heardAt: echoedLate.map { _ in 5.0 }, spoken: roadmapLecture)
+check("lecture phrases are not Buddy's echo", !lectureOnlyMask.contains(true))
 
 print(failures == 0 ? "all passed" : "\(failures) failed")
 exit(failures == 0 ? 0 : 1)

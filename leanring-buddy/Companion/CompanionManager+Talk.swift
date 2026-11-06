@@ -212,6 +212,7 @@ extension CompanionManager {
             clearDetectedElementLocation()
             clearAnnotations()
 
+            talkStartedAt = TalkOverListener.now
             talkSession.startListening(
                 onHeard: { [weak self] finalTranscript in
                     InterfaceSounds.shared.play(.sent)
@@ -219,8 +220,16 @@ extension CompanionManager {
                     print("🗣️ Companion received transcript: \(finalTranscript)")
                 },
                 onQuestion: { [weak self] finalTranscript, earlyScreen, studentPointing in
-                    self?.sendTranscriptToTutorWithScreenshot(
-                        transcript: finalTranscript,
+                    guard let self else { return }
+                    // Lecture mode hook: the video's words heard by the
+                    // microphone are not the student's.
+                    guard let studentsWords = LectureMode.shared.withoutTheLecture(finalTranscript, heardSince: self.talkStartedAt) else {
+                        TutorDebugLog.write("🎓 lecture: the microphone heard only the video, nothing sent")
+                        earlyScreen?.cancel()
+                        return
+                    }
+                    self.sendTranscriptToTutorWithScreenshot(
+                        transcript: studentsWords,
                         earlyScreen: earlyScreen,
                         studentPointing: studentPointing)
                 })

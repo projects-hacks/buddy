@@ -28,6 +28,9 @@ enum CompanionVoiceState {
 final class CompanionManager: ObservableObject {
     @Published var voiceState: CompanionVoiceState = .idle
     @Published var lastTranscript: String?
+    /// When the talk keys went down, for telling the lecturer on the
+    /// speakers from the student in what the microphone heard meanwhile.
+    var talkStartedAt: Double = 0
     @Published var currentAudioPowerLevel: CGFloat = 0
     /// Accessibility, screen recording, microphone and screen content,
     /// read again every 1.5 seconds (PermissionMonitor.swift).
@@ -180,6 +183,11 @@ final class CompanionManager: ObservableObject {
                 self?.setupWindow.show(startingAt: .welcome)
             }
         }
+        // The drawing engine is loaded a moment after launch, once the
+        // notch is up, rather than on the first question.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            self?.drawingOverlay.prepare()
+        }
         Task {
             await questionSorter.prepare()
             // After the sorter, whose sentence model memory shares.
@@ -254,7 +262,9 @@ final class CompanionManager: ObservableObject {
     /// Listens while an answer plays, for the student talking over it.
     lazy var talkOverListener: TalkOverListener = {
         let listener = TalkOverListener()
-        listener.recentlySpokenSentences = { [weak self] in self?.lessonPlayer.recentlySpokenSentences ?? [] }
+        listener.recentlySpokenSentences = { [weak self] in
+            (self?.lessonPlayer.recentlySpokenSentences ?? []) + LectureMode.shared.recentLecturePhrases()
+        }
         listener.onRequest = { [weak self] request in self?.handleTalkOver(request) }
         listener.onListeningChanged = { [weak self] isListening in
             guard let model = self?.controlBar.model else { return }

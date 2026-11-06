@@ -17,6 +17,8 @@ struct SpokenSentence: Equatable {
     let startedAt: Double
     /// Nil while it is still being said (or paused).
     let endedAt: Double?
+    /// Words the video in front said, heard by lecture mode, not by Buddy.
+    var isFromTheLecture = false
 }
 
 /// What something heard while an answer played means. Pure, so it can be
@@ -154,7 +156,7 @@ enum TalkOverHearing {
     /// single matching word among the student's own ("why does high
     /// start", with Buddy talking about high) stays the student's.
     static func buddyWordMask(_ heardWords: [String], heardAt heardTimes: [Double], spoken: [SpokenSentence]) -> [Bool] {
-        let sentences = spoken.map { (words: words(of: $0.text), startedAt: $0.startedAt, endedAt: $0.endedAt) }
+        let sentences = spoken.filter { !$0.isFromTheLecture }.map { (words: words(of: $0.text), startedAt: $0.startedAt, endedAt: $0.endedAt) }
             .filter { !$0.words.isEmpty }
         var isBuddys = [Bool](repeating: false, count: heardWords.count)
         guard !sentences.isEmpty, heardTimes.count == heardWords.count else { return isBuddys }
@@ -197,6 +199,67 @@ enum TalkOverHearing {
             if (betweenBuddys && saidThen) || continuesBuddysSentence { isBuddys[heardIndex] = true }
         }
         return isBuddys
+    }
+
+    /// How long a run of heard words must follow the lecture in order to be
+    /// the lecturer's voice from the speakers. A student quoting a term
+    /// ("what does eventual consistency mean") repeats two or three of the
+    /// lecture's words; a microphone hearing the video repeats whole
+    /// sentences.
+    static let shortestLectureRun = 4
+    /// How far apart the two recognizers may stamp the same spoken word:
+    /// the microphone's and the one transcribing the video's own sound each
+    /// trail the audio by up to about a second and a half.
+    static let lectureSlackSeconds: Double = 4
+
+    /// Which heard words are the video playing in the room: runs of at
+    /// least `shortestLectureRun` words that follow the lecture's own words
+    /// in order, around the same time, one dropped or misheard word allowed
+    /// at each step on either side.
+    static func lectureWordMask(_ heardWords: [String], heardAt heardTimes: [Double], spoken: [SpokenSentence],
+                                slackSeconds: Double = lectureSlackSeconds) -> [Bool] {
+        var isLectures = [Bool](repeating: false, count: heardWords.count)
+        guard heardTimes.count == heardWords.count else { return isLectures }
+        // The lecture's words, each stamped between its phrase's first and
+        // last word.
+        var lectureWords: [(word: String, heardAt: Double)] = []
+        for phrase in spoken where phrase.isFromTheLecture {
+            let phraseWords = words(of: phrase.text)
+            guard !phraseWords.isEmpty else { continue }
+            let endedAt = phrase.endedAt ?? phrase.startedAt
+            let step = phraseWords.count > 1 ? (endedAt - phrase.startedAt) / Double(phraseWords.count - 1) : 0
+            for (index, word) in phraseWords.enumerated() {
+                lectureWords.append((word, phrase.startedAt + Double(index) * step))
+            }
+        }
+        guard !lectureWords.isEmpty, !heardWords.isEmpty else { return isLectures }
+        func matches(_ heardIndex: Int, _ lectureIndex: Int) -> Bool {
+            heardIndex < heardWords.count && lectureIndex < lectureWords.count
+                && abs(heardTimes[heardIndex] - lectureWords[lectureIndex].heardAt) <= slackSeconds
+                && sameWord(heardWords[heardIndex], lectureWords[lectureIndex].word)
+        }
+        var heardIndex = 0
+        while heardIndex < heardWords.count {
+            var longestRun: (matched: Int, lastHeard: Int)?
+            for lectureIndex in lectureWords.indices where matches(heardIndex, lectureIndex) {
+                var heard = heardIndex, lecture = lectureIndex, matched = 1
+                while true {
+                    if matches(heard + 1, lecture + 1) { heard += 1; lecture += 1 }
+                    else if matches(heard + 1, lecture + 2) { heard += 1; lecture += 2 }
+                    else if matches(heard + 2, lecture + 1) { heard += 2; lecture += 1 }
+                    else { break }
+                    matched += 1
+                }
+                if matched > (longestRun?.matched ?? 0) { longestRun = (matched, heard) }
+            }
+            if let longestRun, longestRun.matched >= shortestLectureRun {
+                for index in heardIndex...longestRun.lastHeard { isLectures[index] = true }
+                heardIndex = longestRun.lastHeard + 1
+            } else {
+                heardIndex += 1
+            }
+        }
+        return isLectures
     }
 
     /// Where in the student's words a cut-in cue starts, if one does.
@@ -483,6 +546,7 @@ struct TalkOverTranscript {
         let liveWords = tokens[firstLiveToken...].map(\.word)
         let liveTimes = tokens[firstLiveToken...].map(\.heardAt)
         let isBuddys = TalkOverHearing.buddyWordMask(liveWords, heardAt: liveTimes, spoken: recentlySpoken)
-        return liveWords.indices.filter { !isBuddys[$0] }.map { $0 + firstLiveToken }
+        let isTheLectures = TalkOverHearing.lectureWordMask(liveWords, heardAt: liveTimes, spoken: recentlySpoken)
+        return liveWords.indices.filter { !isBuddys[$0] && !isTheLectures[$0] }.map { $0 + firstLiveToken }
     }
 }

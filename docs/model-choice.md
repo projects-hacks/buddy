@@ -294,9 +294,12 @@ was made on the dev half and the test half was scored once.
 The on-device sorter had been fitted to the phrasing of its examples: 40 of 50 on
 its own test, 32 of 50 on a blind one. Its confidence is still honest (right
 every time above 0.9, a quarter of the time below 0.5, calibration error
-0.08), which is what makes it a usable first stage. Haiku takes 0.66s median
-and 0.8 to 1.1s at the slowest tenth; it runs while the screen is captured and
-read (0.7s), and is dropped if more than 0.35s late. Reproduce with
+0.08), which is what makes it a usable first stage. Haiku runs while the screen
+is captured and read, and its answer is used if it is back within 1.1s of the
+question, or 0.35s after the screen is read if that is later. With the 2.0.1
+prompt, timed one call at a time (`haiku_latency.py`), it took 0.71s median,
+0.83s at the slowest tenth and over 1.0s for 2 of 47. Until 2.0.2 the wait was
+0.75s, which dropped 16 of those 47 to the on-device guess. Reproduce with
 `calibrate.py` and `cascade_test.py`.
 
 ### What each brain is good at

@@ -75,7 +75,7 @@ flowchart TD
     classDef cloud fill:#e9d5ff,stroke:#7e22ce,color:#111
 ```
 
-The sorter compares a question with example phrasings, so it can only judge questions like them. A greeting, thanks or "what can you do" scored 0.69 to 0.89 against them, below every one of the 100 blind study questions (0.851 and up, 95 above 0.877), yet still came out 99% sure of whichever kind sat a hair closer: "Hello, Buddy." as teach, "thanks" as re-explain, which sent thanks to Opus. Below 0.89 its guess is now made five times softer, so it is never sure and Haiku decides; on the blind set that asks Haiku for 86 questions instead of 84, and none decided on the Mac alone is wrong either way.
+The sorter compares a question with example phrasings, so it can only judge questions like them. A greeting, thanks or "what can you do" scored 0.69 to 0.89 against them, below every one of the 100 blind study questions (0.851 and up, 95 above 0.877), yet still came out 99% sure of whichever kind sat a hair closer: "Hello, Buddy." as teach, "thanks" as re-explain, which sent thanks to Opus. Below 0.89 its guess is now made five times softer, so it is never sure and Haiku decides; on the blind set that asks Haiku for 86 questions instead of 84, and none decided on the Mac alone is wrong either way. Haiku's answer counts if it is back within 1.1 s of the question; it takes 0.71 s median and over 1 s for about one message in twenty, and the 0.75 s allowed before 2.0.2 dropped a third of its answers.
 
 Haiku is shown the exchange before the message (what was asked and the start of what Buddy said) inside tags, so it can tell a new follow-up from "that did not land", and its prompt describes each kind by what the student needs from the answer, with the reason the size matters. Graded by `scripts/question_sorting/haiku_prompt_test.py`: 93 or 94 of 94 on everyday messages (greetings, thanks, questions about Buddy, tasks in apps, follow-ups, lessons, choices, 24 of them written after the prompt) and 94 or 95 of 100 on the blind study set, over three runs, against 55 of 70 and 89 of 100 with the 1.5 prompt. Most remaining misses are short "what is this" questions sized one step larger, which costs a little time and nothing in the answer.
 
@@ -133,7 +133,9 @@ flowchart TD
     transcript -->|found| note[The minute before that time,<br/>as a study note]:::logic
     transcript -->|none| gate{Player time read, or a question<br/>about what was said?}:::logic
     gate -->|no| none
-    gate -->|yes| sound[Newest 65 s of the app's own sound,<br/>Deepgram or Apple Speech]:::cloud
+    gate -->|yes| live[Words recognised on the Mac<br/>as the video played]:::device
+    live -->|found| note
+    live -->|none| sound[Newest 65 s of the app's own sound,<br/>Deepgram or Apple Speech]:::cloud
     sound --> note
 
     classDef input fill:#fde68a,stroke:#b45309,color:#111
@@ -145,6 +147,8 @@ flowchart TD
 **Transcript first.** The playback time is read from the player ("12:34 / 48:10", or a seek bar's description). The lines before it come from YouTube's caption track, then a transcript panel in the page read through the accessibility tree (YouTube's Show transcript, Coursera's), then the same panel recognised on the screenshot. YouTube now usually withholds the caption track, so the panel is the common source. The page read is bounded to 6,000 elements and 1.2 s (`LecturePageReader.swift`).
 
 **The sound as a fallback.** When no transcript can be placed, a Core Audio process tap on the front app and its helper processes, never the microphone, keeps the last 90 s in memory (`LectureAudioBuffer.swift`). It runs only while that app plays sound and is not a call (any app using a microphone counts as one), a meeting or a music app, and is emptied on every app switch. The notch shows a small glyph whenever it runs.
+
+**Transcribed as it plays.** While the tap runs, the same sound goes to Apple's speech recognizer on the Mac, never to a server, the way meeting note takers such as Granola transcribe as the meeting goes rather than when asked (`LectureLiveTranscript.swift`). Each word keeps the time it was first heard, for two minutes, in memory only (`LectureHeardWordLog`). A lecture question then gets the last minute's words at once with nothing sent; the buffer is transcribed only when this Mac cannot recognise speech on device, speech recognition is not allowed, or fewer than twelve words were heard. The same words keep the lecturer on the speakers from being taken for the student: in what the microphone hears, whether over an answer or while the talk keys are held, a run of four or more words that follows the lecture in order, within four seconds of when the lecture's recognizer heard them, is the video and is left out (`TalkOverHearing.lectureWordMask`). A held question that was only the video is not sent. Two or three of the lecture's words in a row are a term the student is quoting and stay theirs. In the 2.0.1 live test, "data that's persisted and exchanged throughout our system?" from the video was answered as a question; `scripts/talk_over/` now replays that case and passes.
 
 **The gate.** The sound is sent only for a lecture question: a player's time was read, or the question is about what was said ("what did he mean", "the lecturer") (`LectureAudioGate`). Then only the newest 65 s are transcribed, by Deepgram Nova-3 at $0.0077 a minute of audio sent, or by Apple Speech on the Mac without a key.
 

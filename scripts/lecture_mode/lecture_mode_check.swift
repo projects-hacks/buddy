@@ -250,6 +250,28 @@ check(LectureAudioRingBuffer.secondsWithSound(in: tone, sampleRate: 16_000) == 1
 check(LectureAudioRingBuffer.secondsWithSound(in: [Int16](repeating: 0, count: 32_000), sampleRate: 16_000) == 0, "digital silence is not")
 
 // MARK: YouTube, live
+
+// MARK: the lecture's words as they were heard
+var heardLog = LectureHeardWordLog()
+heardLog.update(request: 1, text: "so the next", at: 10)
+heardLog.update(request: 1, text: "so the next step is", at: 11)
+heardLog.update(request: 1, text: "So the next step is the API.", at: 12)
+check(heardLog.words(since: 0).map(\.heardAt) == [10, 10, 10, 11, 11, 12, 12], "a revised word keeps when it was first heard")
+heardLog.update(request: 2, text: "Endpoints come next.", at: 70)
+heardLog.update(request: 1, text: "So the next step is the API, which", at: 71)
+check(heardLog.passage(since: 0) == "So the next step is the API, which Endpoints come next.", "an older request's late words stay before the newer request's")
+check(heardLog.passage(since: 60) == "which Endpoints come next.", "since a time, only the words heard after it")
+heardLog.forget(before: 65)
+check(heardLog.words(since: 0).count == 4, "old words forgotten, newer kept")
+var phraseLog = LectureHeardWordLog()
+phraseLog.update(request: 1, text: "one two", at: 1)
+phraseLog.update(request: 1, text: "one two three four", at: 2)
+let heardPhrases = phraseLog.phrases(since: 0, wordsPerPhrase: 3)
+check(heardPhrases.count == 2 && heardPhrases[0].text == "one two three" && heardPhrases[0].startedAt == 1
+      && heardPhrases[0].endedAt == 2 && heardPhrases[1].text == "four", "phrases carry their first and last word's time")
+heardLog.removeAll()
+check(heardLog.words(since: 0).isEmpty, "emptied when the app in front changes")
+
 if ProcessInfo.processInfo.environment["LECTURE_CHECK_OFFLINE"] == nil {
     let semaphore = DispatchSemaphore(value: 0)
     Task {

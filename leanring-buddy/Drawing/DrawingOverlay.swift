@@ -81,6 +81,15 @@ final class DrawingOverlay: NSObject {
         panel?.orderOut(nil)
     }
 
+    /// Builds the page without showing it. Loading WebKit and the engine
+    /// holds the main thread for about a second; done on the first question,
+    /// that second fell inside the wait for Haiku's sort, whose reply could
+    /// not be read in time, so a greeting right after launch was sorted by
+    /// the on-device guess as a lesson.
+    func prepare() {
+        if panel == nil { buildPanel() }
+    }
+
     // MARK: - Engine calls
 
     /// Prepares the page for a new answer drawn over a screenshot of
