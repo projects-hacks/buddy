@@ -26,10 +26,12 @@ import Speech
 
 @MainActor
 final class LectureLiveTranscript {
-    /// On-device recognition has no length limit, but one long request
-    /// drifts and holds its whole text in memory, so a fresh one is started
-    /// about once a minute.
-    static let secondsPerRequest: Double = 55
+    // One request runs for as long as the sound does. On-device recognition
+    // has no length limit, and its text starts over after each pause, so a
+    // request never holds a whole lecture. A new one is started only once
+    // the last has ended by itself: Apple's recognizer serves one task at a
+    // time, and starting the next before the last had finished, once a
+    // minute as 2.0.2's first build did, lost the speech on either side.
 
     /// Each app's words, by its process.
     private var logs: [pid_t: LectureHeardWordLog] = [:]
@@ -39,10 +41,9 @@ final class LectureLiveTranscript {
     private var recognizer: SFSpeechRecognizer?
     private var tasksByIdentifier: [Int: SFSpeechRecognitionTask] = [:]
     private var currentIdentifier = 0
-    private var rotationTimer: Timer?
+    private(set) var isRunning = false
     private var loggedUnavailableReason: String?
 
-    var isRunning: Bool { rotationTimer != nil }
 
     /// Called from the tap's audio thread with 16 kHz mono samples.
     nonisolated func append(_ samples: [Int16]) {
@@ -56,9 +57,10 @@ final class LectureLiveTranscript {
     /// The words of the app being heard now, for the microphone's filter.
     var currentLog: LectureHeardWordLog { owner.map(log(for:)) ?? LectureHeardWordLog() }
 
-    func noteAnchor(playbackSeconds: Double, videoKey: String, for processIdentifier: pid_t) {
+    func noteAnchor(playbackSeconds: Double, videoKey: String, for processIdentifier: pid_t,
+                    at time: Double? = nil) {
         logs[processIdentifier, default: LectureHeardWordLog()]
-            .noteAnchor(playbackSeconds: playbackSeconds, videoKey: videoKey, at: TalkOverListener.now)
+            .noteAnchor(playbackSeconds: playbackSeconds, videoKey: videoKey, at: time ?? TalkOverListener.now)
     }
 
     func start(for processIdentifier: pid_t) {
@@ -79,17 +81,14 @@ final class LectureLiveTranscript {
             return
         }
         recognizer = candidate
+        isRunning = true
         startRequest()
-        rotationTimer = Timer.scheduledTimer(withTimeInterval: Self.secondsPerRequest, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.startRequest() }
-        }
         TutorDebugLog.write("🎓 lecture: transcribing the sound on the Mac as it plays")
     }
 
     /// Paused, or another app in front: the words heard so far are kept.
     func stop() {
-        rotationTimer?.invalidate()
-        rotationTimer = nil
+        isRunning = false
         feed.replace(with: nil)?.endAudio()
     }
 
@@ -108,14 +107,33 @@ final class LectureLiveTranscript {
             let errorText = error.map { ($0 as NSError).domain + " \(($0 as NSError).code): " + $0.localizedDescription }
             Task { @MainActor in
                 guard let self else { return }
-                if let errorText, text == nil { TutorDebugLog.write("🎓 lecture: the Mac's recognizer stopped a request (\(errorText))") }
                 if let text { self.logs[owner, default: LectureHeardWordLog()].update(request: identifier, text: text, at: TalkOverListener.now) }
-                if isDone { self.tasksByIdentifier[identifier] = nil }
+                guard isDone else { return }
+                self.tasksByIdentifier[identifier] = nil
+                let wordCount = text?.split(separator: " ").count ?? 0
+                TutorDebugLog.write("🎓 lecture: recognizer request \(identifier) ended, \(errorText.map { "with \($0)" } ?? "final"), its last text \(wordCount) words")
+                // The recognizer gives up on a request after a quiet stretch
+                // ("no speech detected"); sound fed to it after that is lost.
+                // In the 2.0.2 test that lost the first 35 s of a lecture,
+                // until the next minute's restart. The current request, once
+                // ended, is replaced at once.
+                guard identifier == self.currentIdentifier, self.isRunning else { return }
+                if let errorText { TutorDebugLog.write("🎓 lecture: the Mac's recognizer ended a request (\(errorText)), starting another") }
+                self.restartAfterEnd()
             }
         }
-        // The new request takes the sound before the old one is ended, so
-        // nothing falls between them.
         feed.replace(with: request)?.endAudio()
+    }
+
+    /// A new request a moment after one ended, so a recognizer that keeps
+    /// ending at once (silence) is not restarted in a tight loop.
+    private func restartAfterEnd() {
+        let endedIdentifier = currentIdentifier
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard let self, self.isRunning, self.currentIdentifier == endedIdentifier else { return }
+            self.startRequest()
+        }
     }
 
     private func logOnce(_ reason: String) {

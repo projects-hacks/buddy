@@ -39,9 +39,16 @@ final class PreferredTranscriptionProvider: BuddyTranscriptionProvider {
     /// What the heard minutes are for in the meter. One provider serves
     /// push-to-talk, talk-over and teach-back, so its owner says which.
     private let spendingPurpose: SpendingMeter.Purpose
+    /// Whether Apple Speech also hears the audio as Deepgram's backup.
+    /// Apple's on-device recognizer serves one task at a time: in the 2.0.2
+    /// test, talk-over's backup starved lecture mode's recognizer whenever
+    /// Buddy answered ("no speech detected" with the lecture playing), and
+    /// the lecture's last seconds were lost.
+    private let startsAppleSpeechBackup: () -> Bool
 
-    init(spendingPurpose: SpendingMeter.Purpose) {
+    init(spendingPurpose: SpendingMeter.Purpose, startsAppleSpeechBackup: @escaping () -> Bool = { true }) {
         self.spendingPurpose = spendingPurpose
+        self.startsAppleSpeechBackup = startsAppleSpeechBackup
     }
 
     func startStreamingSession(
@@ -58,7 +65,7 @@ final class PreferredTranscriptionProvider: BuddyTranscriptionProvider {
         let combined = CombinedTranscriptionSession(
             onTranscriptUpdate: onTranscriptUpdate, onFinalTranscriptReady: onFinalTranscriptReady, onError: onError)
         // Apple first: if it cannot start, Deepgram alone still hears the question.
-        if let backup = try? await appleSpeech.startStreamingSession(
+        if startsAppleSpeechBackup(), let backup = try? await appleSpeech.startStreamingSession(
             keyterms: keyterms,
             onTranscriptUpdate: { [weak combined] text in combined?.appleUpdated(text) },
             onFinalTranscriptReady: { [weak combined] text in combined?.appleFinished(text) },

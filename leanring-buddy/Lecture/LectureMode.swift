@@ -79,6 +79,9 @@ final class LectureMode {
         audioBuffer.startWatching()
     }
 
+    /// Whether the video's sound is being recognised on the Mac right now.
+    var isTranscribingLive: Bool { audioBuffer.liveTranscript.isRunning }
+
     /// Whether the app in front played sound lately, so the question sorter
     /// knows "he" may be someone in a video.
     func frontAppPlayedSound(withinSeconds seconds: TimeInterval) -> Bool {
@@ -122,9 +125,15 @@ final class LectureMode {
     /// it can be read, else the last minute heard.
     private func liveWords(for playbackPosition: LecturePlaybackPosition?, reading: LecturePageReading) -> (passage: String, secondsCovered: Int)? {
         if let playbackPosition,
-           let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle) {
+           let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle),
+           audioBuffer.hasPlaybackReadings(forVideoKey: key) {
+            // Placed on the video's clock; nothing when that part was not
+            // heard, rather than words from another part of it.
             return audioBuffer.liveWords(atPlayback: playbackPosition, videoKey: key)
         }
+        // A player whose time was never read while it played (the time came
+        // only off the screenshot, as for a file played in a browser): the
+        // last minute heard.
         return audioBuffer.lastHeardWords()
     }
 

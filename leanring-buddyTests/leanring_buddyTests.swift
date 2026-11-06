@@ -9,6 +9,7 @@
 
 import CoreGraphics
 import Foundation
+import CoreAudio
 import Testing
 import WebKit
 @testable import Buddy
@@ -455,6 +456,37 @@ struct AnswerFailureKindTests {
         #expect(CompanionManager.isBusyRefusal(GeminiError.httpStatus(503, "")))
         #expect(!CompanionManager.isBusyRefusal(ClaudeError.httpStatus(401, "")))
         #expect(!CompanionManager.isBusyRefusal(URLError(.timedOut)))
+    }
+}
+
+// MARK: - Talk-over's microphone
+
+struct TalkOverMicrophoneTests {
+    let builtInMicrophone = AudioInputCandidate(deviceIdentifier: 98, transportType: kAudioDeviceTransportTypeBuiltIn, hasInput: true)
+    let builtInSpeakers = AudioInputCandidate(deviceIdentifier: 91, transportType: kAudioDeviceTransportTypeBuiltIn, hasInput: false)
+    let airPods = AudioInputCandidate(deviceIdentifier: 120, transportType: kAudioDeviceTransportTypeBluetooth, hasInput: true)
+    let usbMicrophone = AudioInputCandidate(deviceIdentifier: 130, transportType: kAudioDeviceTransportTypeUSB, hasInput: true)
+
+    @Test func theSystemInputIsUsedWhenItIsNotAHeadset() {
+        let devices = [builtInSpeakers, builtInMicrophone, usbMicrophone]
+        #expect(TalkOverMicrophone.choose(systemInput: builtInMicrophone, devices: devices, builtInMicrophoneCanHear: true) == .systemInput)
+        #expect(TalkOverMicrophone.choose(systemInput: usbMicrophone, devices: devices, builtInMicrophoneCanHear: false) == .systemInput)
+    }
+
+    @Test func aHeadsetInputListensThroughTheMacsOwnMicrophone() {
+        let devices = [builtInSpeakers, airPods, builtInMicrophone]
+        #expect(TalkOverMicrophone.choose(systemInput: airPods, devices: devices, builtInMicrophoneCanHear: true) == .builtIn(98))
+    }
+
+    @Test func aHeadsetWithNoMicrophoneOfTheMacsOwnStaysOff() {
+        // A Mac mini: built-in speakers, no built-in microphone.
+        if case .none = TalkOverMicrophone.choose(systemInput: airPods, devices: [builtInSpeakers, airPods], builtInMicrophoneCanHear: true) {} else {
+            Issue.record("a headset on a Mac with no microphone of its own should not listen")
+        }
+        // A laptop with its lid closed.
+        if case .none = TalkOverMicrophone.choose(systemInput: airPods, devices: [airPods, builtInMicrophone], builtInMicrophoneCanHear: false) {} else {
+            Issue.record("a closed laptop's microphone hears nothing")
+        }
     }
 }
 

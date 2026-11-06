@@ -276,6 +276,11 @@ check(restartLog.passage(since: 0).hasSuffix("entities. This is like the nouns")
 restartLog.update(request: 1, text: "Thus is like the nouns of", at: 13)
 check(restartLog.passage(since: 0).hasSuffix("entities. Thus is like the nouns of"), "a revised first word is still the same run")
 
+var endedEmpty = LectureHeardWordLog()
+endedEmpty.update(request: 1, text: "a reserved seat is held, not sold", at: 1)
+endedEmpty.update(request: 1, text: "", at: 2)
+check(endedEmpty.passage(since: 0) == "a reserved seat is held, not sold", "an empty final text keeps what was heard")
+
 var phraseLog = LectureHeardWordLog()
 phraseLog.update(request: 1, text: "one two", at: 1)
 phraseLog.update(request: 1, text: "one two three four", at: 2)
@@ -323,6 +328,49 @@ check(fasterLog.stretches(of: "youtube:x").count == 1, "watched at 1.5 times is 
 let fasterPassage = fasterLog.passage(endingAtPlayback: 1080, videoKey: "youtube:x")?.passage
 check((fasterPassage?.hasPrefix("f1020") == true || fasterPassage?.hasPrefix("f1021") == true) && fasterPassage?.hasSuffix("f1080") == true,
       "at 1.5 times, the minute of video before 18:00 (\(fasterPassage?.prefix(6) ?? "none")...\(fasterPassage?.suffix(5) ?? ""))")
+// A whole session out of order: play 0:00 to 1:00, pause twenty seconds,
+// play on to 1:30, switch to twice the speed until 2:10, rewind to 0:20 and
+// play to 0:40. One word per video second; readings every five seconds of
+// playing, each off by up to 0.4 s, and words reaching the log 1 s after
+// they were said, give or take 0.3 s.
+var session = LectureHeardWordLog()
+var sessionText = ""
+var sessionRequest = 1
+var wiggle = 0.0
+func nextWiggle(_ size: Double) -> Double { wiggle = (wiggle * 7.3 + 0.37).truncatingRemainder(dividingBy: 1); return (wiggle - 0.5) * 2 * size }
+func play(video from: Int, to end: Int, startingAtWall wallStart: Double, rate: Double) {
+    for second in from..<end {
+        let wall = wallStart + Double(second - from) / rate
+        sessionText += (sessionText.isEmpty ? "" : " ") + "v\(second)"
+        session.update(request: sessionRequest, text: sessionText, at: wall + LectureHeardWordLog.recognitionLagSeconds + nextWiggle(0.3))
+    }
+    for wallOffset in stride(from: 0.0, through: Double(end - from) / rate, by: 5) {
+        session.noteAnchor(playbackSeconds: Double(Int(Double(from) + wallOffset * rate)), videoKey: "youtube:s",
+                           at: wallStart + wallOffset + nextWiggle(0.4))
+    }
+    // The recognizer is restarted between stretches of playing.
+    sessionRequest += 1
+    sessionText = ""
+}
+play(video: 0, to: 60, startingAtWall: 0, rate: 1)
+play(video: 60, to: 90, startingAtWall: 80, rate: 1)
+play(video: 90, to: 130, startingAtWall: 110, rate: 2)
+play(video: 20, to: 40, startingAtWall: 160, rate: 1)
+func spanOfWords(_ passage: String?) -> (first: Int, last: Int)? {
+    guard let numbers = passage?.split(separator: " ").compactMap({ Int($0.dropFirst()) }), let first = numbers.first, let last = numbers.last else { return nil }
+    return (first, last)
+}
+func near(_ value: Int?, _ expected: Int) -> Bool { value.map { abs($0 - expected) <= 2 } ?? false }
+let pausedAtOne = spanOfWords(session.passage(endingAtPlayback: 60, videoKey: "youtube:s")?.passage)
+check(near(pausedAtOne?.first, 0) && near(pausedAtOne?.last, 60), "sync: paused at 1:00, the minute before it (\(pausedAtOne.map { "\($0.first)-\($0.last)" } ?? "none"))")
+let afterSpeedUp = spanOfWords(session.passage(endingAtPlayback: 130, videoKey: "youtube:s")?.passage)
+check(near(afterSpeedUp?.first, 70) && near(afterSpeedUp?.last, 129), "sync: at 2:10 after switching to twice the speed (\(afterSpeedUp.map { "\($0.first)-\($0.last)" } ?? "none"))")
+let atOneForty = spanOfWords(session.passage(endingAtPlayback: 100, videoKey: "youtube:s")?.passage)
+check(near(atOneForty?.first, 60) && near(atOneForty?.last, 100), "sync: at 1:40, across the speed change (\(atOneForty.map { "\($0.first)-\($0.last)" } ?? "none"))")
+let afterRewind = session.passage(endingAtPlayback: 40, videoKey: "youtube:s")?.passage
+let afterRewindSpan = spanOfWords(afterRewind)
+check(near(afterRewindSpan?.first, 20) && near(afterRewindSpan?.last, 39) && afterRewind?.contains("v5 ") == false,
+      "sync: after rewinding to 0:20, only the latest playing (\(afterRewindSpan.map { "\($0.first)-\($0.last)" } ?? "none"))")
 check(LectureVideoPage.key(pageURL: URL(string: "https://www.youtube.com/watch?v=fhdPyoO6aXI&t=104s"), windowTitle: nil) == "youtube:fhdPyoO6aXI",
       "the time in a YouTube link does not change the video")
 var cappedLog = LectureHeardWordLog()

@@ -781,6 +781,10 @@ nonisolated struct LectureHeardWordLog {
     /// A request's whole text so far.
     mutating func update(request identifier: Int, text: String, at time: Double) {
         let raws = text.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        // A request that ends after its text started over returns an empty
+        // final text; taken as a revision, it erased a whole lecture's
+        // words in the 2.0.2 test. Nothing heard never replaces words.
+        guard !raws.isEmpty else { return }
         let index = requests.firstIndex { $0.identifier == identifier } ?? {
             requests.append((identifier, []))
             requests.sort { $0.identifier < $1.identifier }
@@ -811,7 +815,11 @@ nonisolated struct LectureHeardWordLog {
     }
 
     mutating func noteAnchor(playbackSeconds: Double, videoKey: String, at time: Double) {
-        anchors.append(Anchor(heardAt: time, playbackSeconds: playbackSeconds, videoKey: videoKey))
+        // Readings are stamped at the middle of the read, so one that took
+        // long can land before one already noted: kept in time order.
+        let anchor = Anchor(heardAt: time, playbackSeconds: playbackSeconds, videoKey: videoKey)
+        let position = anchors.lastIndex { $0.heardAt <= time }.map { $0 + 1 } ?? 0
+        anchors.insert(anchor, at: position)
         if anchors.count > Self.mostWordsKept / 3 { anchors.removeFirst(anchors.count - Self.mostWordsKept / 3) }
     }
 
@@ -882,10 +890,22 @@ nonisolated struct LectureHeardWordLog {
         guard let first = stretch.first, let last = stretch.last,
               heardAt >= first.heardAt - reachBeyondAnchorsSeconds,
               heardAt <= last.heardAt + reachBeyondAnchorsSeconds else { return nil }
-        let nearest = stretch.min { abs($0.heardAt - heardAt) < abs($1.heardAt - heardAt) }!
-        // Lectures are often watched faster than they were recorded.
-        let rate = playbackRate(of: stretch)
-        return nearest.playbackSeconds + (heardAt - recognitionLagSeconds - nearest.heardAt) * rate
+        let spokenAt = heardAt - recognitionLagSeconds
+        // Between the two readings either side of it, at the speed the video
+        // ran between them, so a speed changed mid-stretch moves only the
+        // words after the change. Past either end, at the speed of the
+        // nearest pair of readings.
+        guard stretch.count >= 2 else {
+            return first.playbackSeconds + (spokenAt - first.heardAt)
+        }
+        let laterIndex = stretch.firstIndex { $0.heardAt >= spokenAt } ?? stretch.count - 1
+        let pairEnd = max(1, laterIndex)
+        let earlier = stretch[pairEnd - 1], later = stretch[pairEnd]
+        let wallBetween = later.heardAt - earlier.heardAt
+        let rate = wallBetween > 0.5
+            ? min(fastestPlaybackRate, max(slowestPlaybackRate, (later.playbackSeconds - earlier.playbackSeconds) / wallBetween))
+            : 1
+        return earlier.playbackSeconds + (spokenAt - earlier.heardAt) * rate
     }
 
     /// How fast the video's clock ran against the wall's over a stretch.
@@ -908,8 +928,11 @@ nonisolated struct LectureHeardWordLog {
                       at >= windowStart, at <= playbackSeconds + 0.5 else { return nil }
                 return (word.raw, at)
             }
+            // Only a playing that reached the moment asked about: a rewind
+            // that played 0:20 to 0:40 says nothing about 1:00.
             guard placed.count >= LectureHeardWordLog.fewestWordsForAPassage,
-                  let earliest = placed.map(\.at).min() else { continue }
+                  let earliest = placed.map(\.at).min(), let latest = placed.map(\.at).max(),
+                  latest >= playbackSeconds - Self.reachBeyondAnchorsSeconds else { continue }
             let covered = Int(min(seconds, max(1, playbackSeconds - earliest)))
             return (placed.map(\.raw).joined(separator: " "), covered)
         }

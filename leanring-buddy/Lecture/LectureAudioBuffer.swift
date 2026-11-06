@@ -157,13 +157,18 @@ final class LectureAudioBuffer {
         let processIdentifier = front.processIdentifier
         let bundleIdentifier = front.bundleIdentifier
         Task {
+            let readStarted = TalkOverListener.now
             let reading = await Task.detached(priority: .utility) {
                 LecturePageReader.readFrontWindow(processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier)
             }.value
+            // The time was read somewhere during the read, which can take a
+            // second on a long page: the middle is the best guess of when.
+            let readAt = (readStarted + TalkOverListener.now) / 2
             playbackReadingInFlight = false
             guard !reading.showsAnAdvert, let position = reading.playbackPosition,
                   let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle) else { return }
-            liveTranscript.noteAnchor(playbackSeconds: Double(position.currentSeconds), videoKey: key, for: processIdentifier)
+            liveTranscript.noteAnchor(playbackSeconds: Double(position.currentSeconds), videoKey: key,
+                                      for: processIdentifier, at: readAt)
         }
     }
 
@@ -179,6 +184,13 @@ final class LectureAudioBuffer {
             return nil
         }
         return placed
+    }
+
+    /// Whether the player's time was read while this video played, so its
+    /// words can be placed on its clock.
+    func hasPlaybackReadings(forVideoKey videoKey: String) -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return false }
+        return liveTranscript.log(for: front.processIdentifier).anchors.contains { $0.videoKey == videoKey }
     }
 
     /// The last minute Buddy heard the app in front say, for a player whose

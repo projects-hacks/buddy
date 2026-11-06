@@ -88,7 +88,11 @@ final class TalkOverListener {
     private var audioEngine: AVAudioEngine?
     private var configurationChangeObserver: NSObjectProtocol?
     private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?
-    private let transcriptionProvider = PreferredTranscriptionProvider(spendingPurpose: .listening)
+    /// Deepgram alone while lecture mode is transcribing a video on the
+    /// Mac, so the two do not fight over Apple's recognizer.
+    private let transcriptionProvider = PreferredTranscriptionProvider(
+        spendingPurpose: .listening,
+        startsAppleSpeechBackup: { !LectureMode.shared.isTranscribingLive })
     private var startTask: Task<Void, Never>?
     private var sessionGeneration = 0
 
@@ -100,15 +104,25 @@ final class TalkOverListener {
     /// Loudness of recent buffers, newest last, for the loudness gate.
     private var recentLevels: [(at: Date, decibels: Float)] = []
 
+    /// The Mac's own microphone, when the system's input is a headset.
+    private var chosenMicrophone: AudioDeviceID?
+
     /// Opens the microphone for the answer that started playing. Does
-    /// nothing without microphone permission, or when the input is a
-    /// Bluetooth headset, whose microphone would switch it to call quality
-    /// for the whole answer.
+    /// nothing without microphone permission. With a Bluetooth headset as
+    /// the input, listens through the Mac's own microphone, since the
+    /// headset's would switch it to call quality for the whole answer, and
+    /// not at all when the Mac has none to use (TalkOverMicrophone).
     func start() {
         guard !isListening, startTask == nil else { return }
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
-        if Self.defaultInputIsBluetooth() {
-            TutorDebugLog.write("👂 talk-over: not listening, the microphone is a Bluetooth headset")
+        switch TalkOverMicrophone.current() {
+        case .systemInput:
+            chosenMicrophone = nil
+        case .builtIn(let deviceIdentifier):
+            chosenMicrophone = deviceIdentifier
+            TutorDebugLog.write("👂 talk-over: the input is a Bluetooth headset, listening through the Mac's own microphone")
+        case .none(let reason):
+            TutorDebugLog.write("👂 talk-over: not listening, \(reason)")
             return
         }
         sessionGeneration += 1
@@ -208,6 +222,10 @@ final class TalkOverListener {
 
     private func installTapAndStart(on engine: AVAudioEngine) throws {
         let inputNode = engine.inputNode
+        // Set before the format is read: the format is the device's.
+        if let chosenMicrophone {
+            try inputNode.auAudioUnit.setDeviceID(chosenMicrophone)
+        }
         let inputFormat = inputNode.inputFormat(forBus: 0)
         guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
             throw NSError(domain: "TalkOver", code: 1, userInfo: [NSLocalizedDescriptionKey: "no microphone is available"])
@@ -289,7 +307,8 @@ final class TalkOverListener {
             case .flushRecognizer:
                 transcriptionSession?.flushPendingWords()
             case .ignored(let wordCount, let reason):
-                TutorDebugLog.write("👂 talk-over: ignored \(wordCount) words (\(reason))")
+                let heardWords = transcript.lastJudgedUtterance.split(separator: " ").prefix(10).joined(separator: " ")
+                TutorDebugLog.write("👂 talk-over: ignored \(wordCount) words (\(reason))\(heardWords.isEmpty ? "" : ": \"\(heardWords)\"")")
             case .hold:
                 TutorDebugLog.write("👂 talk-over: hold on")
                 onRequest(.hold)
@@ -310,24 +329,5 @@ final class TalkOverListener {
                 onRequest(.question(question))
             }
         }
-    }
-
-    // MARK: - Devices
-
-    /// Whether the system's default input is a Bluetooth device.
-    private static func defaultInputIsBluetooth() -> Bool {
-        var deviceIdentifier = AudioDeviceID(0)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &deviceIdentifier) == noErr,
-              deviceIdentifier != 0 else { return false }
-        var transportType = UInt32(0)
-        size = UInt32(MemoryLayout<UInt32>.size)
-        address.mSelector = kAudioDevicePropertyTransportType
-        guard AudioObjectGetPropertyData(deviceIdentifier, &address, 0, nil, &size, &transportType) == noErr else { return false }
-        return transportType == kAudioDeviceTransportTypeBluetooth || transportType == kAudioDeviceTransportTypeBluetoothLE
     }
 }

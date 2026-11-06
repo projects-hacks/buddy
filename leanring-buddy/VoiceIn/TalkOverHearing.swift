@@ -386,6 +386,9 @@ struct TalkOverTranscript {
         var heardAt: Double
     }
     private var tokens: [HeardToken] = []
+    /// The student's words last judged, for the log line saying why they
+    /// were or were not acted on.
+    private(set) var lastJudgedUtterance = ""
     private var lastFullText = ""
     /// Tokens before this are done with: acted on, or too old.
     private var firstLiveToken = 0
@@ -480,6 +483,7 @@ struct TalkOverTranscript {
             studentRaw = Array(studentRaw[cueStart...])
         }
         let utterance = studentRaw.joined(separator: " ")
+        lastJudgedUtterance = utterance
         // Buddy's words are already taken out, so the echo share is not
         // asked again: a question may share the answer's topic words.
         let meaning = TalkOverHearing.meaning(ofUtterance: utterance, recentlySpoken: [], wasLoudEnough: wasLoudEnough)
