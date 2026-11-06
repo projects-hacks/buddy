@@ -1,6 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-dark.png">
-  <img alt="Buddy 2.0, your screen, explained. Asking while Buddy is still talking: in 1.5 you held Control and Option again, which stopped the answer; in 2.0 you just say: Buddy, wait, why does high start at the length?" src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-dark.png?v=2.0.2">
+  <img alt="Buddy 2.0, your screen, explained. Asking while Buddy is still talking: in 1.5 you held Control and Option again, which stopped the answer; in 2.0 you just say: Buddy, wait, why does high start at the length?" src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/whats-new/2.0/banner-light.png?v=2.0.2">
 </picture>
 
 <p align="center">
