@@ -32,7 +32,7 @@ usage = Counter()
 def sort(item):
     response = claude.messages.create(
         model="claude-haiku-5-5", max_tokens=8, system=SYSTEM, thinking={"type": "disabled"},
-        messages=[{"role": "user", "content": sorting_message(item["question"], item["after_answer"])}])
+        messages=[{"role": "user", "content": sorting_message(item["question"], item["after_answer"], item.get("video_playing", False))}])
     usage["input"] += response.usage.input_tokens
     usage["output"] += response.usage.output_tokens
     word = "".join(block.text for block in response.content if block.type == "text").strip().lower()

@@ -139,18 +139,43 @@ final class LectureAudioBuffer {
         return "\(Int(seconds))s with sound in the last \(Int(Self.transcribedSeconds))s"
     }
 
-    /// What the app in front said in the last `seconds`, recognised as it
-    /// played, if that is enough words to be a passage.
-    func liveWordsForQuestion(seconds: Double = 60) -> (passage: String, secondsCovered: Int)? {
+    /// How often the player's time is read while it plays, to place what
+    /// is heard on the video's own clock. A read takes about a tenth of a
+    /// second off the main thread in Brave.
+    static let secondsBetweenPlaybackReadings = 5
+    private var playbackReadingInFlight = false
+
+    private func notePlaybackTime(of front: NSRunningApplication) {
+        guard !playbackReadingInFlight else { return }
+        playbackReadingInFlight = true
+        let processIdentifier = front.processIdentifier
+        let bundleIdentifier = front.bundleIdentifier
+        Task {
+            let reading = await Task.detached(priority: .utility) {
+                LecturePageReader.readFrontWindow(processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier)
+            }.value
+            playbackReadingInFlight = false
+            guard !reading.showsAnAdvert, let position = reading.playbackPosition,
+                  let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle) else { return }
+            liveTranscript.noteAnchor(playbackSeconds: Double(position.currentSeconds), videoKey: key, for: processIdentifier)
+        }
+    }
+
+    /// What the app in front said before the player's time, as Buddy heard
+    /// it playing there, however long ago.
+    func liveWords(atPlayback position: LecturePlaybackPosition, videoKey: String) -> (passage: String, secondsCovered: Int)? {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return nil }
+        return liveTranscript.log(for: front.processIdentifier)
+            .passage(endingAtPlayback: Double(position.currentSeconds), videoKey: videoKey)
+    }
+
+    /// The last minute Buddy heard the app in front say, for a player whose
+    /// time cannot be read. Only within ten minutes of hearing it.
+    func lastHeardWords() -> (passage: String, secondsCovered: Int)? {
         guard let front = NSWorkspace.shared.frontmostApplication,
-              front.processIdentifier == bufferOwnerProcessIdentifier else { return nil }
-        let since = TalkOverListener.now - seconds
-        let words = liveTranscript.log.words(since: since)
-        // A sentence or two at least; fewer is a clip, a jingle or a tap
-        // that only just started.
-        guard words.count >= 12, let first = words.first else { return nil }
-        let covered = Int(min(seconds, TalkOverListener.now - first.heardAt + 1))
-        return (words.map(\.raw).joined(separator: " "), covered)
+              let heard = liveTranscript.log(for: front.processIdentifier).lastHeard(),
+              TalkOverListener.now - heard.lastHeardAt <= 600 else { return nil }
+        return (heard.passage, heard.secondsCovered)
     }
 
     /// The buffered sound, if there is enough of it to be worth hearing.
@@ -189,9 +214,9 @@ final class LectureAudioBuffer {
             ringBuffer: ringBuffer, targetSampleRate: Double(Self.sampleRate),
             onSamples: { samples in liveTranscript.append(samples) })
         secondsPlayedWhileTapped = 0
-        if activeTap != nil {
+        if activeTap != nil, let bufferOwnerProcessIdentifier {
             lastLoggedSkipReason = nil
-            liveTranscript.start()
+            liveTranscript.start(for: bufferOwnerProcessIdentifier)
         }
     }
 
@@ -252,6 +277,9 @@ final class LectureAudioBuffer {
                 return
             }
             secondsPlayedWhileTapped += 1
+            if secondsPlayedWhileTapped % Self.secondsBetweenPlaybackReadings == 1 {
+                notePlaybackTime(of: front)
+            }
             // Twenty seconds of playing that reached the tap as pure
             // silence: protected video, or the permission was refused.
             if !activeTap.hasHeardSound, secondsPlayedWhileTapped > 20 {
@@ -278,7 +306,6 @@ final class LectureAudioBuffer {
             }
         } else if let frontApplicationLastPlayedSoundAt, Date().timeIntervalSince(frontApplicationLastPlayedSoundAt) > 600 {
             ringBuffer.removeAll()
-            liveTranscript.forgetEverything()
         }
     }
 
@@ -286,7 +313,9 @@ final class LectureAudioBuffer {
         activeTap?.stop()
         activeTap = nil
         ringBuffer.removeAll()
-        liveTranscript.forgetEverything()
+        // The words stay with the app they came from, for when it is back
+        // in front; only the sound is emptied.
+        liveTranscript.stop()
         if let reason, reason != lastLoggedSkipReason {
             TutorDebugLog.write("🎓 lecture: not listening, \(reason)")
             lastLoggedSkipReason = reason

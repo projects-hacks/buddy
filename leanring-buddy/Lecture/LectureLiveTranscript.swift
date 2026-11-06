@@ -15,9 +15,11 @@
 //  call, a meeting or a music app. On the Mac only: if this Mac cannot
 //  recognise speech on device, nothing is transcribed this way and lecture
 //  mode falls back to transcribing the buffer when asked. The words are
-//  kept in memory for two minutes and never written anywhere.
+//  kept per app, in memory only, while Buddy runs, and never written
+//  anywhere: a glance at another app and back loses nothing.
 //
 
+import AppKit
 import AVFoundation
 import Foundation
 import Speech
@@ -29,7 +31,10 @@ final class LectureLiveTranscript {
     /// about once a minute.
     static let secondsPerRequest: Double = 55
 
-    private(set) var log = LectureHeardWordLog()
+    /// Each app's words, by its process.
+    private var logs: [pid_t: LectureHeardWordLog] = [:]
+    /// The app whose sound is being recognised now.
+    private var owner: pid_t?
     private let feed = LectureRecognitionFeed()
     private var recognizer: SFSpeechRecognizer?
     private var tasksByIdentifier: [Int: SFSpeechRecognitionTask] = [:]
@@ -44,7 +49,23 @@ final class LectureLiveTranscript {
         feed.append(samples)
     }
 
-    func start() {
+    func log(for processIdentifier: pid_t) -> LectureHeardWordLog {
+        logs[processIdentifier] ?? LectureHeardWordLog()
+    }
+
+    /// The words of the app being heard now, for the microphone's filter.
+    var currentLog: LectureHeardWordLog { owner.map(log(for:)) ?? LectureHeardWordLog() }
+
+    func noteAnchor(playbackSeconds: Double, videoKey: String, for processIdentifier: pid_t) {
+        logs[processIdentifier, default: LectureHeardWordLog()]
+            .noteAnchor(playbackSeconds: playbackSeconds, videoKey: videoKey, at: TalkOverListener.now)
+    }
+
+    func start(for processIdentifier: pid_t) {
+        if owner != processIdentifier { stop() }
+        owner = processIdentifier
+        // Apps that quit take their words with them.
+        for gone in logs.keys where NSRunningApplication(processIdentifier: gone) == nil { logs[gone] = nil }
         guard !isRunning else { return }
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
             logOnce("speech recognition is not allowed, so the sound is transcribed only when asked")
@@ -72,20 +93,8 @@ final class LectureLiveTranscript {
         feed.replace(with: nil)?.endAudio()
     }
 
-    /// The app in front changed: its words are not this app's.
-    func forgetEverything() {
-        stop()
-        for task in tasksByIdentifier.values { task.cancel() }
-        tasksByIdentifier.removeAll()
-        log.removeAll()
-    }
-
-    func forgetOldWords() {
-        log.forget(before: TalkOverListener.now - LectureHeardWordLog.keptSeconds)
-    }
-
     private func startRequest() {
-        guard let recognizer else { return }
+        guard let recognizer, let owner else { return }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
@@ -98,14 +107,13 @@ final class LectureLiveTranscript {
             let isDone = result?.isFinal == true || error != nil
             Task { @MainActor in
                 guard let self else { return }
-                if let text { self.log.update(request: identifier, text: text, at: TalkOverListener.now) }
+                if let text { self.logs[owner, default: LectureHeardWordLog()].update(request: identifier, text: text, at: TalkOverListener.now) }
                 if isDone { self.tasksByIdentifier[identifier] = nil }
             }
         }
         // The new request takes the sound before the old one is ended, so
         // nothing falls between them.
         feed.replace(with: request)?.endAudio()
-        forgetOldWords()
     }
 
     private func logOnce(_ reason: String) {

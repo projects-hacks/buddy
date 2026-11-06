@@ -31,7 +31,8 @@ extension ClaudeVisionProvider {
     /// What Haiku is shown: the exchange before, when there is one, so it
     /// can tell a new question from "that did not land", and the message.
     /// The same text the grader sends (scripts/question_sorting/).
-    static func sortingMessage(_ transcript: String, previousExchange: (question: String, spokenAnswer: String)?) -> String {
+    static func sortingMessage(_ transcript: String, previousExchange: (question: String, spokenAnswer: String)?,
+                               videoWasPlaying: Bool = false) -> String {
         let before: String
         if let previousExchange {
             before = """
@@ -43,11 +44,14 @@ extension ClaudeVisionProvider {
         } else {
             before = "<previous_exchange>none: this is the first thing they have said</previous_exchange>"
         }
-        return before + "\n<message>\(transcript)</message>"
+        // Who "he" and "she" are: with a video playing, someone in it.
+        let playing = videoWasPlaying ? "\n<app_in_front>a video or other sound was playing in it in the last few minutes, so he or she is probably someone in the video, and missing what they said is a question about the video, not a failed answer from Buddy</app_in_front>" : ""
+        return before + playing + "\n<message>\(transcript)</message>"
     }
 
     func classifyQuestion(_ transcript: String,
-                          previousExchange: (question: String, spokenAnswer: String)?) async -> QuestionKind? {
+                          previousExchange: (question: String, spokenAnswer: String)?,
+                          videoWasPlaying: Bool = false) async -> QuestionKind? {
         guard let apiKey = APIKeyStore.key(for: .anthropic),
               let systemPrompt = Self.questionSorterPrompt,
               let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
@@ -57,7 +61,7 @@ extension ClaudeVisionProvider {
             "max_tokens": 8,
             "system": systemPrompt,
             "thinking": ["type": "disabled"],
-            "messages": [["role": "user", "content": Self.sortingMessage(transcript, previousExchange: previousExchange)]]
+            "messages": [["role": "user", "content": Self.sortingMessage(transcript, previousExchange: previousExchange, videoWasPlaying: videoWasPlaying)]]
         ]
 
         var request = URLRequest(url: url)

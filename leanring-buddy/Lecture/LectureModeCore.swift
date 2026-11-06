@@ -730,20 +730,39 @@ nonisolated final class LectureAudioDownsampler {
 
 // MARK: - The lecture's words as they were heard
 
-/// The words recognised from the video's own sound while it played, each
-/// stamped with when it was first heard, kept for `keptSeconds`. The
-/// recognizer is restarted every minute or so, so words come in requests;
-/// a request's text is revised while it runs, and a revised word keeps the
-/// time it was first heard. Pure, so the offline check covers it.
+/// The words recognised from one app's own sound while it played, each
+/// stamped with when it was first heard, and anchors tying those times to
+/// the video's own clock, so a question at 1:44 gets what was said before
+/// 1:44 even after a pause, a rewind or another app in between. Kept while
+/// Buddy runs, in memory only, up to `mostWordsKept`. The recognizer is
+/// restarted every minute or so, so words come in requests; a request's
+/// text is revised while it runs, and a revised word keeps the time it was
+/// first heard. Pure, so the offline check covers it.
 nonisolated struct LectureHeardWordLog {
     struct Word: Equatable {
         let raw: String
         let heardAt: Double
     }
 
-    static let keptSeconds: Double = 120
+    /// The player's time read while the sound was playing.
+    struct Anchor: Equatable {
+        let heardAt: Double
+        let playbackSeconds: Double
+        let videoKey: String
+    }
+
+    /// About six hours of speech.
+    static let mostWordsKept = 60_000
+    /// A recognised word reaches the log about this long after it was said.
+    static let recognitionLagSeconds: Double = 1.0
+    /// Two anchors are one stretch of playing when the video's clock moved
+    /// as far as the wall clock did, give or take this.
+    static let continuityToleranceSeconds: Double = 3
+    /// A word belongs to a stretch when heard this close to its anchors.
+    static let reachBeyondAnchorsSeconds: Double = 8
 
     private var requests: [(identifier: Int, words: [Word])] = []
+    private(set) var anchors: [Anchor] = []
 
     /// A request's whole text so far.
     mutating func update(request identifier: Int, text: String, at time: Double) {
@@ -757,19 +776,37 @@ nonisolated struct LectureHeardWordLog {
         requests[index].words = raws.enumerated().map { position, raw in
             Word(raw: raw, heardAt: position < earlier.count ? earlier[position].heardAt : time)
         }
+        trimToLimit()
     }
 
-    mutating func forget(before time: Double) {
-        for index in requests.indices {
-            requests[index].words.removeAll { $0.heardAt < time }
+    mutating func noteAnchor(playbackSeconds: Double, videoKey: String, at time: Double) {
+        anchors.append(Anchor(heardAt: time, playbackSeconds: playbackSeconds, videoKey: videoKey))
+        if anchors.count > Self.mostWordsKept / 3 { anchors.removeFirst(anchors.count - Self.mostWordsKept / 3) }
+    }
+
+    mutating func removeAll() {
+        requests.removeAll()
+        anchors.removeAll()
+    }
+
+    private mutating func trimToLimit() {
+        var total = requests.reduce(0) { $0 + $1.words.count }
+        while total > Self.mostWordsKept, !requests.isEmpty {
+            let excess = total - Self.mostWordsKept
+            if requests[0].words.count <= excess {
+                total -= requests[0].words.count
+                requests.removeFirst()
+            } else {
+                requests[0].words.removeFirst(excess)
+                total -= excess
+            }
         }
-        requests.removeAll { $0.words.isEmpty }
     }
 
-    mutating func removeAll() { requests.removeAll() }
+    var allWords: [Word] { requests.flatMap(\.words) }
 
     func words(since time: Double) -> [Word] {
-        requests.flatMap(\.words).filter { $0.heardAt >= time }
+        allWords.filter { $0.heardAt >= time }
     }
 
     /// What was said since `time`, as one passage.
@@ -785,5 +822,82 @@ nonisolated struct LectureHeardWordLog {
             let chunk = recent[start..<min(start + wordsPerPhrase, recent.count)]
             return (chunk.map(\.raw).joined(separator: " "), chunk.first!.heardAt, chunk.last!.heardAt)
         }
+    }
+
+    /// The stretches of uninterrupted playing of one video: a seek, a pause
+    /// or another video in between starts a new one.
+    func stretches(of videoKey: String) -> [[Anchor]] {
+        var stretches: [[Anchor]] = []
+        for anchor in anchors where anchor.videoKey == videoKey {
+            if let previous = stretches.last?.last {
+                let wallMoved = anchor.heardAt - previous.heardAt
+                let videoMoved = anchor.playbackSeconds - previous.playbackSeconds
+                if abs(videoMoved - wallMoved) <= Self.continuityToleranceSeconds {
+                    stretches[stretches.count - 1].append(anchor)
+                    continue
+                }
+            }
+            stretches.append([anchor])
+        }
+        return stretches
+    }
+
+    /// Where in the video a word heard at `heardAt` was said, by the
+    /// stretch that was playing then. Nil when no stretch reaches it.
+    static func playbackSeconds(ofWordHeardAt heardAt: Double, in stretch: [Anchor]) -> Double? {
+        guard let first = stretch.first, let last = stretch.last,
+              heardAt >= first.heardAt - reachBeyondAnchorsSeconds,
+              heardAt <= last.heardAt + reachBeyondAnchorsSeconds else { return nil }
+        let nearest = stretch.min { abs($0.heardAt - heardAt) < abs($1.heardAt - heardAt) }!
+        return nearest.playbackSeconds + (heardAt - nearest.heardAt) - recognitionLagSeconds
+    }
+
+    /// What the video said in the `seconds` before `playbackSeconds`, from
+    /// the time it was heard playing there; the latest such playing when it
+    /// was heard more than once. Nil when that part was not heard.
+    func passage(endingAtPlayback playbackSeconds: Double, videoKey: String,
+                 seconds: Double = 60) -> (passage: String, secondsCovered: Int)? {
+        let windowStart = playbackSeconds - seconds
+        let words = allWords
+        for stretch in stretches(of: videoKey).reversed() {
+            let placed = words.compactMap { word -> (raw: String, at: Double)? in
+                guard let at = Self.playbackSeconds(ofWordHeardAt: word.heardAt, in: stretch),
+                      at >= windowStart, at <= playbackSeconds + 0.5 else { return nil }
+                return (word.raw, at)
+            }
+            guard placed.count >= LectureHeardWordLog.fewestWordsForAPassage,
+                  let earliest = placed.map(\.at).min() else { continue }
+            let covered = Int(min(seconds, max(1, playbackSeconds - earliest)))
+            return (placed.map(\.raw).joined(separator: " "), covered)
+        }
+        return nil
+    }
+
+    /// The last `seconds` of what was heard, ending at the last word, for a
+    /// player whose time cannot be read.
+    func lastHeard(seconds: Double = 60) -> (passage: String, secondsCovered: Int, lastHeardAt: Double)? {
+        let words = allWords
+        guard let last = words.last else { return nil }
+        let recent = words.filter { $0.heardAt >= last.heardAt - seconds }
+        guard recent.count >= Self.fewestWordsForAPassage, let first = recent.first else { return nil }
+        return (recent.map(\.raw).joined(separator: " "), Int(max(1, last.heardAt - first.heardAt)), last.heardAt)
+    }
+
+    /// A sentence or two at least; fewer is a clip, a jingle or a tap that
+    /// only just started.
+    static let fewestWordsForAPassage = 12
+}
+
+extension LectureVideoPage {
+    /// What identifies one video across questions: YouTube's id, or the
+    /// page without its query (the time in it changes), or the window title
+    /// for a player that is not a web page.
+    static func key(pageURL: URL?, windowTitle: String?) -> String? {
+        if let pageURL {
+            if let identifier = youTubeVideoIdentifier(from: pageURL) { return "youtube:" + identifier }
+            if let host = pageURL.host { return host + pageURL.path }
+        }
+        guard let windowTitle, !windowTitle.isEmpty else { return nil }
+        return "window:" + windowTitle
     }
 }

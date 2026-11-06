@@ -80,6 +80,9 @@ sleep 1
 rm -rf "$INSTALLED_APP"
 ditto "$APP_PATH" "$INSTALLED_APP"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$APP_PATH" 2>/dev/null || true
+# Unregistering is not enough: Spotlight still finds the build and
+# Launchpad shows it as another Buddy. The next build makes it again.
+rm -rf "$APP_PATH"
 echo "installed: $INSTALLED_APP"
 
 # Keep the previous session's log: it is the record of the last test, and

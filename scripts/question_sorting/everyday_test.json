@@ -494,6 +494,55 @@
    "question": "ok so how do i fix it",
    "after_answer": true,
    "fresh": true
+  },
+  {
+   "kind": "normal",
+   "question": "What did he explain to you?",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "normal",
+   "question": "what did the professor just say",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "quick",
+   "question": "hang on what did she mean by sharding",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "normal",
+   "question": "can you recap what he just went over",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "normal",
+   "question": "i missed that, what was he saying",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "reexplain",
+   "question": "sorry, can you explain that again more simply",
+   "after_answer": true,
+   "fresh": true,
+   "video_playing": true
+  },
+  {
+   "kind": "quick",
+   "question": "what does this line do",
+   "after_answer": false,
+   "fresh": true,
+   "video_playing": true
   }
  ]
 }

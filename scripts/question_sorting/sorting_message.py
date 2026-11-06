@@ -8,5 +8,8 @@ PREVIOUS = ("<previous_exchange>\n<student_asked>what does this function do</stu
 FIRST = "<previous_exchange>none: this is the first thing they have said</previous_exchange>"
 
 
-def sorting_message(question: str, after_answer: bool) -> str:
-    return f"{PREVIOUS if after_answer else FIRST}\n<message>{question}</message>"
+PLAYING = "\n<app_in_front>a video or other sound was playing in it in the last few minutes, so he or she is probably someone in the video, and missing what they said is a question about the video, not a failed answer from Buddy</app_in_front>"
+
+
+def sorting_message(question: str, after_answer: bool, video_playing: bool = False) -> str:
+    return f"{PREVIOUS if after_answer else FIRST}{PLAYING if video_playing else ''}\n<message>{question}</message>"

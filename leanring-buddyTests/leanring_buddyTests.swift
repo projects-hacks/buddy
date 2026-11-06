@@ -535,6 +535,13 @@ struct RoutingTests {
         #expect(router.choose(probabilities: [.chat: 1], allowed: [.argon]).ranking == [.argon])
     }
 
+    @Test func theSorterIsToldWhenAVideoWasPlaying() {
+        let playing = ClaudeVisionProvider.sortingMessage("what was he saying", previousExchange: nil, videoWasPlaying: true)
+        let quiet = ClaudeVisionProvider.sortingMessage("what was he saying", previousExchange: nil)
+        #expect(playing.contains("<app_in_front>") && playing.hasSuffix("<message>what was he saying</message>"))
+        #expect(!quiet.contains("<app_in_front>"))
+    }
+
     @Test func smallTalkIsShortAndDrawsNothing() {
         let budget = CompanionManager.answerBudget(for: .chat)
         #expect(!budget.allowsBoard)

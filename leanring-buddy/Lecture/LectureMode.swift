@@ -79,12 +79,18 @@ final class LectureMode {
         audioBuffer.startWatching()
     }
 
+    /// Whether the app in front played sound lately, so the question sorter
+    /// knows "he" may be someone in a video.
+    func frontAppPlayedSound(withinSeconds seconds: TimeInterval) -> Bool {
+        audioBuffer.frontApplicationPlayedSound(withinSeconds: seconds)
+    }
+
     /// The video's words of the last few seconds as phrases, so talking
     /// over an answer never takes the lecturer on the speakers for the
     /// student (TalkOverHearing.lectureWordMask).
     func recentLecturePhrases() -> [SpokenSentence] {
         let since = TalkOverListener.now - TalkOverTranscript.keptForSeconds - TalkOverHearing.lectureSlackSeconds
-        return audioBuffer.liveTranscript.log.phrases(since: since).map {
+        return audioBuffer.liveTranscript.currentLog.phrases(since: since).map {
             SpokenSentence(text: $0.text, startedAt: $0.startedAt, endedAt: $0.endedAt, isFromTheLecture: true)
         }
     }
@@ -95,7 +101,7 @@ final class LectureMode {
     /// their question.
     func withoutTheLecture(_ transcript: String, heardSince: Double) -> String? {
         let now = TalkOverListener.now
-        let phrases = audioBuffer.liveTranscript.log.phrases(since: heardSince - TalkOverHearing.lectureSlackSeconds).map {
+        let phrases = audioBuffer.liveTranscript.currentLog.phrases(since: heardSince - TalkOverHearing.lectureSlackSeconds).map {
             SpokenSentence(text: $0.text, startedAt: $0.startedAt, endedAt: $0.endedAt, isFromTheLecture: true)
         }
         guard !phrases.isEmpty else { return transcript }
@@ -110,6 +116,16 @@ final class LectureMode {
         guard kept.count < tokens.count else { return transcript }
         TutorDebugLog.write("🎓 lecture: \(tokens.count - kept.count) of \(tokens.count) words heard were the video, left out")
         return kept.isEmpty ? nil : kept.joined(separator: " ")
+    }
+
+    /// The words recognised as the video played: at the player's time when
+    /// it can be read, else the last minute heard.
+    private func liveWords(for playbackPosition: LecturePlaybackPosition?, reading: LecturePageReading) -> (passage: String, secondsCovered: Int)? {
+        if let playbackPosition,
+           let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle) {
+            return audioBuffer.liveWords(atPlayback: playbackPosition, videoKey: key)
+        }
+        return audioBuffer.lastHeardWords()
     }
 
     private static func sourceLabel(for playbackPosition: LecturePlaybackPosition?) -> String {
@@ -151,8 +167,15 @@ final class LectureMode {
             // slow path costs no extra waiting; if YouTube does serve the
             // captions, the sound's words are simply not used.
             let transcriptPanelIsInHand = reading.playbackPosition != nil && !reading.transcriptCues.isEmpty
+            // The time read now ties the newest words to the video's clock.
+            if audioBuffer.frontApplicationPlayedSound(withinSeconds: 2), !reading.showsAnAdvert,
+               let position = reading.playbackPosition,
+               let key = LectureVideoPage.key(pageURL: reading.pageURL, windowTitle: reading.windowTitle) {
+                audioBuffer.liveTranscript.noteAnchor(playbackSeconds: Double(position.currentSeconds), videoKey: key,
+                                                      for: processIdentifier)
+            }
             // Words already recognised as it played need nothing sent.
-            let liveWordsAreInHand = audioBuffer.liveWordsForQuestion() != nil
+            let liveWordsAreInHand = liveWords(for: reading.playbackPosition, reading: reading) != nil
             var heardWordsTask: Task<LectureHeardWords?, Never>?
             if !transcriptPanelIsInHand, !liveWordsAreInHand, !reading.showsAnAdvert, let audioSnapshot,
                LectureAudioGate.maySendSound(playbackPosition: reading.playbackPosition, question: question) {
@@ -213,7 +236,7 @@ final class LectureMode {
         // What it said, recognised on the Mac as it played: no waiting and
         // nothing sent.
         if LectureAudioGate.maySendSound(playbackPosition: playbackPosition, question: question),
-           let live = audioBuffer.liveWordsForQuestion() {
+           let live = liveWords(for: playbackPosition, reading: gathering.reading) {
             gathering.heardWordsTask?.cancel()
             TutorDebugLog.write("🎓 lecture: \(live.secondsCovered)s of \(gathering.applicationName)'s words, recognised as it played")
             lastNoteSourceLabel = Self.sourceLabel(for: playbackPosition)

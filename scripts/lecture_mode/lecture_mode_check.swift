@@ -256,21 +256,52 @@ var heardLog = LectureHeardWordLog()
 heardLog.update(request: 1, text: "so the next", at: 10)
 heardLog.update(request: 1, text: "so the next step is", at: 11)
 heardLog.update(request: 1, text: "So the next step is the API.", at: 12)
-check(heardLog.words(since: 0).map(\.heardAt) == [10, 10, 10, 11, 11, 12, 12], "a revised word keeps when it was first heard")
+check(heardLog.allWords.map(\.heardAt) == [10, 10, 10, 11, 11, 12, 12], "a revised word keeps when it was first heard")
 heardLog.update(request: 2, text: "Endpoints come next.", at: 70)
 heardLog.update(request: 1, text: "So the next step is the API, which", at: 71)
 check(heardLog.passage(since: 0) == "So the next step is the API, which Endpoints come next.", "an older request's late words stay before the newer request's")
 check(heardLog.passage(since: 60) == "which Endpoints come next.", "since a time, only the words heard after it")
-heardLog.forget(before: 65)
-check(heardLog.words(since: 0).count == 4, "old words forgotten, newer kept")
 var phraseLog = LectureHeardWordLog()
 phraseLog.update(request: 1, text: "one two", at: 1)
 phraseLog.update(request: 1, text: "one two three four", at: 2)
 let heardPhrases = phraseLog.phrases(since: 0, wordsPerPhrase: 3)
 check(heardPhrases.count == 2 && heardPhrases[0].text == "one two three" && heardPhrases[0].startedAt == 1
       && heardPhrases[0].endedAt == 2 && heardPhrases[1].text == "four", "phrases carry their first and last word's time")
-heardLog.removeAll()
-check(heardLog.words(since: 0).isEmpty, "emptied when the app in front changes")
+
+// A lecture heard playing from 1:00 to 2:00, paused, then rewound and
+// played from 0:30 to 0:50, then 10:00 to 10:40 played much later.
+var timeline = LectureHeardWordLog()
+func say(_ request: Int, _ wordsPerSecond: [String], from wall: Double) {
+    var text = ""
+    for (offset, word) in wordsPerSecond.enumerated() {
+        text += (text.isEmpty ? "" : " ") + word
+        timeline.update(request: request, text: text, at: wall + Double(offset) + LectureHeardWordLog.recognitionLagSeconds)
+    }
+}
+say(1, (60..<120).map { "a\($0)" }, from: 1000)          // video 60 to 119 heard at wall 1000 to 1059
+for second in stride(from: 0.0, through: 60, by: 5) { timeline.noteAnchor(playbackSeconds: 60 + second, videoKey: "youtube:x", at: 1000 + second) }
+say(2, (30..<50).map { "b\($0)" }, from: 1500)          // rewound: video 30 to 49 at wall 1500
+for second in stride(from: 0.0, through: 20, by: 5) { timeline.noteAnchor(playbackSeconds: 30 + second, videoKey: "youtube:x", at: 1500 + second) }
+say(3, (600..<640).map { "c\($0)" }, from: 9000)        // much later: 10:00 to 10:40
+for second in stride(from: 0.0, through: 40, by: 5) { timeline.noteAnchor(playbackSeconds: 600 + second, videoKey: "youtube:x", at: 9000 + second) }
+check(timeline.stretches(of: "youtube:x").count == 3, "a pause, a rewind and a jump make three stretches of playing")
+let at1m44 = timeline.passage(endingAtPlayback: 104, videoKey: "youtube:x")
+check(at1m44?.passage.hasPrefix("a60") == true && at1m44?.passage.hasSuffix("a104") == true,
+      "asked at 1:44, paused long after: the minute before 1:44 (\(at1m44?.passage.prefix(12) ?? "none")...\(at1m44?.passage.suffix(5) ?? ""))")
+let at0m50 = timeline.passage(endingAtPlayback: 50, videoKey: "youtube:x")
+check(at0m50?.passage.hasPrefix("b30") == true && at0m50?.passage.contains("a") == false, "after the rewind: what was heard at 0:30 to 0:50")
+check(timeline.passage(endingAtPlayback: 400, videoKey: "youtube:x") == nil, "a part never heard playing has no words")
+check(timeline.passage(endingAtPlayback: 104, videoKey: "youtube:other") == nil, "another video's time has none of these words")
+let at10m40 = timeline.passage(endingAtPlayback: 640, videoKey: "youtube:x")
+check(at10m40?.passage.hasSuffix("c639") == true && at10m40?.secondsCovered == 40, "the latest stretch, covering forty seconds")
+check(timeline.lastHeard()?.passage.hasSuffix("c639") == true, "with no player time, the last thing heard")
+check(LectureVideoPage.key(pageURL: URL(string: "https://www.youtube.com/watch?v=fhdPyoO6aXI&t=104s"), windowTitle: nil) == "youtube:fhdPyoO6aXI",
+      "the time in a YouTube link does not change the video")
+var cappedLog = LectureHeardWordLog()
+cappedLog.update(request: 1, text: Array(repeating: "w", count: LectureHeardWordLog.mostWordsKept + 50).joined(separator: " "), at: 1)
+check(cappedLog.allWords.count == LectureHeardWordLog.mostWordsKept, "kept to the limit")
+timeline.removeAll()
+check(timeline.allWords.isEmpty && timeline.anchors.isEmpty, "emptied on request")
 
 if ProcessInfo.processInfo.environment["LECTURE_CHECK_OFFLINE"] == nil {
     let semaphore = DispatchSemaphore(value: 0)

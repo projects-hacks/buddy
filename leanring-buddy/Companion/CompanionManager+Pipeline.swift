@@ -315,10 +315,12 @@ extension CompanionManager {
         let previousExchangeForSorting = conversation.exchanges.last.map { exchange in
             (question: exchange.userTranscript, spokenAnswer: Self.spokenSentences(inProgram: exchange.assistantResponse))
         }
+        let videoWasPlaying = LectureMode.shared.frontAppPlayedSound(withinSeconds: 600)
         let classifierTask: Task<QuestionKind?, Never>? =
             localConfidence < QuestionSorter.confidentEnough && APIKeyStore.hasKey(for: .anthropic)
             ? Task { [claudeBrain] in
-                await claudeBrain.classifyQuestion(transcript, previousExchange: previousExchangeForSorting)
+                await claudeBrain.classifyQuestion(transcript, previousExchange: previousExchangeForSorting,
+                                                   videoWasPlaying: videoWasPlaying)
             }
             : nil
 
