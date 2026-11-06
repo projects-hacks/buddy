@@ -526,6 +526,21 @@ struct RoutingTests {
         #expect(ranking.first == .sonnet)
     }
 
+    @Test func smallTalkIsRoutedLikeAQuickQuestion() {
+        let router = ModelRouter()
+        let allowed: Set<RoutedBrain> = [.sonnet, .opus, .argon]
+        let smallTalk = router.choose(probabilities: [.chat: 0.9, .teach: 0.1], allowed: allowed).ranking
+        let quick = router.choose(probabilities: [.quick: 0.9, .teach: 0.1], allowed: allowed).ranking
+        #expect(smallTalk == quick)
+        #expect(router.choose(probabilities: [.chat: 1], allowed: [.argon]).ranking == [.argon])
+    }
+
+    @Test func smallTalkIsShortAndDrawsNothing() {
+        let budget = CompanionManager.answerBudget(for: .chat)
+        #expect(!budget.allowsBoard)
+        #expect(TutorProgramPrompt.maximumTokens(for: .chat) < TutorProgramPrompt.maximumTokens(for: .quick))
+    }
+
     @Test func firstWordsDeadlineStaysInItsBounds() {
         let router = ModelRouter()
         for brain in RoutedBrain.allCases {

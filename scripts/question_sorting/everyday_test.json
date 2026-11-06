@@ -1,89 +1,89 @@
 {
- "_why": "Everything people say to Buddy, not only study questions: greetings, thanks, questions about Buddy itself, one-line facts, tasks in apps, follow-ups, being taught, not following, and choices between options. Labelled by the answer that serves the student best. Graded by haiku_prompt_test.py; the blind spoken set is graded beside it.",
+ "_why": "Everything people say to Buddy, not only study questions: greetings, thanks, questions about Buddy itself, one-line facts, tasks in apps, follow-ups, being taught, not following, and choices between options. Chat is talking to Buddy as a person, answered by Haiku in a sentence. Items marked fresh were written after the chat kind's prompt. Labelled by the answer that serves the student best. Graded by haiku_prompt_test.py; the blind spoken set is graded beside it.",
  "items": [
   {
    "question": "hello buddy",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "hey",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "hi there",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "good morning buddy",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "hey buddy how are you doing",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "thanks",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "thank you so much, that helped",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "thanks, that makes sense now",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "ok cool",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "nice",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "perfect, got it",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "you're awesome",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "bye buddy",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "good night",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "lol that's funny",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": true
   },
   {
    "question": "I'm tired today",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
    "question": "are you there",
-   "kind": "quick",
+   "kind": "chat",
    "after_answer": false
   },
   {
@@ -350,6 +350,150 @@
    "question": "monolith or microservices for my project",
    "kind": "tradeoff",
    "after_answer": false
+  },
+  {
+   "kind": "chat",
+   "question": "yo",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "sup buddy",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "good evening",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "i'm back",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "sorry, i was away for a bit",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "you still there?",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "appreciate it",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "cheers mate",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "wow",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "hahaha",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "that was really clear, thank you",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "see you tomorrow",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "ugh this assignment is killing me",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "okay",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "hmm interesting",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "chat",
+   "question": "you're a lifesaver",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "quick",
+   "question": "hey, quick one, what does this flag do",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "normal",
+   "question": "thanks! now how do I deploy it",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "normal",
+   "question": "morning, can you explain this error",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "teach",
+   "question": "hi, teach me sorting from scratch",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "reexplain",
+   "question": "you're great but i still don't get the base case",
+   "after_answer": true,
+   "fresh": true
+  },
+  {
+   "kind": "normal",
+   "question": "lol why is this returning null",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "quick",
+   "question": "are you able to read pdfs",
+   "after_answer": false,
+   "fresh": true
+  },
+  {
+   "kind": "normal",
+   "question": "ok so how do i fix it",
+   "after_answer": true,
+   "fresh": true
   }
  ]
 }

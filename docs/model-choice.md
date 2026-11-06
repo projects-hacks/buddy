@@ -355,6 +355,32 @@ rubric. The ties between Argon and Opus on teaching are inside what a few
 more questions could move. The race scripts take any screenshot, and rerunning
 them on a different study screen is the cheapest way to strengthen it.
 
+### Small talk stays with Sonnet
+
+Haiku's sorter labels small talk as its own kind, chat (greetings, thanks,
+reactions, goodbyes), so Haiku could have said the reply too: a greeting is one
+sentence. `scripts/route_race/chat_race.py` raced it against Sonnet on twelve
+such messages, half after a lesson and half with the student's name in the
+turn, twice each, with a screenshot full of code as the temptation to explain
+something unasked. Claude Opus judged each pair blind, twice with the order
+swapped, on how a friend sitting beside the student would reply.
+
+| Run | Haiku | Sonnet |
+|---|---|---|
+| 1 | 7.50, 0.86s, $0.0007 | 8.75, 1.29s, $0.0133 |
+| 2, told not to repeat the lesson | 7.12, 0.86s, $0.0007 | 8.88, 1.11s, $0.0133 |
+
+Both said one sentence and drew nothing every time. Haiku lost on what it
+said: after "thanks" or "you're awesome" it repeated the fix ("start j at i
+plus one and you're set") or steered back to work, and the instruction not
+to did not stop it. Before the answer prompt was tightened it also called the
+student "Argon", read off the notch in the screenshot, and once a made-up
+name; the prompt now says a name on the screen is not theirs, and neither
+model did it again. A gap of 1.25 to 1.76 points is well past the 0.38 noise
+and a quarter second is worth 0.1 points, so chat is weighed as a quick
+question and Sonnet answers. The race is there to run again when Haiku
+changes.
+
 ## Board turns go to Sonnet first
 
 The teaching board answers with its own cached system prompt (2,324 tokens)

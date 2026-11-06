@@ -419,6 +419,12 @@ final class ClaudeVisionProvider: TutorBrain {
 
 /// What kind of question was asked, which decides who answers it.
 enum QuestionKind: String {
+    /// "hello", "thanks", "you there?": talking to Buddy as a person, not
+    /// asking about anything. One friendly sentence, no drawing, and no
+    /// notebook page or memory. Only Haiku's sorter says this; the on-device
+    /// one never does, so a message is treated as small talk only when the
+    /// model that read it says so.
+    case chat
     /// "which line is wrong". One sentence.
     case quick
     /// A real question wanting a compact answer.
@@ -452,7 +458,8 @@ enum QuestionKind: String {
 ///
 /// Opus at medium effort was never better than at low and always slower, so
 /// no kind uses it. Haiku was fastest but ignored the spoken-style rules and
-/// gave a walk-through in 41 words, so it answers nothing.
+/// gave a walk-through in 41 words, so it answers nothing; on small talk it
+/// kept re-teaching the last fix (scripts/route_race/chat_race.py).
 struct ClaudeAnswerProfile {
     let model: String
     let thinkingConfiguration: [String: Any]

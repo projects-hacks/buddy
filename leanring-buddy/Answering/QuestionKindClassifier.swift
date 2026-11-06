@@ -81,7 +81,7 @@ extension ClaudeVisionProvider {
             // Longest names first, so "reexplain" is not read as something shorter.
             let kindsByName: [(String, QuestionKind)] = [
                 ("reexplain", .reexplain), ("tradeoff", .tradeOff), ("normal", .normal),
-                ("teach", .teach), ("quick", .quick)
+                ("teach", .teach), ("quick", .quick), ("chat", .chat)
             ]
             return kindsByName.first { word.contains($0.0) }?.1
         } catch {

@@ -169,6 +169,17 @@ extension CompanionManager {
     /// How much room each kind of question gets.
     static func answerBudget(for questionKind: QuestionKind) -> AnswerBudget {
         switch questionKind {
+        case .chat:
+            // Small talk. A sentence back, and nothing to draw.
+            return AnswerBudget(
+                questionKind: .chat,
+                maximumTokens: 60,
+                shapeInstruction: """
+                LENGTH: ONE short sentence. they are talking to you, not asking anything. reply like a friend and stop. no board.
+                """,
+                allowsBoard: false
+            )
+
         case .teach:
             // Asked to teach it properly. Worth a diagram and the room to build one.
             return AnswerBudget(

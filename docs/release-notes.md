@@ -17,6 +17,11 @@
 <p align="center"><b>Ask about anything on your screen. Buddy explains it out loud and draws on it while it talks.</b><br>
 2.0 is the biggest release yet: learn, get things done, fix errors, review your work, and remember all of it.</p>
 
+> [!TIP]
+> **New in 2.0.1: small talk is just small talk.** Say "thanks, that's helpful" and Buddy says something like "Anytime, Rajeev, glad it helped." and leaves it there: no drawing, no notebook page. Questions are also sized more accurately: 94 or 95 of 100 blind study questions over three runs, up from 90.
+
+Everything below is what 2.0 brought, for anyone updating from 1.5 or earlier.
+
 ## <img src="https://raw.githubusercontent.com/projects-hacks/buddy/main/docs/images/icons/talk.png" width="24" height="24" align="top"> Talk over it
 
 While Buddy explains, just speak. No keys, nothing to switch on.

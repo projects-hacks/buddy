@@ -20,7 +20,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from sorting_message import sorting_message  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
-KINDS = ["quick", "normal", "teach", "reexplain", "tradeoff"]
+KINDS = ["reexplain", "tradeoff", "normal", "teach", "quick", "chat"]
 prompt_path = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parents[1] / "leanring-buddy/Answering/QuestionSorterPrompt.txt"
 SYSTEM = prompt_path.read_text()
 key = subprocess.run(["security", "find-generic-password", "-a", "api-key", "-s",
@@ -45,6 +45,12 @@ for name in ["spoken_test.json", "everyday_test.json"]:
         answers = list(pool.map(sort, items))
     right = sum(answer == item["kind"] for answer, item in zip(answers, items))
     print(f"{name}: {right} of {len(items)} ({100 * right / len(items):.0f}%)")
+    fresh = [(answer, item) for answer, item in zip(answers, items) if item.get("fresh")]
+    if fresh:
+        print(f"   of which fresh: {sum(a == i['kind'] for a, i in fresh)} of {len(fresh)}")
+    # The costly mistake: a real question answered as small talk by the small model.
+    swallowed = sum(answer == "chat" and item["kind"] != "chat" for answer, item in zip(answers, items))
+    print(f"   real questions sorted as chat: {swallowed}")
     for answer, item in zip(answers, items):
         if answer != item["kind"]:
             print(f"   wanted {item['kind']:9} got {answer:9} {item['question']}")

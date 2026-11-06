@@ -444,7 +444,10 @@ extension CompanionManager {
                 let (frontAppName, frontWindowTitle) = TutorProgramPrompt.frontmostAppAndWindow()
 
                 // What the student has learned before that this is about.
-                let recollections = await settleRecollections(
+                // Small talk is about nothing learned, and a "builds on" note
+                // would only tempt the reply into a lesson.
+                if questionKind == .chat { recallTask.cancel() }
+                let recollections = questionKind == .chat ? [] : await settleRecollections(
                     recallTask: recallTask, question: transcript,
                     screenContext: (frontWindowTitle ?? "") + "\n" + screenListing,
                     // At least a second from the question: the chooser's reply
@@ -482,7 +485,7 @@ extension CompanionManager {
                 currentPracticeProblem = nil
                 let diagramTool = DiagramReview.detect(
                     frontAppName: frontAppName, windowTitle: frontWindowTitle, transcript: transcript)
-                if let problem = PracticeHints.detect(
+                if questionKind != .chat, let problem = PracticeHints.detect(
                     frontAppName: frontAppName, windowTitle: frontWindowTitle, screenListing: screenListing),
                    diagramTool == nil || !transcript.lowercased().contains("my ") {
                     let levelSoFar = practiceHintLadder.level(for: problem)
@@ -497,13 +500,13 @@ extension CompanionManager {
                     }
                     currentPracticeProblem = problem
                     TutorDebugLog.write("🧩 practice: \(problem.site), hints so far \(levelSoFar), giving \(levelToGive.map(String.init) ?? "none (not a solve request)")")
-                } else if let diagramTool {
+                } else if questionKind != .chat, let diagramTool {
                     studyNotes.append(DiagramReview.instruction(tool: diagramTool))
                     TutorDebugLog.write("✏️ reviewing their drawing in \(diagramTool)")
                 }
 
                 // Lecture mode hook: a note only when a lecture's words were found.
-                if let lectureGatheringTask,
+                if questionKind != .chat, let lectureGatheringTask,
                    let lectureNote = await LectureMode.shared.note(
                     for: lectureGatheringTask, question: transcript, screenListing: screenListing,
                     waitingUntil: answerStartedAt.addingTimeInterval(LectureMode.longestWaitAfterQuestionSeconds)) {
@@ -700,7 +703,8 @@ extension CompanionManager {
                     }
                     // "Click Export" is not something learned. Memory is for
                     // ideas, so guide steps are not filed.
-                    if nextGuideStep == nil && !isGuideContinuation {
+                    // Nor is "thanks": small talk gets no notebook page and no idea.
+                    if nextGuideStep == nil && !isGuideContinuation && questionKind != .chat {
                         // Notebook hook: held now, while the board holds the
                         // whole drawing; written only if the answer finishes.
                         notebookRecorder.holdDrawnLesson(
@@ -759,12 +763,14 @@ extension CompanionManager {
                 }
                 conversation.remember(question: transcript, answer: spokenOnlyText)
                 // Notebook hook: an answer without a drawing is a page of words.
-                if !isGuideContinuation {
+                if !isGuideContinuation && questionKind != .chat {
                     notebookRecorder.holdTextLesson(question: transcript, spokenAnswer: spokenOnlyText,
                                                     answeredBy: lastAnsweringBrainName)
                 }
-                fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
-                                   questionKind: questionKind)
+                if questionKind != .chat {
+                    fileLessonInMemory(question: transcript, lessonTitle: nil, spokenAnswer: spokenOnlyText,
+                                       questionKind: questionKind)
+                }
 
                 print("🧠 Answered in \(String(format: "%.1f", duration))s, history \(conversation.exchanges.count) exchanges")
                 }

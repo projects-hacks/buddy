@@ -82,6 +82,7 @@ extension QuestionKind {
     /// The kind as RouteTable.json and the scripts name it.
     var tableName: String {
         switch self {
+        case .chat: return "chat"
         case .quick: return "quick"
         case .normal: return "normal"
         case .teach: return "teach"
@@ -134,14 +135,23 @@ final class ModelRouter {
 
     /// Ranks the allowed brains for a question whose kind is known only as
     /// probabilities.
+    ///
+    /// Small talk is not in the table: it is a one-sentence reply, so it is
+    /// weighed as a quick question. Raced against Sonnet on greetings and
+    /// thanks (scripts/route_race/chat_race.py), Haiku was 0.25 to 0.4s
+    /// sooner and a twentieth of the price but judged 1.25 and 1.76 points
+    /// worse in two runs, well past the noise: it kept re-teaching the last fix when the
+    /// student only said thanks. So small talk is answered like the rest.
     func choose(probabilities: [QuestionKind: Double], allowed: Set<RoutedBrain>) -> Choice {
+        var weighed = probabilities
+        if let chat = weighed.removeValue(forKey: .chat) { weighed[.quick, default: 0] += chat }
         let now = currentDate()
         let healthy = allowed.filter { (benchedUntil[$0] ?? .distantPast) <= now }
         // If every allowed brain is benched, trying one beats not answering.
         let candidates = healthy.isEmpty ? allowed : healthy
 
         guard let table, !candidates.isEmpty else {
-            return fixedChoice(probabilities: probabilities, candidates: candidates)
+            return fixedChoice(probabilities: weighed, candidates: candidates)
         }
 
         struct Scored {
@@ -152,7 +162,7 @@ final class ModelRouter {
         let scored: [Scored] = candidates.compactMap { brain in
             var value = 0.0
             var cost = 0.0
-            for (kind, probability) in probabilities where probability > 0 {
+            for (kind, probability) in weighed where probability > 0 {
                 guard let measured = table.measurement(kind: kind, brain: brain) else { return nil }
                 value += probability * (measured.quality - measured.firstSay / table.secondsPerPoint)
                 cost += probability * measured.cost
@@ -160,7 +170,7 @@ final class ModelRouter {
             return Scored(brain: brain, value: value, cost: cost)
         }
         guard let best = scored.map(\.value).max() else {
-            return fixedChoice(probabilities: probabilities, candidates: candidates)
+            return fixedChoice(probabilities: weighed, candidates: candidates)
         }
 
         // Within the noise of the best, cheaper first; then by value.
