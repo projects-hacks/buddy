@@ -10,7 +10,7 @@
 <p align="center">
   <img alt="macOS 14.2 or later" src="https://img.shields.io/badge/macOS-14.2%2B-111111?logo=apple&logoColor=white">
   <img alt="Apple silicon and Intel" src="https://img.shields.io/badge/Apple%20silicon%20%2B%20Intel-555555">
-  <img alt="9.8 MB download" src="https://img.shields.io/badge/download-9.8%20MB-555555">
+  <img alt="9.9 MB download" src="https://img.shields.io/badge/download-9.9%20MB-555555">
   <img alt="Free and open source, MIT" src="https://img.shields.io/badge/open%20source-MIT-16a34a">
 </p>
 
