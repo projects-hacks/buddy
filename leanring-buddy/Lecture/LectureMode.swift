@@ -238,7 +238,8 @@ final class LectureMode {
         if LectureAudioGate.maySendSound(playbackPosition: playbackPosition, question: question),
            let live = liveWords(for: playbackPosition, reading: gathering.reading) {
             gathering.heardWordsTask?.cancel()
-            TutorDebugLog.write("🎓 lecture: \(live.secondsCovered)s of \(gathering.applicationName)'s words, recognised as it played")
+            let liveWords = live.passage.split(separator: " ")
+            TutorDebugLog.write("🎓 lecture: \(live.secondsCovered)s of \(gathering.applicationName)'s words before \(playbackPosition.map { LectureClock.clockText(fromSeconds: $0.currentSeconds) } ?? "the last word heard"), recognised as it played: \"\(liveWords.prefix(5).joined(separator: " ")) ... \(liveWords.suffix(5).joined(separator: " "))\"")
             lastNoteSourceLabel = Self.sourceLabel(for: playbackPosition)
             return LectureNote.heardNote(passage: live.passage, secondsCovered: live.secondsCovered,
                                          heardBy: "the Mac as it played")

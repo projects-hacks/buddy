@@ -761,7 +761,13 @@ nonisolated struct LectureHeardWordLog {
     /// A word belongs to a stretch when heard this close to its anchors.
     static let reachBeyondAnchorsSeconds: Double = 8
 
+    /// Each request's runs of text. Apple's recognizer starts its text over
+    /// after a pause in speech, within the same request; a text that does
+    /// not go on from the last run is a new run, and the earlier ones stay.
+    /// Replacing the request's words with each text kept 18 words of a
+    /// minute of lecture in the 2.0.2 live test.
     private var requests: [(identifier: Int, words: [Word])] = []
+    private var currentRunStartByRequest: [Int: Int] = [:]
     private(set) var anchors: [Anchor] = []
 
     /// A request's whole text so far.
@@ -772,11 +778,28 @@ nonisolated struct LectureHeardWordLog {
             requests.sort { $0.identifier < $1.identifier }
             return requests.firstIndex { $0.identifier == identifier }!
         }()
-        let earlier = requests[index].words
-        requests[index].words = raws.enumerated().map { position, raw in
-            Word(raw: raw, heardAt: position < earlier.count ? earlier[position].heardAt : time)
+        let runStart = min(currentRunStartByRequest[identifier] ?? 0, requests[index].words.count)
+        let earlier = Array(requests[index].words[runStart...])
+        if !Self.continues(earlier.map(\.raw), with: raws) {
+            // Started over: the last run is kept as it was.
+            currentRunStartByRequest[identifier] = requests[index].words.count
+            requests[index].words += raws.map { Word(raw: $0, heardAt: time) }
+        } else {
+            requests[index].words.removeLast(earlier.count)
+            requests[index].words += raws.enumerated().map { position, raw in
+                Word(raw: raw, heardAt: position < earlier.count ? earlier[position].heardAt : time)
+            }
         }
         trimToLimit()
+    }
+
+    /// Whether `next` is the same run as `run`, grown or revised: one of
+    /// its first three words is where it was. A recognizer revises words,
+    /// rarely all three of the first.
+    static func continues(_ run: [String], with next: [String]) -> Bool {
+        guard run.count >= 2, !next.isEmpty else { return true }
+        func plain(_ word: String) -> String { word.lowercased().filter { $0.isLetter || $0.isNumber } }
+        return (0..<min(3, run.count, next.count)).contains { plain(run[$0]) == plain(next[$0]) }
     }
 
     mutating func noteAnchor(playbackSeconds: Double, videoKey: String, at time: Double) {
@@ -786,6 +809,7 @@ nonisolated struct LectureHeardWordLog {
 
     mutating func removeAll() {
         requests.removeAll()
+        currentRunStartByRequest.removeAll()
         anchors.removeAll()
     }
 

@@ -130,6 +130,12 @@ final class LectureAudioBuffer {
     /// question writes: a question answered without the sound says why.
     func stateForLog() -> String {
         guard let front = NSWorkspace.shared.frontmostApplication else { return "no app in front" }
+        let heard = liveTranscript.log(for: front.processIdentifier)
+        let wordsNote = ", \(heard.allWords.count) words heard on the Mac, \(heard.anchors.count) player times"
+        return soundState(front: front) + wordsNote
+    }
+
+    private func soundState(front: NSRunningApplication) -> String {
         guard activeTap != nil else { return "not listening" }
         guard front.processIdentifier == bufferOwnerProcessIdentifier else {
             return "kept for \(bufferOwnerName), not \(front.localizedName ?? "the app in front")"

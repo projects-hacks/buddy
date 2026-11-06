@@ -508,7 +508,9 @@ extension CompanionManager {
                 }
 
                 // Lecture mode hook: a note only when a lecture's words were found.
-                if questionKind != .chat, let lectureGatheringTask,
+                // Small talk gets it too: "did you catch that?" is answered
+                // in a sentence, from words already on the Mac.
+                if let lectureGatheringTask,
                    let lectureNote = await LectureMode.shared.note(
                     for: lectureGatheringTask, question: transcript, screenListing: screenListing,
                     waitingUntil: answerStartedAt.addingTimeInterval(LectureMode.longestWaitAfterQuestionSeconds)) {
