@@ -80,7 +80,7 @@
   .uses { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 0 auto 84px; max-width: 900px; }
   .uses span { border: 1px solid var(--line); background: var(--bg-soft); color: var(--soft); border-radius: 999px; padding: 7px 15px; font-size: 14.5px; font-weight: 500; }
 
-  section { padding: 0 0 84px; }
+  section { padding: 0 0 84px; scroll-margin-top: 80px; }
   h2 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.02em; margin: 0 0 10px; text-align: center; }
   .sub { text-align: center; color: var(--soft); max-width: 620px; margin: 0 auto 36px; }
 
@@ -107,6 +107,16 @@
   .shots figure { margin: 0; }
   .shots img { width: 100%; border-radius: 14px; border: 1px solid var(--line); display: block; }
   .shots figcaption { color: var(--soft); font-size: 14.5px; text-align: center; margin-top: 8px; }
+
+  /* What leaves your Mac */
+  .route { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0 auto 30px; }
+  .route span { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 16px; font-size: 15px; font-weight: 600; }
+  .route i { color: var(--faint); font-style: normal; font-size: 14px; }
+  .route .none { border-style: dashed; color: var(--soft); font-weight: 500; background: none; }
+  .data .card { background: var(--bg-soft); }
+  .data .card ul { margin: 10px 0 0; padding-left: 18px; color: var(--soft); font-size: 15.5px; }
+  .data .card li { margin-bottom: 6px; }
+  .data .card .area.keep { color: #16a34a; }
 
   /* Install */
   .install { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 24px; padding: 36px 24px; }
@@ -157,6 +167,7 @@
     <nav>
       <a href="#how">How it works</a>
       <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
       <a href="#install">Install</a>
       <a href="guide/">Guide</a>
       <a href="#faq">FAQ</a>
@@ -244,6 +255,43 @@
       <figure><img src="images/diagram-review.png" alt="Buddy reviewing a system design in Excalidraw, proposing a cache and a read replica in dashed purple"><figcaption>A review of your own design</figcaption></figure>
       <figure><img src="images/lesson-card.png" alt="The open notch showing a lesson that builds on an earlier one, beside a hand-drawn walk-through"><figcaption>A lesson that builds on an earlier one</figcaption></figure>
     </div>
+  </section>
+
+  <section id="privacy">
+    <h2>What leaves your Mac</h2>
+    <p class="sub">There is no Buddy server and no account. Your Mac talks straight to the AI provider, with your own key, and only when you ask.</p>
+    <div class="route" aria-label="Where a question goes">
+      <span>Your Mac</span><i>your key &rarr;</i><span>Anthropic or Google</span><span class="none">No Buddy server in between</span>
+    </div>
+    <div class="grid data">
+      <div class="card">
+        <span class="area">Sent when you ask</span><b>Your question and screen</b>
+        <ul>
+          <li>A screenshot of your screen</li>
+          <li>The text Buddy read from it</li>
+          <li>Your question, and with a video in front, the lecture's last minute</li>
+        </ul>
+        <p style="margin-top:10px">To the model that answers: Claude (Anthropic) or Gemini (Google).</p>
+      </div>
+      <div class="card">
+        <span class="area">Your choice</span><b>Your voice</b>
+        <ul>
+          <li>Turned into words on your Mac</li>
+          <li>Or heard by Deepgram, only if you add a Deepgram key</li>
+          <li>Words said without &ldquo;Buddy&rdquo; while it talks are ignored</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="area keep">Stays on your Mac</span><b>Everything else</b>
+        <ul>
+          <li>Your keys, in the Keychain</li>
+          <li>Memory, notebook and transcripts</li>
+          <li>Spotting errors and hearing lectures, until you ask</li>
+          <li>No analytics in the app</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sub" style="margin:28px auto 0">Each provider's own privacy terms apply to what it receives. <a href="https://github.com/projects-hacks/buddy#privacy">Every detail, and the code, on GitHub &rarr;</a></p>
   </section>
 
   <section id="install">
