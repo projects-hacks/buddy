@@ -22,6 +22,11 @@ import time
 
 OUTPUT_DIR = os.path.join(tempfile.gettempdir(), "clicky-kokoro")
 
+# Silence after each sentence. Sentences are rendered one clip at a time and
+# played back to back, so without it they run together into one breathless
+# stream; the system voice leaves a similar gap (postUtteranceDelay).
+PAUSE_AFTER_SENTENCE_SECONDS = 0.35
+
 
 def request_voice_default():
     """Voice used for the warm-up render.
@@ -51,6 +56,7 @@ def main():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     try:
+        import numpy
         import soundfile
         from kokoro_mlx import KokoroTTS
     except Exception as error:  # noqa: BLE001
@@ -117,7 +123,9 @@ def main():
             )
             clip_counter += 1
             path = os.path.join(OUTPUT_DIR, f"clip_{os.getpid()}_{clip_counter}.wav")
-            soundfile.write(path, result.audio, result.sample_rate)
+            pause = numpy.zeros(int(result.sample_rate * PAUSE_AFTER_SENTENCE_SECONDS), dtype=numpy.asarray(result.audio).dtype)
+            soundfile.write(path, numpy.concatenate([numpy.asarray(result.audio).reshape(-1), pause]), result.sample_rate)
+            # Duration of the speech alone: marks are timed against it.
             emit({"ok": True, "path": path, "duration": round(float(result.duration), 3)})
         except Exception as error:  # noqa: BLE001
             emit({"ok": False, "error": f"{type(error).__name__}: {error}"})

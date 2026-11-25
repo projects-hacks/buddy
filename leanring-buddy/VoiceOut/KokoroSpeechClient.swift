@@ -26,7 +26,9 @@ final class KokoroSpeechClient: NSObject {
     var voiceName: String = "af_heart"
 
     /// Speaking rate multiplier passed to Kokoro. Below one is slower.
-    var speechSpeed: Double = 0.95
+    /// 0.95 was reported as explaining too fast to follow; 0.85 leaves room
+    /// to take in a new term.
+    var speechSpeed: Double = 0.85
 
     /// Fires as playback progresses, with the character offset reached so far.
     ///
@@ -147,6 +149,9 @@ final class KokoroSpeechClient: NSObject {
     struct GeneratedClip {
         let path: String
         let text: String
+        /// Length of the speech alone, without the pause the helper appends;
+        /// nil if the helper did not say.
+        var speechDuration: TimeInterval?
     }
 
     /// The most recent generation, used to serialise requests to the helper.
@@ -221,12 +226,12 @@ final class KokoroSpeechClient: NSObject {
             throw KokoroError.generationFailed(response["error"] as? String ?? "unknown")
         }
 
-        return GeneratedClip(path: clipPath, text: spokenText)
+        return GeneratedClip(path: clipPath, text: spokenText, speechDuration: response["duration"] as? Double)
     }
 
     /// Plays an already-rendered clip, returning when it finishes.
     func play(clip: GeneratedClip) async throws {
-        try await playClip(atPath: clip.path, forText: clip.text)
+        try await playClip(atPath: clip.path, forText: clip.text, speechDuration: clip.speechDuration)
     }
 
     /// Renders and plays in one step. Kept for callers with nothing to overlap.
@@ -235,7 +240,7 @@ final class KokoroSpeechClient: NSObject {
         try await play(clip: clip)
     }
 
-    private func playClip(atPath clipPath: String, forText text: String) async throws {
+    private func playClip(atPath clipPath: String, forText text: String, speechDuration: TimeInterval?) async throws {
         let clipURL = URL(fileURLWithPath: clipPath)
         let player = try AVAudioPlayer(contentsOf: clipURL)
         player.delegate = self
@@ -251,7 +256,8 @@ final class KokoroSpeechClient: NSObject {
             try? FileManager.default.removeItem(at: clipURL)
             throw KokoroError.playbackFailed
         }
-        startProgressTimer(totalCharacters: totalCharacters, totalDuration: totalDuration)
+        // Marks follow the speech, not the silence after it.
+        startProgressTimer(totalCharacters: totalCharacters, totalDuration: min(speechDuration ?? totalDuration, totalDuration))
 
         // Never longer than the clip plus a margin, in case the output stops
         // without the player noticing.
