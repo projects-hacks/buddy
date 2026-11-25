@@ -32,10 +32,19 @@ def request_voice_default():
     return os.environ.get("CLICKY_KOKORO_VOICE", "af_heart")
 
 
+# The protocol's own copy of stdout. Everything else that writes to file
+# descriptor 1 goes to stderr instead: on every launch spaCy (pulled in by
+# Kokoro) pip-installs its English model in a subprocess that prints
+# "Collecting en-core-web-sm" to stdout, ahead of the ready line, and the app
+# read that as the helper failing to start.
+PROTOCOL = os.fdopen(os.dup(1), "w")
+os.dup2(2, 1)
+
+
 def emit(payload):
     """Writes one response line and flushes, since the caller blocks on it."""
-    sys.stdout.write(json.dumps(payload) + "\n")
-    sys.stdout.flush()
+    PROTOCOL.write(json.dumps(payload) + "\n")
+    PROTOCOL.flush()
 
 
 def main():
