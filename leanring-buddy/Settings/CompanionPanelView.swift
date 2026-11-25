@@ -376,7 +376,7 @@ private struct AnswersSettings: View {
 
     /// Local is left out: its models are not installed by default, and a
     /// choice that can only fail is worse than none.
-    private static let choices: [TutorBrainKind] = [.auto, .claude, .hosted]
+    private static let choices: [TutorBrainKind] = [.auto, .claude, .hosted, .subscription]
 
     private func hasKey(for kind: TutorBrainKind) -> Bool {
         switch kind {
@@ -384,6 +384,8 @@ private struct AnswersSettings: View {
         case .claude: return companionManager.canUseClaude
         case .hosted: return companionManager.canUseArgon
         case .local: return true
+        // Only once setup has tested it: picking it untested would fail.
+        case .subscription: return companionManager.canUseSubscription
         }
     }
 
@@ -393,6 +395,7 @@ private struct AnswersSettings: View {
         case .claude: return "Claude answers every question."
         case .hosted: return "Gemini answers every question."
         case .local: return "The model on this Mac answers."
+        case .subscription: return "Your \(companionManager.subscriptionCLI.displayName) subscription answers every question."
         }
     }
 
@@ -415,7 +418,8 @@ private struct AnswersSettings: View {
             SettingsLabel(title: "Answers from", caption: caption)
             Picker("Answers from", selection: brainChoice) {
                 ForEach(Self.choices, id: \.self) { kind in
-                    Text(hasKey(for: kind) ? kind.displayName : "\(kind.displayName), add a key")
+                    Text(hasKey(for: kind) ? kind.displayName
+                         : "\(kind.displayName), \(kind == .subscription ? "set up" : "add a key")")
                         .foregroundStyle(hasKey(for: kind) ? DS.Colors.textPrimary : DS.Colors.textDisabled)
                         .tag(kind)
                 }

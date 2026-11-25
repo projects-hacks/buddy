@@ -256,6 +256,7 @@ struct SetupView: View {
 
     private var hasSomethingToThinkWith: Bool {
         companionManager.canUseClaude || companionManager.canUseArgon || companionManager.brainKind == .local
+            || companionManager.brainKind == .subscription
     }
 
     private var keys: some View {
@@ -275,6 +276,7 @@ struct SetupView: View {
                             detail: "Claude Sonnet and Opus answer, and Claude Haiku sorts questions and keeps your learning memory.",
                             model: model, companionManager: companionManager)
                     GeminiCard(model: model, companionManager: companionManager)
+                    SubscriptionCard(companionManager: companionManager)
                     KeyCard(service: .deepgram, title: "Deepgram", badge: "Optional",
                             detail: "A natural voice, and sharper hearing for technical words. Without it, macOS's own voice and recognizer are used.",
                             model: model, companionManager: companionManager)
@@ -285,7 +287,7 @@ struct SetupView: View {
                 SetupBackButton { model.step = .welcome }
             } trailing: {
                 if !hasSomethingToThinkWith {
-                    Text("Add an Anthropic or a Gemini key to continue.")
+                    Text("Add an Anthropic or a Gemini key, or use a subscription, to continue.")
                         .font(.system(size: 11.5))
                         .foregroundStyle(DS.Colors.textTertiary)
                 }
@@ -1118,6 +1120,94 @@ private struct GeminiCard: View {
             if result.isUsable {
                 companionManager.setArgonSource(.googleCloud, projectIdentifier: project)
             }
+        }
+    }
+}
+
+/// Answers with a subscription the student already pays for, through that
+/// vendor's own CLI, instead of a key.
+private struct SubscriptionCard: View {
+    @ObservedObject var companionManager: CompanionManager
+    @State private var chosen: SubscriptionCLI = .claude
+    @State private var check: KeyCheckResult?
+    @State private var isChecking = false
+
+    private var isInUse: Bool {
+        companionManager.brainKind == .subscription && companionManager.subscriptionCLI == chosen
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("Your subscription")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                SetupBadge(text: "Optional")
+                Spacer()
+                Picker("Subscription", selection: $chosen) {
+                    ForEach(SubscriptionCLI.allCases) { cli in Text(cli.displayName).tag(cli) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 260)
+                .pointerCursor()
+                .onChange(of: chosen) { _, _ in check = nil }
+            }
+            Text("No key: answers come through \(chosen.subscriptionName), using its own \(chosen.binaryName) app signed in on this Mac. Answers start a few seconds later than with a key.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.white.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+            if chosen.isInstalled {
+                HStack(spacing: 8) {
+                    Text("Sign in first with: \(chosen.signInCommand)")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .textSelection(.enabled)
+                    Spacer()
+                    Button(isChecking ? "Testing" : (isInUse ? "In use" : "Test and use"), action: checkAndUse)
+                        .buttonStyle(SetupSmallButtonStyle())
+                        .disabled(isChecking || isInUse)
+                        .pointerCursor(isEnabled: !isChecking && !isInUse)
+                }
+            } else {
+                Text("Not installed. Install it in Terminal with: \(chosen.installCommand)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            if let check {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: check.isUsable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(check.isUsable ? DS.Colors.success : DS.Colors.warning)
+                    Text(check.isUsable ? "Works. \(chosen.displayName) answers every question now." : check.message)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .strokeBorder(isInUse ? DS.Colors.success.opacity(0.35)
+                          : (check.map { !$0.isUsable } ?? false) ? DS.Colors.warning.opacity(0.55)
+                          : Color.white.opacity(0.08), lineWidth: 1))
+        .onAppear {
+            chosen = companionManager.brainKind == .subscription ? companionManager.subscriptionCLI
+                : SubscriptionCLI.allCases.first(where: \.isInstalled) ?? .claude
+        }
+    }
+
+    private func checkAndUse() {
+        let cli = chosen
+        isChecking = true
+        Task { @MainActor in
+            let result = await companionManager.checkSubscription(cli)
+            isChecking = false
+            check = result
+            if result.isUsable { companionManager.useSubscription(cli) }
         }
     }
 }

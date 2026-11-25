@@ -368,7 +368,8 @@ final class ClaudeVisionProvider: TutorBrain {
 
     /// Scales a screenshot down and re-encodes it as JPEG, matching the
     /// media type the request declares.
-    private static func reduced(imageData: Data, toLongestEdge longestEdge: CGFloat) -> Data {
+    /// Also used by SubscriptionCLIProvider.
+    static func reduced(imageData: Data, toLongestEdge longestEdge: CGFloat) -> Data {
         guard let sourceImage = NSImage(data: imageData),
               let sourceCGImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return imageData

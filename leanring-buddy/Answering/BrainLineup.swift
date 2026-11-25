@@ -54,6 +54,41 @@ final class BrainLineup: ObservableObject {
     private(set) var hostedBrain = BrainLineup.makeHostedBrain()
     lazy var claudeBrain = ClaudeVisionProvider(model: "claude-sonnet-5-5")
 
+    /// Which CLI the Subscription brain runs. Persisted.
+    @Published private(set) var subscriptionCLI: SubscriptionCLI = SubscriptionCLI(
+        rawValue: UserDefaults.standard.string(forKey: "subscriptionCLI") ?? ""
+    ) ?? .claude
+    lazy var subscriptionBrain = SubscriptionCLIProvider(cli: subscriptionCLI)
+    /// Setup tested a subscription and it worked (it is saved only then),
+    /// and its CLI is still installed.
+    var canUseSubscription: Bool {
+        UserDefaults.standard.string(forKey: "subscriptionCLI") != nil && subscriptionCLI.isInstalled
+    }
+
+    /// Picks the subscription CLI and answers with it from now on.
+    func useSubscription(_ cli: SubscriptionCLI) {
+        subscriptionCLI = cli
+        UserDefaults.standard.set(cli.rawValue, forKey: "subscriptionCLI")
+        subscriptionBrain.cli = cli
+        subscriptionBrain.model = cli.rawValue
+        setBrainKind(.subscription)
+    }
+
+    /// Asks the CLI a one-word question, which proves it is installed and
+    /// signed in. Costs one small request against the subscription.
+    func checkSubscription(_ cli: SubscriptionCLI) async -> KeyCheckResult {
+        do {
+            _ = try await SubscriptionCLIProvider(cli: cli).analyzeImage(
+                images: [], systemPrompt: "Reply with the single word: ready",
+                conversationHistory: [], userPrompt: "ready?")
+            return .works
+        } catch let error as SubscriptionCLIError {
+            return .rejected(error.localizedDescription)
+        } catch {
+            return .couldNotCheck(error.localizedDescription)
+        }
+    }
+
     /// Picks Sonnet, Opus or Argon per question under Auto, and Sonnet or
     /// Opus under Claude.
     let modelRouter = ModelRouter()
@@ -175,6 +210,7 @@ final class BrainLineup: ObservableObject {
         case .local: return localBrain
         case .hosted: return hostedBrain
         case .claude: return claudeBrain
+        case .subscription: return subscriptionBrain
         // At rest, before any question is routed, Auto points at a brain that
         // is set up: probing an unconfigured one fails every few seconds.
         case .auto:
@@ -265,7 +301,7 @@ final class BrainLineup: ObservableObject {
     // MARK: - Routing a question
 
     /// Whether the Brain setting names one brain, so nothing is routed.
-    var namesASingleBrain: Bool { brainKind == .hosted || brainKind == .local }
+    var namesASingleBrain: Bool { brainKind == .hosted || brainKind == .local || brainKind == .subscription }
 
     /// The brains to try, best first, for the current Brain setting. Empty
     /// when the setting names a single brain.
@@ -283,6 +319,9 @@ final class BrainLineup: ObservableObject {
             allowed = [.sonnet, .opus]
         case .hosted, .local:
             lastAnsweringBrainName = brainKind.displayName
+            return []
+        case .subscription:
+            lastAnsweringBrainName = subscriptionCLI.displayName
             return []
         }
         let choice = modelRouter.choose(probabilities: probabilities, allowed: allowed)

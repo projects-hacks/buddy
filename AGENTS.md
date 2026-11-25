@@ -34,6 +34,7 @@ A fully local path remains behind one switch (Ollama plus Kokoro), but its model
 |------|---------|------|
 | Vision + reasoning | `gemini-4-argon` on Vertex AI | gcloud access token, cached 50 min |
 | Vision + reasoning, alternative | `claude-sonnet-5-5`, thinking off | Keychain |
+| Vision + reasoning, no key | the student's own `claude`, `codex` or `copilot` CLI (`SubscriptionCLIProvider`) | that CLI's own sign-in |
 | Text-to-speech | Deepgram `aura-2-hera-en` | Keychain |
 | Speech-to-text | Deepgram Nova-3, Apple Speech as backup and without a key | Keychain / on-device |
 | Text recognition | Apple Vision framework | on-device |

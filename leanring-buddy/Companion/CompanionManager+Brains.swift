@@ -25,6 +25,10 @@ extension CompanionManager {
     var localBrain: OllamaVisionProvider { brains.localBrain }
     var hostedBrain: GeminiVisionProvider { brains.hostedBrain }
     var claudeBrain: ClaudeVisionProvider { brains.claudeBrain }
+    var subscriptionCLI: SubscriptionCLI { brains.subscriptionCLI }
+    var canUseSubscription: Bool { brains.canUseSubscription }
+    func useSubscription(_ cli: SubscriptionCLI) { brains.useSubscription(cli) }
+    func checkSubscription(_ cli: SubscriptionCLI) async -> KeyCheckResult { await brains.checkSubscription(cli) }
     var modelRouter: ModelRouter { brains.modelRouter }
     var selectedModel: String {
         get { brains.selectedModel }
@@ -75,7 +79,7 @@ extension CompanionManager {
 
     var needsSetup: Bool {
         let hasFinishedSetup = UserDefaults.standard.bool(forKey: "hasFinishedSetup")
-        let hasSomethingToThinkWith = canUseClaude || canUseArgon || brainKind == .local
+        let hasSomethingToThinkWith = canUseClaude || canUseArgon || brainKind == .local || brainKind == .subscription
         return !hasFinishedSetup || !hasSomethingToThinkWith
     }
 

@@ -30,6 +30,9 @@ enum TutorBrainKind: String, CaseIterable {
     /// Each question goes to Sonnet, Opus or Argon, whichever ModelRouter
     /// measured best for that kind of question.
     case auto
+    /// The student's own Claude, ChatGPT or Copilot subscription, through
+    /// that vendor's CLI (SubscriptionCLIProvider). No key; slower to start.
+    case subscription
 
     var displayName: String {
         switch self {
@@ -37,6 +40,7 @@ enum TutorBrainKind: String, CaseIterable {
         case .local: return "Local"
         case .hosted: return "Gemini"
         case .claude: return "Claude"
+        case .subscription: return "Subscription"
         }
     }
 }

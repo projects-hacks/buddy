@@ -87,6 +87,12 @@ The route table comes from racing all three models on every kind of question and
 
 A brain's deadline is twice its usual time to the first word for the question's kind, at least 8 s and at most 30 s (`ModelRouter.swift`). It applies only when there is another brain to hand over to. A brain that fails or stays silent is benched for five minutes; if it fails again as soon as it is back, each time doubles the bench, up to an hour, and one answer from it clears the count. Otherwise every question would pay for its attempt and then the next brain's, and wait out the whole deadline first. Board turns are routed differently; see The teaching board below.
 
+## Answering with a subscription
+
+Setup's "Your subscription" card lets Buddy answer through a Claude, ChatGPT (Codex) or GitHub Copilot subscription instead of a key. Buddy runs that vendor's own CLI, installed and signed in on the Mac, and reads its streamed JSON (`Answering/SubscriptionCLIProvider.swift`). Buddy never sees the subscription's credentials. Taking a CLI's sign-in tokens and calling the API with them directly would be quicker, but all three vendors forbid it.
+
+The price of starting a process is time. Measured on an M4, Claude spoke its first word at about 1.5 s and finished in 5 s (with Claude Code's settings, MCP servers and skills switched off for the run; with a student's own hooks it took 13 s). Copilot took about 16 s, most of it choosing a model. So Subscription is a brain the student picks, and Auto never routes to it. The question sorter, memory and map calls still use the Anthropic key when one is present.
+
 ## Draw only when it helps
 
 Not every answer needs a drawing. The system prompt (`TutorProgramPrompt.swift`) says to mark the screen when the answer is about something on it, to open a card only when a picture teaches what words do not, and to draw nothing for small talk or a fact unrelated to the screen. The length rule for a quick question says the same: one or two beats, no card.

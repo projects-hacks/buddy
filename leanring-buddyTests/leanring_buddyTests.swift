@@ -947,3 +947,68 @@ struct ErrorGlowWindowTests {
         try await Task.sleep(nanoseconds: 800_000_000)
     }
 }
+
+/// The subscription CLIs' JSON lines, as recorded from claude 2.1.330 and
+/// copilot 1.0.114. Codex's are from its documented `exec --json` events,
+/// not recorded: it was not installed where these were written.
+struct SubscriptionCLIStreamTests {
+    @Test func claudeStreamsTextDeltasAndSkipsEverythingElse() {
+        let lines = [
+            #"{"type":"system","subtype":"init","session_id":"x"}"#,
+            #"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"hmm"}}}"#,
+            #"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Red"}}}"#,
+            #"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"."}}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"Red."}]}}"#,
+            #"{"type":"result","is_error":false,"result":"Red."}"#,
+            "not json",
+        ]
+        let events = lines.compactMap(SubscriptionCLI.claude.event(inLine:))
+        #expect(events == [.text("Red"), .text(".")])
+    }
+
+    @Test func claudeSignedOutIsAFailureThatMeansSignIn() {
+        let event = SubscriptionCLI.claude.event(inLine: #"{"type":"result","is_error":true,"result":"Not logged in · Please run /login"}"#)
+        #expect(event == .failure("Not logged in · Please run /login"))
+        #expect(SubscriptionCLI.meansSignedOut("Not logged in · Please run /login"))
+        #expect(!SubscriptionCLI.meansSignedOut("Model \"x\" is not available."))
+    }
+
+    @Test func copilotStreamsMessageDeltas() {
+        let lines = [
+            #"{"type":"session.start","data":{"sessionId":"x"}}"#,
+            #"{"type":"assistant.message_delta","data":{"messageId":"m","deltaContent":"Red"}}"#,
+            #"{"type":"assistant.message","data":{"messageId":"m","content":"Red"}}"#,
+            #"{"type":"session.error","data":{"errorType":"query","message":"Execution failed"}}"#,
+        ]
+        let events = lines.compactMap(SubscriptionCLI.copilot.event(inLine:))
+        #expect(events == [.text("Red"), .failure("Execution failed")])
+    }
+
+    @Test func codexReadsWholeAgentMessages() {
+        let lines = [
+            #"{"type":"thread.started","thread_id":"t"}"#,
+            #"{"type":"item.completed","item":{"id":"i0","type":"reasoning","text":"thinking"}}"#,
+            #"{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Red."}}"#,
+            #"{"type":"turn.failed","error":{"message":"usage limit reached"}}"#,
+        ]
+        let events = lines.compactMap(SubscriptionCLI.codex.event(inLine:))
+        #expect(events == [.text("Red."), .failure("usage limit reached")])
+    }
+
+    @Test func claudeGetsImagesOnStdinAndCodexAndCopilotAsFiles() throws {
+        let input = try #require(SubscriptionCLI.claude.standardInput(systemPrompt: "s", prompt: "p", jpegImages: [Data([1, 2])]))
+        let message = try #require(try JSONSerialization.jsonObject(with: input) as? [String: Any])
+        let content = try #require((message["message"] as? [String: Any])?["content"] as? [[String: Any]])
+        #expect(content.map { $0["type"] as? String } == ["image", "text"])
+        #expect(SubscriptionCLI.codex.arguments(systemPrompt: "s", prompt: "p", imagePaths: ["/a.jpg"]).suffix(3) == ["-i", "/a.jpg", "-"])
+        #expect(SubscriptionCLI.copilot.arguments(systemPrompt: "s", prompt: "p", imagePaths: ["/a.jpg"]).suffix(2) == ["--attachment", "/a.jpg"])
+    }
+
+    @Test func earlierExchangesAreWrittenIntoThePrompt() {
+        let prompt = SubscriptionCLIProvider.prompt(
+            images: [(Data(), "screen")],
+            conversationHistory: [("what is this", "a heap")],
+            userPrompt: "why")
+        #expect(prompt == "Earlier in this conversation:\n\nStudent: what is this\nYou: a heap\n\nImage 1: screen\n\nwhy")
+    }
+}

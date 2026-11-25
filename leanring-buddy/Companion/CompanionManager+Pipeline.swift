@@ -1092,6 +1092,11 @@ extension CompanionManager {
             await speakFailure("your \(problem.service.humanReadableName.lowercased()) key isn't working. i've opened setup so you can fix it.")
             return
         }
+        // Says exactly what to fix: install the CLI, or sign it in.
+        if let subscriptionError = error as? SubscriptionCLIError {
+            await speakFailure(subscriptionError.spokenExplanation)
+            return
+        }
         let (isReachable, _) = await tutorBrain.probeServer()
         isLocalModelReachable = isReachable
 
