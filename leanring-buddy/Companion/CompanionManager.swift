@@ -318,7 +318,7 @@ final class CompanionManager: ObservableObject {
     // Notebook hook: keeps each finished lesson as a notebook page.
     lazy var notebookRecorder = NotebookRecorder(drawingOverlay: drawingOverlay)
     lazy var narrationVoice: NarrationVoice = {
-        let voice = NarrationVoice(fallbackVoice: speechClient)
+        let voice = NarrationVoice(fallbackVoice: speechClient, kokoroVoice: kokoroClient)
         voice.onDeepgramKeyProblem = { [weak self] error in self?.reportDeepgramKeyProblem(error) }
         voice.onDeepgramWorked = { [weak self] in self?.clearDeepgramKeyProblemIfReported() }
         return voice

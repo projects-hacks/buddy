@@ -61,6 +61,8 @@ final class NarrationVoice {
         var downloadedAtSpeed: Double = 1.0
         /// Wakes the player when more audio, or the end, arrives.
         var waitingForAudio: CheckedContinuation<Void, Never>?
+        /// Rendered by Kokoro instead, when Deepgram cannot speak it.
+        var kokoroClip: Task<KokoroSpeechClient.GeneratedClip, Error>?
         init(index: Int, text: String) { self.index = index; self.text = text }
     }
 
@@ -105,7 +107,11 @@ final class NarrationVoice {
     private var framesPlayedForCurrentLine: AVAudioFramePosition = 0
     private var currentLineDrained: CheckedContinuation<Void, Never>?
 
-    /// Spoken through instead when Deepgram has no key or fails.
+    /// Spoken through instead when Deepgram has no key or fails: Kokoro if
+    /// its helper is running, the system voice otherwise. Without Kokoro
+    /// here a drawn answer was read by the system voice even with Kokoro up,
+    /// because only the prose path knew about it.
+    private let kokoroVoice: KokoroSpeechClient?
     private let fallbackVoice: LocalSpeechSynthesisClient
     /// A failure benches Deepgram for a while rather than for good: a Wi-Fi
     /// blip or a sleep mid-sentence should not mean the system voice until
@@ -119,8 +125,9 @@ final class NarrationVoice {
     var onDeepgramKeyProblem: ((Error) -> Void)?
     var onDeepgramWorked: (() -> Void)?
 
-    init(fallbackVoice: LocalSpeechSynthesisClient) {
+    init(fallbackVoice: LocalSpeechSynthesisClient, kokoroVoice: KokoroSpeechClient? = nil) {
         self.fallbackVoice = fallbackVoice
+        self.kokoroVoice = kokoroVoice
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
         configuration.httpMaximumConnectionsPerHost = 2
@@ -188,6 +195,7 @@ final class NarrationVoice {
         line.totalFrames = sentence.totalFrames
         line.isDownloaded = !sentence.usedSystemVoice
         line.downloadFailed = sentence.usedSystemVoice
+        if sentence.usedSystemVoice { renderWithKokoro(line) }
         lines.append(line)
         if playerTask == nil { startPlayer() }
     }
@@ -226,6 +234,7 @@ final class NarrationVoice {
         nextLineToPlay = 0
         if playerNode.isPlaying || isPaused { playerNode.stop() }
         fallbackVoice.stopPlayback()
+        kokoroVoice?.stopPlayback()
         currentLineDrained?.resume()
         currentLineDrained = nil
         isSpeaking = false
@@ -292,6 +301,7 @@ final class NarrationVoice {
         playToken += 1
         if playerNode.isPlaying || isPaused { playerNode.stop() }
         fallbackVoice.stopPlayback()
+        kokoroVoice?.stopPlayback()
         if let currentLineIndex, currentLineIndex < lines.count { wake(lines[currentLineIndex]) }
         currentLineDrained?.resume()
         currentLineDrained = nil
@@ -328,6 +338,7 @@ final class NarrationVoice {
         // A replayed sentence already has its audio, or speaks locally.
         guard line.downloadTask == nil, !line.isDownloaded, !line.downloadFailed else { return }
         guard !isDeepgramBenched, !line.text.isEmpty, let apiKey = APIKeyStore.key(for: .deepgram) else {
+            renderWithKokoro(line)
             line.downloadFailed = true
             wake(line)
             startNextDownload(after: line)
@@ -408,6 +419,13 @@ final class NarrationVoice {
         }
     }
 
+    /// Starts Kokoro on the sentence, if its helper is up. Kokoro renders one
+    /// request at a time, so later sentences queue behind this one.
+    private func renderWithKokoro(_ line: Line) {
+        guard let kokoroVoice, kokoroVoice.isReady, !line.text.isEmpty, line.kokoroClip == nil else { return }
+        line.kokoroClip = kokoroVoice.beginGeneratingClip(for: line.text)
+    }
+
     private func startNextDownload(after line: Line) {
         let nextIndex = line.index + 1
         if nextIndex < lines.count { startDownload(lines[nextIndex]) }
@@ -472,6 +490,13 @@ final class NarrationVoice {
 
         if currentLineIsBeingCut { return }
         if line.downloadFailed && line.chunks.isEmpty {
+            if let kokoroVoice, let clip = try? await line.kokoroClip?.value {
+                if currentLineIsBeingCut { return }
+                onLineStarted?(line.index, clip.speechDuration ?? estimatedSeconds(for: line.text))
+                try? await kokoroVoice.play(clip: clip)
+                return
+            }
+            if currentLineIsBeingCut { return }
             let estimate = estimatedSeconds(for: line.text)
             onLineStarted?(line.index, estimate)
             try? await fallbackVoice.speakText(line.text)
