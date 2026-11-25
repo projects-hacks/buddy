@@ -86,6 +86,11 @@ final class TalkOverListener {
         didSet { if isListening != oldValue { onListeningChanged(isListening) } }
     }
     private var audioEngine: AVAudioEngine?
+    /// The Mac's own microphone, read without an engine (see
+    /// startBuiltInMicrophoneCapture), when the headset is playing.
+    private var captureSession: AVCaptureSession?
+    private var captureReceiver: TalkOverCaptureReceiver?
+    private let captureQueue = DispatchQueue(label: "talk-over microphone")
     private var configurationChangeObserver: NSObjectProtocol?
     private var transcriptionSession: (any BuddyStreamingTranscriptionSession)?
     /// Deepgram alone while lecture mode is transcribing a video on the
@@ -182,6 +187,12 @@ final class TalkOverListener {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
         audioEngine = nil
+        if let captureSession {
+            // Stopping blocks until the device has closed: off the main thread.
+            captureQueue.async { captureSession.stopRunning() }
+        }
+        captureSession = nil
+        captureReceiver = nil
         transcriptionSession?.cancel()
         transcriptionSession = nil
         isListening = false
@@ -197,6 +208,10 @@ final class TalkOverListener {
     /// opening the mic). A tap installed with a stale format throws an
     /// Objective-C exception that hangs the app; see BuddyDictationManager.
     private func startMicrophone(generation: Int) throws {
+        if let chosenMicrophone {
+            try startBuiltInMicrophoneCapture(deviceIdentifier: chosenMicrophone)
+            return
+        }
         let engine = AVAudioEngine()
         if UserDefaults.standard.bool(forKey: Self.usesVoiceProcessingDefaultsKey) {
             try engine.inputNode.setVoiceProcessingEnabled(true)
@@ -239,6 +254,49 @@ final class TalkOverListener {
         }
         engine.prepare()
         try engine.start()
+    }
+
+    /// The Mac's own microphone while a Bluetooth headset plays the answer,
+    /// through a capture session rather than an engine. An engine starts an
+    /// output unit on the default device too: measured with a headset
+    /// playing, starting one on the built-in microphone changed the
+    /// headset's sample rate and stream format twice in 0.3 s, which cut
+    /// off the words being spoken and set off two or more "format changed"
+    /// restarts per answer, each cutting again. A capture session opens
+    /// only the input, and the headset's output did not change at all.
+    private func startBuiltInMicrophoneCapture(deviceIdentifier: AudioDeviceID) throws {
+        guard let deviceUID = LectureAudioProcesses.readStringProperty(kAudioDevicePropertyDeviceUID, of: deviceIdentifier),
+              let microphone = AVCaptureDevice(uniqueID: deviceUID) else {
+            throw NSError(domain: "TalkOver", code: 2, userInfo: [NSLocalizedDescriptionKey: "the Mac's own microphone could not be opened"])
+        }
+        let session = AVCaptureSession()
+        let input = try AVCaptureDeviceInput(device: microphone)
+        let output = AVCaptureAudioDataOutput()
+        // Float, one channel, not interleaved: the same shape the engine's tap
+        // delivered, which the recognizers and the loudness gate read.
+        output.audioSettings = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsNonInterleaved: true,
+            AVNumberOfChannelsKey: 1,
+        ]
+        guard session.canAddInput(input), session.canAddOutput(output) else {
+            throw NSError(domain: "TalkOver", code: 3, userInfo: [NSLocalizedDescriptionKey: "the Mac's own microphone could not be read"])
+        }
+        session.addInput(input)
+        session.addOutput(output)
+        let transcriptionSessionForCapture = transcriptionSession
+        let receiver = TalkOverCaptureReceiver { [weak self] buffer in
+            transcriptionSessionForCapture?.appendAudioBuffer(buffer)
+            let decibels = Self.decibels(of: buffer)
+            DispatchQueue.main.async { self?.noteLevel(decibels) }
+        }
+        output.setSampleBufferDelegate(receiver, queue: captureQueue)
+        captureSession = session
+        captureReceiver = receiver
+        // Starting blocks while the device opens: off the main thread.
+        captureQueue.async { session.startRunning() }
     }
 
     private nonisolated static func decibels(of buffer: AVAudioPCMBuffer) -> Float {
@@ -329,5 +387,33 @@ final class TalkOverListener {
                 onRequest(.question(question))
             }
         }
+    }
+}
+
+/// Turns the capture session's sample buffers into the PCM buffers the
+/// recognizers take.
+private final class TalkOverCaptureReceiver: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+    private let onAudioBuffer: (AVAudioPCMBuffer) -> Void
+    private var hasLoggedFirstBuffer = false
+
+    init(onAudioBuffer: @escaping (AVAudioPCMBuffer) -> Void) {
+        self.onAudioBuffer = onAudioBuffer
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer),
+              let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription),
+              let audioFormat = AVAudioFormat(streamDescription: streamDescription) else { return }
+        let frameCount = AVAudioFrameCount(CMSampleBufferGetNumSamples(sampleBuffer))
+        guard frameCount > 0, let audioBuffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: frameCount) else { return }
+        audioBuffer.frameLength = frameCount
+        let copyStatus = CMSampleBufferCopyPCMDataIntoAudioBufferList(
+            sampleBuffer, at: 0, frameCount: Int32(frameCount), into: audioBuffer.mutableAudioBufferList)
+        guard copyStatus == noErr else { return }
+        if !hasLoggedFirstBuffer {
+            hasLoggedFirstBuffer = true
+            TutorDebugLog.write("👂 talk-over: hearing the Mac's own microphone, \(Int(audioFormat.sampleRate)) Hz")
+        }
+        onAudioBuffer(audioBuffer)
     }
 }
